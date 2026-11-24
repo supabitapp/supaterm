@@ -1,3 +1,4 @@
+import { RegistryContext } from "@effect/atom-react";
 import {
   linkableMachines,
   linkedEnvironmentNames,
@@ -6,7 +7,8 @@ import {
 } from "@supaterm/client-runtime/link-request";
 import { createPeerLinkEnvironmentAtoms } from "@supaterm/client-runtime/state/peerLinks";
 import type { EnvironmentId } from "@supaterm/contracts";
-import { useMemo } from "react";
+import { hasThreadLinks, threadLinkRefs } from "@supaterm/shared/threadLinks";
+import { useContext, useEffect, useEffectEvent, useMemo } from "react";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { useEnvironments } from "./environments";
@@ -17,9 +19,11 @@ export const peerLinkEnvironment = createPeerLinkEnvironmentAtoms(connectionAtom
 /**
  * The machines `environmentId` links to, by name, while it offers links, and none otherwise.
  * Its agents can read threads there, and so can a client allowed to read threads on it.
+ * A `wanted` machine this app is not connected to and the names lack makes them reread.
  */
 export function useLinkedEnvironments(
   environmentId: EnvironmentId | null,
+  wanted: ReadonlyArray<EnvironmentId> = [],
 ): ReadonlyMap<EnvironmentId, string> {
   const { environments } = useEnvironments();
   const config = environments.find(
@@ -36,9 +40,38 @@ export function useLinkedEnvironments(
     queried && !namesLinks ? peerLinkEnvironment.list({ environmentId, input: {} }) : null,
   );
   const links = names.data?.links ?? listed.data?.links;
+  const connected = new Set(
+    environments
+      .filter((environment) => environment.connection.phase === "connected")
+      .map((environment) => environment.environmentId),
+  );
+  const namesSource = queried && namesLinks ? environmentId : null;
+  const missing = [...new Set(wanted)].filter((id) => id !== environmentId && !connected.has(id));
+  const refreshKey =
+    namesSource === null || missing.length === 0
+      ? ""
+      : [namesSource, ...[...missing].sort()].join(" ");
+  const registry = useContext(RegistryContext);
+  const refreshLacking = useEffectEvent(() => {
+    if (namesSource !== null)
+      peerLinkEnvironment.refreshNamesLacking(registry, namesSource, missing);
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- links made outside this app are not pushed, so meeting an unknown machine asks the server again
+  useEffect(() => {
+    if (refreshKey !== "") refreshLacking();
+  }, [refreshKey]);
   return useMemo(
     () => linkedEnvironmentNames({ links: offered ? (links ?? []) : [], environments }),
     [environments, links, offered],
+  );
+}
+
+/** Rereads `environmentId`'s link names when a message links a thread on a machine they lack. */
+export function useLinkedThreadLinkNames(markdown: string, environmentId: EnvironmentId) {
+  const linksThreads = hasThreadLinks(markdown);
+  useLinkedEnvironments(
+    linksThreads ? environmentId : null,
+    linksThreads ? threadLinkRefs(markdown, environmentId).map((ref) => ref.environmentId) : [],
   );
 }
 

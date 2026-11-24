@@ -86,6 +86,7 @@ import {
 import { renderAssistantCitationsAsText } from "@supaterm/shared/assistantCitations";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
 import { parseThreadLinkHref } from "@supaterm/shared/threadLinks";
+import { useLinkedThreadLinkNames } from "../../state/peerLinks";
 import { PROMPT_LINK_MAX_PROMPT_LENGTH } from "@supaterm/shared/promptLinks";
 import {
   parseComposerContextHref,
@@ -1378,6 +1379,7 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill> | undefined;
 }) {
   const liveMarkdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
+  useLinkedThreadLinkNames(props.markdown, props.environmentId);
   const threadIcons = useThreadChipIcons(props.environmentId, liveMarkdown);
   const withGallery = useFilePreviewGallery();
   const onImagePress = props.linkHandlers.onImagePress;
@@ -2704,6 +2706,7 @@ function UserMessageContent(props: UserMessageContentProps) {
   const openThreadLink = useOpenThreadLink(props.environmentId);
   const { selectedThread } = useThreadSelection();
   const liveText = useLiveThreadLinkLabels(props.text, props.environmentId);
+  useLinkedThreadLinkNames(props.text, props.environmentId);
   const threadIcons = useThreadChipIcons(props.environmentId, liveText, props.context?.records);
   const text = replaceComposerContextReferences(liveText, (ref) => {
     const available = props.context?.records.some((record) => record.contextId === ref.contextId);

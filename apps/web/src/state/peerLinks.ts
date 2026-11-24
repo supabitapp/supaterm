@@ -1,4 +1,4 @@
-import { useAtomValue } from "@effect/atom-react";
+import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import {
   type LinkableMachine,
   linkableMachines,
@@ -27,6 +27,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Result from "effect/Result";
 import { Atom } from "effect/reactivity";
+import { useContext, useEffect } from "react";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { appAtomRegistry } from "../rpc/atomRegistry";
@@ -58,9 +59,11 @@ const noPeerLinksAtom = Atom.make(false).pipe(Atom.withLabel("peer-links:offered
 /**
  * The machines `environmentId` links to, by name, while it offers links, and none otherwise.
  * Its agents can read threads there, and so can a client allowed to read threads on it.
+ * A `wanted` machine the names lack makes them reread.
  */
 export function useLinkedEnvironments(
   environmentId: EnvironmentId | null,
+  wanted?: EnvironmentId,
 ): ReadonlyMap<EnvironmentId, string> {
   const offered = useAtomValue(
     environmentId === null ? noPeerLinksAtom : supportsPeerLinksAtom(environmentId),
@@ -75,6 +78,13 @@ export function useLinkedEnvironments(
   const listed = useEnvironmentQuery(
     queried && !namesLinks ? peerLinkEnvironment.list({ environmentId, input: {} }) : null,
   );
+  const registry = useContext(RegistryContext);
+  const namesSource = queried && namesLinks ? environmentId : null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- links made outside this client are not pushed, so meeting an unknown machine asks the server again
+  useEffect(() => {
+    if (namesSource === null || wanted === undefined) return;
+    peerLinkEnvironment.refreshNamesLacking(registry, namesSource, [wanted]);
+  }, [registry, namesSource, wanted]);
   return linkedEnvironmentNames({
     links: offered ? (names.data?.links ?? listed.data?.links ?? []) : [],
     environments: identities,
@@ -97,7 +107,7 @@ export function useLinkedThreadLabel(
   environmentId: EnvironmentId | null,
 ): string | undefined {
   const reads = useSupportsLinkedThreadReads(viaEnvironmentId);
-  const links = useLinkedEnvironments(reads ? viaEnvironmentId : null);
+  const links = useLinkedEnvironments(reads ? viaEnvironmentId : null, environmentId ?? undefined);
   return environmentId === null ? undefined : links.get(environmentId);
 }
 
