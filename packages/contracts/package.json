@@ -1,6 +1,6 @@
 {
   "name": "@supaterm/contracts",
-  "version": "26.10.12",
+  "version": "26.10.13",
   "private": true,
   "files": [
     "dist"
