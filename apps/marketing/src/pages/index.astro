@@ -29,7 +29,9 @@ const screenshot = await getImage({
       // Set the platform before first paint so platform-only hero content never flashes.
       {
         const ua = navigator.userAgent;
-        const os = /Win/i.test(ua) ? "win" : /Mac/i.test(ua) ? "mac" : /Linux/i.test(ua) ? "linux" : null;
+        const os = /iPhone|iPad|iPod/i.test(ua)
+          ? null
+          : /Win/i.test(ua) ? "win" : /Mac/i.test(ua) ? "mac" : /Linux/i.test(ua) ? "linux" : null;
         if (os) document.documentElement.dataset.platform = os;
       }
     </script>
@@ -348,8 +350,7 @@ const screenshot = await getImage({
     align-self: center;
   }
 
-  :global([data-platform="win"]) .hero-brew,
-  :global([data-platform="linux"]) .hero-brew {
+  :global(html:not([data-platform="mac"])) .hero-brew {
     display: none;
   }
 
