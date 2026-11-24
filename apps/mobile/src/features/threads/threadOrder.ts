@@ -1,5 +1,5 @@
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
-import { planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
+import { activeThreadSortKey, planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
 import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
 import type { EnvironmentId } from "@supaterm/contracts";
 
@@ -65,9 +65,13 @@ function rowId(row: OrderRow): string {
   return `${row.environmentId}:${row.id}`;
 }
 
+function storedKey(row: OrderRow, section: PendingThreadOrder["section"]) {
+  return (section === "pinned" ? row.pinOrderKey : row.activeOrderKey) ?? null;
+}
+
 function rowOrder(row: OrderRow, section: PendingThreadOrder["section"]) {
   return {
-    key: (section === "pinned" ? row.pinOrderKey : row.activeOrderKey) ?? null,
+    key: section === "pinned" ? storedKey(row, section) : activeThreadSortKey(row),
     anchor: section === "pinned" ? (row.pinnedAt ?? "") : (row.reopenedAt ?? row.createdAt),
   };
 }
@@ -79,12 +83,13 @@ export function createThreadMovePlanner(input: {
   readonly reorderableEnvironmentIds: ReadonlySet<EnvironmentId>;
 }) {
   const orderedIds = input.ordered.map(rowId);
-  const keysById = new Map(
-    (input.allThreads ?? input.ordered).map((row) => [
-      rowId(row),
-      rowOrder(row, input.section).key,
-    ]),
-  );
+  // Hidden rows keep their stored key: only stored keys can collide with a write.
+  const keysById = new Map([
+    ...(input.allThreads ?? input.ordered).map(
+      (row) => [rowId(row), storedKey(row, input.section)] as const,
+    ),
+    ...input.ordered.map((row) => [rowId(row), rowOrder(row, input.section).key] as const),
+  ]);
   const writableIds = new Set(
     (input.allThreads ?? input.ordered)
       .filter((row) => input.reorderableEnvironmentIds.has(row.environmentId))
