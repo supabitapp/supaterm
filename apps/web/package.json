@@ -10,7 +10,8 @@
     "build": "vp build",
     "preview": "vp preview",
     "render:voice-cues": "node scripts/render-voice-input-cues.ts",
-    "test": "vp test run --passWithNoTests --project unit --project browser"
+    "test": "vp test run --passWithNoTests --project unit --project browser",
+    "bench": "vp test bench --passWithNoTests --project \"unit (bench)\""
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
