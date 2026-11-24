@@ -103,6 +103,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes a capture-phase window keydown listener for stash navigation, restore, delete and Escape
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
       const target = event.target;
       if (
         !(target instanceof Node) ||
