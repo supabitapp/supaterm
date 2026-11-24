@@ -1841,9 +1841,10 @@ const canBind = (port) =>
       for (const version of versions) {
         const runtimeDir = `${home}/.supaterm/runtime/versions/${version}`;
         yield* fs.makeDirectory(runtimeDir, { recursive: true });
+        // The runner gets only HOME, so `node` would resolve on sh's default PATH, which may not have it.
         yield* fs.writeFileString(
           `${runtimeDir}/supaterm`,
-          `#!/bin/sh\nexec node '${fakeSupaterm}' '${version}' "$@"\n`,
+          `#!/bin/sh\nexec '${process.execPath}' '${fakeSupaterm}' '${version}' "$@"\n`,
         );
         yield* fs.chmod(`${runtimeDir}/supaterm`, 0o755);
         yield* fs.writeFileString(`${runtimeDir}/.install-complete`, `${version}\n`);
