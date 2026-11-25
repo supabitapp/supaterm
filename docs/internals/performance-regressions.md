@@ -114,6 +114,13 @@ reach the API. Only the server process is measured.
   open thread costs from the fixed cost of the server, which the absolute numbers mix.
 - `--soak <minutes>` reports heap and RSS slopes in MB per hour and the constructors that grew.
   A rising heap floor is a leak; a high but flat one is not.
+- Measure server work with `working`: many worktree threads editing files at once with one client
+  subscribed to all of them. Turns per minute that stay flat as threads are added mean the
+  server, not the agents, is the bottleneck.
+- Upper bounds no user hits daily, such as 20 clients reconnecting at once, run only with
+  `--stress`; the default reconnect is a user's 3 devices holding 10 threads each.
+- `--quick` shortens every window for a per-PR or nightly check; `compare` refuses to mix quick
+  and full runs. `server-metrics --help` says which scenario to trust for what.
 - The quiet and streaming windows save a CPU and an allocation profile, so a regression comes with
   the functions that cost it.
 
