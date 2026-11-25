@@ -36,6 +36,16 @@ const mockRuntimeOptions = {
   authMethodId: "test",
 } satisfies AcpSessionRuntime.AcpSessionRuntimeOptions;
 
+// The spawner extends the real process environment, so the test must set it there.
+const setProcessEnv = (name: string, value: string) => {
+  const previous = process.env[name];
+  process.env[name] = value;
+  return () => {
+    if (previous === undefined) delete process.env[name];
+    else process.env[name] = previous;
+  };
+};
+
 const isPromptStarted = (event: AcpSessionRuntime.AcpSessionRequestLogEvent) =>
   event.method === "session/prompt" && event.status === "started";
 
@@ -533,16 +543,8 @@ describe("AcpSessionRuntime", () => {
     ({ extendEnv }) =>
       Effect.gen(function* () {
         yield* Effect.acquireRelease(
-          Effect.sync(() => {
-            const previous = process.env.SUPATERM_ACP_RUNTIME_AMBIENT;
-            process.env.SUPATERM_ACP_RUNTIME_AMBIENT = "sentinel";
-            return previous;
-          }),
-          (previous) =>
-            Effect.sync(() => {
-              if (previous === undefined) delete process.env.SUPATERM_ACP_RUNTIME_AMBIENT;
-              else process.env.SUPATERM_ACP_RUNTIME_AMBIENT = previous;
-            }),
+          Effect.sync(() => setProcessEnv("SUPATERM_ACP_RUNTIME_AMBIENT", "sentinel")),
+          (restore) => Effect.sync(restore),
         );
         const runtime = yield* AcpSessionRuntime.make({
           ...mockRuntimeOptions,

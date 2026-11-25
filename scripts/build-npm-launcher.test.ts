@@ -64,7 +64,7 @@ const serveFakeRelease = Effect.fn("test.serveFakeRelease")(function* (root: str
   yield* fs.chmod(path.join(root, "release", stem, "supaterm"), 0o755);
   const tar = yield* run("tar", ["-czf", archiveName, stem], {
     cwd: path.join(root, "release"),
-    env: { PATH: process.env.PATH },
+    env: { PATH: (yield* HostProcess.Environment).PATH },
   });
   assert.equal(tar.exitCode, 0, tar.stderr);
   const archive = yield* fs.readFile(path.join(root, "release", archiveName));
@@ -138,7 +138,7 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
         yield* fs.makeDirectory(installed);
         const unpack = yield* run("tar", ["-xzf", output.tarball, "-C", installed], {
           cwd: root,
-          env: { PATH: process.env.PATH },
+          env: { PATH: (yield* HostProcess.Environment).PATH },
         });
         assert.equal(unpack.exitCode, 0, unpack.stderr);
         const packageDir = path.join(installed, "package");
@@ -148,7 +148,7 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
         release.failNextRequests(504, 524);
         const home = path.join(root, "home");
         const env = {
-          PATH: process.env.PATH,
+          PATH: (yield* HostProcess.Environment).PATH,
           SUPATERM_HOME: home,
           SUPATERM_RELEASE_BASE_URL: release.baseUrl,
         };

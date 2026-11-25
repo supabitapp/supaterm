@@ -1113,9 +1113,10 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
               }),
           ),
         );
+        const hostEnv = yield* HostProcess.Environment;
         const baseEnv = {
-          ...process.env,
-          ...unsetInheritedRepositoryEnv(process.env, hostPlatform),
+          ...hostEnv,
+          ...unsetInheritedRepositoryEnv(hostEnv, hostPlatform),
           // Status polling runs beside the user's own git commands; without this,
           // `git status` takes index.lock to save its refreshed index.
           GIT_OPTIONAL_LOCKS: "0",

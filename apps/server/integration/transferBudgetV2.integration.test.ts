@@ -34,6 +34,7 @@ import {
   type ThreadId,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -659,10 +660,17 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
     }
     const fs = yield* FileSystem.FileSystem;
     const report = formatTransferBudgetReport(runs);
+    const outputPaths = yield* Config.all({
+      report: Config.String("SUPATERM_TRANSFER_BUDGET_REPORT_PATH").pipe(Config.withDefault("")),
+      result: Config.String("SUPATERM_TRANSFER_BUDGET_RESULT_PATH").pipe(Config.withDefault("")),
+      scenarios: Config.String("SUPATERM_TRANSFER_BUDGET_SCENARIOS_PATH").pipe(
+        Config.withDefault(""),
+      ),
+    });
     for (const [path, contents] of [
-      [process.env.SUPATERM_TRANSFER_BUDGET_REPORT_PATH, report],
-      [process.env.SUPATERM_TRANSFER_BUDGET_RESULT_PATH, formatTransferBudgetResult(runs)],
-      [process.env.SUPATERM_TRANSFER_BUDGET_SCENARIOS_PATH, formatTransferBudgetScenarios(runs)],
+      [outputPaths.report, report],
+      [outputPaths.result, formatTransferBudgetResult(runs)],
+      [outputPaths.scenarios, formatTransferBudgetScenarios(runs)],
     ])
       if (path && contents) yield* fs.writeFileString(path, contents);
     yield* Effect.log(report);

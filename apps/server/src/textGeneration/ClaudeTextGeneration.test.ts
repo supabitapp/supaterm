@@ -80,8 +80,8 @@ function withFakeClaudeEnv<A, E, R>(
     const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-claude-text-" });
     const binDir = yield* makeFakeClaudeBinary(tempDir, input.lifecyclePort);
     const pathDelimiter = (yield* HostProcess.isWindows) ? ";" : ":";
+    const hostEnv = yield* HostProcess.Environment;
     const fakeClaudeEnv: Record<string, string | undefined> = {
-      PATH: `${binDir}${pathDelimiter}${process.env.PATH ?? ""}`,
       SUPATERM_FAKE_CLAUDE_OUTPUT: input.output,
       SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE: input.rejectsNoSessionPersistence
         ? "1"
@@ -99,24 +99,20 @@ function withFakeClaudeEnv<A, E, R>(
       SUPATERM_FAKE_CLAUDE_SETTINGS_LOG: input.settingsLog,
       SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE: input.configDirMustBe,
     };
-    const previousEnv = Object.fromEntries(
-      Object.keys(fakeClaudeEnv).map((name) => [name, process.env[name]]),
-    );
-    const assignEnv = (values: Record<string, string | undefined>) => {
-      for (const [name, value] of Object.entries(values)) {
-        if (value === undefined) delete process.env[name];
-        else process.env[name] = value;
-      }
+    const environment: NodeJS.ProcessEnv = {
+      ...Object.fromEntries(
+        Object.entries(hostEnv).filter(([name]) => !name.startsWith("SUPATERM_FAKE_CLAUDE_")),
+      ),
+      ...Object.fromEntries(
+        Object.entries(fakeClaudeEnv).filter(([, value]) => value !== undefined),
+      ),
+      PATH: `${binDir}${pathDelimiter}${hostEnv.PATH ?? ""}`,
     };
-    yield* Effect.acquireRelease(
-      Effect.sync(() => assignEnv(fakeClaudeEnv)),
-      () => Effect.sync(() => assignEnv(previousEnv)),
-    );
 
     const config = decodeClaudeSettings(input.claudeConfig ?? {});
     const textGeneration = yield* makeClaudeTextGeneration(
       config,
-      undefined,
+      environment,
       Effect.succeed(SYNTHETIC_CLAUDE_MODEL_CATALOG),
       input.fastModeBlocked,
     );
