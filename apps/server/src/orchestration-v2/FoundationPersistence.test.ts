@@ -192,9 +192,19 @@ const seedCompaction = Effect.fnUntraced(function* () {
   ) SELECT 'event-' || n, 'thread', 'thread', n,
     CASE WHEN n IN (1, 51, 101) THEN 'message.updated' ELSE 'thread.visited' END,
     '2026-10-17', 'server', '{"id":"message"}', '{}', 2 FROM history`;
+  // A pass a day ago marked the whole log; projections cover it.
+  yield* sql`INSERT INTO orchestration_v2_projection_metadata (
+    projection_name, schema_version, last_sequence, updated_at
+  ) VALUES
+    ('event-log-prune-mark', 2, 151, '1969-12-30T00:00:00.000Z'),
+    ('thread-projections', 2, 151, '1969-12-30T00:00:00.000Z')
+  ON CONFLICT(projection_name) DO UPDATE SET last_sequence = excluded.last_sequence`;
 });
 
-it.effect("discovers on the reader worker and deletes on the writer", () =>
+it.effect.each([
+  { pass: "compactEventStore", deleted: 148 },
+  { pass: "pruneEventStore", deleted: 150 },
+] as const)("$pass discovers on the reader worker and deletes on the writer", ({ pass, deleted }) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -206,11 +216,12 @@ it.effect("discovers on the reader worker and deletes on the writer", () =>
       yield* sql`SELECT 1`.pipe(NodeSqliteClient.readOnly);
       workerStatements.length = 0;
       const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
-      const result = yield* maintenance.compactEventStore();
-      assert.equal(result.deletedEventCount, 148);
+      const result = yield* maintenance[pass]();
+      assert.equal(result.deletedEventCount, deleted);
       const writer = workerStatements.filter((statement) => !statement.readOnly);
+      // Only the in-transaction check for rows appended during the pass reads on the writer.
       assert.deepEqual(
-        writer.filter(({ sql }) => /\bSELECT\b/.test(sql)),
+        writer.filter(({ sql }) => /\bSELECT\b/.test(sql) && !sql.includes("AS prompt_sequence")),
         [],
       );
       assert(workerStatements.some(({ readOnly, sql }) => readOnly && /\bSELECT\b/.test(sql)));

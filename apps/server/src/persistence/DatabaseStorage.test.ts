@@ -78,6 +78,7 @@ const compactionLayer = (
     Layer.provide(
       Layer.succeed(ProjectionMaintenance.ProjectionMaintenanceV2, {
         compactEventStore,
+        pruneEventStore: () => Effect.die("unexpected prune"),
       }),
     ),
     Layer.provide(Sqlite.layerMemory),
