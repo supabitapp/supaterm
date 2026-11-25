@@ -239,6 +239,9 @@ export const make = Effect.gen(function* () {
       let firstUnknown:
         | { readonly candidate: DiscoveryTokenHost; readonly detail: string }
         | undefined;
+      let firstUnreadable:
+        | { readonly candidate: DiscoveryTokenHost; readonly detail: string }
+        | undefined;
       for (const candidate of tokenHosts) {
         const viewer = yield* api
           .rest({ host: candidate.host, operation: "discovery", path: "user" })
@@ -271,6 +274,8 @@ export const make = Effect.gen(function* () {
         }
         if (viewer.failure._tag === "GitHubApiAuthenticationError") {
           firstInvalid ??= candidate;
+        } else if (viewer.failure._tag === "SettingsSecretUnresolvedError") {
+          firstUnreadable ??= { candidate, detail: viewer.failure.message };
         } else {
           // Only a refusal says the token is bad; a network error or pause says nothing.
           firstUnknown ??= { candidate, detail: viewer.failure.message };
@@ -278,8 +283,11 @@ export const make = Effect.gen(function* () {
       }
 
       const accounts = discoveryTokenAuthAccounts(cli);
+      // A saved reference that cannot be read is a sign-in problem, never a reason to fall back.
+      const unknown = firstUnreadable === undefined ? firstUnknown : undefined;
       const failed =
-        firstUnknown ??
+        firstUnreadable ??
+        unknown ??
         (firstInvalid === undefined
           ? undefined
           : {
@@ -303,10 +311,10 @@ export const make = Effect.gen(function* () {
         status: "available" as const,
         auth: {
           ...providerAuth({
-            status: firstUnknown === undefined ? "unauthenticated" : "unknown",
+            status: unknown === undefined ? "unauthenticated" : "unknown",
             host: failed.candidate.host,
             detail:
-              firstUnknown === undefined
+              unknown === undefined
                 ? failed.detail
                 : `Could not check the token for ${failed.candidate.host}: ${failed.detail}`,
           }),
