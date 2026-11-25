@@ -52,6 +52,7 @@ export class ElectronApp extends Context.Service<
      * pinned to `en-US` however the machine is configured.
      */
     readonly systemLocale: Effect.Effect<string>;
+    readonly preferredSystemLanguages: Effect.Effect<ReadonlyArray<string>>;
     readonly environmentMachineIcons: Effect.Effect<DesktopEnvironmentMachineIcons>;
     readonly whenReady: Effect.Effect<void, ElectronAppWhenReadyError>;
     readonly quit: Effect.Effect<void>;
@@ -154,6 +155,7 @@ export const make = ElectronApp.of({
     };
   }),
   name: Effect.sync(() => Electron.app.name),
+  preferredSystemLanguages: Effect.sync(() => Electron.app.getPreferredSystemLanguages()),
   systemLocale: Effect.gen(function* () {
     const platform = yield* HostProcess.Platform;
     let identifier = Electron.app.getSystemLocale();
