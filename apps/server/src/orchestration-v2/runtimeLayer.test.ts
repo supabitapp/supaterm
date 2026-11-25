@@ -4267,8 +4267,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       return { threadId, activeRun, wakeRun };
     });
 
-  // regression: #29898 settle on merge cancelled a watch wake queued behind the finished run
-  it.effect("automatic settlement refuses a held wake only within the queued-turn grace", () =>
+  // regression: #29898 Done on merge cancelled a watch wake queued behind the finished run
+  it.effect("automatic completion refuses a held wake only within the queued-turn grace", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const eventSink = yield* EventSink.EventSinkV2;

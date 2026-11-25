@@ -882,14 +882,14 @@ it.effect.each([
   }),
 );
 
-// The agent reads a message steered in after it asked to settle and ends on a question.
+// The agent reads a message steered in after it asked to be marked Done and ends on a question.
 it.effect.each(["steer", "promoted_queued_to_steer"] as const)(
-  "markDoneAfterRun keeps the thread open after a %s read once the settle was requested",
+  "markDoneAfterRun keeps the thread open after a %s read once Done was requested",
   (inputIntent) =>
     Effect.gen(function* () {
-      const projectId = ProjectId.make("project:thread-management:settle-after-steer");
-      const threadId = ThreadId.make("thread:thread-management:settle-after-steer");
-      const runId = RunId.make("run:thread-management:settle-after-steer");
+      const projectId = ProjectId.make("project:thread-management:done-after-steer");
+      const threadId = ThreadId.make("thread:thread-management:done-after-steer");
+      const runId = RunId.make("run:thread-management:done-after-steer");
       yield* TestClock.adjust(Duration.millis(60_000));
       const dispatched: Array<string> = [];
       const layerTest = ThreadManagementService.layer.pipe(

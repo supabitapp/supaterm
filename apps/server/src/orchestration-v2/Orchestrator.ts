@@ -761,7 +761,7 @@ function delegatedTasksStopEffect(command: {
 }
 
 const WORKSPACE_PREPARATION_INPUT = "Preparing workspace";
-/** How long automatic settlement waits for a queued turn to start. */
+/** How long automatic completion waits for a queued turn to start. */
 export const QUEUED_TURN_START_GRACE_MS = 2 * 60 * 1_000;
 const RUNTIME_REQUEST_DELIVERY_FAILED_MESSAGE =
   "Supaterm could not confirm that your answer reached the agent. If the run stays stuck, stop it and try again.";
@@ -15920,8 +15920,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             cause: `Thread ${command.threadId} changed before automatic completion.`,
           });
         }
-        // The completion reaction starts or holds the queue just after a run ends; settling
-        // first would cancel an automatic wake it was about to start.
+        // The completion reaction starts or holds the queue just after a run ends; marking the
+        // thread Done first would cancel an automatic wake it was about to start.
         const { runs } = yield* loadProjectionForCommand(command, ["runs"]);
         const endedAt = latestExecutedRun(runs)?.completedAt;
         if (
