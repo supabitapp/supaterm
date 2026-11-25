@@ -584,6 +584,8 @@ describe("AcpSessionRuntime", () => {
       expect(created?.payload).toMatchObject({
         mcpServers: [{ type: "acp", name: "supaterm", serverId: "supaterm" }],
       });
+      // This agent does not advertise additional directories, so the thread's other folders stay out.
+      expect(created?.payload).not.toHaveProperty("additionalDirectories");
     }).pipe(
       Effect.provide(
         AcpSessionRuntime.layer({
@@ -597,6 +599,7 @@ describe("AcpSessionRuntime", () => {
           authMethodId: "test",
           mcpServers: [{ type: "stdio", name: "supaterm", command: "/usr/bin/node", args: [] }],
           acpMcpServers: [{ type: "acp", name: "supaterm", serverId: "supaterm" }],
+          extraRoots: ["/tmp/supaterm-tracked"],
           requestLogger: (event) =>
             Effect.sync(() => {
               requestEvents.push(event);
@@ -1085,7 +1088,7 @@ describe("AcpSessionRuntime", () => {
           requestEvents.find((event) => event.method === method && event.status === "started")
             ?.payload,
         ).toMatchObject({
-          additionalDirectories: ["/tmp/supaterm-attachments"],
+          additionalDirectories: ["/tmp/supaterm-attachments", "/tmp/supaterm-tracked"],
           _meta: { negotiated: "0.0.0" },
         });
       }
@@ -1101,6 +1104,7 @@ describe("AcpSessionRuntime", () => {
             },
           },
           additionalDirectories: ["/tmp/supaterm-attachments"],
+          extraRoots: ["/tmp/supaterm-tracked"],
           sessionMeta: (initializeResult) => ({
             negotiated: initializeResult.agentInfo?.version ?? "none",
           }),
