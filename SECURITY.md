@@ -68,10 +68,11 @@ once it has one.
   `terminal:operate` or `orchestration:operate`: reaching via another route
   what its shell can already do crosses no boundary, though it can still be an
   ordinary bug. That stops at what a shell as the server's OS user cannot reach:
-  another client's device, what another scope guards by name, and access that
-  outlives the session's revocation. Where the session can obtain that shell,
-  file contents are within its reach, so reading a file via a route that does
-  not check `filesystem:read` crosses no boundary.
+  another client's device, what another scope guards by name (as
+  `providers:manage` does for secret references), and access that outlives the
+  session's revocation. Where the session can obtain that shell, file contents
+  are within its reach, so reading a file via a route that does not check
+  `filesystem:read` crosses no boundary.
 - The default grant includes `access:write`, so a full-scope session can mint
   more pairing links and sessions. They appear in Sharing & access, and Revoke
   others removes them.
