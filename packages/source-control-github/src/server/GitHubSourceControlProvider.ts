@@ -1,5 +1,4 @@
 import { SourceControlProviderKind } from "@supaterm/contracts";
-import * as Data from "effect/Data";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -83,10 +82,10 @@ function toChangeRequest(record: NormalizedGitHubPullRequestRecord): ChangeReque
   return { provider: SourceControlProviderKind.make("github"), ...record };
 }
 
-class GitHubFailure extends Data.TaggedError("GitHubFailure")<{
-  readonly detail: string;
-  readonly cause: unknown;
-}> {}
+class GitHubFailure extends Schema.TaggedError<GitHubFailure>()("GitHubFailure", {
+  detail: Schema.String,
+  cause: Schema.Defect(),
+}) {}
 
 class GitHubRepositoryLookupError extends Schema.TaggedError<GitHubRepositoryLookupError>()(
   "GitHubRepositoryLookupError",

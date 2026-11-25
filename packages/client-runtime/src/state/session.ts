@@ -10,7 +10,6 @@ import {
   sessionGrantsScope,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
@@ -42,8 +41,9 @@ import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAut
 import { followStreamInEnvironment } from "./environmentStreams.ts";
 
 /** @public Required to name the error in consumers' inferred session results. */
-export class SessionHttpClientUnavailable extends Data.TaggedError(
+export class SessionHttpClientUnavailable extends Schema.TaggedError<SessionHttpClientUnavailable>()(
   "SessionHttpClientUnavailable",
+  {},
 ) {}
 
 function initialConfigOption<E>(
@@ -89,9 +89,13 @@ export function sessionDeniesScope(
   return result._tag === "Failure" && isSessionRejection(result.cause);
 }
 
+const isRemoteEnvironmentAuthUndeclaredStatusError = Schema.is(
+  RemoteEnvironmentAuthUndeclaredStatusError,
+);
+
 function isSessionRejection(cause: Cause.Cause<unknown>): boolean {
   const error = Option.getOrNull(Cause.findErrorOption(cause));
-  if (error instanceof RemoteEnvironmentAuthUndeclaredStatusError) {
+  if (isRemoteEnvironmentAuthUndeclaredStatusError(error)) {
     return error.status === 401 || error.status === 403;
   }
   return isSessionRejectionError(error);

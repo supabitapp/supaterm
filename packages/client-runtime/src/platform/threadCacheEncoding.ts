@@ -3,7 +3,6 @@ import {
   omitLocalVisibleTurnItems,
   restoreLocalVisibleTurnItems,
 } from "@supaterm/shared/orchestrationV2BoundedSnapshot";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -37,7 +36,10 @@ const StoredCompactThreadSnapshot = StoredOrchestrationThreadSnapshot.mapFields(
   })),
 }));
 
-class InvalidThreadCache extends Data.TaggedError("InvalidThreadCache") {}
+class InvalidThreadCache extends Schema.TaggedError<InvalidThreadCache>()(
+  "InvalidThreadCache",
+  {},
+) {}
 
 const decodeCompatible = Schema.decodeUnknownEffect(
   Schema.fromJsonString(

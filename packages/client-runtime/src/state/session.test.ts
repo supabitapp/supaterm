@@ -514,7 +514,10 @@ describe("sessionDeniesScope", () => {
     expect(
       sessionDeniesScope(
         failed(
-          new RemoteEnvironmentAuthUndeclaredStatusError("https://host/api/auth/session", 401),
+          new RemoteEnvironmentAuthUndeclaredStatusError({
+            requestUrl: "https://host/api/auth/session",
+            status: 401,
+          }),
         ),
         "orchestration:read",
       ),
@@ -522,7 +525,10 @@ describe("sessionDeniesScope", () => {
     expect(
       sessionDeniesScope(
         failed(
-          new RemoteEnvironmentAuthUndeclaredStatusError("https://host/api/auth/session", 502),
+          new RemoteEnvironmentAuthUndeclaredStatusError({
+            requestUrl: "https://host/api/auth/session",
+            status: 502,
+          }),
         ),
         "orchestration:read",
       ),

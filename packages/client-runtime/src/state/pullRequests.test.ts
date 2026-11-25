@@ -14,7 +14,7 @@ import {
   type PullRequestListEntry,
 } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
-import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 import * as Deferred from "effect/Deferred";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
@@ -66,7 +66,7 @@ const trustedRouting = {
   forget: () => Effect.void,
 };
 
-class MutationRefused extends Data.TaggedError("MutationRefused") {}
+class MutationRefused extends Schema.TaggedError<MutationRefused>()("MutationRefused", {}) {}
 
 it.effect.each([
   "prefers the local environment with the same github account",

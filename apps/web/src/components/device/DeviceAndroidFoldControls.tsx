@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema";
 import type { DeviceHubAccess } from "@supaterm/client-runtime/state/deviceHubAccess";
 import { useAtomMount, useAtomSet, useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
@@ -6,6 +7,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { AndroidFoldError, setAndroidFold, type AndroidFoldPosture } from "./deviceFold";
 import { androidFoldReadAtom, androidFoldViewAtom, foldAngle, NOOP_ATOM } from "./deviceHubAtoms";
 import { DeviceDuoGlyph } from "./DeviceDuoGlyph";
+
+const isAndroidFoldError = Schema.is(AndroidFoldError);
 
 export function DeviceAndroidFoldControls(props: {
   readonly access: DeviceHubAccess;
@@ -46,7 +49,7 @@ export function DeviceAndroidFoldControls(props: {
       setAndroidFold(access, props.deviceId, posture, controller.signal);
     void send(props.access)
       .catch(async (cause: unknown) => {
-        if (!(cause instanceof AndroidFoldError && cause.status === 401)) throw cause;
+        if (!(isAndroidFoldError(cause) && cause.status === 401)) throw cause;
         const renewed = await props.renewAccess();
         if (!renewed || controller.signal.aborted) throw cause;
         return send(renewed);

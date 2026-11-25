@@ -80,12 +80,14 @@ import * as LocalDeviceHost from "./LocalDeviceHost.ts";
 
 export const DEVICE_HUB_ROUTE_PREFIX = "/api/device-hub";
 
+const isSshCommandError = Schema.is(SshCommandError);
+
 const sshProbeFailureMessage = (error: DeviceHost.DeviceHostError): string => {
   if (SshDeviceHost.isSshConnectError(error.cause)) return error.cause.message;
   const windows = SshDeviceHost.isSshWindowsHostError(error.cause) ? error.cause : null;
   const cause = windows ? windows.cause : error.cause;
   if (
-    !(cause instanceof SshCommandError) ||
+    !isSshCommandError(cause) ||
     cause.exitCode === null ||
     cause.exitCode < 1 ||
     (cause.exitCode > 254 && cause.exitCode !== 9009)
@@ -1372,7 +1374,7 @@ export const make = Effect.gen(function* () {
       }).pipe(
         Effect.mapError((error) =>
           error._tag === "DeviceHostError" &&
-          (error.cause instanceof SshCommandError ||
+          (isSshCommandError(error.cause) ||
             SshDeviceHost.isSshConnectError(error.cause) ||
             SshDeviceHost.isSshWindowsHostError(error.cause))
             ? new DeviceHostUnavailableError({

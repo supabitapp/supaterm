@@ -32,14 +32,16 @@ interface FilePreviewSessionOptions {
   readonly Viewer: ComponentType<FilePreviewViewerProps>;
 }
 
-class PreviewResolutionError extends Error {
-  constructor(
-    override readonly cause: unknown,
-    readonly fallbackMessage: string,
-  ) {
-    super(fallbackMessage, { cause });
+class PreviewResolutionError extends Schema.TaggedError<PreviewResolutionError>()(
+  "PreviewResolutionError",
+  { cause: Schema.Defect(), fallbackMessage: Schema.String },
+) {
+  override get message(): string {
+    return this.fallbackMessage;
   }
 }
+
+const isPreviewResolutionError = Schema.is(PreviewResolutionError);
 
 const isAssetNotFoundError = Schema.is(AssetWorkspaceAssetNotFoundError);
 
@@ -63,7 +65,10 @@ async function resolvePreviewUri(
   if ("uri" in item) return { uri: item.uri };
   if ("attachment" in item) {
     return loadLocalAttachmentPreview(item.attachment, signal).catch((error: unknown) => {
-      throw new PreviewResolutionError(error, "Attach the file again and retry.");
+      throw new PreviewResolutionError({
+        cause: error,
+        fallbackMessage: "Attach the file again and retry.",
+      });
     });
   }
   // Refresh expired URLs before handing them to Quick Look or ACTION_VIEW, which retain them.
@@ -73,7 +78,10 @@ async function resolvePreviewUri(
       return value;
     })
     .catch((error: unknown) => {
-      throw new PreviewResolutionError(error, remotePreviewFailureMessage(error));
+      throw new PreviewResolutionError({
+        cause: error,
+        fallbackMessage: remotePreviewFailureMessage(error),
+      });
     });
   return { uri: url + (item.srcFragment ?? "") };
 }
@@ -109,10 +117,9 @@ function ResolvedFilePreview(
     items.map((item) => ("uri" in item ? item.uri : undefined)),
   );
   const onResolutionError = useEffectEvent((error: unknown) => {
-    const failure =
-      error instanceof PreviewResolutionError
-        ? error
-        : new PreviewResolutionError(error, "Try again.");
+    const failure = isPreviewResolutionError(error)
+      ? error
+      : new PreviewResolutionError({ cause: error, fallbackMessage: "Try again." });
     if (props.onOpenError) props.onOpenError(failure.cause);
     else Dialog.alert("Could not open preview", failure.fallbackMessage);
     props.onRequestClose();

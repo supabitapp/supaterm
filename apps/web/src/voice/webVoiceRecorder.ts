@@ -48,7 +48,7 @@ export function readVoiceRecording(uri: string): VoiceRecording {
   if (!recording) throw new Error("The recording is no longer available.");
   if (recording.durationMs < TRANSCRIPTION_MIN_DURATION_MS) {
     const { message } = new TranscriptionError({ reason: "audioTooShort" });
-    throw new VoiceTranscriptionError("tooShort", message);
+    throw new VoiceTranscriptionError({ code: "tooShort", message });
   }
   return recording;
 }

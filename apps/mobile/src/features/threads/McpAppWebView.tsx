@@ -304,7 +304,8 @@ export function ThreadMcpApp(props: {
           attachment: { name, mimeType },
           signal: new AbortController().signal,
         });
-        if (!shared) throw new McpAppHostRefusal("Sharing is not available on this device.");
+        if (!shared)
+          throw new McpAppHostRefusal({ message: "Sharing is not available on this device." });
       },
     });
     const next = makeMcpAppHost({
@@ -318,15 +319,15 @@ export function ThreadMcpApp(props: {
       ...requests,
       openLink: async (url) => {
         if (!(await confirm(`Open a link from ${app.server}?`, url, "Open"))) {
-          throw new McpAppHostRefusal("Declined by the user.");
+          throw new McpAppHostRefusal({ message: "Declined by the user." });
         }
         if (!(await tryOpenExternalUrl(url, "mcp-app"))) {
-          throw new McpAppHostRefusal("The link could not be opened.");
+          throw new McpAppHostRefusal({ message: "The link could not be opened." });
         }
       },
       sendMessage: async (text) => {
         if (!(await confirm(`Send this message from ${app.server}?`, text, "Send"))) {
-          throw new McpAppHostRefusal("Declined by the user.");
+          throw new McpAppHostRefusal({ message: "Declined by the user." });
         }
 
         await enqueueThreadOutboxMessage({

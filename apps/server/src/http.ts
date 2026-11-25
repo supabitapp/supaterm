@@ -25,7 +25,6 @@ import {
 import { decodeOtlpTraceRecords } from "@supaterm/shared/observability";
 import * as ByteSize from "effect/ByteSize";
 import * as Context from "effect/Context";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -447,9 +446,10 @@ export const layerDesktopReadinessProofRoute = HttpRouter.add(
   }),
 );
 
-class DecodeOtlpTraceRecordsError extends Data.TaggedError("DecodeOtlpTraceRecordsError")<{
-  readonly cause: unknown;
-}> {}
+class DecodeOtlpTraceRecordsError extends Schema.TaggedError<DecodeOtlpTraceRecordsError>()(
+  "DecodeOtlpTraceRecordsError",
+  { cause: Schema.Defect() },
+) {}
 
 // Renderers export up to once a second while they have spans buffered, so
 // tracing this proxy would add more server spans than it forwards.

@@ -90,7 +90,10 @@ export const executeAuthenticatedEnvironmentHttpRequest = Effect.fn(
   }).pipe(
     Effect.timeoutOrElse({
       duration: input.timeoutMs,
-      orElse: () => Effect.fail(new RemoteEnvironmentAuthTimeoutError(requestUrl, input.timeoutMs)),
+      orElse: () =>
+        Effect.fail(
+          new RemoteEnvironmentAuthTimeoutError({ requestUrl, timeoutMs: input.timeoutMs }),
+        ),
     }),
   );
 });

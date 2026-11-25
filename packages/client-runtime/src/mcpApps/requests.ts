@@ -35,9 +35,10 @@ const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
 function commandValue<Value>(result: AtomCommandResult<Value, unknown>): Value {
   if (result._tag === "Success") return result.value;
   const error = squashAtomCommandFailure(result);
-  throw new McpAppHostRefusal(
-    error instanceof Error && error.message.trim() !== "" ? error.message : "Request failed.",
-  );
+  throw new McpAppHostRefusal({
+    message:
+      error instanceof Error && error.message.trim() !== "" ? error.message : "Request failed.",
+  });
 }
 
 export function makeMcpAppRequests(options: {
@@ -70,12 +71,13 @@ export function makeMcpAppRequests(options: {
       const info = commandValue(
         await options.commands().toolInfo({ environmentId, input: { ...input, name } }),
       );
-      if (!info.callable) throw new McpAppHostRefusal("This app cannot call that tool.");
+      if (!info.callable)
+        throw new McpAppHostRefusal({ message: "This app cannot call that tool." });
       if (
         !info.readOnly &&
         !(await options.confirmTool({ name, title: info.title, arguments: args }))
       ) {
-        throw new McpAppHostRefusal("Declined by the user.");
+        throw new McpAppHostRefusal({ message: "Declined by the user." });
       }
       return commandValue(
         await options.commands().callTool({
@@ -106,7 +108,7 @@ export function makeMcpAppRequests(options: {
     downloadFile: async (files) => {
       const { environmentId, input } = scope();
       if (!(await options.confirmDownload(files))) {
-        throw new McpAppHostRefusal("Declined by the user.");
+        throw new McpAppHostRefusal({ message: "Declined by the user." });
       }
       for (const file of files) {
         let bytes: Uint8Array | undefined;
@@ -124,9 +126,10 @@ export function makeMcpAppRequests(options: {
           const declared = (content as { readonly mimeType?: unknown } | undefined)?.mimeType;
           if (typeof declared === "string") mimeType = declared;
         }
-        if (bytes === undefined) throw new McpAppHostRefusal(`${file.name} has no contents.`);
+        if (bytes === undefined)
+          throw new McpAppHostRefusal({ message: `${file.name} has no contents.` });
         if (bytes.byteLength > MAX_DOWNLOAD_BYTES) {
-          throw new McpAppHostRefusal(`${file.name} is too large to save.`);
+          throw new McpAppHostRefusal({ message: `${file.name} is too large to save.` });
         }
         await options.saveFile({ name: file.name, mimeType, bytes });
       }

@@ -40,6 +40,7 @@ import { isValidSearchUrlTemplate } from "@supaterm/shared/preview";
 import { PREVIEW_VIEWPORT_PRESETS } from "@supaterm/shared/previewViewport";
 import { EllipsisVerticalIcon, PlusIcon } from "@supaterm/icons";
 import { useId, useRef, useState } from "react";
+import * as Schema from "effect/Schema";
 
 import { ScreenRotationIcon } from "~/browser/ScreenRotationIcon";
 import { AnimatedHeight } from "~/components/AnimatedHeight";
@@ -182,12 +183,16 @@ const zoomLabel = (zoomFactor: number) => `${Math.round(zoomFactor * 100)}%`;
 
 /** IPC carries reason tokens inside messages; treat unknown tokens as read failures without exposing raw
  * text. */
-class ProfileLimitReachedError extends Error {
-  constructor() {
-    super("Browser profile limit reached.");
-    this.name = "ProfileLimitReachedError";
+class ProfileLimitReachedError extends Schema.TaggedError<ProfileLimitReachedError>()(
+  "ProfileLimitReachedError",
+  {},
+) {
+  override get message(): string {
+    return "Browser profile limit reached.";
   }
 }
+
+const isProfileLimitReachedError = Schema.is(ProfileLimitReachedError);
 
 export const importFailureReason = (cause: unknown): BrowserImportFailureReason => {
   const message = String((cause as { message?: unknown } | undefined)?.message ?? "");
@@ -253,8 +258,9 @@ async function importBrowserCookiesIntoTarget(
           await clearBrowserProfileData(bridge, [environmentId], input.target.profileId).catch(
             () => undefined,
           );
-          const reason =
-            cause instanceof ProfileLimitReachedError ? "profileLimitReached" : "profileNotSaved";
+          const reason = isProfileLimitReachedError(cause)
+            ? "profileLimitReached"
+            : "profileNotSaved";
           throw new Error(`Importing cookies from ${source.id} failed: ${reason}.`, { cause });
         }
       } else {

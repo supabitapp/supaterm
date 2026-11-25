@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema";
 import { replaceTextRange } from "@supaterm/shared/composerTrigger";
 
 import {
@@ -6,6 +7,8 @@ import {
   type VoiceRecordingHandOff,
   type VoiceTranscriber,
 } from "./transcription.ts";
+
+const isVoiceTranscriptionError = Schema.is(VoiceTranscriptionError);
 
 export const VOICE_RECORDING_LIMIT_SECONDS = 5 * 60;
 
@@ -238,14 +241,14 @@ function preparationErrorMessage(error: unknown): string {
 }
 
 function isTooShort(error: unknown): boolean {
-  return error instanceof VoiceTranscriptionError && error.code === "tooShort";
+  return isVoiceTranscriptionError(error) && error.code === "tooShort";
 }
 
 function transcriptionErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message === "voice-operation-busy") {
     return "Voice transcription is still finishing. Try again shortly.";
   }
-  if (error instanceof VoiceTranscriptionError && error.code === "refused") {
+  if (isVoiceTranscriptionError(error) && error.code === "refused") {
     return error.message;
   }
   return "Could not transcribe this recording.";

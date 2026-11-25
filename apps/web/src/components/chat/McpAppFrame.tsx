@@ -257,7 +257,7 @@ export function McpAppFrame(props: {
       const approved = await requestConfirmDialog(message);
 
       if (approved === undefined) {
-        throw new McpAppHostRefusal("Supaterm could not ask for approval here.");
+        throw new McpAppHostRefusal({ message: "Supaterm could not ask for approval here." });
       }
       return approved;
     };
@@ -285,15 +285,16 @@ export function McpAppFrame(props: {
       ...requests,
       openLink: async (url) => {
         if (document.activeElement !== frameRef.current || !navigator.userActivation?.isActive) {
-          throw new McpAppHostRefusal("Links open only from a click in the app.");
+          throw new McpAppHostRefusal({ message: "Links open only from a click in the app." });
         }
         window.open(url, "_blank", "noopener,noreferrer");
       },
       sendMessage: async (text) => {
         const send = readLive().props.onSendMessage;
-        if (send === undefined) throw new McpAppHostRefusal("Messages are not available here.");
+        if (send === undefined)
+          throw new McpAppHostRefusal({ message: "Messages are not available here." });
         const approved = await ask(`Send this message from ${app.server}?\n${text}`);
-        if (approved !== true) throw new McpAppHostRefusal("Declined by the user.");
+        if (approved !== true) throw new McpAppHostRefusal({ message: "Declined by the user." });
         await send(text);
       },
       requestDisplayMode: async (mode) => {

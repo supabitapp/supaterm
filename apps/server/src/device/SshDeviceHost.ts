@@ -119,6 +119,7 @@ const bootstrap = (
     ),
   );
 
+const isSshCommandError = Schema.is(SshCommandError);
 // ssh exits 255 for its own failures; the remote bootstrap never does.
 const SSH_CONNECT_FAILURES: ReadonlyArray<readonly [SshConnectError["reason"], RegExp]> = [
   ["host_key_changed", /REMOTE HOST IDENTIFICATION HAS CHANGED/u],
@@ -135,7 +136,7 @@ const explainSshConnectFailure = (
   error: DeviceHost.DeviceHostError,
 ): DeviceHost.DeviceHostError => {
   const cause = error.cause;
-  if (!(cause instanceof SshCommandError) || cause.exitCode !== 255) return error;
+  if (!isSshCommandError(cause) || cause.exitCode !== 255) return error;
   const lines = cause.stderr.split(/\r?\n/u).map((line) => line.trim());
   for (const [reason, pattern] of SSH_CONNECT_FAILURES) {
     const detail = lines.find((line) => pattern.test(line));
@@ -162,7 +163,7 @@ const explainWindowsHost = Effect.fn("SshDeviceHost.explainWindowsHost")(functio
   const cause = error.cause;
   // Windows ssh.exe preserves full remote exit statuses such as 9009.
   if (
-    !(cause instanceof SshCommandError) ||
+    !isSshCommandError(cause) ||
     cause.exitCode === null ||
     cause.exitCode < 1 ||
     (cause.exitCode > 254 && cause.exitCode !== 9009)
