@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Clock from "effect/Clock";
 import * as Duration from "effect/Duration";
@@ -291,6 +292,9 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         assert.equal(yield* eventCount(dbPath), 1);
         assert.equal(yield* eventCount(backupPath), 40);
         assert.isFalse(yield* fs.exists(`${backupPath}.partial`));
+        if ((yield* HostProcess.Platform) !== "win32") {
+          assert.equal(((yield* fs.stat(backupPath)).mode & 0o777).toString(8), "600");
+        }
 
         // Later passes extend a pruned log: the first backup is the one that holds everything.
         yield* appendVisits(41, 50);

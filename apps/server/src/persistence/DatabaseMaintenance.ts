@@ -343,6 +343,8 @@ export const backUpBeforePruning = Effect.fn("DatabaseMaintenance.backUpBeforePr
   yield* fs.remove(partial, { force: true });
   yield* Effect.gen(function* () {
     yield* sql`VACUUM INTO ${partial}`.pipe(NodeSqliteClient.readOnly);
+    // VACUUM INTO creates the copy with the umask; it holds everything the database does.
+    yield* fs.chmod(partial, 0o600);
     yield* Effect.scoped(Effect.flatMap(fs.open(partial, { flag: "r+" }), (file) => file.sync));
     yield* fs.rename(partial, target);
   }).pipe(Effect.onError(() => fs.remove(partial, { force: true }).pipe(Effect.ignore)));
