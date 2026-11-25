@@ -10,7 +10,9 @@ import {
 } from "@supaterm/client-runtime/state/assets";
 import { executeAtomQuery, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { AssetResource, EnvironmentId } from "@supaterm/contracts";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import { Atom, AsyncResult } from "effect/reactivity";
 
 import { connectionAtomRuntime } from "../connection/runtime";
@@ -146,27 +148,47 @@ interface FreshAssetUrlKey {
   readonly revision: number;
 }
 
+class AssetUrlUnavailableError extends Schema.TaggedError<AssetUrlUnavailableError>()(
+  "AssetUrlUnavailableError",
+  {
+    message: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {}
+
 // Plain-object keys compare structurally (Effect `Equal`/`Hash`).
 const freshAssetUrlFamily = Atom.family((key: FreshAssetUrlKey) =>
   Atom.make(
     Effect.tryPromise({
-      try: async (signal): Promise<AuthorizedAssetUrl> => {
-        const url =
-          key.environmentId === null
-            ? null
-            : await refreshAssetUrl(key.environmentId, key.resource, signal).catch(() => null);
-        if (!url) throw new Error("Reconnect to this environment and try again.");
-        return { url, authorizedAt: Date.now() };
-      },
+      try: async (signal) =>
+        key.environmentId === null
+          ? null
+          : await refreshAssetUrl(key.environmentId, key.resource, signal).catch(() => null),
       catch: (cause) =>
-        cause instanceof Error ? cause : new Error("The attachment is unavailable."),
-    }),
+        new AssetUrlUnavailableError({
+          message: cause instanceof Error ? cause.message : "The attachment is unavailable.",
+          cause,
+        }),
+    }).pipe(
+      Effect.flatMap((url) =>
+        url
+          ? Effect.map(Clock.currentTimeMillis, (authorizedAt): AuthorizedAssetUrl => ({
+              url,
+              authorizedAt,
+            }))
+          : Effect.fail(
+              new AssetUrlUnavailableError({
+                message: "Reconnect to this environment and try again.",
+              }),
+            ),
+      ),
+    ),
   ).pipe(Atom.withLabel("fresh-asset-url")),
 );
 
-const noFreshAssetUrl = Atom.make(AsyncResult.initial<AuthorizedAssetUrl, Error>()).pipe(
-  Atom.withLabel("fresh-asset-url:none"),
-);
+const noFreshAssetUrl = Atom.make(
+  AsyncResult.initial<AuthorizedAssetUrl, AssetUrlUnavailableError>(),
+).pipe(Atom.withLabel("fresh-asset-url:none"));
 
 /**
  * A signed URL minted when the reader mounts, not a cached one: cached links can

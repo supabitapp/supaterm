@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { AuthOrchestrationOperateScope, type EnvironmentId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import {
   attachmentUploadError,
   createAttachmentUploadRegistry,
@@ -37,6 +38,8 @@ import {
 } from "./use-composer-drafts";
 import { environmentSession, readEnvironmentScope, sessionHasScope } from "./session";
 import { workspaceConnections } from "./workspace";
+
+const isComposerDraftPersistenceError = Schema.is(ComposerDraftPersistenceError);
 
 export {
   composerAttachmentUploadBlockReason,
@@ -202,7 +205,7 @@ const recordComposerAttachmentUpload = Effect.fn("ComposerAttachments.recordUplo
   // A failed draft save only costs a re-upload after restart; the outbox saves its own references.
   yield* Effect.tryPromise({ try: () => flushComposerDrafts(), catch: attachmentUploadError }).pipe(
     Effect.catchIf(
-      (error) => error.cause instanceof ComposerDraftPersistenceError,
+      (error) => isComposerDraftPersistenceError(error.cause),
       (error) =>
         Effect.logWarning(
           "[composer-attachments] could not save the uploaded reference",

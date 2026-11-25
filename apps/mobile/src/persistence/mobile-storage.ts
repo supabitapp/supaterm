@@ -10,6 +10,7 @@ import * as MobileSecureStorage from "./mobile-secure-storage";
 
 const DEVICE_ID_KEY = "supaterm.agent-awareness.device-id";
 const RECENT_THREAD_SHORTCUTS_KEY = "supaterm.recent-thread-shortcuts";
+const encodeJson = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 
 export class MobileStorageDecodeError extends Schema.TaggedError<MobileStorageDecodeError>()(
   "MobileStorageDecodeError",
@@ -68,7 +69,7 @@ export class MobileStorage extends Context.Service<
       MobileSecureStorage.MobileSecureStorageError | MobileStorageEncodeError
     >;
   }
->()("@supaterm/mobile/persistence/MobileStorage") {}
+>()("@supaterm/mobile/persistence/mobile-storage/MobileStorage") {}
 
 export const make = Effect.fn("MobileStorage.make")(function* () {
   const secureStorage = yield* MobileSecureStorage.MobileSecureStorage;
@@ -93,10 +94,9 @@ export const make = Effect.fn("MobileStorage.make")(function* () {
   });
 
   const writeJson = Effect.fn("MobileStorage.writeJson")(function* (key: string, value: unknown) {
-    const encoded = yield* Effect.try({
-      try: () => JSON.stringify(value),
-      catch: (cause) => new MobileStorageEncodeError({ key, cause }),
-    });
+    const encoded = yield* encodeJson(value).pipe(
+      Effect.mapError((cause) => new MobileStorageEncodeError({ key, cause })),
+    );
     yield* secureStorage.setItem(key, encoded);
   });
 
@@ -132,7 +132,9 @@ export const make = Effect.fn("MobileStorage.make")(function* () {
   return MobileStorage.of({
     loadOrCreateDeviceId,
     loadRecentThreadShortcuts,
-    saveRecentThreadShortcuts: (threads) => writeJson(RECENT_THREAD_SHORTCUTS_KEY, { threads }),
+    saveRecentThreadShortcuts: Effect.fn("MobileStorage.saveRecentThreadShortcuts")((threads) =>
+      writeJson(RECENT_THREAD_SHORTCUTS_KEY, { threads }),
+    ),
   });
 });
 
