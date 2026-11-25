@@ -137,7 +137,7 @@ function providerStartingPhase(phase: string | undefined, provider: string) {
 export type ProviderDrivers = ReadonlyArray<Pick<ServerProvider, "instanceId" | "driver">>;
 
 /** A provider that has not produced output yet: its logo, and the step it reports. */
-export function presentProviderStarting(input: {
+function presentProviderStarting(input: {
   readonly instanceId: ProviderInstanceId;
   readonly driver: ProviderDriverKind | undefined;
   readonly phase?: string | undefined;

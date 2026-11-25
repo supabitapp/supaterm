@@ -3051,7 +3051,7 @@ export const make = Effect.gen(function* () {
           // GitLab answers 409 when `sha` is no longer the merge request's head.
           ...(input.expectedHeadSha === undefined
             ? {}
-            : // @effect-diagnostics-next-line globalJsonInEffect:off
+            : // @effect-diagnostics-next-line preferSchemaOverJson:off
               { stdin: JSON.stringify({ sha: input.expectedHeadSha }) }),
         });
       }
