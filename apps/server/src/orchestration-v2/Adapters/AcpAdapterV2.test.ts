@@ -2968,7 +2968,11 @@ describe("AcpAdapterV2", () => {
     Effect.gen(function* () {
       const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const selfInvocation = yield* resolveSelfInvocation();
-      const mockAgentPath = yield* bundledMockAgentPath;
+      const mockAgentPath = yield* Path.Path.pipe(
+        Effect.flatMap((path) =>
+          path.fromFileUrl(new URL("../../../scripts/acp-mock-agent.ts", import.meta.url)),
+        ),
+      );
       const protocolEvents = yield* Queue.unbounded<EffectAcpProtocol.AcpProtocolLogEvent>();
       const instanceId = ProviderInstanceId.make("acp-test-reopen-failure");
       const adapter = yield* makeAcpAdapterV2({
@@ -3032,7 +3036,11 @@ describe("AcpAdapterV2", () => {
   it.live("does not mark a start whose session setup failed as refused before its prompt", () =>
     Effect.gen(function* () {
       const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-      const mockAgentPath = yield* bundledMockAgentPath;
+      const mockAgentPath = yield* Path.Path.pipe(
+        Effect.flatMap((path) =>
+          path.fromFileUrl(new URL("../../../scripts/acp-mock-agent.ts", import.meta.url)),
+        ),
+      );
       const protocolEvents = yield* Queue.unbounded<EffectAcpProtocol.AcpProtocolLogEvent>();
       const instanceId = ProviderInstanceId.make("acp-test-setup-failure");
       const threadId = ThreadId.make("thread-acp-setup-failure");
