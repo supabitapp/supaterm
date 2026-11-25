@@ -3,7 +3,7 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
-import { registerCommands } from "../../shortcuts/dispatcher";
+import { observeKeyDown } from "../../shortcuts/dispatcher";
 import { PullRequestSearchInput } from "./PullRequestListFilters";
 import { PullRequestsColumn } from "./PullRequestsColumn";
 
@@ -85,13 +85,7 @@ function CondensedSearchColumn({
         onState={() => {}}
         onHost={() => {}}
         searchInput={
-          <PullRequestSearchInput
-            value={query}
-            label="Search pull requests"
-            placeholder="Search pull requests"
-            onChange={setQuery}
-            onSubmit={onSubmit}
-          />
+          <PullRequestSearchInput value={query} onChange={setQuery} onSubmit={onSubmit} />
         }
         sortMenu={null}
         filtersMenu={null}
@@ -119,14 +113,9 @@ describe("PullRequestsColumn condensed search", () => {
     const leave = vi.fn();
     using stack = new DisposableStack();
     stack.defer(
-      registerCommands(
-        {},
-        {
-          observe: (event, consumed) => {
-            if (!consumed && !event.repeat && !event.isComposing && event.key === "Escape") leave();
-          },
-        },
-      ),
+      observeKeyDown((event, consumed) => {
+        if (!consumed && !event.repeat && !event.isComposing && event.key === "Escape") leave();
+      }),
     );
     scrollRef.current?.scrollTo({ top: 1000 });
     const searches = page.getByRole("searchbox", { name: "Search pull requests" });
@@ -144,7 +133,7 @@ describe("PullRequestsColumn condensed search", () => {
         }
       });
 
-    await userEvent.click(search);
+    await act(() => (search.element() as HTMLInputElement).focus());
     await pressDuringComposition("Enter");
     await pressDuringComposition("Escape");
     expect(onSubmit).not.toHaveBeenCalled();
