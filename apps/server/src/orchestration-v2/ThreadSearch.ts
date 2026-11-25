@@ -291,7 +291,7 @@ export const messageHitsQuery = (
               runs.status = 'cancelled'
               AND NOT EXISTS (
                 SELECT 1 FROM orchestration_v2_projection_turn_items AS items
-                -- Seeks migration 94's message index rather than reading every item of
+                -- Seeks migration 20's message index rather than reading every item of
                 -- the run; + drops the column's affinity, which would stop the seek.
                 WHERE items.thread_id = messages.thread_id
                   AND items.type IN ('user_message', 'assistant_message')
