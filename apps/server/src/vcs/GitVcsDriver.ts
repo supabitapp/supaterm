@@ -1154,6 +1154,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       const startedAt = yield* Clock.currentTimeMillis;
       const indexId = yield* random.uuidV4();
       const tempIndexPath = path.join(gitCommonDir, `supaterm-checkpoint-index-${indexId}`);
+      const hostEnv = yield* HostProcess.Environment;
       // VcsProcess clears inherited object selectors, so every other command uses this store.
       const sharedObjects = path.join(gitCommonDir, "objects");
       const quotedObjects = quoteGitPatchPath(sharedObjects);
