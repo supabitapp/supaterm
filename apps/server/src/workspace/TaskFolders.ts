@@ -43,7 +43,10 @@ import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
-import { removeEmptyDirectory } from "../vcs/removeEmptyDirectory.ts";
+import {
+  removeEmptyDirectory,
+  type RemoveEmptyDirectoryError,
+} from "../vcs/removeEmptyDirectory.ts";
 import { resolveWorktreesDirectory } from "../worktreesDirectory.ts";
 import { isWithinRoot } from "./KnownWorkspaces.ts";
 import * as TaskFolderStore from "./TaskFolderStore.ts";
@@ -641,8 +644,8 @@ const make = Effect.gen(function* () {
   /** Unlinks links and removes the folders that leaves empty; files and checkouts stay. */
   const removeLinks: (
     target: string,
-  ) => Effect.Effect<boolean, PlatformError.PlatformError | Cause.UnknownError> = Effect.fnUntraced(
-    function* (target) {
+  ) => Effect.Effect<boolean, PlatformError.PlatformError | RemoveEmptyDirectoryError> =
+    Effect.fnUntraced(function* (target) {
       if (Option.isSome(yield* fileSystem.readLink(target).pipe(Effect.option))) {
         yield* fileSystem.remove(target);
         return true;
@@ -655,8 +658,7 @@ const make = Effect.gen(function* () {
         if (!(yield* removeLinks(path.join(target, name)))) empty = false;
       }
       return empty && (yield* removeEmptyDirectory(target));
-    },
-  );
+    });
 
   /** Whether `removeLinks` would leave nothing: only links and folders of links are inside. */
   const holdsOnlyLinks: (target: string) => Effect.Effect<boolean, PlatformError.PlatformError> =
