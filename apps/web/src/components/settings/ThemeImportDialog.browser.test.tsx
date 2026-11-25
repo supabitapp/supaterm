@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
-import { render } from "../../../test/render";
+import { act, render } from "../../../test/render";
 import {
   CUSTOM_THEMES_STORAGE_KEY,
   getCustomThemes,
@@ -204,8 +204,8 @@ it.each(["failed read", "batch install"])(
         onImportedMany={() => {}}
       />,
     );
-    const earlierRead = Promise.withResolvers<string>();
-    const readStarted = Promise.withResolvers<void>();
+    const earlierRead = deferred<string>();
+    const readStarted = deferred<void>();
     const earlierFile = Object.assign(themeFile("Dusk"), {
       text() {
         readStarted.resolve();
@@ -243,6 +243,16 @@ it.each(["failed read", "batch install"])(
     await expect.element(page.getByRole("button", { name: "Choose files" })).toBeEnabled();
   },
 );
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((fulfill, fail) => {
+    resolve = fulfill;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
 
 function themeJsonc(name: string, background: string) {
   return `{
