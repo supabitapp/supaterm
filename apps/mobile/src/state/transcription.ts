@@ -29,6 +29,7 @@ import {
   type TranscriptionUploadResult,
 } from "@supaterm/contracts";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { loadExpoFileSystem } from "../lib/expoFileSystem";
@@ -39,6 +40,7 @@ import { serverEnvironment } from "./server";
 import { environmentSession } from "./session";
 
 const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
+const isTranscriptionError = Schema.is(TranscriptionError);
 
 // Long enough for five minutes of audio to upload and transcribe on a slow link. Running out
 // only drops this wait: the server keeps working, and posting again joins it.
@@ -66,7 +68,7 @@ async function prepareUpload(
   if (result._tag === "Success") return result.value;
   if (isAtomCommandInterrupted(result)) throw disconnected(result.cause);
   const error = squashAtomCommandFailure(result);
-  if (error instanceof TranscriptionError) {
+  if (isTranscriptionError(error)) {
     throw new VoiceUploadError(error.reason, error.message, error.reason === "rateLimited", {
       cause: error,
     });

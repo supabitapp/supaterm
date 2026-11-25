@@ -18,6 +18,7 @@
               "scripts/*.ts",
               "scripts/*.mts",
               "fingerprint.config.js",
+              "modules/*/android/jvm/fixtures/*.ts",
               "**/*.test.ts",
               "**/*.test.tsx",
               "**/*.test-support.ts"

@@ -33,7 +33,6 @@ export function diagramOptions(options: DiagramOptions = {}) {
     fontFamily: options.fontFamily ?? "Arial",
     fontFamilyMono: options.fontFamilyMono ?? "monospace",
     fontSize: Math.max(12, Math.min(24, options.fontSize || 16)),
-    // @effect-diagnostics-next-line globalDate:off
     now: options.now ?? Math.floor(Date.now() / 86_400_000) * 86_400_000,
     autoDirection: options.autoDirection ?? true,
   };
