@@ -70,6 +70,7 @@ import {
 } from "./usageLimits.ts";
 import {
   createMuseSdkHostEffect,
+  MuseSdkError,
   museApprovalMode,
   museCanonicalPath,
   musePermissionProfile,
@@ -1175,7 +1176,10 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         }
         yield* settleObservedChildren("failed");
         if (turn) yield* Queue.fail(events, protocolError(detail, cause));
-        yield* Effect.tryPromise(() => failed.close()).pipe(Effect.ignore, Effect.forkIn(scope));
+        yield* Effect.tryPromise({
+          try: () => failed.close(),
+          catch: (cause) => new MuseSdkError({ operation: "close", cause }),
+        }).pipe(Effect.ignore, Effect.forkIn(scope));
       });
       const owns = (turn: ActiveTurn, turnId: string) =>
         turnId === turn.nativeId || turn.joined.has(turnId);
@@ -1842,7 +1846,10 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
                 closed = true;
                 hostEpoch++;
               }
-              yield* Effect.tryPromise(() => created.close()).pipe(Effect.ignore);
+              yield* Effect.tryPromise({
+                try: () => created.close(),
+                catch: (cause) => new MuseSdkError({ operation: "close", cause }),
+              }).pipe(Effect.ignore);
             }),
           { interruptible: true },
         ).pipe(Effect.provideService(Scope.Scope, scope));
@@ -2388,10 +2395,10 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
                 Effect.gen(function* () {
                   if (active !== turn) return;
                   hostEpoch++;
-                  yield* Effect.tryPromise(() => host.close()).pipe(
-                    Effect.mapError((cause) => protocolError("Cannot stop Muse compaction", cause)),
-                    Effect.onError(failHost),
-                  );
+                  yield* Effect.tryPromise({
+                    try: () => host.close(),
+                    catch: (cause) => protocolError("Cannot stop Muse compaction", cause),
+                  }).pipe(Effect.onError(failHost));
                   broken = true;
                   wake = undefined;
                   yield* finish(turn, "interrupted", undefined, "broken");

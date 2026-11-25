@@ -930,9 +930,10 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
         }
       }
 
-      const available = yield* Effect.tryPromise(() =>
-        NodeFSP.statfs(versionsDirectory, { bigint: true }),
-      ).pipe(Effect.option);
+      const available = yield* Effect.tryPromise({
+        try: () => NodeFSP.statfs(versionsDirectory, { bigint: true }),
+        catch: (cause) => installationError("download", "Could not check free disk space.", cause),
+      }).pipe(Effect.option);
       const required = MAX_DOWNLOAD_BYTES + MAX_EXECUTABLE_BYTES + FREE_SPACE_MARGIN;
       if (
         Option.isSome(available) &&

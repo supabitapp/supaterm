@@ -51,7 +51,7 @@ import { parseSupatermProjectFile } from "@supaterm/shared/supatermProjectFile";
 import { resolveProjectFileBackedSetting } from "@supaterm/shared/projectSettings";
 import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observability/Metrics.ts";
 import * as GitVcsDriver from "./GitVcsDriver.ts";
-import { removeEmptyDirectory } from "./removeEmptyDirectory.ts";
+import { removeEmptyDirectory, type RemoveEmptyDirectoryError } from "./removeEmptyDirectory.ts";
 import { VcsAutomaticFetchInterval } from "./VcsAutomaticFetchInterval.ts";
 import { gitConfigEnv, serverGitConfigEnv, unsetInheritedRepositoryEnv } from "./VcsProcess.ts";
 import { makeWorktreeCheckoutCache } from "./worktreeCheckoutCache.ts";
@@ -6723,7 +6723,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
   // Recursive filesystem traversal can visit many entries; removeWorktree owns the operation span.
   const removeLeftoverLinks = Effect.fnUntraced(function* (
     target: string,
-  ): Effect.fn.Return<boolean, PlatformError.PlatformError | Cause.UnknownError> {
+  ): Effect.fn.Return<boolean, PlatformError.PlatformError | RemoveEmptyDirectoryError> {
     if (Option.isSome(yield* fileSystem.readLink(target).pipe(Effect.option))) {
       yield* fileSystem.remove(target);
       return true;

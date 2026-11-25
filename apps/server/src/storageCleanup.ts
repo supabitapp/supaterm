@@ -86,6 +86,15 @@ const decodePnpmModulesManifest = Schema.decodeUnknownEffect(
   }),
 );
 
+class PnpmModulesManifestParseError extends Schema.TaggedError<PnpmModulesManifestParseError>()(
+  "PnpmModulesManifestParseError",
+  { cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return "Could not parse the pnpm modules manifest.";
+  }
+}
+
 class WorktreeDirectoryReadError extends Schema.TaggedError<WorktreeDirectoryReadError>()(
   "WorktreeDirectoryReadError",
   { cause: Schema.Defect() },
@@ -384,7 +393,12 @@ const make = Effect.gen(function* () {
       const manifestPath = path.join(nodeModules, ".modules.yaml");
       if (yield* reachesThroughLink(root, manifestPath)) return null;
       const text = yield* fs.readFileString(manifestPath);
-      const manifest = yield* decodePnpmModulesManifest(yield* Effect.try(() => parseYaml(text)));
+      const manifest = yield* decodePnpmModulesManifest(
+        yield* Effect.try({
+          try: () => parseYaml(text),
+          catch: (cause) => new PnpmModulesManifestParseError({ cause }),
+        }),
+      );
       // An agent can write this manifest, and statting a network path makes
       // Windows sign in to its host with the user's NTLM credentials.
       if (isNetworkPath(manifest.storeDir) || isNetworkPath(manifest.virtualStoreDir ?? "")) {

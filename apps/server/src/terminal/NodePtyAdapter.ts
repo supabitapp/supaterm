@@ -24,6 +24,15 @@ export class NodePtyModuleLoadError extends Schema.TaggedError<NodePtyModuleLoad
   }
 }
 
+class NodePtyCancelError extends Schema.TaggedError<NodePtyCancelError>()("NodePtyCancelError", {
+  terminalPid: Schema.Number,
+  cause: Schema.Defect(),
+}) {
+  override get message(): string {
+    return `Failed to cancel Windows terminal startup for ${this.terminalPid}.`;
+  }
+}
+
 type NodePtyModuleLoader = () => Promise<typeof import("node-pty")>;
 
 // node-pty stays external to the CLI bundle because it dlopens a native
@@ -143,18 +152,21 @@ const waitForWindowsPid = (
  * The private agent can cancel the pending connection before a child exists.
  */
 const killStartingWindowsPty = (process: import("node-pty").IPty) =>
-  Effect.try(() => {
-    if (
-      "_agent" in process &&
-      typeof process._agent === "object" &&
-      process._agent !== null &&
-      "kill" in process._agent &&
-      typeof process._agent.kill === "function"
-    ) {
-      process._agent.kill();
-    } else {
-      process.kill();
-    }
+  Effect.try({
+    try: () => {
+      if (
+        "_agent" in process &&
+        typeof process._agent === "object" &&
+        process._agent !== null &&
+        "kill" in process._agent &&
+        typeof process._agent.kill === "function"
+      ) {
+        process._agent.kill();
+      } else {
+        process.kill();
+      }
+    },
+    catch: (cause) => new NodePtyCancelError({ terminalPid: process.pid, cause }),
   }).pipe(
     Effect.catch((error) =>
       Effect.logWarning("failed to cancel Windows terminal startup", {

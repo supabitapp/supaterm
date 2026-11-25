@@ -53,6 +53,15 @@ import {
 
 const TRANSCRIPT_PREFIX_BYTES = 32 * 1024;
 
+class TranscriptParseError extends Schema.TaggedError<TranscriptParseError>()(
+  "TranscriptParseError",
+  { filePath: Schema.String, cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return `Could not parse the transcript at ${this.filePath}.`;
+  }
+}
+
 class CodexStateReadError extends Schema.TaggedError<CodexStateReadError>()("CodexStateReadError", {
   databasePath: Schema.String,
   cause: Schema.Defect(),
@@ -1285,7 +1294,12 @@ export const make = Effect.gen(function* () {
               }
               return undefined;
             };
-            const parse = <A>(f: () => A) => Effect.try(f);
+            const parse = <A>(f: () => A) =>
+              Effect.try({
+                try: f,
+                catch: (cause) =>
+                  new TranscriptParseError({ filePath: transcript.filePath, cause }),
+              });
             const readLastRecord = () =>
               !recordStarted || !reserveRecord() ? null : finishRecord();
 
@@ -1410,23 +1424,33 @@ export const make = Effect.gen(function* () {
               }
 
               bytesRead += next.value.byteLength;
-              const withinBudget = yield* Effect.try(() => {
-                let start = 0;
-                while (start < next.value.byteLength) {
-                  const newline = next.value.indexOf(10, start);
-                  const end = newline === -1 ? next.value.byteLength : newline;
-                  recordStarted = true;
-                  reader.write(decoder.decode(next.value.subarray(start, end), { stream: true }));
-                  if (newline === -1) break;
-                  if (!finishRecord()) return false;
-                  start = newline + 1;
-                }
-                return true;
+              const withinBudget = yield* Effect.try({
+                try: () => {
+                  let start = 0;
+                  while (start < next.value.byteLength) {
+                    const newline = next.value.indexOf(10, start);
+                    const end = newline === -1 ? next.value.byteLength : newline;
+                    recordStarted = true;
+                    reader.write(decoder.decode(next.value.subarray(start, end), { stream: true }));
+                    if (newline === -1) break;
+                    if (!finishRecord()) return false;
+                    start = newline + 1;
+                  }
+                  return true;
+                },
+                catch: (cause) => new TranscriptParseError({ filePath, cause }),
               });
               if (!withinBudget) return null;
             }
 
-            if (recordStarted && !(yield* Effect.try(finishRecord))) return null;
+            if (
+              recordStarted &&
+              !(yield* Effect.try({
+                try: finishRecord,
+                catch: (cause) => new TranscriptParseError({ filePath, cause }),
+              }))
+            )
+              return null;
             return sameTranscriptIdentity(expected, transcriptIdentity(filePath, yield* file.stat))
               ? {
                   records: source === "claudeAgent" ? claudeHistory.records() : records,

@@ -5,6 +5,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
+import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
 import * as Electron from "electron";
@@ -36,6 +37,15 @@ import { copyContextMenuImage } from "./ContextMenuImage.ts";
 import { installMainWindowRemoteRequestHeaderPolicy } from "./RemoteRequestHeaders.ts";
 
 const TITLEBAR_HEIGHT = 40;
+class ContextMenuImageCopyError extends Schema.TaggedError<ContextMenuImageCopyError>()(
+  "ContextMenuImageCopyError",
+  { cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return "Could not copy the context-menu image.";
+  }
+}
+
 // Matches --workspace-topbar-height in apps/web/src/index.css. Native macOS
 // buttons are 14 points tall and do not scale with the renderer's zoom.
 const MACOS_WORKSPACE_TOPBAR_HEIGHT = 52;
@@ -685,9 +695,10 @@ export const make = Effect.gen(function* () {
             label: "Copy Image",
             click: () => {
               void runPromise(
-                Effect.tryPromise(() => copyContextMenuImage(contents, params)).pipe(
-                  Effect.catch(() => logWindowWarning("failed to copy context-menu image")),
-                ),
+                Effect.tryPromise({
+                  try: () => copyContextMenuImage(contents, params),
+                  catch: (cause) => new ContextMenuImageCopyError({ cause }),
+                }).pipe(Effect.catch(() => logWindowWarning("failed to copy context-menu image"))),
               );
             },
           });

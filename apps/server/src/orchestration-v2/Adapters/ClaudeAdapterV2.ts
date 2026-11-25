@@ -1823,9 +1823,10 @@ export const layerQueryRunner: Layer.Layer<
                   options.permissionMode === "bypassPermissions" &&
                   options.allowDangerouslySkipPermissions === true
                 ) {
-                  yield* Effect.tryPromise(() =>
-                    queryRuntime.setPermissionMode("bypassPermissions"),
-                  ).pipe(Effect.timeout("10 seconds"), Effect.ignore);
+                  yield* Effect.tryPromise({
+                    try: () => queryRuntime.setPermissionMode("bypassPermissions"),
+                    catch: (cause) => queryRunnerError(cause, "setPermissionMode"),
+                  }).pipe(Effect.timeout("10 seconds"), Effect.ignore);
                 }
                 if (mcpServers !== undefined) {
                   const timedOut = (phase: ClaudeMcpRegistrationTimeoutError["phase"]) => () =>
@@ -1854,9 +1855,10 @@ export const layerQueryRunner: Layer.Layer<
                   yield* onStartupPhase("mcp");
                   // Error texts and the CLI's mcp_status response can echo the headers, so
                   // only server names are logged.
-                  const failed = yield* Effect.tryPromise(() =>
-                    queryRuntime.setMcpServers(mcpServers),
-                  ).pipe(
+                  const failed = yield* Effect.tryPromise({
+                    try: () => queryRuntime.setMcpServers(mcpServers),
+                    catch: (cause) => queryRunnerError(cause, "setMcpServers"),
+                  }).pipe(
                     Effect.map((result) => Object.keys(result.errors)),
                     Effect.orElseSucceed(() => Object.keys(mcpServers)),
                     Effect.timeoutOrElse({
@@ -2246,7 +2248,10 @@ export const layerQueryRunner: Layer.Layer<
           ForkSessionResult & { readonly headMessageId?: string },
           unknown
         > = usesHostConfig
-          ? Effect.tryPromise(() => forkClaudeSession(input.sessionId, input.options))
+          ? Effect.tryPromise({
+              try: () => forkClaudeSession(input.sessionId, input.options),
+              catch: (cause) => queryRunnerError(cause, "forkSession"),
+            })
           : forkClaudeSessionInWorker(input).pipe(
               Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
               Effect.provideService(Path.Path, path),
@@ -5938,12 +5943,14 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         adapterOptions.environment.CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL,
       );
       if (Option.isSome(fromEnvironment)) return fromEnvironment.value;
-      const resolved = yield* Effect.tryPromise(() =>
-        resolveClaudeSettings({
-          ...(cwd === null ? {} : { cwd }),
-          settingSources: customHome ? ["project", "local"] : ["user", "project", "local"],
-        }),
-      ).pipe(Effect.orElseSucceed(() => undefined));
+      const resolved = yield* Effect.tryPromise({
+        try: () =>
+          resolveClaudeSettings({
+            ...(cwd === null ? {} : { cwd }),
+            settingSources: customHome ? ["project", "local"] : ["user", "project", "local"],
+          }),
+        catch: (cause) => queryRunnerError(cause, "resolveSettings"),
+      }).pipe(Effect.orElseSucceed(() => undefined));
       const home = customHome
         ? yield* fileSystem.readFileString(path.join(homePath, "settings.json")).pipe(
             Effect.flatMap(decodeClaudeSubagentCacheSettings),
