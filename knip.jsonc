@@ -97,6 +97,8 @@
       // The injected runtime resolves Playwright by string; release tooling runs
       // electron-builder from this workspace, outside its package scripts.
       "ignoreDependencies": ["playwright-core", "electron-builder"],
+      // The translation runtime has no callers until existing copy is wrapped.
+      "ignoreIssues": { "src/i18n/messages.ts": ["exports"] },
     },
     "apps/web": {
       // The first dev start (scripts/dev-runner.ts) runs this directly.
@@ -104,7 +106,11 @@
       // UI component modules are copied and adapted as cohesive sets. Keep their
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
-      "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
+      "ignoreIssues": {
+        "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
+        // The translation runtime has no callers until existing copy is wrapped.
+        "src/i18n/*.{ts,tsx}": ["exports"],
+      },
     },
     "apps/marketing": {
       // scripts/lib/studio-icon-render.ts bundles this module and calls its exports by name
@@ -132,6 +138,8 @@
         "@supaterm/mobile-review-diff-native",
         "@supaterm/mobile-terminal-native",
       ],
+      // The translation runtime has no callers until existing copy is wrapped.
+      "ignoreIssues": { "src/i18n/*.{ts,tsx}": ["exports"] },
     },
     "apps/mobile/modules/supaterm-highlights": {
       // Nitrogen discovers HybridObject specifications by filename.
@@ -144,6 +152,11 @@
     "packages/*": {
       // These workspace packages are private to this monorepo.
       "includeEntryExports": true,
+    },
+    "packages/client-runtime": {
+      "includeEntryExports": true,
+      // The translation runtime has no callers until existing copy is wrapped.
+      "ignoreIssues": { "src/{locales,errors/translatable}.ts": ["exports"] },
     },
     "packages/effect-acp": {
       "includeEntryExports": true,

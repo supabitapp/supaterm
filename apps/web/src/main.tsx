@@ -12,6 +12,7 @@ import "./index.css";
 import { trackKeyboardLayout } from "./keyboardLayout";
 import { startAppServices } from "./appInit";
 import { AppRoot } from "./AppRoot";
+import { whenLocaleReady } from "./i18n/runtime";
 import { chunkLoadState } from "./lib/chunkReloadGuard";
 
 const stopTrackingKeyboardLayout = trackKeyboardLayout();
@@ -25,6 +26,7 @@ const router = startAppServices();
 // chunks download.
 export const startup = router
   .load()
+  .then(whenLocaleReady)
   .then(() => {
     // A route chunk failure still resolves router.load(): the error is parked in
     // the lazy component and surfaces through the route error boundary.

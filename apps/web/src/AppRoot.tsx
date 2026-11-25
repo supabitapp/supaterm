@@ -1,6 +1,7 @@
 import { RouterProvider } from "@tanstack/react-router";
 
 import { ElectronBrowserHost } from "./browser/ElectronBrowserHost";
+import { I18nProvider } from "./i18n/I18nProvider";
 import { DesktopUpdateRestartScreen } from "./components/desktop/DesktopUpdateRestartScreen";
 import { AppAtomRegistryProvider } from "./rpc/atomRegistry";
 import type { AppRouter } from "./router";
@@ -10,7 +11,9 @@ import { ThreadOutboxCoordinator } from "./components/ThreadOutboxCoordinator";
 export function AppRoot({ router }: { readonly router: AppRouter }) {
   return (
     <AppAtomRegistryProvider>
-      <RouterProvider router={router} />
+      <I18nProvider>
+        <RouterProvider router={router} />
+      </I18nProvider>
       <ThreadOutboxCoordinator />
       <ElectronBrowserHost />
       <DesktopUpdateRestartScreen />

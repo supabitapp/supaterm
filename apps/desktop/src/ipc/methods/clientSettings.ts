@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import { applyLanguage } from "../../i18n/messages.ts";
 import * as CodexMicro from "../../codexMicro/CodexMicro.ts";
 import * as DesktopClientSettings from "../../settings/DesktopClientSettings.ts";
 import * as SidePulse from "../../sidePulse/SidePulse.ts";
@@ -30,6 +31,7 @@ export const setClientSettings = DesktopIpc.makeIpcMethod({
     const codexMicro = yield* CodexMicro.CodexMicro;
     const sidePulse = yield* SidePulse.SidePulse;
     yield* clientSettings.set(settings);
+    yield* applyLanguage(settings.language);
     yield* snapShot.configure(settings);
     yield* codexMicro.configure(settings.codexMicro);
     yield* sidePulse.configure(settings.sidePulse);

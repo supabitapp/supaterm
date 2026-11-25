@@ -36,6 +36,7 @@ import { startHostEnvironmentLookup } from "./state/primaryEnvironment";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
 import { syncBrowserChromeTheme } from "./hooks/useTheme";
 import { installDesktopPasteAsText } from "./lib/desktopPasteAsText";
+import { startI18n } from "./i18n/runtime";
 import {
   syncDocumentElectronPlatformClasses,
   syncDocumentWindowControlsOverlayClass,
@@ -218,6 +219,7 @@ export function startAppServices(): AppRouter {
   guardDomAgainstPageTranslation();
 
   startClientAppearance();
+  startI18n();
   startDocumentTitle(router);
   startHostEnvironmentLookup();
   startEnvironmentThemeRepaint();
