@@ -28,6 +28,8 @@ export function ComposerInlineControl(props: {
   readonly compact?: boolean;
   readonly disabled?: boolean;
   readonly emphasized?: boolean;
+  /** The control asks for a decision; it stays usable. */
+  readonly tone?: "warning";
   readonly icon?: ComponentProps<typeof SymbolView>["name"];
   readonly renderIcon?: (size: number) => ReactNode;
   readonly label: string;
@@ -70,7 +72,11 @@ export function ComposerInlineControl(props: {
           name={props.icon}
           size={smallIconSize}
           tintColorClassName={
-            props.emphasized || props.selected ? "accent-icon" : "accent-icon-muted"
+            props.tone === "warning"
+              ? "accent-warning-foreground"
+              : props.emphasized || props.selected
+                ? "accent-icon"
+                : "accent-icon-muted"
           }
           type="monochrome"
         />
@@ -78,7 +84,11 @@ export function ComposerInlineControl(props: {
       <Text
         className={cn(
           "shrink text-sm font-supaterm-medium",
-          props.emphasized || props.selected ? "text-foreground" : "text-foreground-muted",
+          props.tone === "warning"
+            ? "text-warning-foreground"
+            : props.emphasized || props.selected
+              ? "text-foreground"
+              : "text-foreground-muted",
         )}
         numberOfLines={1}
         ellipsizeMode={props.ellipsizeMode}

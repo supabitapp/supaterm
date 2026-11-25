@@ -142,7 +142,9 @@ shared access declarations, not tool by tool:
   environment's own links;
 - its project setup scripts are skipped
   ([`ProjectSetupScriptRunner`](../../apps/server/src/project/ProjectSetupScriptRunner.ts)
-  checks every path that runs them).
+  checks every path that runs them), and so are worktree layout commands: in a
+  project that declares a layout, a worktree launch or handoff for such a thread
+  fails, and restoring a missing folder brings back plain checkouts.
 
 Reads are not fenced, and a client's own `thread.create` can never carry
 `linkOrigin`.

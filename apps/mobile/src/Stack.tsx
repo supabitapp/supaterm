@@ -80,6 +80,7 @@ import { AddProjectSourceRoute } from "./features/projects/AddProjectSourceRoute
 import {
   NewTaskBranchPickerRouteScreen,
   NewTaskEnvironmentPickerRouteScreen,
+  NewTaskRepositoriesPickerRouteScreen,
 } from "./features/threads/NewTaskContextPickerScreens";
 import {
   ExistingThreadSettingsRouteScreen,
@@ -545,6 +546,11 @@ const RootStackConfig = createWorkspaceStackNavigator({
       linking: "new/draft/branch",
       screen: NewTaskBranchPickerRouteScreen,
       options: pageRoute({ title: "Branch" }),
+    }),
+    NewTaskRepositories: createNativeStackScreen({
+      linking: "new/draft/repositories",
+      screen: NewTaskRepositoriesPickerRouteScreen,
+      options: pageRoute({ title: "Repositories" }),
     }),
     AddProject: createNativeStackScreen({
       linking: "new/add-project",

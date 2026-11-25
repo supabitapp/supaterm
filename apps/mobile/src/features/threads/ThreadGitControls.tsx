@@ -69,6 +69,8 @@ export type ThreadGitMenuProps = {
   readonly threadId: ThreadId | string;
   readonly currentBranch: string | null;
   readonly hasThread?: boolean;
+  /** The project tracks repositories besides its folder, which then need not be one itself. */
+  readonly tracksRepositories?: boolean;
   readonly gitStatus: VcsStatusResult | null;
   readonly gitOperationLabel: string | null;
   readonly onOpenFilesInspector?: () => void;
@@ -289,38 +291,58 @@ export function threadTerminalMenu(props: ThreadGitControlsProps): AppBarMenu | 
 /** The thread's git menu, shared by the thread bar and Review. */
 export function useThreadGitMenuDefinition(props: ThreadGitMenuProps): AppBarMenu | null {
   const model = useThreadGitControlModel(props);
+  // A plain folder that tracks repositories has no branch of its own; its turns still have diffs.
+  const repositoriesOnly = !model.isRepo && props.tracksRepositories === true;
   return {
     title: "Git controls",
     icon: "point.topleft.down.curvedto.point.bottomright.up",
     separateBackground: false,
     items: [
-      {
-        id: "git-status",
-        title: compactMenuBranchLabel(model.currentBranchLabel),
-        icon: "point.topleft.down.curvedto.point.bottomright.up",
-        disabled: true,
-        subtitle: compactMenuStatus(props.gitStatus),
-        onPress: () => {},
-      },
-      {
-        id: "git-quick-action",
-        title: model.quickAction.label,
-        icon: model.quickActionIcon,
-        disabled: model.quickAction.disabled,
-        subtitle: model.quickActionHint ?? undefined,
-        onPress: () => {
-          void model.runQuickAction();
-        },
-      },
+      ...(repositoriesOnly
+        ? // A worktree thread of such a folder still has a branch: its repositories are on it.
+          props.currentBranch === null
+          ? []
+          : [
+              {
+                id: "git-status",
+                title: compactMenuBranchLabel(props.currentBranch),
+                icon: "point.topleft.down.curvedto.point.bottomright.up",
+                disabled: true,
+                subtitle: "Repository worktrees",
+                onPress: () => {},
+              },
+            ]
+        : [
+            {
+              id: "git-status",
+              title: compactMenuBranchLabel(model.currentBranchLabel),
+              icon: "point.topleft.down.curvedto.point.bottomright.up",
+              disabled: true,
+              subtitle: compactMenuStatus(props.gitStatus),
+              onPress: () => {},
+            },
+            {
+              id: "git-quick-action",
+              title: model.quickAction.label,
+              icon: model.quickActionIcon,
+              disabled: model.quickAction.disabled,
+              subtitle: model.quickActionHint ?? undefined,
+              onPress: () => {
+                void model.runQuickAction();
+              },
+            },
+          ]),
       {
         id: "git-review",
         title: "Review changes",
         icon: "text.bubble",
-        disabled: !model.isRepo || props.hasThread === false,
+        disabled: !(model.isRepo || repositoriesOnly) || props.hasThread === false,
         subtitle:
           props.hasThread === false
             ? "Available after the first message"
-            : "Turn diffs and worktree changes",
+            : repositoriesOnly
+              ? "Turn diffs"
+              : "Turn diffs and worktree changes",
         onPress: model.openReview,
       },
       ...(props.onMergeBack
@@ -342,7 +364,11 @@ export function useThreadGitMenuDefinition(props: ThreadGitMenuProps): AppBarMen
         subtitle:
           props.hasThread === false
             ? "Available after the first message"
-            : "Commit, files, branches",
+            : repositoriesOnly
+              ? "Repositories"
+              : props.tracksRepositories === true
+                ? "Commit, branches, repositories"
+                : "Commit, files, branches",
         onPress: model.openGitInspector,
       },
     ],

@@ -13,6 +13,7 @@ import {
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
 import { findRevertCheckpoint } from "../../session-logic";
+import { toastManager } from "../ui/toast";
 import { type ChatMessage } from "../../types";
 import { randomUUID } from "~/lib/utils";
 import {
@@ -104,21 +105,33 @@ export async function rewindToMessage(input: {
       throw new Error("Make room for this message's attachments in the composer before rewinding.");
     }
     const commandId = CommandId.make(randomUUID());
-    await waitForRevertedMessage(input.routeThreadRef, input.turnCount, commandId, async () => {
-      const result = await input.revertThreadCheckpoint({
-        environmentId,
-        input: {
-          commandId,
-          threadId: input.threadId,
-          turnCount: input.turnCount,
-          restoreFiles: input.restoreFiles,
-          ...(input.checkpoint === undefined
-            ? {}
-            : { checkpointId: input.checkpoint.id, scopeId: input.checkpoint.scopeId }),
-        },
+    const unrestored = await waitForRevertedMessage(
+      input.routeThreadRef,
+      input.turnCount,
+      commandId,
+      async () => {
+        const result = await input.revertThreadCheckpoint({
+          environmentId,
+          input: {
+            commandId,
+            threadId: input.threadId,
+            turnCount: input.turnCount,
+            restoreFiles: input.restoreFiles,
+            ...(input.checkpoint === undefined
+              ? {}
+              : { checkpointId: input.checkpoint.id, scopeId: input.checkpoint.scopeId }),
+          },
+        });
+        if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+      },
+    );
+    if (unrestored.length > 0) {
+      toastManager.add({
+        type: "warning",
+        title: "Some repositories were not rewound",
+        description: `${unrestored.join(", ")} had no snapshot from before these turns, so ${unrestored.length === 1 ? "it keeps" : "they keep"} the changes. Check the uncommitted changes there.`,
       });
-      if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-    });
+    }
     const currentPrompt = store.getComposerDraft(draftTarget)?.prompt ?? "";
     const { prompt: restoredPrompt, mentions } = recallComposerMessage(message);
     const nextPrompt =

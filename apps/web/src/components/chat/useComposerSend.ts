@@ -1,3 +1,4 @@
+import { readWorktreeBaseBranch } from "../../worktreeRepositoryChoiceStore";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   threadContextsOutsideEnvironment,
@@ -139,6 +140,8 @@ interface ComposerSendInput {
   readonly phase: SessionPhase;
   readonly runtimeMode: RuntimeMode;
   readonly sendEnvMode: DraftThreadEnvMode;
+  /** Tracked repositories a new worktree takes; undefined leaves the choice to the server. */
+  readonly worktreeRepositories: ReadonlyArray<{ readonly path: string }> | undefined;
   readonly startFromOrigin: boolean;
   readonly worktreeBaseRefsSettled: boolean;
   readonly localCheckoutBranchMismatch: {
@@ -216,6 +219,7 @@ export function useComposerSend(input: ComposerSendInput) {
     phase,
     runtimeMode,
     sendEnvMode,
+    worktreeRepositories,
     startFromOrigin,
     worktreeBaseRefsSettled,
     localCheckoutBranchMismatch,
@@ -758,6 +762,8 @@ export function useComposerSend(input: ComposerSendInput) {
       sendEnvMode,
       worktreePath: activeThread.worktreePath,
       activeThreadBranch,
+      projectIsGitRepo: isGitRepo,
+      plainProjectBaseBranch: readWorktreeBaseBranch(activeProject),
       isScratchProject: activeProjectIsScratch,
       worktreeBaseRefsSettled,
       environmentUnavailable: activeEnvironmentUnavailable,
@@ -998,6 +1004,7 @@ export function useComposerSend(input: ComposerSendInput) {
                 projectCwd: activeProject.workspaceRoot,
                 ...(multipleModelSelections !== null ? { requireWorktree: true } : {}),
                 ...(startFromOrigin ? { startFromOrigin: true } : {}),
+                ...(worktreeRepositories ? { repositories: worktreeRepositories } : {}),
               }
             : undefined;
           const pendingWorktree =

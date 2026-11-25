@@ -56,6 +56,8 @@ const QueuedThreadCreationSchema = Schema.Struct({
   worktreePath: Schema.NullOr(Schema.String),
   startFromOrigin: Schema.optional(Schema.Boolean),
   pullRequestReference: Schema.optional(Schema.String),
+  repositories: Schema.optional(Schema.Array(Schema.String)),
+  startsFromRepositoryDefaults: Schema.optional(Schema.Boolean),
 });
 
 const QueuedVoiceRecordingSchema = Schema.Struct({
@@ -99,6 +101,10 @@ export interface QueuedThreadCreation {
   readonly worktreePath: string | null;
   readonly startFromOrigin?: boolean;
   readonly pullRequestReference?: string;
+  /** Tracked repositories the new worktree takes, by path; absent leaves the choice to the server. */
+  readonly repositories?: ReadonlyArray<string>;
+  /** The project folder is no Git repository, so a new worktree needs no base branch. */
+  readonly startsFromRepositoryDefaults?: boolean;
 }
 
 /** A recording the environment transcribes and sends as the message; its text stays empty. */
@@ -227,7 +233,8 @@ export function isQueuedThreadCreationSendable(message: QueuedThreadMessage): bo
   return (
     message.creation.workspaceMode !== "worktree" ||
     Boolean(message.creation.branch) ||
-    message.creation.useDefaultBranch === true
+    message.creation.useDefaultBranch === true ||
+    message.creation.startsFromRepositoryDefaults === true
   );
 }
 

@@ -12,6 +12,21 @@ export function useVcsActionState(target: VcsActionTarget): VcsActionState {
   return useAtomValue(vcsActionManager.stateAtom(target));
 }
 
+interface RepositoryGitAction {
+  readonly threadRef: ScopedThreadRef;
+  readonly cwd: string;
+}
+
+// The tracked repository a thread last ran an action in, so the thread can show its progress.
+const repositoryGitActionAtom = Atom.make<RepositoryGitAction | null>(null).pipe(
+  Atom.keepAlive,
+  Atom.withLabel("mobile:repository-git-action"),
+);
+
+export function noteRepositoryGitAction(action: RepositoryGitAction): void {
+  appAtomRegistry.set(repositoryGitActionAtom, action);
+}
+
 export interface GitActionResultNotification {
   readonly type: "success" | "error";
   readonly title: string;
@@ -90,7 +105,20 @@ export function useGitActionProgress(
   target: VcsActionTarget,
   threadRef: ScopedThreadRef | null,
 ): GitActionProgress {
-  const actionState = useVcsActionState(target);
+  const threadFolderState = useVcsActionState(target);
+  const repositoryCwd = useAtomValue(repositoryGitActionAtom, (action) =>
+    action !== null &&
+    threadRef !== null &&
+    action.threadRef.environmentId === threadRef.environmentId &&
+    action.threadRef.threadId === threadRef.threadId
+      ? action.cwd
+      : null,
+  );
+  const repositoryState = useVcsActionState({
+    environmentId: threadRef?.environmentId ?? null,
+    cwd: repositoryCwd,
+  });
+  const actionState = repositoryState.isRunning ? repositoryState : threadFolderState;
   const resultKey = threadRef === null ? null : gitActionResultKey(threadRef);
   const result = useAtomValue(gitActionResultsAtom, (results) =>
     resultKey === null ? undefined : results.get(resultKey)?.notification,

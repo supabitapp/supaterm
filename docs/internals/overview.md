@@ -90,6 +90,30 @@ capture workspace state without adding commits to the user's branch. A revert mu
 workspace state with the provider conversation. A provider that cannot roll back its conversation
 must reject that operation before changing the filesystem.
 
+A thread also gets one `repository` checkpoint scope per tracked Git folder it reaches, under its
+root scope. These scopes are sparse because a project can track dozens of repositories while a
+turn touches a few: a turn costs one `git status` per repository, and only a repository the turn
+changed gets a snapshot ref, a `checkpoint.captured` record and, the first time, its
+`checkpoint-scope.created`. A missing record means the turn left the repository alone, so a ref
+does not exist for every run ordinal.
+
+A file rewind restores the thread's folder and every repository a discarded run changed, or none
+of them: each folder is snapshotted first and put back if a later restore fails. A repository
+with no checkpoint at the target returns to the baseline taken before its first later change,
+which `repositoryRewindCheckpoint` picks; one whose earlier state was never snapshotted is left as
+it is and named in `rollbackUnrestored`. Run ordinals are never reused, so the snapshots of
+discarded runs are deleted rather than overwritten.
+
+A worktree thread of a project that tracks Git folders works in a task folder: one directory under
+the worktrees directory that holds the project folder and a worktree of each chosen repository at
+the same relative places, all on the thread's branch. The record is keyed by that directory, not
+by thread, because subagents, forks and reused worktrees share a path. A repository scope's `cwd`
+is then the worktree and its `repositoryPath` the tracked folder. A project folder that is not a
+repository root is never checked out; its entries are linked, so they stay shared with the
+original, and its root checkpoints are `missing` by design.
+[`TaskFolders`](../../apps/server/src/workspace/TaskFolders.ts) owns every change to a task
+folder, and removal keeps any checkout the single-worktree rules would keep.
+
 Thread completion is server-owned. The
 [thread completion service](../../apps/server/src/orchestration-v2/ThreadDoneService.ts) evaluates PR
 and inactivity settings without a connected client. Merge notifications invalidate cached PR state

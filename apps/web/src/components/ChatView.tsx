@@ -70,6 +70,7 @@ import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
 import { RightPanelSurfaceContent } from "./chat/RightPanelSurfaceContent";
 import { usePendingThreadRequestsWithTimerPause } from "./chat/usePendingThreadRequestsWithTimerPause";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
+import { resolveWorktreeRepositorySelection } from "@supaterm/client-runtime/state/thread-repositories";
 import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
 import { headlineUsageWindows } from "@supaterm/shared/usageLimits";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
@@ -254,6 +255,8 @@ import {
 } from "../hooks/useSettings";
 import { usePanelAnimationSettings, usePanelPresence } from "../panelAnimations";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
+import { useWorktreeRepositoryChoices } from "../hooks/useWorktreeRepositoryChoices";
+import { useRememberedWorktreeRepositories } from "../worktreeRepositoryChoiceStore";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
@@ -1763,8 +1766,7 @@ export default function ChatView(props: ChatViewProps) {
   const availableRevertTurnCounts = deriveAvailableRevertTurnCounts(serverProjection);
   // A paged history window cannot identify the first loaded run as the thread start.
   const threadStartCheckpointAvailable =
-    !serverThreadHistory.hasMoreHistory &&
-    findRevertCheckpoint(serverProjection?.checkpoints ?? [], 0) !== undefined;
+    !serverThreadHistory.hasMoreHistory && findRevertCheckpoint(serverProjection, 0) !== undefined;
 
   const workspaceMutationId = deriveWorkspaceMutationId(
     serverVisibleTurnItems,
@@ -1870,9 +1872,16 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [environmentId, gitStatusCwd, liveIsGitRepo]);
   const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;
+  // A plain folder holding tracked repositories has turn diffs without being a Git repository.
+  const diffAvailable =
+    isGitRepo ||
+    (activeProject?.trackedFolders?.length ?? 0) > 0 ||
+    turnDiffSummaries.some((summary) => summary.repositories !== undefined);
+  const worktreeRepositoryChoices = useWorktreeRepositoryChoices(activeProject);
   const workspaceModesOffered = offersWorkspaceModes({
     isScratchProject: activeProjectIsScratch,
     isGitRepo,
+    tracksGitRepositories: worktreeRepositoryChoices.tracksGitRepositories,
   });
   // A provider-native subagent cannot take messages: a status bar replaces the
   // composer and its strips. Its approvals and questions are asked on the
@@ -2394,9 +2403,11 @@ export default function ChatView(props: ChatViewProps) {
   });
   const selectedThreadBranch = activeThread?.branch ?? null;
   const startFromOrigin = isLocalDraftThread && (draftThread?.startFromOrigin ?? false);
+  const rememberedWorktreeRepositories = useRememberedWorktreeRepositories(activeProject ?? null);
   const sendEnvMode = resolveSendEnvMode({
     requestedEnvMode: envMode,
     isGitRepo,
+    tracksGitRepositories: worktreeRepositoryChoices.tracksGitRepositories,
   });
   const isSelectingWorktreeBase =
     !activeWorktreePath && (sendEnvMode === "worktree" || multipleModelSelections !== null);
@@ -2417,6 +2428,13 @@ export default function ChatView(props: ChatViewProps) {
       })
     : selectedThreadBranch;
   const worktreeBaseRefsSettled = worktreeBaseRefs.data !== null && !worktreeBaseRefs.isRefreshing;
+  // Only a new thread's draft holds a choice; anything else leaves it to the server's default.
+  const worktreeRepositories = resolveWorktreeRepositorySelection({
+    choices: worktreeRepositoryChoices.choices,
+    chosen: isLocalDraftThread
+      ? (draftThread?.worktreeRepositories ?? rememberedWorktreeRepositories)
+      : undefined,
+  }).strategyRepositories;
   const localCheckoutBranchMismatch = isServerThread
     ? resolveLocalCheckoutBranchMismatch({
         effectiveEnvMode: envMode,
@@ -2634,7 +2652,7 @@ export default function ChatView(props: ChatViewProps) {
     pullRequestPanelTarget,
     threadPanelPresentation,
     isServerThread,
-    isGitRepo,
+    diffAvailable,
     browserAvailable,
     canOperatePreview,
     diffOpen,
@@ -3167,6 +3185,7 @@ export default function ChatView(props: ChatViewProps) {
     phase,
     runtimeMode,
     sendEnvMode,
+    worktreeRepositories,
     startFromOrigin,
     worktreeBaseRefsSettled,
     localCheckoutBranchMismatch,
@@ -3492,6 +3511,7 @@ export default function ChatView(props: ChatViewProps) {
       environmentId={activeThread.environmentId}
       threadId={activeThread.id}
       showGitControls={workspaceModesOffered && showDraftProjectPicker}
+      showBranchControls={isGitRepo}
       showEnvironmentIndicator={showComposerEnvironmentIndicator && showDraftProjectPicker}
       canAddToMachine={canAddProjectToMachine}
       {...(routeKind === "draft" && draftId ? { draftId } : {})}
@@ -3587,7 +3607,7 @@ export default function ChatView(props: ChatViewProps) {
     onAddDevice: addDeviceSurfaceStable,
     browserAvailable: canOperatePreview && browserAvailable,
     terminalAvailable: activeProject !== null && canOperateTerminal,
-    diffAvailable: isServerThread && isGitRepo,
+    diffAvailable: isServerThread && diffAvailable,
     filesAvailable: activeProject !== null,
     pullRequestAvailable: pullRequestSurfaceAvailable,
     pullRequestsAvailable: pullRequestsSurfaceAvailable,
@@ -4293,7 +4313,9 @@ export default function ChatView(props: ChatViewProps) {
 
       <RevertConfirmHost
         threadKey={routeThreadKey}
-        checkpoints={serverProjection?.checkpoints}
+        environmentId={environmentId}
+        taskFolderPath={activeThreadWorktreePath}
+        projection={serverProjection}
         worktreePath={activeThread?.worktreePath ?? null}
         onConfirm={onConfirmRevertStable}
       />
@@ -4306,6 +4328,7 @@ export default function ChatView(props: ChatViewProps) {
       threadRef={activeThreadRef}
       cwd={activeWorkspaceRoot}
       checkpoints={serverProjection?.checkpoints}
+      checkpointScopes={serverProjection?.checkpointScopes}
     >
       {content}
     </FileMetadataThreadProvider>
