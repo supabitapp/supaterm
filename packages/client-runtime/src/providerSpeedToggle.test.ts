@@ -64,13 +64,18 @@ describe("getSpeedToggle", () => {
     expect(getSpeedToggle([serviceTierDescriptor("flex")])?.level).toBe("off");
   });
 
-  it("covers the Codex tier when Standard and Fast are its only options", () => {
+  it("covers the Codex tier when it has no tiers beyond Standard, Fast, and Ultrafast", () => {
     const descriptor = serviceTierDescriptor("default");
     const standardAndFast = {
       ...descriptor,
       options: descriptor.options.filter(({ id }) => id === "default" || id === "priority"),
     };
     expect(getSpeedToggle([standardAndFast])?.coversDescriptor).toBe(true);
+    const withUltrafast = {
+      ...descriptor,
+      options: descriptor.options.filter(({ id }) => id !== "flex"),
+    };
+    expect(getSpeedToggle([withUltrafast])?.coversDescriptor).toBe(true);
   });
 
   it("turns on Ultrafast when the model has no Fast tier", () => {

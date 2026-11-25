@@ -53,7 +53,7 @@ export function getSpeedToggle(
       offValue: STANDARD_SERVICE_TIER,
       ultrafastValue: ultrafastTier?.id,
       coversDescriptor: descriptor.options.every(
-        ({ id }) => id === STANDARD_SERVICE_TIER || id === onTier.id,
+        ({ id }) => id === STANDARD_SERVICE_TIER || id === fastTier?.id || id === ultrafastTier?.id,
       ),
     };
   }

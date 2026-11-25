@@ -566,10 +566,14 @@ function SpeedToggleControl({
       size={size}
       iconOnly
       activeBackground={false}
-      aria-pressed={speedOn}
-      aria-label="Fast mode"
       disabled={disabled}
-      {...(choices ? {} : { onClick: () => onSelect(getSpeedToggleNextValue(speedToggle)) })}
+      {...(choices
+        ? { "aria-label": SPEED_TOGGLE_LABELS[speedToggle.level] }
+        : {
+            "aria-label": "Fast mode",
+            "aria-pressed": speedOn,
+            onClick: () => onSelect(getSpeedToggleNextValue(speedToggle)),
+          })}
     />
   );
   const trigger = (
