@@ -1002,7 +1002,7 @@ export const make = Effect.gen(function* () {
             : readLineStats(input, pull).pipe(Effect.orElseSucceed(() => null)),
           // Reviewers need `pr:review:read`, which a contents-only token lacks.
           readPages("getChangeRequest", input, `${path}/reviewers`, Json.GitCafeActorEntries).pipe(
-            // @effect-diagnostics-next-line catchConditionalRefailToCatchIf:off - catchIf widens this paginated result to any in tsc-rs.
+            // @effect-diagnostics-next-line catchConditionalRefailToCatchIf:off - catchIf widens this paginated result to any in tsrs.
             Effect.catch((error) =>
               isForbidden(error) ? Effect.succeed({ items: [], next: null }) : Effect.fail(error),
             ),
@@ -1086,7 +1086,7 @@ export const make = Effect.gen(function* () {
               : // A closed pull request whose branch is gone keeps its head, but git.cafe answers
                 // 404 for commits it no longer has; the conversation still stands without them.
                 readPages(operation, input, `${path}/commits`, Json.GitCafeCommits).pipe(
-                  // @effect-diagnostics-next-line catchConditionalRefailToCatchIf:off - catchIf widens this paginated result to any in tsc-rs.
+                  // @effect-diagnostics-next-line catchConditionalRefailToCatchIf:off - catchIf widens this paginated result to any in tsrs.
                   Effect.catch((error) =>
                     error.reason === "not-found"
                       ? Effect.succeed({ items: [], next: null })
