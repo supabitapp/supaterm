@@ -67,6 +67,7 @@ import {
   environmentSessionGenerationAtom,
   executeAtomQuery,
   type QueryAnswerHandler,
+  squashAtomCommandFailure,
 } from "./runtime.ts";
 
 const QUERY_ENVIRONMENT = new PrimaryConnectionTarget({
@@ -1587,6 +1588,23 @@ describe("executeAtomQuery", () => {
       expect(Cause.hasInterruptsOnly(result.cause)).toBe(true);
     }
     registry.dispose();
+  });
+});
+
+const decodeDefect = Schema.decodeUnknownSync(Schema.Defect());
+
+describe("squashAtomCommandFailure", () => {
+  it("shows the text of a string defect that came back over RPC", () => {
+    const defect = decodeDefect(
+      "RPC contract is registered but unavailable in the control plane: projectClone.start",
+    );
+    const error = squashAtomCommandFailure({ cause: Cause.die(defect) });
+
+    expect(error).toEqual(
+      new Error(
+        "RPC contract is registered but unavailable in the control plane: projectClone.start",
+      ),
+    );
   });
 });
 
