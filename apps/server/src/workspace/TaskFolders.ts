@@ -11,6 +11,7 @@ import {
   type ThreadId,
   type VcsCreateWorktreeInput,
   type VcsCreateWorktreeResult,
+  type VcsRemoveWorktreeInput,
   SUPATERM_PROJECT_FILE_NAME,
 } from "@supaterm/contracts";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
@@ -176,6 +177,16 @@ export class TaskFolders extends Context.Service<
       readonly force: boolean;
       readonly projectCommands: boolean;
     }) => Effect.Effect<boolean, TaskFolderError>;
+    /** A worktree request: a task folder where the project tracks Git folders, else one worktree. */
+    readonly createWorktree: (
+      input: VcsCreateWorktreeInput,
+      options: { readonly projectCommands: boolean },
+    ) => Effect.Effect<VcsCreateWorktreeResult, GitCommandError>;
+    /** Removes a worktree, with its repositories' worktrees when it is a task folder. */
+    readonly removeWorktree: (
+      input: VcsRemoveWorktreeInput,
+      options: { readonly projectCommands: boolean },
+    ) => Effect.Effect<void, GitCommandError>;
     /** Renames the branch in every checkout to one name free in all of them. */
     readonly renameBranch: (input: {
       readonly root: string;
@@ -1514,10 +1525,47 @@ const make = Effect.gen(function* () {
     }
   });
 
+  const createWorktree: TaskFolders["Service"]["createWorktree"] = (input, options) =>
+    createForProjectFolder(input, options).pipe(
+      Effect.mapError(
+        (cause) =>
+          new GitCommandError({
+            operation: "TaskFolders.create",
+            command: "git worktree add",
+            cwd: input.cwd,
+            detail: cause.detail,
+          }),
+      ),
+      Effect.filterOrElse(
+        (created) => created !== null,
+        () => git.createWorktree(input),
+      ),
+    );
+
+  const removeWorktree: TaskFolders["Service"]["removeWorktree"] = (input, options) =>
+    removeIfTaskFolder({
+      path: input.path,
+      force: input.force === true,
+      projectCommands: options.projectCommands,
+    }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new GitCommandError({
+            operation: "TaskFolders.remove",
+            command: "git worktree remove",
+            cwd: input.cwd,
+            detail: cause.detail,
+          }),
+      ),
+      Effect.flatMap((removed) => (removed ? Effect.void : git.removeWorktree(input))),
+    );
+
   return TaskFolders.of({
     plan,
     create,
     createForProjectFolder,
+    createWorktree,
+    removeWorktree,
     addRepository,
     find: store.findContaining,
     remove,

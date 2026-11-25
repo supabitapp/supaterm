@@ -1940,12 +1940,12 @@ it.effect(
         const services = Layer.mergeAll(
           layerUnusedConfigRpcServices,
           Layer.mock(TaskFolders.TaskFolders)({
-            createForProjectFolder: (_input, options) =>
+            createWorktree: (_input, options) =>
               Effect.sync(() => seen.push(options.projectCommands)).pipe(
                 Effect.as({ worktree: { path: "/repo-worktrees/feature", refName: "feature" } }),
               ),
-            removeIfTaskFolder: (input) =>
-              Effect.sync(() => seen.push(input.projectCommands)).pipe(Effect.as(true)),
+            removeWorktree: (_input, options) =>
+              Effect.sync(() => seen.push(options.projectCommands)),
           }),
           Layer.mock(VcsStatusBroadcaster.VcsStatusBroadcaster)({
             refreshStatus: () => Effect.die("unused"),
