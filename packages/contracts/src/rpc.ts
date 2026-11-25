@@ -410,7 +410,7 @@ import {
   DatabaseStorageStatus,
   ServerSettingsError,
   ServerSettings,
-  ServerSettingsPatch,
+  ClientServerSettingsPatch,
 } from "./settings.ts";
 import { RelayConnectionInfo, RelayHostStatus, RelayPreparationError } from "./relay.ts";
 import {
@@ -957,7 +957,7 @@ const WsPeerLinksAnswerRequestRpc = Rpc.make(WS_METHODS.peerLinksAnswerRequest, 
 
 const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSettings, {
   payload: Schema.Struct({
-    patch: ServerSettingsPatch,
+    patch: ClientServerSettingsPatch,
     providerInstanceMutation: Schema.optionalKey(ProviderInstanceMutation),
   }),
   success: ServerSettings,

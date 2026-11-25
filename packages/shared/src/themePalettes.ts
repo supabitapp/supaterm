@@ -136,6 +136,8 @@ export type ThemeDefinition = Readonly<{
   variants?: ThemeVariants;
   collection?: Readonly<{ id: string; label: string }>;
   managed?: boolean;
+  /** Custom styles for web and desktop. */
+  css?: string;
 }>;
 
 /** The standard Supaterm palette, Graphite in both appearances. */

@@ -584,6 +584,7 @@ function summaryActionPriority(action: ToolGroupAction | SupatermMcpToolSummaryA
     case "project-delete":
     case "project-clone":
     case "environment-update":
+    case "theme-set":
     case "attachment-prepare":
     case "attachment-discard":
     case "attachment-send":
