@@ -4531,7 +4531,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const blockingRequestExists = pendingRequests.some(
         (request) => request.kind !== "user_input" || request.responseCapability.type !== "message",
       );
-      // Settling detaches the provider session, which ends the work running inside it. Hold for
+      // Marking Done detaches the provider session, which ends the work running inside it. Hold for
       // the work auto-mark-done waits on. Delegated tasks run in their own thread and survive.
       const awaitedSessionWorkExists =
         !runningRunExists &&
