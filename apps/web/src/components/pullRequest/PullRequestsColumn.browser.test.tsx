@@ -85,7 +85,13 @@ function CondensedSearchColumn({
         onState={() => {}}
         onHost={() => {}}
         searchInput={
-          <PullRequestSearchInput value={query} onChange={setQuery} onSubmit={onSubmit} />
+          <PullRequestSearchInput
+            value={query}
+            label="Search pull requests"
+            placeholder="Search pull requests, or label:bug"
+            onChange={setQuery}
+            onSubmit={onSubmit}
+          />
         }
         sortMenu={null}
         filtersMenu={null}

@@ -16,7 +16,7 @@ import { useOpenLink } from "../browser/useOpenLink";
 import { isElectron } from "../env";
 import { useClientSettings } from "../hooks/useSettings";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
-import { useRightPanelStore } from "../rightPanelStore";
+import { PULL_REQUESTS_PANEL_REF, useRightPanelStore } from "../rightPanelStore";
 import {
   selectThreadBranchBaseRef,
   selectThreadDiffPanelSelection,
@@ -127,7 +127,8 @@ export function useOpenChangeRequestLink(
           ...(revealUrl === undefined ? {} : { revealUrl }),
           number,
         });
-        if (!resolvedThreadRef) {
+        // The pull request list keeps its selection in the URL; the Issues page's panel does not.
+        if (resolvedPanelRef === PULL_REQUESTS_PANEL_REF) {
           void navigate({
             to: "/pull-requests",
             search: (previous) => ({
