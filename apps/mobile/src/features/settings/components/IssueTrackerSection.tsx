@@ -119,7 +119,7 @@ function EnvironmentTrackers(props: {
   );
 }
 
-export function IssueTrackerMark(props: { readonly tracker: string }) {
+function IssueTrackerMark(props: { readonly tracker: string }) {
   const mark = TRACKER_MARKS[props.tracker];
   return mark ? (
     <ThemedSvg
