@@ -1,7 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { type EasDeviceHostConfig, ThreadId } from "@supaterm/contracts";
+import { type EasDeviceHostConfig, SecretProviderId, ThreadId } from "@supaterm/contracts";
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -243,9 +244,25 @@ const fakeExpo = (
   return { http, named, stopped, allowPreview, allowCreate, releases, previews };
 };
 
+const makeSecretResolver = (values: Record<string, string> = {}) =>
+  Layer.succeed(SecretResolver.SecretResolver, {
+    label: (provider) => Effect.succeed(provider),
+    read: (references) =>
+      Effect.succeed(references.map((reference) => values[reference.reference])),
+    invalidate: () => Effect.void,
+  });
+
+const layerWith = (secrets: Layer.Layer<SecretResolver.SecretResolver>) =>
+  Layer.mergeAll(
+    ProcessRunner.layer,
+    ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-eas-host-" }),
+    secrets,
+  ).pipe(Layer.provideMerge(NodeServices.layer));
+
 const layer = Layer.mergeAll(
   ProcessRunner.layer,
   ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-eas-host-" }),
+  makeSecretResolver(),
 ).pipe(Layer.provideMerge(NodeServices.layer));
 
 const makeHost = (
@@ -313,6 +330,65 @@ describe("Expo Simulators host", () => {
       ).toEqual(["session-1"]);
     }).pipe(Effect.scoped, Effect.provide(layer)),
   );
+
+  it.effect("reads its token from the secret provider the setting names", () =>
+    Effect.gen(function* () {
+      const expo = fakeExpo();
+      const source = { provider: SecretProviderId.make("homelab"), reference: "expo#token" };
+      const host = yield* makeHost(expo, config({ accessToken: source }), yield* Scope.make());
+      const ready = yield* host.ensureReady(() => Effect.void);
+      const [catalogDevice] = (yield* ready.devices.list).devices;
+      expect(yield* ready.devices.boot(catalogDevice!)).toBe("session-1");
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(layerWith(makeSecretResolver({ "expo#token": "expo-token" }))),
+    ),
+  );
+
+  it.effect("fails instead of using another Expo login when its secret cannot be read", () =>
+    Effect.gen(function* () {
+      const expo = fakeExpo();
+      const source = { provider: SecretProviderId.make("homelab"), reference: "expo#token" };
+      const host = yield* makeHost(expo, config({ accessToken: source }), yield* Scope.make()).pipe(
+        Effect.provideService(HostProcess.Environment, { EXPO_TOKEN: "expo-token" }),
+      );
+      const ready = yield* host.ensureReady(() => Effect.void);
+      const [catalogDevice] = (yield* ready.devices.list).devices;
+      const failure = yield* ready.devices.boot(catalogDevice!).pipe(Effect.flip);
+      expect(failure.message).toContain('secret provider "homelab"');
+      expect(expo.named("SupatermCreateEasSimulatorSession")).toHaveLength(0);
+    }).pipe(Effect.scoped, Effect.provide(layer)),
+  );
+
+  it.effect("still stops its sessions when the secret becomes unreadable after they start", () => {
+    const readable = { value: true };
+    return Effect.gen(function* () {
+      const expo = fakeExpo();
+      const source = { provider: SecretProviderId.make("homelab"), reference: "expo#token" };
+      const scope = yield* Scope.make();
+      const host = yield* makeHost(expo, config({ accessToken: source }), scope);
+      const ready = yield* host.ensureReady(() => Effect.void);
+      const [catalogDevice] = (yield* ready.devices.list).devices;
+      expect(yield* ready.devices.boot(catalogDevice!)).toBe("session-1");
+
+      readable.value = false;
+      yield* ready.devices.shutdown({ ...catalogDevice!, id: "session-1" });
+      expect(expo.stopped()).toEqual(["session-1"]);
+      yield* Scope.close(scope, Exit.void);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        layerWith(
+          Layer.succeed(SecretResolver.SecretResolver, {
+            label: (provider) => Effect.succeed(provider),
+            read: (references) =>
+              Effect.succeed(references.map(() => (readable.value ? "expo-token" : undefined))),
+            invalidate: () => Effect.void,
+          }),
+        ),
+      ),
+    );
+  });
 
   it.effect("runs an Android session through serve-emu beside an iOS one", () =>
     Effect.gen(function* () {

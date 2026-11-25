@@ -25,6 +25,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
+import * as SchemaAST from "effect/SchemaAST";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as TestClock from "effect/testing/TestClock";
@@ -82,6 +83,36 @@ const layerFailingSecretStore = (cause: ServerSecretStore.SecretStoreError) =>
       remove: () => Effect.void,
     }),
   );
+
+/** Paths of fields typed `SettingsSecretValue` that clients decode with the settings schema itself. */
+function strictSecretReferencePaths(
+  ast: SchemaAST.AST,
+  path = "",
+  seen = new Set<SchemaAST.AST>(),
+): ReadonlyArray<string> {
+  if (seen.has(ast)) return [];
+  seen.add(ast);
+  const walk = (type: SchemaAST.AST, at: string): ReadonlyArray<string> =>
+    type.context?.annotations?.settingsSecretReference === true
+      ? [at]
+      : strictSecretReferencePaths(type, `${at}.`, seen);
+  if (SchemaAST.isObjects(ast)) {
+    return [
+      ...ast.propertySignatures.flatMap((property) =>
+        walk(property.type, `${path}${String(property.name)}`),
+      ),
+      ...ast.indexSignatures.flatMap((signature) => walk(signature.type, `${path}*`)),
+    ];
+  }
+  if (SchemaAST.isArrays(ast)) {
+    return [...ast.elements, ...ast.rest].flatMap((element) => walk(element, `${path}[]`));
+  }
+  if (SchemaAST.isUnion(ast)) {
+    return ast.types.flatMap((member) => strictSecretReferencePaths(member, path, seen));
+  }
+  if (SchemaAST.isSuspend(ast)) return strictSecretReferencePaths(ast.thunk(), path, seen);
+  return [];
+}
 
 it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings", (it) => {
   it.effect("sends clients a known secret provider's config but never an unknown kind's", () =>
@@ -1607,9 +1638,24 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           provider: SecretProviderId.make("personal"),
           reference: "op://Private/OpenCode/password",
         };
+        const easReference = {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/Expo/token",
+        };
         const antigravity = ProviderInstanceId.make("antigravity");
         const openCode = ProviderInstanceId.make("opencode");
         const withProviders = yield* serverSettings.updateSettings({
+          easDeviceHosts: [
+            {
+              kind: "eas",
+              id: "eas",
+              label: "Expo Simulators",
+              accessToken: easReference,
+              maxSessionMinutes: 30,
+              idleMinutes: 10,
+              maxConcurrentSessions: 2,
+            },
+          ],
           providerInstances: {
             [antigravity]: {
               driver: ProviderDriverKind.make("antigravity"),
@@ -1626,14 +1672,17 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         });
         assert.notInclude(JSON.stringify(legacy), "op://");
         assert.equal(legacy.sourceControlHosts.bitbucket?.accessToken, SECRET_REDACTED);
+        assert.equal(legacy.easDeviceHosts[0]?.accessToken, SECRET_REDACTED);
         const configOf = (settings: ServerSettings, id: ProviderInstanceId) =>
           settings.providerInstances[id]?.config as Record<string, unknown> | undefined;
         assert.equal(configOf(legacy, antigravity)?.apiKey, SECRET_REDACTED);
         assert.equal(configOf(legacy, openCode)?.serverPassword, SECRET_REDACTED);
         const echoed = yield* serverSettings.updateSettings({
           sourceControlHosts: legacy.sourceControlHosts,
+          easDeviceHosts: legacy.easDeviceHosts,
           providerInstances: legacy.providerInstances,
         });
+        assert.deepEqual(echoed.easDeviceHosts[0]?.accessToken, easReference);
         assert.deepEqual(configOf(echoed, antigravity)?.apiKey, antigravityReference);
         assert.deepEqual(configOf(echoed, openCode)?.serverPassword, openCodeReference);
         assert.deepEqual(echoed.sourceControlHosts.bitbucket?.accessToken, reference);
@@ -1643,6 +1692,15 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         });
         assert.isTrue(Option.isSome(yield* stored("github", "tokens", "ghe.acme.test")));
       }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
+  );
+
+  it.effect("knows every strictly decoded field that can hold a secret reference", () =>
+    Effect.sync(() => {
+      // Shipped clients decode these as strings. Each must be covered by the older-client case above.
+      assert.deepEqual(strictSecretReferencePaths(ServerSettings.ast), [
+        "easDeviceHosts.[].accessToken",
+      ]);
+    }),
   );
 
   it.effect("removing a secret provider unsets every field that read from it", () =>
@@ -1676,6 +1734,17 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           bitbucket: { accessToken: personal("Bitbucket/token") },
           github: { tokens: { "github.com": personal("GitHub/token"), "ghe.acme.test": work } },
         },
+        easDeviceHosts: [
+          {
+            kind: "eas",
+            id: "eas",
+            label: "Expo Simulators",
+            accessToken: personal("Expo/token"),
+            maxSessionMinutes: 30,
+            idleMinutes: 10,
+            maxConcurrentSessions: 2,
+          },
+        ],
       });
 
       // An older client's save echoes a reference it cannot decode as the redacted marker.
@@ -1694,6 +1763,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         "github.com": "",
         "ghe.acme.test": work,
       });
+      assert.equal(removed.easDeviceHosts[0]?.accessToken, "");
       assert.deepEqual(Object.keys(removed.secretProviders), ["work"]);
     }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
   );

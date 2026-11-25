@@ -1,3 +1,4 @@
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import { describe, expect, it } from "@effect/vitest";
 import {
   DEFAULT_SERVER_SETTINGS,
@@ -787,6 +788,12 @@ describe("device setup consent", () => {
   );
 });
 
+const layerSecretResolver = Layer.succeed(SecretResolver.SecretResolver, {
+  label: (provider) => Effect.succeed(provider),
+  read: (references) => Effect.succeed(references.map(() => undefined)),
+  invalidate: () => Effect.void,
+});
+
 const WINDOWS_HOST_GUIDANCE = new SshDeviceHost.SshWindowsHostError({ cause: null }).message;
 
 it.effect.each([
@@ -880,6 +887,7 @@ it.effect.each([
     Effect.provide(
       Layer.mergeAll(
         ServerSettings.layerTest(),
+        layerSecretResolver,
         ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-device-probe-" }),
         NodeCrypto.layer,
         NetService.layer,
@@ -1812,7 +1820,13 @@ it.effect("reconciles SSH host settings without publishing no-op changes", () =>
           ),
         ),
       ),
-      Effect.provide(Layer.mergeAll(ServerConfig.layerTest(baseDir, baseDir), NetService.layer)),
+      Effect.provide(
+        Layer.mergeAll(
+          ServerConfig.layerTest(baseDir, baseDir),
+          NetService.layer,
+          layerSecretResolver,
+        ),
+      ),
     );
     const update = Effect.fnUntraced(function* (deviceHosts: ReadonlyArray<SshDeviceHostConfig>) {
       const value = yield* settings.updateSettings({ deviceHosts: [...deviceHosts] });
@@ -1919,6 +1933,7 @@ it.effect.each(["exit", "missing"] as const)(
       Effect.provide(
         Layer.mergeAll(
           ServerSettings.layerTest({ enableDeviceSupport: true }),
+          layerSecretResolver,
           ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-device-update-" }),
           NodeCrypto.layer,
           NetService.layer,

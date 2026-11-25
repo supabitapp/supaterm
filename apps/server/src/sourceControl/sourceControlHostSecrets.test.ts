@@ -1,10 +1,11 @@
 import { assert, it } from "@effect/vitest";
-import { SecretProviderId } from "@supaterm/contracts";
+import { DeviceHostId, SecretProviderId } from "@supaterm/contracts";
 import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import * as Effect from "effect/Effect";
 
 import {
   collectSourceControlHostSecretReferences,
+  invalidateSettingsSecrets,
   resolveSourceControlHostSecrets,
 } from "./sourceControlHostSecrets.ts";
 
@@ -103,3 +104,60 @@ it("collects the references held in credential fields and skips literal values",
     [],
   );
 });
+
+it.effect("reads a collected reference again once it is invalidated", () =>
+  Effect.gen(function* () {
+    let current = "stale";
+    const cache = new Map<string, string>();
+    const resolver = SecretResolver.SecretResolver.of({
+      label: (provider) => Effect.succeed(provider),
+      read: (references) =>
+        Effect.sync(() =>
+          references.map((reference) => {
+            const hit = cache.get(reference.reference);
+            if (hit !== undefined) return hit;
+            cache.set(reference.reference, current);
+            return current;
+          }),
+        ),
+      invalidate: (references) =>
+        Effect.sync(() => {
+          if (references === undefined) cache.clear();
+          else for (const reference of references) cache.delete(reference.reference);
+        }),
+    });
+    const read = () => resolveSourceControlHostSecrets(resolver, hosts, "bitbucket");
+    const easDeviceHosts = [
+      {
+        kind: "eas" as const,
+        id: DeviceHostId.make("ref"),
+        label: "Ref",
+        maxSessionMinutes: 30,
+        idleMinutes: 10,
+        maxConcurrentSessions: 2,
+        accessToken: source("expo#token"),
+      },
+    ];
+    cache.set("expo#token", "stale");
+    assert.deepEqual((yield* read()).bitbucket, {
+      email: "me@example.test",
+      accessToken: "stale",
+    });
+    current = "rotated";
+    yield* invalidateSettingsSecrets(
+      resolver,
+      Effect.succeed({ sourceControlHosts: hosts, easDeviceHosts }),
+    );
+    assert.isFalse(cache.has("expo#token"));
+    assert.deepEqual((yield* read()).bitbucket, {
+      email: "me@example.test",
+      accessToken: "rotated",
+    });
+    current = "rotated again";
+    yield* invalidateSettingsSecrets(resolver, Effect.fail("settings unreadable"));
+    assert.deepEqual((yield* read()).bitbucket, {
+      email: "me@example.test",
+      accessToken: "rotated again",
+    });
+  }),
+);

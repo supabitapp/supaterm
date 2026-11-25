@@ -97,14 +97,20 @@ export const resolveSourceControlHostSecrets = Effect.fn("SourceControlHost.reso
   },
 );
 
+const collectDeviceHostSecretReferences = (
+  settings: Pick<ServerSettings, "easDeviceHosts">,
+): ReadonlyArray<SecretReference> =>
+  settings.easDeviceHosts.map(({ accessToken }) => accessToken).filter(isSecretReference);
+
 /** Settings that cannot be read clear every cached secret, so a refresh never keeps a stale one. */
 export const invalidateSettingsSecrets = Effect.fn("SettingsSecrets.invalidate")(function* <E>(
   resolver: SecretResolver.SecretResolver["Service"],
-  settings: Effect.Effect<Pick<ServerSettings, "sourceControlHosts">, E>,
+  settings: Effect.Effect<Pick<ServerSettings, "sourceControlHosts" | "easDeviceHosts">, E>,
 ) {
   const references = yield* settings.pipe(
     Effect.map((current) => [
       ...collectSourceControlHostSecretReferences(current.sourceControlHosts),
+      ...collectDeviceHostSecretReferences(current),
     ]),
     Effect.orElseSucceed(() => undefined),
   );

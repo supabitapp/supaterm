@@ -27,6 +27,9 @@ const settings = Schema.decodeSync(ServerSettings)({
     github: { tokens: { "github.com": personal("op://gh"), "ghe.acme.test": work } },
     bitbucket: { accessToken: personal("op://bb") },
   },
+  easDeviceHosts: [
+    { kind: "eas", id: "eas", label: "Expo Simulators", accessToken: personal("op://expo") },
+  ],
 });
 
 it.each([
@@ -38,6 +41,7 @@ it.each([
       "Codex · CODEX_TOKEN",
       "GitHub · github.com",
       "Bitbucket · Access token",
+      "Expo Simulators · Access Token",
     ],
   ],
   ["work", ["Antigravity Work · OTHER_TOKEN", "GitHub · ghe.acme.test"]],

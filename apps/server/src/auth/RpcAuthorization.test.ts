@@ -578,6 +578,44 @@ describe("settings mutation authorization", () => {
   );
 });
 
+it.effect("does not let a settings grant send a named secret to an Expo account it checks", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.deviceEasAccount> =>
+          tag !== WS_METHODS.deviceEasAccount,
+      ),
+    );
+    let handled = 0;
+    const client = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          group.toLayerHandler(WS_METHODS.deviceEasAccount, () =>
+            Effect.sync(() => {
+              handled++;
+              return { signedInAs: "agent", credentialSource: "settings" as const, apps: [] };
+            }),
+          ),
+          RpcAuthorization.layer([AuthSettingsWriteScope]),
+        ),
+      ),
+    );
+    yield* client[WS_METHODS.deviceEasAccount]({ accessToken: "typed-token" });
+    expect(handled).toBe(1);
+    expect(
+      yield* client[WS_METHODS.deviceEasAccount]({
+        accessToken: {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/Expo/token",
+        },
+      }).pipe(Effect.flip),
+    ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+    expect(handled).toBe(1);
+  }),
+);
+
 it.effect("requires task permission before attaching a prepared worktree to a thread", () =>
   Effect.gen(function* () {
     const group = WsRpcGroup.omit(
