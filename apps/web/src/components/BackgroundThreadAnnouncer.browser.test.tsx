@@ -49,6 +49,7 @@ const shell = (id: ThreadId, title: string, runId: string, status: string) => ({
   pendingSubagentRequest: null,
   source: { pendingRuntimeRequest: null },
   latestRun: { runId: RunId.make(runId), status },
+  pendingBackgroundTasks: [],
   runtime: { activeRunId: null },
   snoozedUntil: null,
 });
