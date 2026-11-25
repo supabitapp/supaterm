@@ -290,10 +290,8 @@ it("follows a link to another page and exposes a web link", async () => {
     });
     expect(getComputedStyle(web).cursor).toBe("pointer");
     const internal = await vi.waitFor(() => {
-      const link = Array.from(region.querySelectorAll<HTMLAnchorElement>("a")).find(
-        (anchor) => anchor !== web,
-      );
-      expect(link).toBeDefined();
+      const link = region.querySelector<HTMLButtonElement>('button[aria-label="Page 2"]');
+      expect(link).not.toBeNull();
       return link!;
     });
     internal.click();

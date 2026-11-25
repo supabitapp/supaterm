@@ -196,7 +196,29 @@ function PdfPage(props: {
               width: `${width * 100}%`,
               height: `${height * 100}%`,
             };
-            return "url" in link ? (
+            if (!("url" in link)) {
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-label={`Page ${link.page + 1}`}
+                  className="pointer-events-auto absolute cursor-pointer"
+                  style={style}
+                  onClick={() => props.onPageLink(link.page)}
+                />
+              );
+            }
+            const { onOpenLink } = props;
+            return onOpenLink ? (
+              <button
+                key={key}
+                type="button"
+                aria-label={link.url}
+                className="pointer-events-auto absolute cursor-pointer"
+                style={style}
+                onClick={(event) => onOpenLink(link.url, event)}
+              />
+            ) : (
               <a
                 key={key}
                 href={link.url}
@@ -205,23 +227,6 @@ function PdfPage(props: {
                 aria-label={link.url}
                 className="pointer-events-auto absolute"
                 style={style}
-                onClick={(event) => {
-                  if (!props.onOpenLink) return;
-                  event.preventDefault();
-                  props.onOpenLink(link.url, event);
-                }}
-              />
-            ) : (
-              <a
-                key={key}
-                href={`#page=${link.page + 1}`}
-                aria-label={`Page ${link.page + 1}`}
-                className="pointer-events-auto absolute"
-                style={style}
-                onClick={(event) => {
-                  event.preventDefault();
-                  props.onPageLink(link.page);
-                }}
               />
             );
           })}
