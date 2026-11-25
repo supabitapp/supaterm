@@ -889,7 +889,7 @@ describe("MessagesTimeline messages", () => {
     await using screen = await renderElement(
       <MessagesTimeline
         {...props}
-        parentThreadLink={{ title: "Parent thread", open: () => {} }}
+        parentThreadLink={{ threadId: ThreadId.make("thread-parent"), title: "Parent thread" }}
         timelineEntries={[message("Short child reply.", { role: "assistant" }, "child-0")]}
       />,
     );
