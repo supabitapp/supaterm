@@ -389,9 +389,11 @@ const checkPatches = async (deadline: number): Promise<StepResult> => {
 };
 
 // Generated GraphQL operations must match their sources.
-const graphql = ["apps/server", "packages/source-control-github"].filter((dir) =>
-  files.some((file) => file.startsWith(`${dir}/`)),
-);
+const graphql = [
+  "apps/server",
+  "packages/issue-tracker-linear",
+  "packages/source-control-github",
+].filter((dir) => files.some((file) => file.startsWith(`${dir}/`)));
 
 // The committed icons are rendered from the bolt computer and its appearance settings.
 const iconInputs = files.some(

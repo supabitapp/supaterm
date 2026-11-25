@@ -1,4 +1,10 @@
-import { EnvironmentId, ProjectId, SourceControlProviderKind } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  IssueTrackerAccountId,
+  IssueTrackerKind,
+  ProjectId,
+  SourceControlProviderKind,
+} from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { resolveIssueLinkTarget } from "./issueLinks.ts";
@@ -83,6 +89,75 @@ describe("resolveIssueLinkTarget", () => {
       projects: [enterprise("custom", "code.acme.test")],
     });
     expect(custom?.ref).toMatchObject({ projectId: "custom", host: "code.acme.test", key: "7" });
+  });
+
+  it("reads a Linear link through the project bound to its team, else any bound to Linear", () => {
+    const trackers = {
+      trackers: [
+        {
+          tracker: IssueTrackerKind.make("linear"),
+          displayName: "Linear",
+          host: "linear.app",
+          scopeNoun: "team",
+          credential: { label: "Personal API key", helpUrl: null },
+          connected: true,
+          account: "julius",
+          detail: null,
+          workspace: "acme",
+          scopes: [],
+        },
+      ],
+      bindings: {
+        [ProjectId.make("p1")]: { tracker: IssueTrackerKind.make("linear"), scope: "API" },
+        [ProjectId.make("p2")]: {
+          tracker: IssueTrackerKind.make("linear"),
+          scope: "WEB",
+          additionalScopes: ["DOCS"],
+        },
+      },
+    };
+    const resolve = (url: string) => resolveIssueLinkTarget({ url, projects, trackers });
+    expect(resolve("https://linear.app/acme/issue/WEB-17/fix-it")?.ref).toEqual({
+      projectId: "p2",
+      tracker: "linear",
+      host: "linear.app",
+      scope: "WEB",
+      key: "WEB-17",
+    });
+    expect(resolve("https://linear.app/acme/issue/DOCS-4")?.ref).toMatchObject({
+      projectId: "p2",
+      scope: "DOCS",
+    });
+    expect(resolve("https://linear.app/acme/issue/OPS-3")?.ref).toMatchObject({
+      projectId: "p1",
+      scope: "OPS",
+      key: "OPS-3",
+    });
+    expect(resolve("https://linear.app.evil.example/acme/issue/WEB-17")).toBeNull();
+    // Team keys repeat across workspaces; only the connected one's links are its issues.
+    expect(resolve("https://linear.app/othercorp/issue/WEB-17")).toBeNull();
+    expect(
+      resolveIssueLinkTarget({ url: "https://linear.app/acme/issue/WEB-17", projects }),
+    ).toBeNull();
+
+    // A second account reaches its own workspace, through only the projects bound with it.
+    const accountId = IssueTrackerAccountId.make("second");
+    const [p1, p2] = [ProjectId.make("p1"), ProjectId.make("p2")];
+    const both = (url: string) =>
+      resolveIssueLinkTarget({
+        url,
+        projects,
+        trackers: {
+          ...trackers,
+          accounts: [{ ...trackers.trackers[0]!, accountId, workspace: "othercorp" }],
+          bindings: { [p1]: trackers.bindings[p1]! },
+          accountBindings: { [p2]: { ...trackers.bindings[p2]!, accountId } },
+        },
+      })?.ref.projectId;
+    expect([
+      both("https://linear.app/othercorp/issue/WEB-17"),
+      both("https://linear.app/acme/issue/WEB-17"),
+    ]).toEqual(["p2", "p1"]);
   });
 
   it.each([

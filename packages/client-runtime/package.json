@@ -680,6 +680,7 @@
   "dependencies": {
     "@pierre/diffs": "catalog:",
     "@supaterm/contracts": "workspace:*",
+    "@supaterm/issue-tracker-linear": "workspace:*",
     "@supaterm/mermaid": "workspace:*",
     "@supaterm/provider-acp-registry": "workspace:*",
     "@supaterm/provider-core": "workspace:*",

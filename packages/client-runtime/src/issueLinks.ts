@@ -5,6 +5,11 @@ import {
   type IssueTrackerConnectionList,
   type RepositoryIdentity,
 } from "@supaterm/contracts";
+import {
+  LINEAR_HOST,
+  LINEAR_KIND,
+  parseLinearIssueUrl,
+} from "@supaterm/issue-tracker-linear/shared/issueUrl";
 
 import { sourceControlClients } from "./sourceControlClients.ts";
 import type { EnvironmentProject } from "./state/shell.ts";
@@ -56,16 +61,13 @@ function parseIssueLink(
   return null;
 }
 
-function parseStandaloneIssueLink(_url: string): {
-  readonly tracker: IssueTrackerKind;
-  readonly link: {
-    readonly host: string;
-    readonly workspace: string;
-    readonly scope: string;
-    readonly key: string;
-  };
-} | null {
-  return null;
+function parseStandaloneIssueLink(url: string) {
+  try {
+    const link = parseLinearIssueUrl(new URL(url));
+    return link === null ? null : { tracker: LINEAR_KIND, link };
+  } catch {
+    return null;
+  }
 }
 
 /** Whether `url` is a standalone tracker's issue link, which only bindings can resolve. */
@@ -74,8 +76,8 @@ export function isStandaloneIssueLink(url: string): boolean {
 }
 
 /** A cheap pre-check, so text without such a link never asks for the bindings. */
-export function mayContainStandaloneIssueLink(_text: string): boolean {
-  return false;
+export function mayContainStandaloneIssueLink(text: string): boolean {
+  return text.includes(`${LINEAR_HOST}/`);
 }
 
 /**
