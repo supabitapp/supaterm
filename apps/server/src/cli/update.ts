@@ -176,12 +176,11 @@ export const findWindowsShim = Effect.fn("cli.update.find_windows_shim")(functio
   const candidates = [
     ...(environment["SUPATERM_INSTALL_BIN_DIR"] ? [environment["SUPATERM_INSTALL_BIN_DIR"]] : []),
     ...(environment["PATH"] ?? environment["Path"] ?? "").split(";"),
-  ]
-    .filter((entry) => entry.trim().length > 0)
-    .map((directory) => ({
-      shimPath: path.join(directory, "supaterm.cmd"),
-      parseTarget: windowsShimTarget,
-    }));
+  ].flatMap((directory) =>
+    directory.trim().length > 0
+      ? [{ shimPath: path.join(directory, "supaterm.cmd"), parseTarget: windowsShimTarget }]
+      : [],
+  );
   if (versionsDir !== undefined) {
     const recorded = yield* fs
       .readFileString(path.join(path.dirname(versionsDir), "launchers"))
