@@ -39,6 +39,7 @@ import Migration0029 from "./Migrations/029_ThreadItemCounts.ts";
 import Migration0030 from "./Migrations/030_WorktreePathKeyIndex.ts";
 import Migration0031 from "./Migrations/031_DeferredSlashCommandIndex.ts";
 import Migration0032 from "./Migrations/032_SupersededRunAttemptIndex.ts";
+import Migration0035 from "./Migrations/035_IssueTrackers.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -78,6 +79,7 @@ const migrationEntries = [
   [30, "WorktreePathKeyIndex", Migration0030],
   [31, "DeferredSlashCommandIndex", Migration0031],
   [32, "SupersededRunAttemptIndex", Migration0032],
+  [35, "IssueTrackers", Migration0035],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
