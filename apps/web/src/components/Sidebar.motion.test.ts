@@ -77,7 +77,14 @@ function fixture(rows: TestRow[], viewportHeight?: number) {
     closest: () =>
       viewportHeight === undefined
         ? null
-        : { getBoundingClientRect: () => ({ top: 0, bottom: viewportHeight }) },
+        : {
+            scrollTop: 0,
+            scrollHeight: viewportHeight,
+            clientHeight: viewportHeight,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+            getBoundingClientRect: () => ({ top: 0, bottom: viewportHeight }),
+          },
     ownerDocument: { defaultView: { matchMedia: () => media } },
     getBoundingClientRect: () => ({ top: parent.top }),
     getClientRects: () => [parent.getBoundingClientRect()],
