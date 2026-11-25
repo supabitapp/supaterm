@@ -29,7 +29,6 @@ import type {
   ModelSelection,
   ProjectId,
   PreviewAnnotationPayload,
-  ProviderApprovalDecision,
   ProviderInteractionMode,
   ResolvedKeybindingsConfig,
   RuntimeMode,
@@ -137,29 +136,16 @@ import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
 import { useComposerFocusState } from "./useComposerFocusState";
 import { useComposerMultilinePrompt } from "./useComposerMultilinePrompt";
-import {
-  ComposerTasksBadge,
-  ComposerTasksContent,
-  ComposerTasksDrawer,
-  type ComposerTaskStep,
-  type ComposerTasksProgress,
-} from "./ComposerTasksBadge";
-import { ComposerActivityRow } from "./ComposerActivityStatus";
 import { useAttachmentExits, useAttachmentTrayMotion } from "./composerAttachmentMotion";
 import {
   type QueuedAttachmentContextBinding,
   reconcileAttachmentContextReferences,
   useRetainedContextPayloads,
 } from "./composerContextUndo";
-import type { ThreadSyncPhase } from "../../threadSync";
 import { ComposerBanner } from "./ComposerBanner";
 import { ComposerSurface } from "./ComposerSurface";
 import { CollapsedComposerPromptPreview } from "./CollapsedComposerPromptPreview";
-import {
-  ComposerBannerStack,
-  type ComposerBannerStackContent,
-  type ComposerBannerStackItem,
-} from "./ComposerBannerStack";
+import { ComposerBannerStack, type ComposerBannerStackItem } from "./ComposerBannerStack";
 import {
   ComposerVoiceButton,
   ComposerVoiceSession,
@@ -250,7 +236,6 @@ import {
   ComposerCommandMenu,
   composerSuggestionOptionId,
 } from "./ComposerCommandMenu";
-import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
 import {
   ComposerAttachButton,
   ComposerAttachInput,
@@ -270,7 +255,6 @@ import {
   type ComposerPendingAnswer,
   type ComposerPrimaryActionInput,
 } from "./composerPrimaryAction.logic";
-import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import { buildPullRequestReferenceContext } from "../pullRequest/pullRequestDetail.logic";
@@ -313,7 +297,7 @@ const COMPOSER_SCROLL_GESTURE_RESET_MS = 120;
 
 import { toastManager } from "../ui/toast";
 import { Spinner } from "../ui/spinner";
-import { PlayIcon, ReplyIcon, ShieldIcon } from "@supaterm/icons";
+import { PlayIcon, ReplyIcon } from "@supaterm/icons";
 import { ResponseReplyBarLink } from "./AssistantCitationChip";
 import { NO_PROVIDER_MODEL_SELECTION } from "../../providerInstances";
 import { type AppModelOption, getAppModelOptionsForInstance } from "../../modelSelection";
@@ -332,8 +316,6 @@ import {
   resolveProviderSlashCommandsForCwd,
 } from "@supaterm/client-runtime/providerSkills";
 import * as Schema from "effect/Schema";
-import { useDelayedStatus } from "../../hooks/useDelayedStatus";
-import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { useSoftwareKeyboardOpen } from "../../hooks/useSoftwareKeyboardOpen";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -341,8 +323,6 @@ import { usePanelAnimationSettings } from "../../panelAnimations";
 import { readEnvironmentScope, readPreparedConnection } from "../../state/session";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 import { isQueuedFileAttachment, isQueuedImageAttachment } from "./queuedMessageEdit";
-
-const COMPOSER_TASKS_EXPANDED_KEY = "supaterm:composer:tasks-expanded";
 
 /** Reads and disarms a paste-as-text deadline: the shortcut applies to one paste only. */
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
@@ -471,14 +451,11 @@ export interface ChatComposerProps {
 
   activePendingApproval: PendingApproval | null;
   pendingApprovals: PendingApproval[];
+  onHeldRequestIdsChange: (requestIds: ReadonlySet<string>) => void;
   pendingUserInputs: PendingUserInput[];
   supportsQuestionAutoDismiss?: boolean;
   activePendingIsResponding: boolean;
   respondingRequestIds: RuntimeRequestId[];
-
-  activeTasksProgress: ComposerTasksProgress | null;
-  activeTaskSteps: readonly ComposerTaskStep[] | null;
-  threadSyncPhase: ThreadSyncPhase | null;
 
   runtimeMode: RuntimeMode;
 
@@ -520,7 +497,8 @@ export interface ChatComposerProps {
   onPageScrollKeyUp: (key: string) => void;
   onPageScrollRelease: () => void;
 
-  queuedRunsControl?: ReactNode;
+  /** This client's undelivered messages, which stay with sending. */
+  outboxControl?: ReactNode;
   // Context strip attached closest to the prompt, below any notices.
   attachedContextStrip?: ReactNode;
   editingQueuedAttachments: ReadonlyArray<{
@@ -547,10 +525,6 @@ export interface ChatComposerProps {
   ) => (recording: VoiceRecording, handOff: VoiceRecordingHandOff | undefined) => Promise<void>;
   onResume: () => void;
   onInterrupt: () => void;
-  onRespondToApproval: (
-    requestId: RuntimeRequestId,
-    decision: ProviderApprovalDecision,
-  ) => Promise<unknown>;
   onSelectActivePendingUserInputOption: (questionId: string, optionValue: string) => void;
   onAdvanceActivePendingUserInput: () => void;
   onDismissActivePendingUserInput: (requestId: RuntimeRequestId) => void;
@@ -620,6 +594,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     environmentUnavailable,
     activePendingApproval: incomingPendingApproval,
     pendingApprovals,
+    onHeldRequestIdsChange,
     pendingUserInputs: incomingPendingUserInputs,
     activePendingIsResponding: incomingPendingIsResponding,
     respondingRequestIds,
@@ -663,7 +638,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onPrepareVoiceSend,
     onResume,
     onInterrupt,
-    onRespondToApproval,
     onSelectActivePendingUserInputOption,
     onAdvanceActivePendingUserInput,
     onDismissActivePendingUserInput,
@@ -708,6 +682,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ...pendingApprovals.map((request) => request.requestId),
     ...incomingPendingUserInputs.map((request) => request.requestId),
   ]);
+  // A layout effect so the timeline never paints a held approval as answerable.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes held requests to the timeline without lifting per-keystroke typing state
+  useLayoutEffect(() => {
+    onHeldRequestIdsChange(heldRequestIds);
+  }, [heldRequestIds, onHeldRequestIdsChange]);
   const activePendingApproval =
     incomingPendingApproval && !heldRequestIds.has(incomingPendingApproval.requestId)
       ? incomingPendingApproval
@@ -719,11 +698,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activePendingProgress = holdingUserInput ? null : incomingPendingProgress;
   const activePendingIsResponding = !holdingUserInput && incomingPendingIsResponding;
   const isLiteralPendingAnswer = activePendingProgress?.activeQuestion?.initialAnswer !== undefined;
-  const shownSyncPhase = useDelayedStatus(composerDraftTargetKey, props.threadSyncPhase);
-  const shownSyncStatus =
-    shownSyncPhase === "syncing" || shownSyncPhase === "failed" ? shownSyncPhase : null;
-  const activeTasksProgress = shownSyncPhase === null ? props.activeTasksProgress : null;
-  const activeTaskSteps = shownSyncPhase === null ? props.activeTaskSteps : null;
   const isEditingQueuedMessage = editingQueuedAttachments !== null;
   const applyThreadModelPick = useApplyThreadModelPick();
   const composerDraft = useComposerThreadDraft(composerDraftTarget);
@@ -1188,11 +1162,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const [composerMenuAnchor, setComposerMenuAnchor] = useState<HTMLDivElement | null>(null);
   const [hasWrappedPrompt, observeWrappedPrompt] = useComposerMultilinePrompt();
   const hasMultilinePrompt = prompt.includes("\n") || hasWrappedPrompt;
-  const [tasksExpandedPreference, setTasksExpandedPreference] = useLocalStorage(
-    COMPOSER_TASKS_EXPANDED_KEY,
-    false,
-    Schema.Boolean,
-  );
   // Set by the voice session, which starts later in this component, so its controls in the
   // footer stay on screen while recording.
   const [voiceSessionOpen, setVoiceSessionOpen] = useState(false);
@@ -1356,7 +1325,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activePendingUserInput = pendingUserInputs[0] ?? null;
   const isChoiceOnlyPendingQuestion =
     activePendingProgress?.activeQuestion?.allowCustomAnswer === false;
-  const showComposerTopDrawer = isComposerApprovalState || pendingUserInputs.length > 0;
+  const showComposerTopDrawer = pendingUserInputs.length > 0;
   const showCollapsedMobilePromptRow = isComposerCollapsedMobile;
   const showComposerAttachAction =
     fileStagingLimit !== null &&
@@ -2656,8 +2625,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         {
           id: "reply-to",
           variant: "default",
-          // It is part of the message, so another notice must not stack it out of sight.
-          alwaysVisible: true,
           icon: <ReplyIcon />,
           title: replyTo.subagents
             ? `Replying to ${replyTo.subagents.map((subagent) => subagent.title).join(", ")}`
@@ -2668,11 +2635,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         },
       ]
     : props.bannerItems;
-  const hasBannerItems = bannerItems.length > 0;
-  const hasBlockingComposerTopDrawer =
-    activePendingApproval !== null || pendingUserInputs.length > 0;
-  const canShowTasks =
-    activeTasksProgress !== null && activeTaskSteps !== null && !hasBlockingComposerTopDrawer;
   const hasImageAttachmentAttention = standaloneComposerImages.some((image) => {
     const upload = uploadsByImageId[image.id];
     const failedInCurrentEnvironment =
@@ -2681,9 +2643,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       upload.environmentId === environmentId;
     return nonPersistedComposerImageIdSet.has(image.id) && !failedInCurrentEnvironment;
   });
-  // Banners and the tasks drawer dock above the surface rather than inside
-  // it, so they do not hold the composer open; only surface-internal chrome
-  // does.
+  // Banners dock above the surface rather than inside it, so they do not hold the composer open;
+  // only surface-internal chrome does.
   const composerHasExpandedChrome =
     isEditingQueuedMessage ||
     showComposerTopDrawer ||
@@ -2704,24 +2665,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     hasMultilinePrompt,
     timelineOverflows,
   });
-  const isTasksDrawerOpen = canShowTasks && tasksExpandedPreference && !isComposerResting;
-  const toggleTasksDrawer = () => {
-    setIsComposerScrollCollapsed(false);
-    setTasksExpandedPreference(!isTasksDrawerOpen);
-  };
-  const toggleTasksDrawerStable = useStableCallback(toggleTasksDrawer);
-  const showInlineTasksBadge =
-    canShowTasks &&
-    !isTasksDrawerOpen &&
-    (hasBannerItems || showComposerTopDrawer || isComposerCollapsedMobile);
-  const inlineTasksBadge = showInlineTasksBadge ? (
-    <ComposerTasksBadge
-      expanded={false}
-      onToggle={toggleTasksDrawerStable}
-      progress={activeTasksProgress}
-      steps={activeTaskSteps}
-    />
-  ) : null;
   const expandedComposerImages = isComposerResting
     ? standaloneComposerImages.filter((image) => pendingSnapShotIdSet.has(image.id))
     : standaloneComposerImages;
@@ -2813,10 +2756,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const canTrackComposerScrollGesture =
     routeKind === "server" && activeThreadId !== null && !isMobileViewport;
   const canScrollCollapseComposer =
-    canTrackComposerScrollGesture &&
-    !hasMultilinePrompt &&
-    !composerHasExpandedChrome &&
-    !showInlineTasksBadge;
+    canTrackComposerScrollGesture && !hasMultilinePrompt && !composerHasExpandedChrome;
   // Clear rather than mask: once eligibility drops, the composer stays expanded until the next
   // scroll gesture even if it becomes eligible again.
   if (!canScrollCollapseComposer && isComposerScrollCollapsed) {
@@ -2990,40 +2930,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       getModelDisabledReason={getModelDisabledReason}
     />
   );
-  const showTasksTab =
-    !hasBannerItems &&
-    !showComposerTopDrawer &&
-    !isTasksDrawerOpen &&
-    !isComposerCollapsedMobile &&
-    activeTasksProgress !== null &&
-    activeTaskSteps !== null &&
-    activeTasksProgress.totalSteps > 0;
-  const activityStackContent = hasBannerItems ? (
-    shownSyncStatus ? (
-      <ComposerActivityRow phase={shownSyncStatus} />
-    ) : canShowTasks ? (
-      <ComposerTasksContent
-        expanded={isTasksDrawerOpen}
-        onToggle={toggleTasksDrawerStable}
-        progress={activeTasksProgress}
-        steps={activeTaskSteps}
-      />
-    ) : null
-  ) : null;
-  const activityStackItem: ComposerBannerStackContent | null = activityStackContent
-    ? {
-        id: "composer-activity",
-        variant: "default",
-        priority: "activity",
-        content: activityStackContent,
-      }
-    : null;
   const voiceBannerItem = composerVoiceBannerItem(voice);
-  const bannerStackItems = [
-    ...(activityStackItem ? [activityStackItem] : []),
-    ...(voiceBannerItem ? [voiceBannerItem] : []),
-    ...bannerItems,
-  ];
+  const bannerStackItems = voiceBannerItem ? [voiceBannerItem, ...bannerItems] : bannerItems;
 
   const insertComposerText = (
     text: string,
@@ -3918,54 +3826,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         : null}
       <ComposerBanner.Dock className={isComposerResting ? "hidden" : undefined}>
         <ComposerBanner.Column>
-          <ComposerBannerStack
-            key={`stack:${activeThreadId}`}
-            className="relative z-0"
-            items={bannerStackItems}
-          />
-          {!activityStackItem && (shownSyncStatus || inlineTasksBadge) ? (
-            <ComposerBanner.Attachment>
-              <ComposerBanner.Root data-chat-composer-activity-strip="true">
-                {shownSyncStatus ? (
-                  <ComposerActivityRow phase={shownSyncStatus} />
-                ) : (
-                  inlineTasksBadge
-                )}
-              </ComposerBanner.Root>
-            </ComposerBanner.Attachment>
-          ) : null}
-          <ComposerBanner.Drawer
-            key={`top-drawer:${activeThreadId}`}
-            open={showComposerTopDrawer && !isTasksDrawerOpen}
-          >
-            <ComposerBanner.Root
-              data-chat-composer-top-drawer="true"
-              variant={activePendingApproval ? "warning" : "info"}
-              density={activePendingApproval ? "spacious" : "default"}
-            >
-              {activePendingApproval ? (
-                <ComposerBanner.Row layout="approval" data-chat-composer-collapsed-controls="true">
-                  <ComposerBanner.Icon>
-                    <ShieldIcon />
-                  </ComposerBanner.Icon>
-                  <ComposerBanner.Content>
-                    <ComposerPendingApprovalPanel
-                      approval={activePendingApproval}
-                      pendingCount={pendingApprovals.length}
-                    />
-                  </ComposerBanner.Content>
-                  <ComposerBanner.Actions>
-                    <ComposerPendingApprovalActions
-                      disabled={!canOperateThread}
-                      requestId={activePendingApproval.requestId}
-                      isResponding={respondingRequestIds.includes(activePendingApproval.requestId)}
-                      options={activePendingApproval.options}
-                      canRespond={activePendingApproval.responseCapability === "live"}
-                      onRespondToApproval={onRespondToApproval}
-                    />
-                  </ComposerBanner.Actions>
-                </ComposerBanner.Row>
-              ) : !isComposerCollapsedMobile && pendingUserInputs.length > 0 ? (
+          <ComposerBannerStack key={`stack:${activeThreadId}`} items={bannerStackItems} />
+          <ComposerBanner.Drawer key={`top-drawer:${activeThreadId}`} open={showComposerTopDrawer}>
+            <ComposerBanner.Root data-chat-composer-top-drawer="true" variant="info">
+              {!isComposerCollapsedMobile && pendingUserInputs.length > 0 ? (
                 <ComposerPendingUserInputPanel
                   disabled={!canOperateThread}
                   pendingUserInputs={pendingUserInputs}
@@ -4048,19 +3912,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               ) : null}
             </ComposerBanner.Root>
           </ComposerBanner.Drawer>
-          {activeTasksProgress &&
-          activeTaskSteps &&
-          (showTasksTab || (!activityStackItem && isTasksDrawerOpen)) ? (
-            <ComposerTasksDrawer
-              key={`tasks:${activeThreadId}`}
-              expanded={isTasksDrawerOpen}
-              onToggle={toggleTasksDrawerStable}
-              progress={activeTasksProgress}
-              steps={activeTaskSteps}
-            />
-          ) : null}
           {props.attachedContextStrip}
-          <Fragment key={`queue:${activeThreadId}`}>{props.queuedRunsControl}</Fragment>
+          <Fragment key={`outbox:${activeThreadId}`}>{props.outboxControl}</Fragment>
         </ComposerBanner.Column>
         <ComposerStashBadge
           count={stashQueue.length}

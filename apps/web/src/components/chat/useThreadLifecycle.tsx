@@ -68,10 +68,10 @@ import { PopoverCreateHandle } from "../ui/popover";
 import type { BackgroundTaskOutputTarget } from "./BackgroundWork";
 import type { EnvironmentPresentation } from "../../state/environments";
 import {
-  backgroundWorkBannerItem,
-  childInputBannerItem,
-  goalBannerItem,
-  runStopBannerItem,
+  backgroundWorkNowItem,
+  childInputNowItem,
+  goalNowItem,
+  runStopNowItem,
 } from "./ThreadActivityBanners";
 import { useForceStopThread } from "./useForceStopThread";
 import { useAtomValue } from "@effect/atom-react";
@@ -109,7 +109,8 @@ interface ThreadLifecycleInput {
   readonly isWorking: boolean;
   /** Also true while the server prepares, starts, or queues a run this client did not send. */
   readonly runIsLive: boolean;
-  readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkBannerItem>[0]["tasks"];
+  readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkNowItem>[0]["tasks"];
+  readonly turnItems: Parameters<typeof backgroundWorkNowItem>[0]["turnItems"];
   readonly activePendingApproval: PendingThreadRequests["activePendingApproval"];
   readonly activePendingUserInput: PendingThreadRequests["activePendingUserInput"];
   readonly localCheckoutBranchMismatch: {
@@ -153,6 +154,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     isWorking,
     runIsLive,
     pendingBackgroundTasks,
+    turnItems,
     activePendingApproval,
     activePendingUserInput,
     localCheckoutBranchMismatch,
@@ -387,9 +389,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     }
   };
   const handleSwitchCheckoutToThreadStable = useStableCallback(handleSwitchCheckoutToThread);
-  // The stack renders items[0] front-most, so order is priority and the parked-thread banner goes
-  // last. Background work can outlive the turn and its stop button, so its banner is the only
-  // visible stop while no run is live.
+  // Background work can outlive the turn and its stop button, so its line is the only visible
+  // stop while no run is live.
   const activeBackgroundTasks = activeThread ? pendingBackgroundTasks : [];
   const [backgroundWorkStops, setBackgroundWorkStops] = useState<
     Record<string, BackgroundWorkStopRequest | undefined>
@@ -496,7 +497,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const onOpenRelatedThreadStable = useStableCallback(onOpenRelatedThread);
   const childThreadInputs = useChildThreadInputs(activeThreadRef);
 
-  const childInputBanner = childInputBannerItem({
+  const childInputNow = childInputNowItem({
     childThreadInputs,
     parentAwaitingUser: Boolean(
       activePendingApproval || activePendingUserInput || activeThreadShell?.hasPendingUserInput,
@@ -542,9 +543,9 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const sendStandaloneCommandStable = useStableCallback(sendStandaloneCommand);
   const activeGoal = activeThreadShell?.goal ?? null;
 
-  const goalBanner =
+  const goalNow =
     activeThread && activeGoal !== null
-      ? goalBannerItem({
+      ? goalNowItem({
           threadId: activeThread.id,
           goal: activeGoal,
           isWorking,
@@ -557,9 +558,9 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   );
   // A background Stop matters only while that work is still pending.
   const runStop = anyRunStop?.background && activeBackgroundTasks.length === 0 ? null : anyRunStop;
-  const runStopBanner =
+  const runStopNow =
     activeThread && runStop !== null
-      ? runStopBannerItem({
+      ? runStopNowItem({
           threadId: activeThread.id,
           stop: runStop,
           canForceStop: forceStop.canForceStop,
@@ -567,13 +568,14 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           onForceStop: () => void forceStop.forceStopThread(activeThread.id, runStop.runId),
         })
       : null;
-  const backgroundWorkBanner = activeThread
-    ? backgroundWorkBannerItem({
+  const backgroundWorkNow = activeThread
+    ? backgroundWorkNowItem({
         environmentId: activeThread.environmentId,
         threadId: activeThread.id,
         projectId: activeThread.projectId,
         pullRequests: activeThread.pullRequests,
         tasks: activeBackgroundTasks,
+        turnItems,
         outputHandle: backgroundTaskOutputHandle,
         // Interrupt stops the active run first, not this work; the composer owns that Stop.
         stopDisabled: runIsLive || !canOperateThread || isStoppingBackgroundWork,
@@ -677,9 +679,10 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     shortcuts,
     activeBranchMismatchKey,
     // A Stop that went unanswered needs the user; one in progress is the thread's work.
-    backgroundWorkBanner: runStop?.state === "stopping" ? runStopBanner : backgroundWorkBanner,
-    childInputBanner: runStop?.state === "unresponsive" ? runStopBanner : childInputBanner,
-    goalBanner,
+    attentionNow: runStop?.state === "unresponsive" ? runStopNow : childInputNow,
+    workNow: runStop?.state === "stopping" ? runStopNow : backgroundWorkNow,
+    childInputNow,
+    goalNow,
     handleSwitchCheckoutToThreadStable,
     isRestoringThreadBranch,
     onOpenRelatedThread,

@@ -5,14 +5,17 @@ import { usePresence } from "~/hooks/usePresence";
 import { runningSizeAnimation } from "~/lib/motion";
 import { Button } from "../ui/button";
 
+/** The summary names what waits at the end of the timeline, which is out of view while it shows. */
 export function ScrollToEndPill({
   show,
   bottom,
+  summary,
   composerOverlay,
   onScrollToEnd,
 }: {
   show: boolean;
   bottom: number;
+  summary: string | null;
   composerOverlay: HTMLElement | null;
   onScrollToEnd: () => void;
 }) {
@@ -62,7 +65,7 @@ export function ScrollToEndPill({
       style={{ bottom }}
     >
       <Button
-        aria-label="Scroll to end"
+        data-scroll-to-end="true"
         onPointerDown={(event) => event.preventDefault()}
         onClick={onScrollToEnd}
         className="pointer-events-auto"
@@ -71,6 +74,12 @@ export function ScrollToEndPill({
       >
         <ChevronDownIcon className="size-3.5" />
         Scroll to end
+        {summary === null ? null : (
+          <span className="text-muted-foreground">
+            <span aria-hidden>· </span>
+            {summary}
+          </span>
+        )}
       </Button>
     </div>
   );

@@ -7,7 +7,7 @@ import type {
   ThreadId,
   ThreadPullRequestLink,
 } from "@supaterm/contracts";
-import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
+import type { EnvironmentThreadShell, ThreadStructure } from "@supaterm/client-runtime/state/shell";
 import {
   type PendingBackgroundWorkItem,
   presentPendingBackgroundWork,
@@ -17,19 +17,22 @@ import {
 } from "@supaterm/client-runtime/state/thread-execution";
 import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
 import { formatDuration } from "@supaterm/shared/orchestrationTiming";
+import * as DateTime from "effect/DateTime";
 import {
+  CircleDashedIcon,
+  CircleStopIcon,
   GitBranchIcon,
   MessageCircleIcon,
   PuzzleIcon,
   ShieldAlertIcon,
-  StopFilledIcon,
   TargetIcon,
+  TerminalIcon,
   TriangleAlertIcon,
 } from "@supaterm/icons";
 import { Fragment } from "react";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { InlineConfirmButton } from "../InlineConfirm";
-import { Button, InlineButton } from "../ui/button";
+import { InlineButton } from "../ui/button";
 import { PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
@@ -42,6 +45,7 @@ import {
   type WatchedPullRequest,
 } from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+import type { ThreadNowItem } from "./ThreadNow";
 
 export function extensionStatusBannerItem(
   statuses: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]>,
@@ -55,23 +59,28 @@ export function extensionStatusBannerItem(
   };
 }
 
-/** Subagents waiting on the user, unless the parent is itself waiting on them. */
-export function childInputBannerItem(input: {
+/** Subagents and side chats waiting on the user, unless the parent is itself waiting on them. */
+export function childInputNowItem(input: {
   readonly childThreadInputs: ReadonlyArray<EnvironmentThreadShell>;
   readonly parentAwaitingUser: boolean;
   // A task delegated to a linked environment lives there, not where the parent runs.
   readonly onOpenThread: (threadId: ThreadId, environmentId: EnvironmentId) => void;
-}): ComposerBannerStackItem | null {
+}): (ThreadNowItem & { readonly waitingLabel: string }) | null {
   const { childThreadInputs, onOpenThread } = input;
   const first = childThreadInputs[0];
   if (!first || input.parentAwaitingUser) return null;
   return {
     id: `child-input:${first.id}`,
-    variant: "info",
-    priority: "activity",
-    announce: true,
-    icon: first.hasPendingApprovals ? <ShieldAlertIcon /> : <MessageCircleIcon />,
+    // The only line at the end of the timeline that needs you gets the info color.
+    icon: first.hasPendingApprovals ? (
+      <ShieldAlertIcon className="text-info-foreground" />
+    ) : (
+      <MessageCircleIcon className="text-info-foreground" />
+    ),
     title: childThreadInputsTitle(childThreadInputs),
+    waitingLabel: childThreadInputs.every((child) => child.lineage.sideChat === true)
+      ? "Side chat waiting"
+      : "Subagent waiting",
     description: childThreadInputs.map((child, index) => (
       <Fragment key={child.id}>
         {index > 0 ? " " : null}
@@ -84,25 +93,24 @@ export function childInputBannerItem(input: {
       </Fragment>
     )),
     actions: (
-      <Button size="xs" variant="ghost" onClick={() => onOpenThread(first.id, first.environmentId)}>
+      <InlineButton onClick={() => onOpenThread(first.id, first.environmentId)}>
         {first.hasPendingApprovals ? "Open approval" : "Open question"}
-      </Button>
+      </InlineButton>
     ),
   };
 }
 
-export function goalBannerItem(input: {
+/** The thread's goal, for the end of the timeline. */
+export function goalNowItem(input: {
   readonly threadId: ThreadId;
   readonly goal: OrchestrationV2ProviderGoal;
   readonly isWorking: boolean;
   readonly onSendCommand: (text: string, failureMessage: string) => Promise<void>;
-}): ComposerBannerStackItem {
+}): ThreadNowItem {
   const { isWorking, onSendCommand } = input;
   const presentation = presentProviderGoal(input.goal, isWorking);
   return {
     id: `goal:${input.threadId}`,
-    variant: "default",
-    priority: "activity",
     icon: <TargetIcon />,
     title:
       presentation.usage === null
@@ -113,41 +121,43 @@ export function goalBannerItem(input: {
     actions: (
       <>
         {presentation.canResume && !isWorking ? (
-          <Button
-            size="xs"
-            variant="ghost"
-            onClick={() => void onSendCommand("/goal resume", "Failed to resume goal.")}
-          >
-            Resume
-          </Button>
+          <>
+            <InlineButton
+              onClick={() => void onSendCommand("/goal resume", "Failed to resume goal.")}
+            >
+              Resume
+            </InlineButton>
+            <span aria-hidden>·</span>
+          </>
         ) : null}
-        <Button
-          size="xs"
-          variant="ghost"
+        <InlineButton
+          tone="muted"
           onClick={() => void onSendCommand("/goal clear", "Failed to clear goal.")}
         >
           Clear
-        </Button>
+        </InlineButton>
       </>
     ),
   };
 }
 
 /** A Stop the provider has not finished; Force stop once it stops answering. */
-export function runStopBannerItem(input: {
+export function runStopNowItem(input: {
   readonly threadId: ThreadId;
   readonly stop: RunStopPresentation;
   readonly canForceStop: boolean;
   readonly forceStopping: boolean;
   readonly onForceStop: () => void;
-}): ComposerBannerStackItem {
+}): ThreadNowItem {
   const unresponsive = input.stop.state === "unresponsive";
   const requestedAtMs = Date.parse(input.stop.requestedAt);
   return {
     id: `run-stop:${input.threadId}`,
-    variant: unresponsive ? "warning" : "default",
-    priority: "activity",
-    icon: unresponsive ? <TriangleAlertIcon /> : <StopFilledIcon />,
+    icon: unresponsive ? (
+      <TriangleAlertIcon className="text-warning-foreground" />
+    ) : (
+      <CircleStopIcon />
+    ),
     title: unresponsive ? "Agent not responding to Stop" : "Stopping",
     description: unresponsive
       ? "It may be short on memory. Force stop kills its processes."
@@ -159,35 +169,32 @@ export function runStopBannerItem(input: {
             (nowMs) => formatDuration(Math.max(1_000, nowMs - requestedAtMs)),
             true,
           )}
-          className="text-xs text-muted-foreground tabular-nums"
+          className="tabular-nums"
         />
         {unresponsive && input.canForceStop ? (
-          <Button
-            size="xs"
-            variant="ghost"
-            disabled={input.forceStopping}
-            onClick={input.onForceStop}
-          >
+          <InlineButton disabled={input.forceStopping} onClick={input.onForceStop}>
             {input.forceStopping ? "Force stopping..." : "Force stop"}
-          </Button>
+          </InlineButton>
         ) : null}
       </>
     ),
   };
 }
 
-export function backgroundWorkBannerItem(input: {
+/** Background commands and subagents, for the end of the timeline. */
+export function backgroundWorkNowItem(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly projectId: ProjectId;
   readonly pullRequests: ReadonlyArray<ThreadPullRequestLink>;
   readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
+  readonly turnItems: ThreadStructure["turnItems"];
   readonly outputHandle: BackgroundTaskOutputHandle;
   readonly stopDisabled: boolean;
   readonly stopping: boolean;
   readonly onStop: () => Promise<void>;
   readonly onOpenThread: (threadId: ThreadId) => void;
-}): ComposerBannerStackItem | null {
+}): ThreadNowItem | null {
   const { onOpenThread } = input;
   const presentation = presentPendingBackgroundWork(input.tasks);
   if (presentation === null) return null;
@@ -202,15 +209,30 @@ export function backgroundWorkBannerItem(input: {
       awaited: task?.awaited === true,
     };
   };
-  const [only] = presentation.items;
-  const onlyChildThreadId = presentation.items.length === 1 ? only?.childThreadId : undefined;
-  const titleAction: BackgroundWorkTitleAction | null =
-    onlyChildThreadId !== undefined
-      ? { kind: "thread", open: () => onOpenThread(onlyChildThreadId) }
-      : presentation.items.length === 1 && only?.hasOutput
-        ? { kind: "output", handle: input.outputHandle, target: outputTarget(only) }
-        : null;
-  const title = <BackgroundWorkTitle title={presentation.title} action={titleAction} />;
+  const rows = presentation.items.map((task) => {
+    const itemKey =
+      input.tasks.find((pending) => pending.taskId === task.taskId)?.nativeItemId ?? task.taskId;
+    // Same key derivePendingBackgroundWork gives turn-item tasks; subagent items carry progress.
+    const item = input.turnItems.findLast(
+      (candidate) => (candidate.nativeItemRef?.nativeId || candidate.id) === itemKey,
+    );
+    const subagent = item?.type === "subagent" ? item : undefined;
+    return {
+      task,
+      activity: subagent?.progress?.replace(/\s+/gu, " ").trim() || null,
+      startedAtMs: item?.startedAt ? DateTime.toEpochMillis(item.startedAt) : null,
+      updatedAtMs: subagent ? DateTime.toEpochMillis(subagent.updatedAt) : 0,
+    };
+  });
+  const [only] = rows.length === 1 ? rows : [];
+  const newest = rows
+    .filter((row) => row.activity)
+    .toSorted((left, right) => right.updatedAtMs - left.updatedAtMs)[0];
+  const onlyChildThreadId = only?.task.childThreadId;
+  const startedAtMs = only?.startedAtMs ?? null;
+  const titleAction: BackgroundWorkTitleAction | null = only?.task.hasOutput
+    ? { kind: "output", handle: input.outputHandle, target: outputTarget(only.task) }
+    : null;
   const watchedLink = soleWatchedPullRequest(presentation.items, input.pullRequests);
   const watchedPullRequest: WatchedPullRequest | null =
     watchedLink !== null
@@ -226,21 +248,24 @@ export function backgroundWorkBannerItem(input: {
       : null;
   return {
     id: `background-work:${input.threadId}`,
-    variant: "default",
-    priority: "activity",
     icon: (
-      <BackgroundWorkIcon waiting={presentation.waiting} watchedPullRequest={watchedPullRequest} />
+      <BackgroundWorkIcon
+        icon={
+          presentation.items.every((item) => item.kind !== "subagent") ? (
+            <TerminalIcon />
+          ) : (
+            <CircleDashedIcon />
+          )
+        }
+        watchedPullRequest={watchedPullRequest}
+      />
     ),
     iconInteractive: watchedPullRequest !== null,
-    title:
-      presentation.items.length === 1 && (only?.kind === "command" || only?.kind === "monitor") ? (
-        <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">{title}</span>
-      ) : (
-        title
-      ),
-    description:
-      presentation.items.length === 1
-        ? undefined
+    title: <BackgroundWorkTitle title={presentation.title} action={titleAction} />,
+    description: only
+      ? only.activity
+      : newest
+        ? `${newest.task.label}: ${newest.activity}`
         : presentation.items.map((item, index) => {
             const childThreadId = item.childThreadId;
             const separator = index < presentation.items.length - 1 ? "," : null;
@@ -282,14 +307,23 @@ export function backgroundWorkBannerItem(input: {
     actions: (
       <>
         <BackgroundTaskOutputPopover handle={input.outputHandle} />
-        <Button
-          size="xs"
-          variant="ghost"
-          disabled={input.stopDisabled}
-          onClick={() => void input.onStop()}
-        >
+        {startedAtMs === null ? null : (
+          <span
+            ref={tickTextContent(
+              (nowMs) => formatDuration(Math.max(1_000, nowMs - startedAtMs)),
+              true,
+            )}
+            className="tabular-nums"
+          />
+        )}
+        {onlyChildThreadId === undefined ? null : (
+          <InlineButton tone="muted" onClick={() => onOpenThread(onlyChildThreadId)}>
+            Open
+          </InlineButton>
+        )}
+        <InlineButton disabled={input.stopDisabled} onClick={() => void input.onStop()}>
           {input.stopping ? "Stopping..." : "Stop"}
-        </Button>
+        </InlineButton>
       </>
     ),
   };

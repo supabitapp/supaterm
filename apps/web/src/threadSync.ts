@@ -23,3 +23,14 @@ export function resolveThreadSyncPhase(input: {
       return null;
   }
 }
+
+export function threadSyncLabel(phase: ThreadSyncPhase): string {
+  switch (phase) {
+    case "loading":
+      return "Loading messages...";
+    case "syncing":
+      return "Syncing messages...";
+    case "failed":
+      return "Could not sync messages";
+  }
+}

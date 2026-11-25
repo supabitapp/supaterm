@@ -563,20 +563,39 @@ describe("deriveMessagesTimelineRows", () => {
       expect(rows.some((row) => row.kind === "event")).toBe(false);
       expect(workRows[0]).not.toMatchObject({ expanded: true });
       expect(workRows[0]).not.toMatchObject({ groupDisclosure: "open" });
-      const approvalWaitRows = [entries, entries.slice(1, 2)].flatMap((timelineEntries) =>
-        deriveMessagesTimelineRows({
-          timelineEntries,
-          awaitingApproval: true,
-          isWorking: status === "waiting",
-          runningRunId: fixture.runId,
-          activeTurnStartedAt: fixture.time(0),
-          turnDiffSummaries: [],
-          supportsConversationRollback: false,
+      const pendingRows = deriveMessagesTimelineRows({
+        timelineEntries: entries,
+        pendingApprovalRequestIds: new Set([RuntimeRequestId.make("approval-request")]),
+        isWorking: status === "waiting",
+        runningRunId: fixture.runId,
+        activeTurnStartedAt: fixture.time(0),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(pendingRows.filter((row) => row.kind === "work")).toContainEqual(
+        expect.objectContaining({
+          groupedEntries: [expect.objectContaining({ itemType: "approval_request" })],
+          groupDisclosure: null,
         }),
       );
-      expect(approvalWaitRows.some((row) => row.kind === "thinking")).toBe(false);
       expect(
-        approvalWaitRows.some(
+        pendingRows
+          .filter((row) => row.kind === "work-live")
+          .flatMap((row) => row.groupedEntries)
+          .some((entry) => entry.itemType === "approval_request"),
+      ).toBe(false);
+      const approvalOnlyRows = deriveMessagesTimelineRows({
+        timelineEntries: entries.slice(1, 2),
+        pendingApprovalRequestIds: new Set([RuntimeRequestId.make("approval-request")]),
+        isWorking: status === "waiting",
+        runningRunId: fixture.runId,
+        activeTurnStartedAt: fixture.time(0),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(approvalOnlyRows.some((row) => row.kind === "thinking")).toBe(false);
+      expect(
+        approvalOnlyRows.some(
           (row) => (row.kind === "work-live" || row.kind === "thinking") && row.active,
         ),
       ).toBe(false);
@@ -3250,11 +3269,11 @@ describe("deriveMessagesTimelineRows", () => {
     const deriveRows = (
       toolLifecycleStatus: "inProgress" | "completed" | "failed" | "declined" | null,
       workGroupDisclosures?: WorkGroupDisclosures,
-      awaitingApproval = false,
+      pendingApprovalRequestIds?: ReadonlySet<RuntimeRequestId>,
     ) =>
       deriveMessagesTimelineRows({
         ...(workGroupDisclosures ? { workGroupDisclosures } : {}),
-        awaitingApproval,
+        ...(pendingApprovalRequestIds ? { pendingApprovalRequestIds } : {}),
         timelineEntries:
           toolLifecycleStatus === null
             ? []
@@ -3306,7 +3325,9 @@ describe("deriveMessagesTimelineRows", () => {
       id: "live-activity-row",
       active: true,
     });
-    expect(deriveRows("failed", undefined, true).at(-1)).toMatchObject({
+    expect(
+      deriveRows("failed", undefined, new Set([RuntimeRequestId.make("approval")])).at(-1),
+    ).toMatchObject({
       kind: "thinking",
       id: "live-activity-row",
       active: false,
@@ -4194,9 +4215,11 @@ describe("v2 run and attempt history", () => {
       toolCallVisibility: "hideSuccessful" | "hideAll" | "zen",
       latestRun?: typeof ended | typeof running,
       revealed: { readonly cited?: string; readonly jumped?: string } = {},
+      pendingApprovalRequestIds?: ReadonlySet<RuntimeRequestId>,
     ) =>
       deriveMessagesTimelineRows({
         timelineEntries,
+        ...(pendingApprovalRequestIds ? { pendingApprovalRequestIds } : {}),
         expandedRunIds: new Set([runId]),
         isWorking: latestRun !== undefined,
         ...(latestRun ? { latestRun } : {}),
@@ -4274,6 +4297,27 @@ describe("v2 run and attempt history", () => {
       },
     };
     expect(rows([user, step, created, final], "zen")).toEqual(["user", "created", "final"]);
+    const approvalRequestId = RuntimeRequestId.make("zen-approval");
+    const approval: TimelineEntry = {
+      id: "approval",
+      kind: "work",
+      createdAt: at(12),
+      entry: {
+        id: "approval",
+        createdAt: at(12),
+        runId,
+        label: "Command approval",
+        tone: "tool",
+        itemType: "approval_request",
+        projectedItem: {
+          item: { type: "approval_request", requestId: approvalRequestId },
+        } as never,
+      },
+    };
+    expect(rows([user, step, approval, final], "zen")).toEqual(["user", "final"]);
+    expect(
+      rows([user, step, approval, final], "zen", undefined, {}, new Set([approvalRequestId])),
+    ).toEqual(["user", "approval", "final"]);
     const thought: TimelineEntry = {
       id: "thought",
       kind: "work",
@@ -5056,6 +5100,7 @@ describe("streaming v2 row projection", () => {
     const previous = deriveMessagesTimelineRowsWithState({
       ...initial.input,
       availableRevertTurnCounts: new Set([0]),
+      pendingApprovalRequestIds: new Set<RuntimeRequestId>(),
     });
     Object.freeze(previous.rows);
     for (const row of previous.rows) Object.freeze(row);
@@ -5073,6 +5118,7 @@ describe("streaming v2 row projection", () => {
       latestRun: { ...initial.input.latestRun },
       turnDiffSummaries: initial.input.turnDiffSummaries.map((summary) => ({ ...summary })),
       availableRevertTurnCounts: new Set([0]),
+      pendingApprovalRequestIds: new Set<RuntimeRequestId>(),
     };
     const next = deriveMessagesTimelineRowsWithState(input, previous);
     expect(next.rows).toEqual(

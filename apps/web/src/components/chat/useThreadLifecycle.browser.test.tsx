@@ -82,6 +82,7 @@ function RestoreBranchHarness(props: {
     isWorking: false,
     runIsLive: false,
     pendingBackgroundTasks: [{ taskId: "background-command", kind: "command" }] as never,
+    turnItems: [],
     activePendingApproval: null as never,
     activePendingUserInput: null as never,
     gitStatusQuery: { refresh: props.refreshGitStatus },
@@ -95,7 +96,7 @@ function RestoreBranchHarness(props: {
   });
   return (
     <>
-      {lifecycle.backgroundWorkBanner?.actions}
+      {lifecycle.workNow?.actions}
       <button
         type="button"
         disabled={lifecycle.isRestoringThreadBranch}

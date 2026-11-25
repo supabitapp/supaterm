@@ -5,7 +5,6 @@ import type { AsyncResult } from "effect/reactivity";
 import type { ReactElement } from "react";
 
 import { usePullRequestChecksRefresh } from "~/hooks/usePullRequestChecksRefresh";
-import { cn } from "~/lib/utils";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useEnvironmentQueryRefresh, useEnvironmentQuerySelector } from "~/state/query";
@@ -21,28 +20,18 @@ export interface WatchedPullRequest {
   readonly reference: PullRequestRef;
 }
 
-/**
- * The background-work banner's dot. Only work that will wake the agent shows at full strength,
- * since a dev server can run for hours after the agent is done. A watched PR shows its checks
- * ring instead, which opens the checks.
- */
+/** The background-work line's icon. A watched PR shows its checks ring instead, which opens the checks. */
 export function BackgroundWorkIcon({
-  waiting,
+  icon,
   watchedPullRequest,
 }: {
-  waiting: boolean;
+  icon: ReactElement;
   watchedPullRequest: WatchedPullRequest | null;
 }) {
-  const dot = (
-    <span
-      className={cn("size-1.5 rounded-full", waiting ? "bg-foreground" : "bg-muted-foreground")}
-      aria-hidden="true"
-    />
-  );
   return watchedPullRequest === null ? (
-    dot
+    icon
   ) : (
-    <WatchedPullRequestChecks watched={watchedPullRequest} fallback={dot} />
+    <WatchedPullRequestChecks watched={watchedPullRequest} fallback={icon} />
   );
 }
 

@@ -383,7 +383,7 @@ export function useScheduledTaskTitle(
   return tasksQuery.data?.tasks.find((task) => task.id === scheduledTaskId)?.title;
 }
 
-function FoldedMessageHeader(props: {
+export function FoldedMessageHeader(props: {
   icon: IconComponent;
   label: string;
   summary: string;
