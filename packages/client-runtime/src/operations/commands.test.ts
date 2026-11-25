@@ -858,6 +858,83 @@ describe("V2 environment commands", () => {
   );
 
   describe("revertThreadCheckpoint", () => {
+    it.effect("rolls back to the thread's own baseline, not a tracked repository's", () =>
+      Effect.gen(function* () {
+        const scopeId = CheckpointScopeId.make("checkpoint-scope-root");
+        const repositoryScopeId = CheckpointScopeId.make("checkpoint-scope-repository");
+        const checkpointId = CheckpointId.make("checkpoint-thread-start");
+        const projection: OrchestrationV2ThreadProjection = {
+          ...v2Projection,
+          checkpoints: [
+            {
+              id: checkpointId,
+              threadId: v2ThreadId,
+              scopeId,
+              runId: null,
+              nodeId: NodeId.make("node-run-1"),
+              parentCheckpointId: null,
+              ordinalWithinScope: 0,
+              appRunOrdinal: null,
+              ref: CheckpointRef.make("refs/supaterm/thread-start"),
+              status: "ready",
+              files: [],
+              capturedAt: v2Now,
+            },
+            // A tracked repository's first baseline, recorded after the thread's own.
+            {
+              id: CheckpointId.make("checkpoint-repository-start"),
+              threadId: v2ThreadId,
+              scopeId: repositoryScopeId,
+              runId: null,
+              nodeId: NodeId.make("node-run-1"),
+              parentCheckpointId: null,
+              ordinalWithinScope: 0,
+              appRunOrdinal: null,
+              ref: CheckpointRef.make("refs/supaterm/repository-start"),
+              status: "ready",
+              files: [],
+              capturedAt: v2Now,
+            },
+          ],
+          checkpointScopes: [
+            {
+              id: repositoryScopeId,
+              threadId: v2ThreadId,
+              runId: null,
+              nodeId: NodeId.make("node-run-1"),
+              parentScopeId: scopeId,
+              providerThreadId: null,
+              kind: "manual",
+              ordinalWithinParent: 1,
+              advancesAppRunCount: false,
+              cwd: "/workspace/api",
+              label: "api",
+              repositoryPath: "/workspace/api",
+              createdAt: v2Now,
+            },
+          ],
+        };
+        const commands: OrchestrationV2Command[] = [];
+        const supervisor = yield* makeSupervisor({ commands, projects: [], projection });
+
+        yield* revertThreadCheckpoint({
+          commandId: CommandId.make("rollback-thread-start"),
+          threadId: v2ThreadId,
+          turnCount: 0,
+        }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
+
+        expect(commands).toEqual([
+          {
+            type: "checkpoint.rollback",
+            commandId: "rollback-thread-start",
+            threadId: v2ThreadId,
+            scopeId,
+            checkpointId,
+          },
+        ]);
+      }).pipe(Effect.provide(layerTestRandom)),
+    );
+
     const checkpoint = (input: {
       readonly id: string;
       readonly ordinalWithinScope: number;
