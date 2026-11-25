@@ -127,9 +127,16 @@ export function PullRequestMergeControls(props: {
                   ? { label: "Checking stack…", icon: PullRequestGlyph.merged }
                   : null;
   const autoAction = pr.autoMergeEnabled ? "disable-auto-merge" : "enable-auto-merge";
+  // A stack auto-merge request on this layer also covers the open layers below it.
+  const stackAutoMerge =
+    stack.stack !== null &&
+    stack.supportsStackActions &&
+    stack.isFresh &&
+    pr.capabilities.stackAutoMerge === true;
   const canAutoMerge =
     !busy &&
-    (autoAction === "disable-auto-merge" || (!stack.stack && canMergeSingle)) &&
+    (autoAction === "disable-auto-merge" ||
+      (stack.stack ? stackAutoMerge && scope !== null && !scope.reason : canMergeSingle)) &&
     permissions.canWrite &&
     canPerformPullRequestAction(pr, autoAction);
   const perform = async (
@@ -153,28 +160,40 @@ export function PullRequestMergeControls(props: {
         ...(action !== "disable-auto-merge" && shownHeadSha
           ? { expectedHeadSha: shownHeadSha }
           : {}),
-        ...(action === "merge" && method && stack.stack && scope
-          ? {
-              stackNumber: stack.stack.number,
-              expectedStackHeads: scope.heads,
-              mergeMethod: method,
-            }
-          : action === "merge" && method
+        // A cancel needs no pinned heads, so it keeps the stack scope even while the stack refreshes.
+        ...(stack.stack &&
+        ((action === "enable-auto-merge" && stackAutoMerge) ||
+          (action === "disable-auto-merge" &&
+            stack.supportsStackActions &&
+            pr.capabilities.stackAutoMerge === true))
+          ? { stackNumber: stack.stack.number }
+          : {}),
+        ...(action === "enable-auto-merge" && method && stackAutoMerge && scope
+          ? { expectedStackHeads: scope.heads, mergeMethod: method }
+          : action === "merge" && method && stack.stack && scope
             ? {
-                resolveMergeMethod: (fresh) => {
-                  if (
-                    !canPerformPullRequestAction(fresh, "merge") ||
-                    !allowedMergeMethods(fresh).includes(method)
-                  )
-                    throw new Error(`The ${terminology.singular} changed. Refresh before merging.`);
-                  return method;
-                },
+                stackNumber: stack.stack.number,
+                expectedStackHeads: scope.heads,
+                mergeMethod: method,
               }
-            : action === "enable-auto-merge" && method
+            : action === "merge" && method
               ? {
-                  mergeMethod: method,
+                  resolveMergeMethod: (fresh) => {
+                    if (
+                      !canPerformPullRequestAction(fresh, "merge") ||
+                      !allowedMergeMethods(fresh).includes(method)
+                    )
+                      throw new Error(
+                        `The ${terminology.singular} changed. Refresh before merging.`,
+                      );
+                    return method;
+                  },
                 }
-              : {}),
+              : action === "enable-auto-merge" && method
+                ? {
+                    mergeMethod: method,
+                  }
+                : {}),
       },
     });
     // A stack can partly merge before the provider reports a failure.
@@ -206,11 +225,13 @@ export function PullRequestMergeControls(props: {
     const message =
       action === "merge" && scope
         ? `Merge ${scope.layers.map((layer) => `#${layer.number}`).join(" → ")} into ${stack.stack?.base} using ${method}. Layers above #${pr.number} stay open.`
-        : action === "enable-auto-merge"
-          ? `Merge #${pr.number} using ${method} when its requirements are met. This may happen immediately.`
-          : action === "disable-auto-merge"
-            ? `Stop the provider from automatically merging this ${terminology.singular}.`
-            : `Merge #${pr.number} into ${pr.baseBranch} using ${method}.`;
+        : action === "enable-auto-merge" && stackAutoMerge && scope
+          ? `Merge ${scope.layers.map((layer) => `#${layer.number}`).join(" → ")} into ${stack.stack?.base ?? ""} using ${method} once their requirements are met. This may happen immediately.`
+          : action === "enable-auto-merge"
+            ? `Merge #${pr.number} using ${method} when its requirements are met. This may happen immediately.`
+            : action === "disable-auto-merge"
+              ? `Stop the provider from automatically merging this ${terminology.singular}.`
+              : `Merge #${pr.number} into ${pr.baseBranch} using ${method}.`;
     Dialog.alert(title, message, [
       {
         text: "Cancel",
