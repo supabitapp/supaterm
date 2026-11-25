@@ -7,6 +7,7 @@ import { getCachedReviewParsedDiff } from "./reviewState";
 import {
   applyReviewDiffMetadata,
   buildReviewParsedDiff,
+  filterReviewParsedDiffToFolder,
   type ReviewParsedDiff,
   type ReviewRenderableFile,
   type ReviewSectionItem,
@@ -29,6 +30,7 @@ import {
 import { useHideTestFilesPreference } from "../pull-requests/usePullRequestFileFilter";
 
 const EMPTY_INLINE_REVIEW_COMMENTS = Object.freeze([]);
+const NO_REVIEW_FILES: ReadonlyArray<ReviewRenderableFile> = Object.freeze([]);
 type ParsedFilePatch = AsyncResult.AsyncResult<
   { source: ReviewDiffPreviewSource; parsed: ReviewParsedDiff },
   unknown
@@ -135,18 +137,33 @@ export function useReviewDiffData(input: {
   readonly selectedSection: ReviewSectionItem | null;
   readonly draftMessage: string;
   readonly draftContext: OrchestrationMessageContext | undefined;
+  /** Shows one folder of a turn's patch; `folders` lists every folder, NUL-separated. */
+  readonly repositoryFilter: { readonly folder: string; readonly folders: string } | null;
 }) {
   const { draftMessage, draftContext, selectedSection, threadKey } = input;
   const selectedSectionId = selectedSection?.id ?? null;
   const source = selectedSection?.source;
   const lazySource = source?.truncated && source.files ? source : null;
-  const previewDiff: ReviewParsedDiff = lazySource
+  const sectionDiff: ReviewParsedDiff = lazySource
     ? { kind: "empty" }
     : getCachedReviewParsedDiff({
         threadKey,
         sectionId: selectedSection?.id ?? null,
         diff: selectedSection?.diff,
       });
+  const repositoryFolder = input.repositoryFilter?.folder ?? null;
+  const repositoryFolders = input.repositoryFilter?.folders ?? "";
+  const previewDiff = useMemo(
+    () =>
+      repositoryFolder === null
+        ? sectionDiff
+        : filterReviewParsedDiffToFolder(
+            sectionDiff,
+            repositoryFolder,
+            repositoryFolders.split("\0"),
+          ),
+    [sectionDiff, repositoryFolder, repositoryFolders],
+  );
   const registry = useContext(RegistryContext);
   const { environmentId, cwd } = input;
   const scope = JSON.stringify([environmentId, cwd, lazySource?.kind, source?.baseRef]);
@@ -290,6 +307,13 @@ export function useReviewDiffData(input: {
     parsedDiff: fileFilter.parsed,
     allFiles: parsedDiff.kind === "files" ? parsedDiff.files : EMPTY_REVIEW_FILES,
     fileFilter,
+    /** The section's files before the repository filter. */
+    sectionFiles:
+      sectionDiff.kind === "files"
+        ? sectionDiff.files
+        : parsedDiff.kind === "files"
+          ? parsedDiff.files
+          : NO_REVIEW_FILES,
     loadVisibleFile,
     isPending: patches.some((patch) => patch?._tag === "Initial" || patch?.waiting),
     headerDiffSummary,

@@ -71,6 +71,35 @@ describe("project thread title", () => {
     expect(relaunched.message.attachments).toEqual(uploadedAttachments);
   });
 
+  it("starts a worktree of a plain project folder from each repository's default branch", () => {
+    const input = buildProjectThreadStartTurnInput({
+      projectId: ProjectId.make("project"),
+      projectCwd: "/workspace",
+      threadId: "thread",
+      commandId: "command",
+      messageId: "message",
+      createdAt: "2026-09-04T00:00:00Z",
+      text: "Fix the build",
+      uploadedAttachments: [],
+      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      workspaceMode: "worktree",
+      branch: null,
+      worktreePath: null,
+      startFromOrigin: false,
+      worktreeRepositories: ["/workspace/api"],
+      worktreeBranchName: "supaterm/new",
+    });
+
+    expect(input.bootstrap.prepareWorktree).toEqual({
+      projectCwd: "/workspace",
+      baseBranch: "HEAD",
+      branch: "supaterm/new",
+      repositories: [{ path: "/workspace/api" }],
+    });
+  });
+
   it("shortens a long prompt without splitting an emoji", () => {
     expect(deriveThreadTitleFromPrompt(`${"a".repeat(68)}😀 and the rest of the prompt`)).toBe(
       `${"a".repeat(68)}...`,

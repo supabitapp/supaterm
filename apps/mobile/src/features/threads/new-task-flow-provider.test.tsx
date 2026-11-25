@@ -79,6 +79,7 @@ vi.mock("../../state/entities", () => ({
   useServerConfigs: () => configs,
 }));
 vi.mock("../../state/peerLinks", () => ({ useLinkedEnvironments: () => new Map() }));
+vi.mock("../../state/filesystem", () => ({ filesystemEnvironment: {} }));
 vi.mock("../../state/projects", () => ({
   projectEnvironment: { openScratch: transport.openScratchCommand, readFile: () => null },
 }));

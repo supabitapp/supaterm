@@ -47,7 +47,7 @@ vi.mock("../../../state/use-selected-thread-git-state", () => ({
 vi.mock("../../../state/use-selected-thread-git-actions", () => ({
   useSelectedThreadGitActions: () => ({
     canWriteSourceControl: true,
-    canChangeThreadBranch: true,
+    canCreateFeatureBranch: true,
     onRunSelectedThreadGitAction: (input: object) => {
       state.ran.push(input);
       return Promise.resolve(null);
