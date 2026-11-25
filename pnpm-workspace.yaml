@@ -118,6 +118,7 @@ minimumReleaseAgeExclude:
 overrides:
   # Pin every patched package, including transitive dependencies, so lockfile-free
   # release installs cannot drift past the patch. Update these with patchedDependencies.
+  gt-react-native: 11.4.18
   react-native-image-viewing: 0.2.2
   mdast-util-math: 3.0.0
   micromark-extension-llm-math: 3.1.1-20250610
@@ -227,6 +228,7 @@ packageExtensions:
       "@react-navigation/core": ^7.21.2
 
 patchedDependencies:
+  gt-react-native@11.4.18: patches/gt-react-native@11.4.18.patch
   react-native-image-viewing@0.2.2: patches/react-native-image-viewing@0.2.2.patch
   mdast-util-math@3.0.0: patches/mdast-util-math@3.0.0.patch
   micromark-extension-llm-math@3.1.1-20250610: patches/micromark-extension-llm-math@3.1.1-20250610.patch
