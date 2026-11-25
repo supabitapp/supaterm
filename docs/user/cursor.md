@@ -52,6 +52,12 @@ The adapter supports:
 - thread-scoped Supaterm MCP tools alongside ambient Cursor MCP/plugins from disk;
 - image attachments;
 - interruption, queued app messages, and in-turn steering;
+- background shell commands, which keep running after the turn and wake the agent when they exit.
+  Stop, rewinding the thread, or restarting the agent session ends them;
+- the commit and PR attribution settings in the Cursor CLI's `cli-config.json` (in
+  `CURSOR_CONFIG_DIR`, else `$XDG_CONFIG_HOME/cursor` on Linux, else `~/.cursor`). Turn
+  `attribution.attributeCommitsToAgent` or `attribution.attributePRsToAgent` off there and Cursor
+  stops adding attribution;
 - provider conversation snapshots through `Agent.messages.list()`;
 - Cursor `task` subagents, projected as read-only child app threads with their tool activity and
   final result.
