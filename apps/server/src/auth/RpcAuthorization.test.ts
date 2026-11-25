@@ -841,6 +841,54 @@ it.effect("sends OTLP endpoint checks only for connections that can save the end
   }),
 );
 
+it.effect("checks a secret reference only for connections that can change settings", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<
+          keyof typeof RPC_REQUIRED_SCOPES,
+          typeof WS_METHODS.serverCheckSecretSource
+        > => tag !== WS_METHODS.serverCheckSecretSource,
+      ),
+    );
+    let checked = 0;
+    const makeClient = (scopes: Parameters<typeof RpcAuthorization.layer>[0]) =>
+      RpcTest.makeClient(group).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            group.toLayerHandler(WS_METHODS.serverCheckSecretSource, () =>
+              Effect.sync(() => {
+                checked++;
+                return { _tag: "Resolved" as const };
+              }),
+            ),
+            RpcAuthorization.layer(scopes),
+          ),
+        ),
+      );
+    const input = {
+      source: {
+        provider: SecretProviderId.make("personal"),
+        reference: "op://Private/OpenAI/credential",
+      },
+    };
+
+    const operator = yield* makeClient([AuthOrchestrationReadScope, AuthOrchestrationOperateScope]);
+    expect(
+      yield* operator[WS_METHODS.serverCheckSecretSource](input).pipe(Effect.flip),
+    ).toMatchObject({ requiredScope: AuthSettingsWriteScope });
+    expect(checked).toBe(0);
+
+    const settingsWriter = yield* makeClient([AuthSettingsWriteScope]);
+    expect(yield* settingsWriter[WS_METHODS.serverCheckSecretSource](input)).toEqual({
+      _tag: "Resolved",
+    });
+    expect(checked).toBe(1);
+  }),
+);
+
 it.effect("requires settings permission before a project mutation that carries scripts", () =>
   Effect.gen(function* () {
     const group = WsRpcGroup.omit(

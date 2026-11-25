@@ -236,6 +236,7 @@ export const make = Effect.gen(function* () {
       scheduledTaskThreadModes: true,
       deferredSteering: true,
       npmReleaseLookup: true,
+      secretSourceCheck: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
       ...(serverSelfUpdate === "boot-service" || desktopAppUpdate

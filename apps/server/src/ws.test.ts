@@ -188,6 +188,7 @@ import {
   relayAdvertisementUpdates,
 } from "./ws.ts";
 import * as SecretRequests from "./secrets/SecretRequests.ts";
+import * as SecretCheck from "./secrets/SecretCheck.ts";
 
 const snapshotConfig = (fields: Partial<ServerConfig>) =>
   ({ availableEditors: [], settings: {}, ...fields }) as unknown as ServerConfig;
@@ -846,6 +847,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ScheduledTasks.ScheduledTaskService)({}),
   Layer.mock(SecretRequests.SecretRequests)({}),
   Layer.mock(SecretResolver.SecretResolver)({}),
+  Layer.mock(SecretCheck.SecretCheck)({}),
   Layer.mock(Transcription.Transcription)({}),
   Layer.mock(TranscriptionUploads.TranscriptionUploads)({}),
 

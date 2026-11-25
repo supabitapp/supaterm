@@ -120,6 +120,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   previewTunnelSetting: Schema.optionalKey(Schema.Boolean),
   /** Server answers server.getNpmRelease using its configured npm registry. */
   npmReleaseLookup: Schema.optionalKey(Schema.Boolean),
+  /** Serves `server.checkSecretSource`; hide the secret check where it is absent. */
+  secretSourceCheck: Schema.optionalKey(Schema.Boolean),
   /** Manual commands must update this install, not the host's default global prefix. */
   serverInstallation: ForwardCompatibleOptional(ServerInstallation),
   serverSelfUpdateProgress: Schema.optionalKey(Schema.Boolean),

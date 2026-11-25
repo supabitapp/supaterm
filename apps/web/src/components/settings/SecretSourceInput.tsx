@@ -6,7 +6,14 @@ import {
   type SecretProviderId,
   type SecretProviderKind,
 } from "@supaterm/contracts";
-import { KeyIcon, TypeIcon, VaultIcon } from "@supaterm/icons";
+import {
+  CheckIcon,
+  KeyIcon,
+  RefreshCwIcon,
+  TriangleAlertIcon,
+  TypeIcon,
+  VaultIcon,
+} from "@supaterm/icons";
 import { builtInSecretProviderDefinitions } from "@supaterm/secret-provider-definitions/registry";
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
@@ -16,8 +23,12 @@ import { useState, type ComponentProps, type ComponentType, type ReactNode } fro
 import { useEnvironmentSettings } from "../../hooks/useSettings";
 import { serverEnvironment } from "../../state/server";
 import { useEnvironmentScope } from "../../state/session";
+import { useAtomCommand } from "../../state/use-atom-command";
+import { Button } from "../ui/button";
 import { DraftInput } from "../ui/draft-input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
+import { Spinner } from "../ui/spinner";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SecretInput } from "./SecretInput";
 import { classifySecretProvider } from "./SecretProviderDialog.logic";
 
@@ -115,6 +126,92 @@ export function SecretSourceSelect(props: {
   );
 }
 
+type SecretCheck =
+  | { readonly status: "checking" }
+  | { readonly status: "resolved" }
+  | { readonly status: "failed"; readonly detail: string };
+
+/** Asks the server to resolve the committed reference, so a typo shows here and not at provider start. */
+function SecretCheckButton(props: {
+  readonly environmentId: EnvironmentId;
+  readonly secret: SecretReference;
+  readonly label: string;
+  readonly disabled?: boolean | undefined;
+}) {
+  const { environmentId, secret } = props;
+  const supported = useAtomValue(
+    serverEnvironment.configValueAtom(environmentId),
+    (config) => config?.environment.capabilities.secretSourceCheck === true,
+  );
+  const canCheck = useAtomValue(serverEnvironment.checkSecretSource.permissionAtom(environmentId));
+  const checkSecretSource = useAtomCommand(serverEnvironment.checkSecretSource);
+  const secretKey = `${secret.provider}\u0000${secret.reference}`;
+  const [check, setCheck] = useState<{
+    readonly secretKey: string;
+    readonly state: SecretCheck;
+  } | null>(null);
+  const state = check?.secretKey === secretKey ? check.state : undefined;
+
+  const run = async () => {
+    const pending = { secretKey, state: { status: "checking" } } as const;
+    setCheck(pending);
+    const response = await checkSecretSource({ environmentId, input: { source: secret } });
+    const next: SecretCheck =
+      response._tag !== "Success"
+        ? { status: "failed", detail: "Could not reach the server" }
+        : response.value._tag === "Resolved"
+          ? { status: "resolved" }
+          : { status: "failed", detail: response.value.detail };
+    setCheck((previous) => (previous === pending ? { secretKey, state: next } : previous));
+  };
+
+  if (!supported) return null;
+  const description = !canCheck
+    ? "You cannot check secrets on this environment"
+    : state === undefined
+      ? "Check that the secret resolves"
+      : state.status === "checking"
+        ? "Checking the secret"
+        : state.status === "resolved"
+          ? "Secret resolved"
+          : state.detail;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className="inline-flex">
+            <Button
+              type="button"
+              size="icon-micro"
+              variant="ghost-muted"
+              disabled={props.disabled === true || !canCheck || state?.status === "checking"}
+              onClick={() => void run()}
+              aria-label={
+                state?.status === "failed"
+                  ? `${props.label} failed: ${state.detail}`
+                  : state?.status === "resolved"
+                    ? `${props.label} resolved`
+                    : props.label
+              }
+            >
+              {state?.status === "checking" ? (
+                <Spinner />
+              ) : state?.status === "resolved" ? (
+                <CheckIcon className="text-success-foreground" />
+              ) : state?.status === "failed" ? (
+                <TriangleAlertIcon className="text-destructive" />
+              ) : (
+                <RefreshCwIcon />
+              )}
+            </Button>
+          </span>
+        }
+      />
+      <TooltipPopup side="top">{description}</TooltipPopup>
+    </Tooltip>
+  );
+}
+
 type SecretSourceInputProps = Omit<ComponentProps<typeof SecretInput>, "value" | "children"> & {
   readonly value: string | SecretReference;
   /** Offers a check of the committed reference on this environment. */
@@ -133,7 +230,7 @@ type SecretSourceInputProps = Omit<ComponentProps<typeof SecretInput>, "value" |
 /** A secret entered here, or read from a secret provider when one is configured. */
 export function SecretSourceInput({
   value,
-  environmentId: _environmentId,
+  environmentId,
   sources,
   onSecretChange,
   onValidityChange,
@@ -209,6 +306,17 @@ export function SecretSourceInput({
             aria-label={`${label} reference`}
             aria-invalid={rejectedReference !== null}
           />
+          {environmentId !== undefined &&
+          secret !== undefined &&
+          pendingProvider === null &&
+          rejectedReference === null ? (
+            <SecretCheckButton
+              environmentId={environmentId}
+              secret={secret}
+              label={`Check ${label}`}
+              disabled={input.disabled}
+            />
+          ) : null}
         </div>
         {rejectedReference !== null ? (
           <p className="text-2xs text-destructive">
