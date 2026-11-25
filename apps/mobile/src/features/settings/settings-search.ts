@@ -98,7 +98,14 @@ const SETTINGS_SEARCH_TERMS = {
     "fast worktree checkout",
     "clone cache",
   ],
-  SettingsEnvironmentMaintenance: ["updates", "provider updates", "restart", "manage environments"],
+  SettingsEnvironmentMaintenance: [
+    "updates",
+    "provider updates",
+    "restart",
+    "manage environments",
+    "delete history",
+    "database size",
+  ],
   SettingsAbout: [
     "version",
     "diagnostics",
