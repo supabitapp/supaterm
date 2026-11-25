@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
@@ -15,7 +16,7 @@ import { baseSshArgs, parseSshResolveOutput, remoteStateKey, runSshCommand } fro
 import { SshCommandError } from "./errors.ts";
 
 const encoder = new TextEncoder();
-const isSshCommandError = (error: unknown) => error instanceof SshCommandError;
+const isSshCommandError = Schema.is(SshCommandError);
 
 const makeFailedProcess = (input: { readonly stdout: string; readonly stderr?: string }) => {
   const stdoutStream = Stream.make(encoder.encode(input.stdout));

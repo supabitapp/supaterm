@@ -2,7 +2,7 @@ import {
   resolveThreadOutboxDispatchStep,
   shouldRetryThreadOutboxDelivery,
 } from "@supaterm/client-runtime/thread-outbox";
-import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
+import { isVoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { createBrowserThreadOutbox, type ThreadOutboxEntry } from "./threadOutboxDelivery";
 import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { StartThreadTurnInput } from "@supaterm/client-runtime/operations";
@@ -276,7 +276,7 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
   canDeliver: (entry) =>
     isThreadOutboxDeliverable(entry.payload.environmentId, (atom) => appAtomRegistry.get(atom)),
   shouldRetry: (error) =>
-    error instanceof VoiceUploadError ? error.retryable : shouldRetryThreadOutboxDelivery(error),
+    isVoiceUploadError(error) ? error.retryable : shouldRetryThreadOutboxDelivery(error),
   deliver: async (entry, savePayload) => {
     let payload = { ...entry.payload, localAttachments: [...entry.payload.localAttachments] };
     const { environmentId } = payload;

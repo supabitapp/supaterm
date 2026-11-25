@@ -34,7 +34,7 @@ import {
   type ServerProviderModel,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
-import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
+import { isVoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import type { TranscriptionUploadResult } from "@supaterm/contracts";
 
@@ -279,7 +279,7 @@ export function resolveVoiceDeliveryStep(
   };
   if ("error" in outcome) {
     const { error } = outcome;
-    if (error instanceof VoiceUploadError) {
+    if (isVoiceUploadError(error)) {
       return error.retryable ? { step: "retry" } : hold(error.message);
     }
     return shouldRetryThreadOutboxDelivery(error)

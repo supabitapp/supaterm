@@ -5,7 +5,7 @@ import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import { readEnvironmentScope } from "./session";
 import { useAtomValue } from "@effect/atom-react";
 import { threadRuntimeIsUnsettled } from "@supaterm/client-runtime/state/shell";
-import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
+import { isVoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { threadSteersDuringCompaction } from "@supaterm/client-runtime/state/thread-workflows";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
@@ -598,7 +598,7 @@ export function useThreadComposerState() {
       () => messageId,
       (error: unknown) => {
         if (freshContext) setFreshSessionPending(threadKey, true);
-        if (error instanceof VoiceUploadError && error.reason === "audioTooShort") return null;
+        if (isVoiceUploadError(error) && error.reason === "audioTooShort") return null;
         setThreadComposerError(
           threadKey,
           error instanceof Error ? error.message : "The recording couldn't be queued.",

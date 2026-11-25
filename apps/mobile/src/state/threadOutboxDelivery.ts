@@ -744,11 +744,11 @@ export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMes
   const file = yield* Effect.promise(() => queuedVoiceRecordingFile(queuedMessage.messageId));
   const outcome: Parameters<typeof resolveVoiceDeliveryStep>[1] = !file.exists
     ? {
-        error: new VoiceUploadError(
-          "audioMissing",
-          new TranscriptionError({ reason: "audioMissing" }).message,
-          false,
-        ),
+        error: new VoiceUploadError({
+          reason: "audioMissing",
+          message: new TranscriptionError({ reason: "audioMissing" }).message,
+          retryable: false,
+        }),
       }
     : yield* Effect.tryPromise({
         try: () =>

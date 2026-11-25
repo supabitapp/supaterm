@@ -1,5 +1,5 @@
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 import { AtomRegistry } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
@@ -121,7 +121,9 @@ describe("sendSideChatFirstMessage", () => {
   const parentRef = { environmentId, threadId: ThreadId.make("parent") };
   const targetThreadId = ThreadId.make("side-chat");
 
-  class ForkRefused extends Data.TaggedError("ForkRefused")<{ readonly message: string }> {}
+  class ForkRefused extends Schema.TaggedError<ForkRefused>()("ForkRefused", {
+    message: Schema.String,
+  }) {}
 
   const harness = (options: { readonly refuse?: string; readonly landsOnFork?: boolean } = {}) => {
     const shells = new Map<string, { lineage: { parentThreadId: ThreadId } }>();

@@ -6,6 +6,7 @@ import {
   type PreviewUrlResolution,
   type ServerSettings,
 } from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 import { isLoopbackHost, normalizePreviewUrl } from "@supaterm/shared/preview";
 import { isLocalLoopbackHost, isPrivateNetworkHost } from "@supaterm/shared/hostClassification";
 
@@ -22,11 +23,16 @@ import { readEnvironmentScope, readPreparedConnection } from "~/state/session";
 
 export { normalizeHostname, isLocalLoopbackHost } from "@supaterm/shared/hostClassification";
 
-export class RelayHostBrowserUnavailableError extends Error {
-  constructor() {
-    super("Relay port previews require browser support on the host.");
+export class RelayHostBrowserUnavailableError extends Schema.TaggedError<RelayHostBrowserUnavailableError>()(
+  "RelayHostBrowserUnavailableError",
+  {},
+) {
+  override get message(): string {
+    return "Relay port previews require browser support on the host.";
   }
 }
+
+export const isRelayHostBrowserUnavailableError = Schema.is(RelayHostBrowserUnavailableError);
 
 const readEnvironmentUrl = (environmentId: EnvironmentId): URL => {
   const connection = readPreparedConnection(environmentId);
@@ -131,7 +137,7 @@ const resolveLoopbackUrl = (
       parsed,
     ).resolvedUrl;
   } catch (error) {
-    if (options?.requireReachable && error instanceof RelayHostBrowserUnavailableError) throw error;
+    if (options?.requireReachable && isRelayHostBrowserUnavailableError(error)) throw error;
     return rawUrl;
   }
 };

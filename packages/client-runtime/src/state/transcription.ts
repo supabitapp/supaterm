@@ -1,7 +1,7 @@
 import {
   automaticTranscriptionProvider,
   TranscriptionError,
-  type TranscriptionErrorReason,
+  TranscriptionErrorReason,
   type TranscriptionPrepareUploadInput,
   type TranscriptionPrepareUploadResult,
   TranscriptionUploadResult,
@@ -103,23 +103,15 @@ export function resolveVoiceTranscriptionSource(config: {
 }
 
 /** Transcription refused the recording, or the upload never reached the server. */
-export class VoiceUploadError extends Error {
-  readonly reason: TranscriptionErrorReason | "disconnected" | undefined;
+export class VoiceUploadError extends Schema.TaggedError<VoiceUploadError>()("VoiceUploadError", {
+  reason: Schema.optional(Schema.Union([TranscriptionErrorReason, Schema.Literal("disconnected")])),
+  message: Schema.String,
   /** Sending the same upload again may succeed; otherwise the user has to act. */
-  readonly retryable: boolean;
+  retryable: Schema.Boolean,
+  cause: Schema.optional(Schema.Defect()),
+}) {}
 
-  constructor(
-    reason: VoiceUploadError["reason"],
-    message: string,
-    retryable: boolean,
-    options?: ErrorOptions,
-  ) {
-    super(message, options);
-    this.name = "VoiceUploadError";
-    this.reason = reason;
-    this.retryable = retryable;
-  }
-}
+export const isVoiceUploadError = Schema.is(VoiceUploadError);
 
 const decodeResult = Schema.decodeUnknownSync(TranscriptionUploadResult);
 const decodeError = Schema.decodeUnknownOption(TranscriptionError);
@@ -129,28 +121,31 @@ export type VoiceUploadResponse = { readonly status: number; readonly body: unkn
 // The server keeps a refusal as the outcome of its upload id, so sending the same upload
 // again only replays it; the user retries under a new id.
 function refusal(error: TranscriptionError): VoiceUploadError {
-  return new VoiceUploadError(
-    error.reason,
-    error.retryAfterMs === undefined
-      ? error.message
-      : `${error.message} Try again in ${Math.ceil(error.retryAfterMs / 1000)} s.`,
-    false,
-  );
+  return new VoiceUploadError({
+    reason: error.reason,
+    message:
+      error.retryAfterMs === undefined
+        ? error.message
+        : `${error.message} Try again in ${Math.ceil(error.retryAfterMs / 1000)} s.`,
+    retryable: false,
+  });
 }
 
 function uploadFailure(response: VoiceUploadResponse): VoiceUploadError {
   const error = Option.getOrUndefined(decodeError(response.body));
   return error
     ? refusal(error)
-    : new VoiceUploadError(
-        undefined,
-        `The recording couldn't be uploaded (${response.status}).`,
-        response.status >= 500,
-      );
+    : new VoiceUploadError({
+        message: `The recording couldn't be uploaded (${response.status}).`,
+        retryable: response.status >= 500,
+      });
 }
 
 const unreachable = (cause: unknown) =>
-  new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true, {
+  new VoiceUploadError({
+    reason: "disconnected",
+    message: "The recording couldn't reach the environment.",
+    retryable: true,
     cause,
   });
 
@@ -161,7 +156,7 @@ async function prepareUpload(
   try {
     return await prepare();
   } catch (error) {
-    if (error instanceof VoiceUploadError) throw error;
+    if (isVoiceUploadError(error)) throw error;
     const refused = Option.getOrUndefined(decodeError(error));
     if (refused) throw refusal(refused);
     throw unreachable(error);
@@ -262,12 +257,12 @@ export function createServerVoiceTranscriber(input: {
                 : { uploadId: started.uploadId, streamed: await started.live.finish() };
             return (await input.transcribe(uri, transcribeSignal, dictation)).text;
           } catch (error) {
-            if (error instanceof VoiceUploadError) {
-              throw new VoiceTranscriptionError(
-                error.reason === "audioTooShort" ? "tooShort" : "refused",
-                error.message,
-                { cause: error },
-              );
+            if (isVoiceUploadError(error)) {
+              throw new VoiceTranscriptionError({
+                code: error.reason === "audioTooShort" ? "tooShort" : "refused",
+                message: error.message,
+                cause: error,
+              });
             }
             throw error;
           }
