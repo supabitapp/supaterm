@@ -1,9 +1,8 @@
 # Updating Supaterm
 
 The app you use and the server running your agents can be on different machines.
-When a server is behind your web or desktop app, an update notice appears in the
-conversation and **Settings → Environments**. Update the machine named in that
-notice. A server installed with the `supaterm` command stays on its release
+When a server is behind your web or desktop app, the update button at the bottom
+of the sidebar and **Settings → Environments** offer to update it. A server installed with the `supaterm` command stays on its release
 channel, so a nightly app does not offer to update a stable server unless the
 server is too old to connect. To switch it, run
 `supaterm update --channel nightly` on its host.
@@ -27,8 +26,7 @@ finishes on its own, and the button keeps showing it after the desktop app
 restarts.
 
 The confirmation lists each machine it skips and why, such as a machine that is
-offline or needs a manual update. Use the notice or **Settings → Environments**
-for those.
+offline or needs a manual update. Use **Settings → Environments** for those.
 
 If a desktop app restarts on its old version, Supaterm tells you the update did
 not apply. It does not install that version again on its own, even when another

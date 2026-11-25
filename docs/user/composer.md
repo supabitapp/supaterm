@@ -66,7 +66,7 @@ See [images and videos](#images-and-videos-in-messages) for previewing and savin
 On web and desktop, choose **Settings → Chat → Follow-up behavior** to queue
 new messages for a later turn or steer the running turn immediately. The setting
 applies to this client; already queued messages keep their place. Queued messages
-are saved on the server and can be edited or removed above the composer.
+are saved on the server and can be edited or removed before they send.
 When Enter sends, `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows and Linux uses
 the opposite action: it steers when your default is Queue and queues when your
 default is Steer.
@@ -372,14 +372,17 @@ example because the machine is out of memory, shows **Agent not responding to St
 **Force stop** on web, desktop, and mobile. Force stop ends the turn and kills the agent's
 processes; a process that other working threads share keeps running for them.
 
-When a turn ends with commands, monitors, or subagents still running, the composer shows what is
-running and **Stop** ends it. Click a command's name to watch its live output, or a subagent's name
-to open it. On mobile, tap the background work pill, then the command or subagent.
+When a turn ends with commands, monitors, or subagents still running, a line at the end of the thread
+shows what is running, how long a single one has run, and the newest subagent activity. **Stop** ends
+it. Click a command's name to watch its live output, or **Open** or a subagent's name to open it. On
+mobile, tap the background work pill, then the command or subagent.
 
-Queued messages appear above the composer. Rows show a thumbnail of any attached image alongside
-the text. **Send now** sends a message right away, into the running turn if there is one. While a
-turn runs, a slash command moves to the front of the queue instead. You can also edit or remove it. On web and desktop, removing takes two presses of the row's **X** because
-the message is discarded, not returned to the composer.
+On web and desktop, queued messages appear at the end of the thread as dashed messages that have not
+been sent yet; a longer queue shows its first messages and **Show all**. On mobile they appear above
+the composer. Each shows its text and any attached images. **Send now** sends a message right away,
+into the running turn if there is one. While a turn runs, a slash command moves to the front of the
+queue instead. You can also edit or remove it. On web and desktop, removing takes two presses of its
+**X** because the message is discarded, not returned to the composer.
 
 If you stop the agent or the server restarts, queued messages keep their order and are held.
 Press **Resume** in an empty composer to continue. For stopped runs and usage limits, Claude,
@@ -388,13 +391,13 @@ where you left off." If the original request never reached the provider, or Curs
 you stopped before Cursor saved its first checkpoint, Resume sends that request again.
 
 Sending a new message also resumes the queue, unless it steers a turn that is already running. You
-can edit or remove held messages without starting them. **Send now** on a held row starts a turn
+can edit or remove held messages without starting them. **Send now** on a held message starts a turn
 with that message ahead of the others.
 
-The pencil on a queued row opens that message in the composer for editing. The original message
-stays in the queue until you save, and its row is highlighted while you edit. The message's
+The pencil on a queued message opens it in the composer for editing. The original message
+stays in the queue until you save, and it is highlighted while you edit. The message's
 attachments appear above the text with a remove control, and new images can be added the usual way.
-The checkmark saves the queued message in place; **Cancel** on its row, or `Escape` in the
+The checkmark saves the queued message in place; **Cancel** next to it, or `Escape` in the
 composer, leaves it unchanged. Whatever you had typed in the composer before starting the edit is
 restored afterwards. If the queued
 message starts or is removed while you are editing, the edit ends: changed content moves into the
@@ -444,7 +447,7 @@ composer to keep the current session instead.
 With Codex, Claude, and OpenCode 2.2.5 or later, send `/goal` followed by what "done" means, for example
 `/goal all tests in packages/api pass`. The agent keeps working across turns
 until it judges the goal met. The thread shows **Goal** while it works, and a
-row above the composer shows the goal and its progress.
+line at the end of the thread (above the composer on mobile) shows the goal and its progress.
 
 - `/goal` alone shows the current goal. `/goal clear` removes it.
 - Codex and OpenCode also support `/goal pause` and `/goal resume`. Stopping
