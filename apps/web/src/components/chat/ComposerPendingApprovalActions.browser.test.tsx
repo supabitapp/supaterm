@@ -8,9 +8,11 @@ function renderActions(
   onRespond: () => Promise<undefined>,
   options?: ReadonlyArray<ProviderApprovalOption>,
   canRespond = true,
+  presentation: "composer" | "inline" = "composer",
 ) {
   return render(
     <ComposerPendingApprovalActions
+      presentation={presentation}
       requestId={RuntimeRequestId.make("approval-1")}
       canRespond={canRespond}
       isResponding={false}
@@ -34,19 +36,28 @@ async function openMore(container: HTMLElement) {
 }
 
 describe("ComposerPendingApprovalActions", () => {
-  it("keeps the main decisions in the row and sends a secondary decision from the menu", async () => {
-    const onRespond = vi.fn(async () => undefined);
-    await using screen = await renderActions(onRespond);
-    expect(rowLabels(screen.container)).toEqual(["Decline", "Approve"]);
+  it.each([
+    { presentation: "composer" as const, labels: ["Decline", "Approve"] },
+    { presentation: "inline" as const, labels: ["Decline", "Approve", "More"] },
+  ])(
+    "keeps the main decisions in the $presentation row and sends a secondary decision from the menu",
+    async ({ presentation, labels }) => {
+      const onRespond = vi.fn(async () => undefined);
+      await using screen = await renderActions(onRespond, undefined, true, presentation);
+      expect(rowLabels(screen.container)).toEqual(labels);
 
-    const items = await openMore(screen.container);
-    expect(items.map((item) => item.textContent?.trim())).toEqual([
-      "Cancel",
-      "Always allow this session",
-    ]);
-    await act(async () => items[1]!.click());
-    expect(onRespond).toHaveBeenCalledWith(RuntimeRequestId.make("approval-1"), "acceptForSession");
-  });
+      const items = await openMore(screen.container);
+      expect(items.map((item) => item.textContent?.trim())).toEqual([
+        "Cancel",
+        "Always allow this session",
+      ]);
+      await act(async () => items[1]!.click());
+      expect(onRespond).toHaveBeenCalledWith(
+        RuntimeRequestId.make("approval-1"),
+        "acceptForSession",
+      );
+    },
+  );
 
   it("keeps provider labels, including secondary ones, where the user can find them", async () => {
     const onRespond = vi.fn(async () => undefined);

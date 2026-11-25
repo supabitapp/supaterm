@@ -29,7 +29,6 @@ import type {
   ModelSelection,
   ProjectId,
   PreviewAnnotationPayload,
-  ProviderApprovalDecision,
   ProviderInteractionMode,
   ResolvedKeybindingsConfig,
   RuntimeMode,
@@ -250,7 +249,6 @@ import {
   ComposerCommandMenu,
   composerSuggestionOptionId,
 } from "./ComposerCommandMenu";
-import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
 import {
   ComposerAttachButton,
   ComposerAttachInput,
@@ -270,7 +268,6 @@ import {
   type ComposerPendingAnswer,
   type ComposerPrimaryActionInput,
 } from "./composerPrimaryAction.logic";
-import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import { buildPullRequestReferenceContext } from "../pullRequest/pullRequestDetail.logic";
@@ -313,7 +310,7 @@ const COMPOSER_SCROLL_GESTURE_RESET_MS = 120;
 
 import { toastManager } from "../ui/toast";
 import { Spinner } from "../ui/spinner";
-import { PlayIcon, ReplyIcon, ShieldIcon } from "@supaterm/icons";
+import { PlayIcon, ReplyIcon } from "@supaterm/icons";
 import { ResponseReplyBarLink } from "./AssistantCitationChip";
 import { NO_PROVIDER_MODEL_SELECTION } from "../../providerInstances";
 import { type AppModelOption, getAppModelOptionsForInstance } from "../../modelSelection";
@@ -471,6 +468,7 @@ export interface ChatComposerProps {
 
   activePendingApproval: PendingApproval | null;
   pendingApprovals: PendingApproval[];
+  onHeldRequestIdsChange: (requestIds: ReadonlySet<string>) => void;
   pendingUserInputs: PendingUserInput[];
   supportsQuestionAutoDismiss?: boolean;
   activePendingIsResponding: boolean;
@@ -547,10 +545,6 @@ export interface ChatComposerProps {
   ) => (recording: VoiceRecording, handOff: VoiceRecordingHandOff | undefined) => Promise<void>;
   onResume: () => void;
   onInterrupt: () => void;
-  onRespondToApproval: (
-    requestId: RuntimeRequestId,
-    decision: ProviderApprovalDecision,
-  ) => Promise<unknown>;
   onSelectActivePendingUserInputOption: (questionId: string, optionValue: string) => void;
   onAdvanceActivePendingUserInput: () => void;
   onDismissActivePendingUserInput: (requestId: RuntimeRequestId) => void;
@@ -620,6 +614,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     environmentUnavailable,
     activePendingApproval: incomingPendingApproval,
     pendingApprovals,
+    onHeldRequestIdsChange,
     pendingUserInputs: incomingPendingUserInputs,
     activePendingIsResponding: incomingPendingIsResponding,
     respondingRequestIds,
@@ -663,7 +658,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onPrepareVoiceSend,
     onResume,
     onInterrupt,
-    onRespondToApproval,
     onSelectActivePendingUserInputOption,
     onAdvanceActivePendingUserInput,
     onDismissActivePendingUserInput,
@@ -708,6 +702,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ...pendingApprovals.map((request) => request.requestId),
     ...incomingPendingUserInputs.map((request) => request.requestId),
   ]);
+  // A layout effect so the timeline never paints a held approval as answerable.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes held requests to the timeline without lifting per-keystroke typing state
+  useLayoutEffect(() => {
+    onHeldRequestIdsChange(heldRequestIds);
+  }, [heldRequestIds, onHeldRequestIdsChange]);
   const activePendingApproval =
     incomingPendingApproval && !heldRequestIds.has(incomingPendingApproval.requestId)
       ? incomingPendingApproval
@@ -1356,7 +1355,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activePendingUserInput = pendingUserInputs[0] ?? null;
   const isChoiceOnlyPendingQuestion =
     activePendingProgress?.activeQuestion?.allowCustomAnswer === false;
-  const showComposerTopDrawer = isComposerApprovalState || pendingUserInputs.length > 0;
+  const showComposerTopDrawer = pendingUserInputs.length > 0;
   const showCollapsedMobilePromptRow = isComposerCollapsedMobile;
   const showComposerAttachAction =
     fileStagingLimit !== null &&
@@ -2669,8 +2668,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ]
     : props.bannerItems;
   const hasBannerItems = bannerItems.length > 0;
-  const hasBlockingComposerTopDrawer =
-    activePendingApproval !== null || pendingUserInputs.length > 0;
+  const hasBlockingComposerTopDrawer = pendingUserInputs.length > 0;
   const canShowTasks =
     activeTasksProgress !== null && activeTaskSteps !== null && !hasBlockingComposerTopDrawer;
   const hasImageAttachmentAttention = standaloneComposerImages.some((image) => {
@@ -3938,34 +3936,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             key={`top-drawer:${activeThreadId}`}
             open={showComposerTopDrawer && !isTasksDrawerOpen}
           >
-            <ComposerBanner.Root
-              data-chat-composer-top-drawer="true"
-              variant={activePendingApproval ? "warning" : "info"}
-              density={activePendingApproval ? "spacious" : "default"}
-            >
-              {activePendingApproval ? (
-                <ComposerBanner.Row layout="approval" data-chat-composer-collapsed-controls="true">
-                  <ComposerBanner.Icon>
-                    <ShieldIcon />
-                  </ComposerBanner.Icon>
-                  <ComposerBanner.Content>
-                    <ComposerPendingApprovalPanel
-                      approval={activePendingApproval}
-                      pendingCount={pendingApprovals.length}
-                    />
-                  </ComposerBanner.Content>
-                  <ComposerBanner.Actions>
-                    <ComposerPendingApprovalActions
-                      disabled={!canOperateThread}
-                      requestId={activePendingApproval.requestId}
-                      isResponding={respondingRequestIds.includes(activePendingApproval.requestId)}
-                      options={activePendingApproval.options}
-                      canRespond={activePendingApproval.responseCapability === "live"}
-                      onRespondToApproval={onRespondToApproval}
-                    />
-                  </ComposerBanner.Actions>
-                </ComposerBanner.Row>
-              ) : !isComposerCollapsedMobile && pendingUserInputs.length > 0 ? (
+            <ComposerBanner.Root data-chat-composer-top-drawer="true" variant="info">
+              {!isComposerCollapsedMobile && pendingUserInputs.length > 0 ? (
                 <ComposerPendingUserInputPanel
                   disabled={!canOperateThread}
                   pendingUserInputs={pendingUserInputs}

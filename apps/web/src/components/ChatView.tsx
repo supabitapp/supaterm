@@ -165,6 +165,7 @@ import {
 } from "../lib/assistantCitationNavigation";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { useStore } from "zustand";
+import { shallow } from "zustand/vanilla/shallow";
 import { useShallow } from "zustand/react/shallow";
 import {
   isAtomCommandInterrupted,
@@ -1565,6 +1566,12 @@ export default function ChatView(props: ChatViewProps) {
     promptRef,
     composerRef,
     setThreadError,
+  });
+  const [heldApprovalRequestIds, setHeldApprovalRequestIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const onHeldRequestIdsChange = useStableCallback((requestIds: ReadonlySet<string>) => {
+    setHeldApprovalRequestIds((current) => (shallow(current, requestIds) ? current : requestIds));
   });
   // A pending approval or question is part of the key: once it is answered,
   // from this client or any other, the agent resumes and spends quota.
@@ -3713,6 +3720,11 @@ export default function ChatView(props: ChatViewProps) {
                 >
                   <WorkspaceMutationIdContext value={workspaceMutationId}>
                     <ThreadTimeline
+                      pendingApprovals={pendingApprovals}
+                      heldApprovalRequestIds={heldApprovalRequestIds}
+                      respondingRequestIds={respondingRequestIds}
+                      onRespondToApproval={onRespondToApprovalStable}
+                      canOperateThread={canOperateThread}
                       threadDetailRef={routeThreadDetailRef}
                       entriesInput={timelineEntriesInput}
                       draftEntries={isServerThread ? null : draftTimelineEntries}
@@ -4015,6 +4027,7 @@ export default function ChatView(props: ChatViewProps) {
                                   pendingApprovals={
                                     queuedRunEdit.outbox.isEditing ? [] : pendingApprovals
                                   }
+                                  onHeldRequestIdsChange={onHeldRequestIdsChange}
                                   pendingUserInputs={
                                     queuedRunEdit.outbox.isEditing ? [] : pendingUserInputs
                                   }
@@ -4074,7 +4087,6 @@ export default function ChatView(props: ChatViewProps) {
                                   onPrepareVoiceSend={onComposerPrepareVoiceSendStable}
                                   onResume={onComposerResumeStable}
                                   onInterrupt={onInterruptStable}
-                                  onRespondToApproval={onRespondToApprovalStable}
                                   onSelectActivePendingUserInputOption={
                                     onSelectActivePendingUserInputOptionStable
                                   }
