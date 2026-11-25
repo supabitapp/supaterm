@@ -396,6 +396,9 @@ The Pull requests page shows each PR's position in its GitHub stack. Open the st
 review to navigate its layers. **Merge stack** submits the selected pull request and every unmerged
 layer below it to GitHub together, respecting branch rules and merge queues. Once armed, it shows how
 many pull requests it merges and the merge strategy. GitHub rebases the remaining stack after merging.
+While checks are still running, the same button offers **Auto-merge stack**, which merges those
+layers once each meets its requirements. **Cancel stack auto-merge** in the stack menu turns it off.
+On mobile, the merge options menu enables and disables auto-merge for the whole stack.
 
 **Rebase stack** updates remote branches from bottom to top without changing your local checkout.
 It can rewrite history and restart checks. If a layer fails, earlier updates remain; resolve that
