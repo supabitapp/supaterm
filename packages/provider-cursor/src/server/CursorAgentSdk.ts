@@ -27,7 +27,6 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
 import * as CursorSdk from "./CursorSdk.ts";
-import { resumeCursorRun } from "./sdkResume.ts";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 
 export const CURSOR_AGENT_SDK_PROTOCOL = "cursor-agent-sdk.local" as const;
@@ -101,7 +100,7 @@ export interface CursorAgentSdkSendInput<Error> {
   readonly onDelta?: (update: InteractionUpdate) => Effect.Effect<void, Error>;
   /** Runs `agent.summarize()` instead, which takes no message or options. */
   readonly summarize?: boolean;
-  /** Sends Cursor's ResumeAction from the latest checkpoint instead of a message. */
+  /** Runs `agent.resume()`: Cursor's ResumeAction from the latest checkpoint, with no message. */
   readonly resume?: boolean;
   /** Runs as the SDK enters each slow step of preparing the run, before the run starts. */
   readonly onStartupPhase?: (phase: string) => Effect.Effect<void>;
@@ -779,9 +778,11 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
                 await dispatchUpdate(update);
               },
             };
-            return sendInput.resume === true
-              ? resumeCursorRun(agent, options)
-              : agent.send(sendInput.message, options);
+            if (sendInput.resume !== true) return agent.send(sendInput.message, options);
+            if (agent.resume === undefined) {
+              throw new Error("This Cursor SDK agent cannot resume.");
+            }
+            return agent.resume(options);
           };
           const onStartupPhase = sendInput.onStartupPhase;
           const startRun = () =>
