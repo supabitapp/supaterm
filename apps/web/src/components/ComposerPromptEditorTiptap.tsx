@@ -827,7 +827,7 @@ function createComposerExtensions(richText: boolean) {
       strike: false,
       paragraph: false,
     }),
-    // Ctrl/Cmd+click would node-select and outline the whole line (Wispr Flow holds Ctrl to dictate).
+    // Ctrl/Cmd+click would node-select and outline the whole line.
     Paragraph.extend({ selectable: false }),
     ComposerUndoGroupingExtension,
     ComposerTextDirectionExtension,
