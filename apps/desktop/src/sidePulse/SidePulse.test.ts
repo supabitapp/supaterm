@@ -89,7 +89,7 @@ describe("SidePulse", () => {
       yield* mount("SidePulse");
       yield* sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 100 });
       yield* sidePulse.setLedState("done");
-      assert.strictEqual(yield* read("SidePulse"), "#00FF66 320ms cosine");
+      assert.strictEqual(yield* read("SidePulse"), "off\n#00FF66 4s pulse\nrepeat");
 
       yield* sidePulse.setLedState(null);
       assert.strictEqual(yield* read("SidePulse"), "off 1s");
