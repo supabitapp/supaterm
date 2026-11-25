@@ -41,6 +41,7 @@ import {
   MenuRadioGroup,
   MenuRadioItem,
   MenuSeparator as MenuDivider,
+  MenuShortcut,
   MenuTrigger,
 } from "../ui/menu";
 import { useComposerDraftStore, DraftId } from "../../composerDraftStore";
@@ -548,6 +549,7 @@ function SpeedToggleControl({
   disabled,
   hidden,
   isComposerOwned,
+  shortcutLabel,
   onSelect,
 }: {
   speedToggle: SpeedToggle;
@@ -556,6 +558,7 @@ function SpeedToggleControl({
   disabled: boolean;
   hidden: boolean;
   isComposerOwned: boolean | undefined;
+  shortcutLabel: string | null;
   onSelect: (value: string | boolean) => void;
 }) {
   const composerFloatingLayerProps = useComposerMenuProps();
@@ -587,7 +590,9 @@ function SpeedToggleControl({
           className={speedOn ? "text-fast-mode" : undefined}
         />
       </TooltipTrigger>
-      <TooltipPopup side="top">{SPEED_TOGGLE_LABELS[speedToggle.level]}</TooltipPopup>
+      <TooltipPopup side="top" shortcut={shortcutLabel}>
+        {SPEED_TOGGLE_LABELS[speedToggle.level]}
+      </TooltipPopup>
     </Tooltip>
   );
   if (!choices) return trigger;
@@ -603,12 +608,22 @@ function SpeedToggleControl({
             closeOnClick
             onCheckedChange={(checked) => onSelect(checked ? choice.value : speedToggle.offValue)}
           >
-            <span className="flex w-full min-w-0 flex-col">
-              <span>{choice.level === "fast" ? "Fast" : "Ultrafast"}</span>
-              {choice.description ? (
-                <span className="max-w-56 text-pretty text-muted-foreground/80 text-xs">
-                  {choice.description}
-                </span>
+            <span className="flex w-full min-w-0 items-start gap-2">
+              <ComposerControlIcon
+                icon={choice.level === "ultrafast" ? UltrafastIcon : ZapFilledIcon}
+                size="sm"
+                className="mt-0.5 text-fast-mode"
+              />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span>{choice.level === "fast" ? "Fast" : "Ultrafast"}</span>
+                {choice.description ? (
+                  <span className="max-w-56 text-pretty text-muted-foreground/80 text-xs">
+                    {choice.description}
+                  </span>
+                ) : null}
+              </span>
+              {choice.level === "fast" && shortcutLabel ? (
+                <MenuShortcut>{shortcutLabel}</MenuShortcut>
               ) : null}
             </span>
           </MenuCheckboxItem>
@@ -631,6 +646,7 @@ export const TraitsPicker = memo(function TraitsPicker({
   triggerClassName,
   isComposerOwned,
   shortcutLabel = null,
+  speedShortcutLabel = null,
   size = "sm",
   hidden = false,
   disabled = false,
@@ -641,6 +657,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     hidden?: boolean;
     /** The key that opens the picker, shown on its trigger. */
     shortcutLabel?: string | null;
+    speedShortcutLabel?: string | null;
     disabled?: boolean;
   }) {
   const composerFloatingLayerProps = useComposerMenuProps();
@@ -673,6 +690,7 @@ export const TraitsPicker = memo(function TraitsPicker({
       disabled={disabled}
       hidden={hidden}
       isComposerOwned={isComposerOwned}
+      shortcutLabel={speedShortcutLabel}
       onSelect={(value) =>
         updateModelOptions(
           buildProviderOptionSelectionsFromDescriptors(
