@@ -162,8 +162,11 @@ it.effect("runs background Git in its own lane so user commands never queue behi
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
       Effect.provide(layerServerConfig),
     );
+    // macOS resolves git on disk before spawning, which the test clock does not wait for.
     const run = (args: ReadonlyArray<string>) =>
-      driver.execute({ operation: "test.gitLane", cwd: "/repo", args: [...args] });
+      driver
+        .execute({ operation: "test.gitLane", cwd: "/repo", args: [...args] })
+        .pipe(Effect.provideService(HostProcess.Platform, "linux"));
     const background = yield* Effect.forEach(
       Array.from({ length: 12 }),
       () => run(["background"]),
