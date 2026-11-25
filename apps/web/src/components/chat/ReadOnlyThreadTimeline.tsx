@@ -128,6 +128,7 @@ export function ReadOnlyThreadTimeline(props: {
         <ScrollToEndPill
           show={follow.showScrollToBottom}
           bottom={4}
+          summary={null}
           composerOverlay={null}
           onScrollToEnd={() => follow.scrollToEnd(true)}
         />

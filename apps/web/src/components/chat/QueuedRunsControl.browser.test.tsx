@@ -15,6 +15,7 @@ import {
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import { AsyncResult, type Atom, AtomRegistry } from "effect/reactivity";
+import * as DateTime from "effect/DateTime";
 import { createRef, Profiler, useState, type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
@@ -33,8 +34,16 @@ vi.mock(import("@supaterm/client-runtime/state/thread-workflows"), async (import
 
 vi.mock(import("../../state/entities"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useQuietThreadShell: ((target: unknown) =>
-    target === null ? null : { title: "Release lead" }) as never,
+  // The linked environment is connected, but its thread is not in the loaded shell.
+  useQuietThreadShell: ((target: { readonly environmentId: string } | null) =>
+    target === null || target.environmentId === "environment:linked"
+      ? null
+      : { title: "Release lead" }) as never,
+}));
+vi.mock(import("../../state/environments"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useEnvironment: ((environmentId: string | null) =>
+    environmentId === "environment:linked" ? { environmentId } : null) as never,
 }));
 
 vi.mock(import("../../state/query"), async (importOriginal) => ({
@@ -102,6 +111,7 @@ const baseProps = {
   editBlockedReason: null,
   onEditQueuedRun: () => undefined,
   onCancelEdit: () => undefined,
+  timestampFormat: "24-hour",
   onOpenThread: () => undefined,
   onImageExpand: () => undefined,
 } satisfies ComponentProps<typeof QueuedRunsControl>;
@@ -354,11 +364,12 @@ it("previews assistant quotes as readable text and preserves the citation when e
   );
 });
 
-it("names who sent each queued message and opens the sender", async () => {
+it("shows who sent a queued message and folds automation and agent prompts", async () => {
   setup();
   const message = (id: string, fields: Record<string, unknown>) => ({
     id,
     role: "user",
+    createdAt: DateTime.makeUnsafe("2026-10-27T12:00:00.000Z"),
     ...fields,
   });
   state.workflow = {
@@ -383,6 +394,19 @@ it("names who sent each queued message and opens the sender", async () => {
         },
       ],
       [
+        "run:linked",
+        "Linked review finished.",
+        {
+          createdBy: "agent",
+          creationSource: "mcp",
+          linkedSender: {
+            environmentId: "environment:linked",
+            threadId: "thread:linked-lead",
+            title: "Title when sent",
+          },
+        },
+      ],
+      [
         "run:server",
         "Continue where you left off.",
         {
@@ -399,17 +423,55 @@ it("names who sent each queued message and opens the sender", async () => {
   };
   const onOpenThread = vi.fn();
   await using _screen = await renderQueue({ onOpenThread });
+  // Four rows collapse the queue.
+  await page.getByRole("button", { name: "Show all 4 queued" }).click();
 
-  await expect
-    .element(page.getByRole("link", { name: "Open automation PR dispatcher" }))
-    .toHaveAttribute("href", expect.stringContaining("taskId=task%3Awebhook"));
-  await expect.element(page.getByText(/Follow the runbook/)).toBeInTheDocument();
+  const automation = page.getByRole("button", { name: /PR dispatcher/ });
+  await expect.element(automation).toHaveAttribute("aria-expanded", "false");
+  await expect.element(page.getByText(/Follow the runbook/)).not.toBeInTheDocument();
+  await automation.click();
+  await expect.element(page.getByText(/Follow the runbook/)).toBeVisible();
+  await expect.element(page.getByRole("link", { name: "Open automation" })).toBeInTheDocument();
 
-  await page.getByRole("button", { name: "Open thread Release lead" }).click();
-  expect(onOpenThread).toHaveBeenCalledExactlyOnceWith("thread:lead");
+  await expect.element(page.getByRole("button", { name: /Release lead/ })).toBeVisible();
+  await page.getByRole("button", { name: "Open thread" }).nth(0).click({ force: true });
+  expect(onOpenThread).toHaveBeenCalledExactlyOnceWith("thread:lead", "environment:test");
+  // A sender in a connected linked environment keeps the title it sent and opens there.
+  await expect.element(page.getByRole("button", { name: /Title when sent/ })).toBeVisible();
+  await page.getByRole("button", { name: "Open thread" }).nth(1).click({ force: true });
+  expect(onOpenThread).toHaveBeenLastCalledWith("thread:linked-lead", "environment:linked");
 
-  await expect.element(page.getByText("Supaterm", { exact: true })).toBeVisible();
+  await expect.element(page.getByText("Sent by Supaterm")).toBeVisible();
   await expect.element(page.getByText("Continue where you left off.")).toBeVisible();
+});
+
+it("stays inside the timeline scroller instead of growing the chat column", async () => {
+  setup();
+  state.workflow = {
+    activeRun: { id: "run:active" },
+    canPromoteToSteer: true,
+    queuedRuns: [
+      {
+        run: { id: "run:queued", userMessageId: "message:queued" },
+        text: "Later",
+        attachments: [],
+      },
+    ],
+  };
+  // Mirrors ChatView: a scrollable column, a positioned wrapper, then a non-positioned scroller.
+  await using screen = await renderUi(
+    <div data-testid="column" style={{ height: 200, overflowY: "auto" }}>
+      <div style={{ position: "relative", height: "100%" }}>
+        <div style={{ height: "100%", overflowY: "auto" }}>
+          <div style={{ height: 1000 }} />
+          <QueuedRunsControl {...baseProps} />
+        </div>
+      </div>
+    </div>,
+  );
+  await expect.element(page.getByText("Later", { exact: true })).toBeInTheDocument();
+  const column = screen.getByTestId("column").element();
+  expect(column.scrollHeight).toBe(column.clientHeight);
 });
 
 it("does not re-render while assistant text streams into the thread", async () => {

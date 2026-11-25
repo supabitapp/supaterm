@@ -143,14 +143,12 @@ import {
   type ComposerTaskStep,
   type ComposerTasksProgress,
 } from "./ComposerTasksBadge";
-import { ComposerActivityRow } from "./ComposerActivityStatus";
 import { useAttachmentExits, useAttachmentTrayMotion } from "./composerAttachmentMotion";
 import {
   type QueuedAttachmentContextBinding,
   reconcileAttachmentContextReferences,
   useRetainedContextPayloads,
 } from "./composerContextUndo";
-import type { ThreadSyncPhase } from "../../threadSync";
 import { ComposerBanner } from "./ComposerBanner";
 import { ComposerSurface } from "./ComposerSurface";
 import { CollapsedComposerPromptPreview } from "./CollapsedComposerPromptPreview";
@@ -329,7 +327,6 @@ import {
   resolveProviderSlashCommandsForCwd,
 } from "@supaterm/client-runtime/providerSkills";
 import * as Schema from "effect/Schema";
-import { useDelayedStatus } from "../../hooks/useDelayedStatus";
 import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { useSoftwareKeyboardOpen } from "../../hooks/useSoftwareKeyboardOpen";
@@ -476,7 +473,6 @@ export interface ChatComposerProps {
 
   activeTasksProgress: ComposerTasksProgress | null;
   activeTaskSteps: readonly ComposerTaskStep[] | null;
-  threadSyncPhase: ThreadSyncPhase | null;
 
   runtimeMode: RuntimeMode;
 
@@ -518,7 +514,8 @@ export interface ChatComposerProps {
   onPageScrollKeyUp: (key: string) => void;
   onPageScrollRelease: () => void;
 
-  queuedRunsControl?: ReactNode;
+  /** This client's undelivered messages, which stay with sending. */
+  outboxControl?: ReactNode;
   // Context strip attached closest to the prompt, below any notices.
   attachedContextStrip?: ReactNode;
   editingQueuedAttachments: ReadonlyArray<{
@@ -718,11 +715,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activePendingProgress = holdingUserInput ? null : incomingPendingProgress;
   const activePendingIsResponding = !holdingUserInput && incomingPendingIsResponding;
   const isLiteralPendingAnswer = activePendingProgress?.activeQuestion?.initialAnswer !== undefined;
-  const shownSyncPhase = useDelayedStatus(composerDraftTargetKey, props.threadSyncPhase);
-  const shownSyncStatus =
-    shownSyncPhase === "syncing" || shownSyncPhase === "failed" ? shownSyncPhase : null;
-  const activeTasksProgress = shownSyncPhase === null ? props.activeTasksProgress : null;
-  const activeTaskSteps = shownSyncPhase === null ? props.activeTaskSteps : null;
+  const activeTasksProgress = props.activeTasksProgress;
+  const activeTaskSteps = props.activeTaskSteps;
   const isEditingQueuedMessage = editingQueuedAttachments !== null;
   const applyThreadModelPick = useApplyThreadModelPick();
   const composerDraft = useComposerThreadDraft(composerDraftTarget);
@@ -2996,18 +2990,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeTasksProgress !== null &&
     activeTaskSteps !== null &&
     activeTasksProgress.totalSteps > 0;
-  const activityStackContent = hasBannerItems ? (
-    shownSyncStatus ? (
-      <ComposerActivityRow phase={shownSyncStatus} />
-    ) : canShowTasks ? (
+  const activityStackContent =
+    hasBannerItems && canShowTasks ? (
       <ComposerTasksContent
         expanded={isTasksDrawerOpen}
         onToggle={toggleTasksDrawerStable}
         progress={activeTasksProgress}
         steps={activeTaskSteps}
       />
-    ) : null
-  ) : null;
+    ) : null;
   const activityStackItem: ComposerBannerStackContent | null = activityStackContent
     ? {
         id: "composer-activity",
@@ -3921,14 +3912,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             className="relative z-0"
             items={bannerStackItems}
           />
-          {!activityStackItem && (shownSyncStatus || inlineTasksBadge) ? (
+          {!activityStackItem && inlineTasksBadge ? (
             <ComposerBanner.Attachment>
               <ComposerBanner.Root data-chat-composer-activity-strip="true">
-                {shownSyncStatus ? (
-                  <ComposerActivityRow phase={shownSyncStatus} />
-                ) : (
-                  inlineTasksBadge
-                )}
+                {inlineTasksBadge}
               </ComposerBanner.Root>
             </ComposerBanner.Attachment>
           ) : null}
@@ -4032,7 +4019,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             />
           ) : null}
           {props.attachedContextStrip}
-          <Fragment key={`queue:${activeThreadId}`}>{props.queuedRunsControl}</Fragment>
+          <Fragment key={`outbox:${activeThreadId}`}>{props.outboxControl}</Fragment>
         </ComposerBanner.Column>
         <ComposerStashBadge
           count={stashQueue.length}

@@ -10,11 +10,11 @@ vi.mock(import("./CommandOutputPanel"), () => ({
 import { render } from "../../../test/render";
 import { PopoverCreateHandle } from "../ui/popover";
 import type { BackgroundTaskOutputTarget } from "./BackgroundWork";
-import { backgroundWorkBannerItem } from "./ThreadActivityBanners";
+import { backgroundWorkNowItem } from "./ThreadActivityBanners";
 
-it("opens each listed command's full text and output from the banner", async () => {
+it("opens each listed command's full text and output from the background work line", async () => {
   const audit = "python3 audit.py -j 6\n> scratch/audit.log 2>&1";
-  const item = backgroundWorkBannerItem({
+  const item = backgroundWorkNowItem({
     environmentId: EnvironmentId.make("test"),
     threadId: ThreadId.make("thread"),
     projectId: ProjectId.make("project"),
@@ -28,6 +28,7 @@ it("opens each listed command's full text and output from the banner", async () 
       },
       { taskId: "audit", kind: "command", command: audit, description: "Audit", awaited: true },
     ],
+    turnItems: [],
     outputHandle: PopoverCreateHandle<BackgroundTaskOutputTarget>(),
     stopDisabled: false,
     stopping: false,

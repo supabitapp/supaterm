@@ -70,7 +70,6 @@ function composerProps(
     respondingRequestIds: [],
     activeTasksProgress: null,
     activeTaskSteps: null,
-    threadSyncPhase: null,
     runtimeMode: "full-access",
     lockedProvider: null,
     providerStatuses: [],
