@@ -5,7 +5,7 @@ export function modelFavoriteKey(provider: ProviderInstanceId, model: string): s
   return `${provider}:${model}`;
 }
 
-export function favoritesFirst(
+function favoritesFirst(
   models: ReadonlyArray<ModelOption>,
   favoriteKeys: ReadonlySet<string>,
 ): ReadonlyArray<ModelOption> {
@@ -17,7 +17,7 @@ export function favoritesFirst(
   return [...favorites, ...others];
 }
 
-export function modelMatchesCatalogQuery(input: {
+function modelMatchesCatalogQuery(input: {
   readonly model: ModelOption;
   readonly providerLabel: string;
   readonly query: string;

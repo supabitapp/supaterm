@@ -37,9 +37,11 @@ function firstScreenState(text: string, delimiter: "," | "\t" | null, complete: 
   if (!rows.length) return null;
   return {
     pages: new Map(
-      [0, PREVIEW_PAGE_ROWS]
-        .filter((start) => start < rows.length)
-        .map((start) => [start / PREVIEW_PAGE_ROWS, rows.slice(start, start + PREVIEW_PAGE_ROWS)]),
+      [0, PREVIEW_PAGE_ROWS].flatMap((start) =>
+        start < rows.length
+          ? [[start / PREVIEW_PAGE_ROWS, rows.slice(start, start + PREVIEW_PAGE_ROWS)] as const]
+          : [],
+      ),
     ),
     meta: {
       type: "meta",

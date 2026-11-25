@@ -676,12 +676,9 @@ function isNamelessCheck(raw: CheckFields): boolean {
 const PULL_REQUEST_EVENTS = new Set(["pull_request", "pull_request_target"]);
 
 /**
- * A run that has not finished outranks any finished run of the same check: a workflow triggered
- * by both `push` and `pull_request` runs the check twice on one commit, and the run that
- * finished first must not hide the one still going. A newer pull request run of a workflow
- * supersedes the older one's cancelled checks, whose names can differ (an unexpanded matrix).
- * Other events can run one commit in different scopes (a branch and a tag, dispatch inputs), so
- * their runs replace nothing.
+ * An unfinished run outranks finished runs of the same check (push and pull_request both run it).
+ * A newer pull request run supersedes an older one's cancelled checks, even renamed ones; other
+ * events can run one commit in different scopes, so their runs replace nothing.
  */
 function toCheckEntries(raw: ReadonlyArray<CheckFields> | null | undefined): ReadonlyArray<{
   readonly check: PullRequestCheck;

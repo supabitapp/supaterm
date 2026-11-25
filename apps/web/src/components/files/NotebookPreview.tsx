@@ -80,9 +80,10 @@ export default function NotebookPreview(props: {
       }
       const departing = [...active].filter((node) => !next.has(node));
       if (active.size === next.size && departing.length === 0) return;
-      const measured = departing
-        .map((node) => [outputKey(node), node.clientHeight] as const)
-        .filter(([, height]) => height > 0);
+      const measured = departing.flatMap((node) => {
+        const height = node.clientHeight;
+        return height > 0 ? [[outputKey(node), height] as const] : [];
+      });
       active = next;
       setOutputView((old) => ({
         mounted: new Set(Array.from(next, outputKey)),
