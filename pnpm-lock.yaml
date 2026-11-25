@@ -251,6 +251,7 @@ overrides:
   expo-audio: 58.0.11
   '@expo/ui': 58.0.27
   expo-network: 58.0.4
+  '@cursor/sdk': 1.4.2
   expo-sharing: 58.0.22
   expo-video: 58.0.13
   expo-widgets: 58.0.27
@@ -315,6 +316,7 @@ packageExtensionsChecksum: sha256-UoRxygENKhPfc+td23kkPtl2A3aMuUr0ktMujrVM+0w=
 pnpmfileChecksum: sha256-uE8bbaA71OHC+F6ZQAr3QqX6lPPE57JS2ZbxBtKHxmU=
 
 patchedDependencies:
+  '@cursor/sdk@1.4.2': caa7fd9ce847cbae996855b9c6035055f7d0acc542234032aa3585c39818d918
   '@effect/platform-node-shared@4.1.5': 06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14
   '@expo/ui@58.0.27': 9f2547678939f4ec78fe45163b6455aad63d3c80353d7e0cc783f6a61a7ccc2f
   '@ff-labs/fff-node@0.11.0': 8a1ff3d69daa64466383ee05cd54015ee4ee7613f132d270f4d560d710d9bb4b
@@ -775,7 +777,7 @@ importers:
         version: 0.3.321(@anthropic-ai/sdk@0.93.0(zod@4.6.5))(@modelcontextprotocol/sdk@1.32.2(supports-color@8.1.1)(zod@4.6.5))(zod@4.6.5)
       '@cursor/sdk':
         specifier: 1.4.2
-        version: 1.4.2(zod@4.6.5)
+        version: 1.4.2(patch_hash=caa7fd9ce847cbae996855b9c6035055f7d0acc542234032aa3585c39818d918)(zod@4.6.5)
       '@effect/platform-node':
         specifier: 4.1.5
         version: 4.1.5(bufferutil@4.1.0)(effect@4.1.5(patch_hash=4efcfa75f4af910e670008caaea1aa2ce73194092a2bcc3e9be61658a6b88187))(redis@6.2.1)(utf-8-validate@6.0.6)
@@ -1559,7 +1561,7 @@ importers:
     dependencies:
       '@cursor/sdk':
         specifier: 1.4.2
-        version: 1.4.2(zod@4.6.5)
+        version: 1.4.2(patch_hash=caa7fd9ce847cbae996855b9c6035055f7d0acc542234032aa3585c39818d918)(zod@4.6.5)
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -11632,10 +11634,12 @@ packages:
   yuku-core@0.19.0:
     resolution: {integrity: sha512-kYK9e1XdfirNhkipzW0wmMcSWcVF/CWnuugodfVYRCUwvoBefweL9HzB96OiKEhsx78V5WbUxbJqlizMX869Qg==}
     engines: {node: '>=14.18.0'}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   yuku-parser@0.19.0:
     resolution: {integrity: sha512-XrBh9ZiQK5mJVRxZBAvD6LwRyAYrK3MFtH3+onyuxFL5hFD44EC3QOmIC1FjTj6H2MMwq46/NAI+NZxLZPZgxg==}
     engines: {node: '>=14.18.0'}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   zod-to-json-schema@3.25.2:
     resolution: {integrity: sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA==}
@@ -12487,7 +12491,7 @@ snapshots:
   '@cursor/sdk-win32-x64@1.4.2':
     optional: true
 
-  '@cursor/sdk@1.4.2(zod@4.6.5)':
+  '@cursor/sdk@1.4.2(patch_hash=caa7fd9ce847cbae996855b9c6035055f7d0acc542234032aa3585c39818d918)(zod@4.6.5)':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
       '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
