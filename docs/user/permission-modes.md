@@ -15,8 +15,10 @@ and modes you choose in a draft keep their permissions.
 | **Auto**              | Uses the provider's automatic review to approve routine actions and ask about others. |
 | **Full access**       | Allows commands and edits without approval prompts.                                   |
 
-Approve or reject requests in the conversation to let the agent continue. You can also send a
-message instead: it declines the waiting requests and redirects the agent with your message.
+Approve or reject requests in the conversation to let the agent continue. On web and desktop, each
+request shows on its own row where the agent is waiting, with the full command or file list; on
+mobile it appears above the composer. You can also send a message instead: it declines the waiting
+requests and redirects the agent with your message.
 Permission modes do not prevent the agent from asking questions about the task. Subagent approval
 requests appear in the parent conversation with the subagent's name, so you can respond without
 switching threads.
