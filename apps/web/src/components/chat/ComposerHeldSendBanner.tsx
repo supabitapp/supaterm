@@ -4,7 +4,7 @@ import { Spinner } from "../ui/spinner";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { usePreparingComposerImages } from "./preparingComposerImages";
 
-export const HELD_COMPOSER_SEND_BANNER_ID = "held-composer-send";
+const HELD_COMPOSER_SEND_BANNER_ID = "held-composer-send";
 
 function HeldComposerSendStatus({ draftTarget }: { readonly draftTarget: ComposerThreadTarget }) {
   const preparingCount = usePreparingComposerImages(composerTargetKey(draftTarget)).length;
