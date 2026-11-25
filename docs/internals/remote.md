@@ -213,8 +213,9 @@ undo by accident:
   renderer hands it a media ticket. Main asks it for a tunnel URL per connection, which also makes
   the tunnel follow a route switch.
 - **Owner check, not auth.** Chromium can't authenticate to a SOCKS proxy, so any local process
-  can connect to the listener and ride this user's tunnel. On Linux the listener looks the client
-  up in `/proc/net/tcp` and refuses other users. macOS and Windows have no such check yet. The
+  can connect to the listener and ride this user's tunnel. On Linux and macOS the listener serves
+  only connections the system attributes to the current OS user (`/proc/net/tcp` on Linux, `lsof`
+  on macOS), and refuses a connection whose owner it cannot read. Windows has no such check. The
   mobile app's device preview has the same listener while it is open: iOS suspends other apps, but
   Android lets any app reach it, and apps cannot see another app's socket owner there.
 - **Off stays routed.** The `enablePreviewTunnel` setting gates the route and, from server
