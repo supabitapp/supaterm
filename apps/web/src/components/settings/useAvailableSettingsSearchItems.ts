@@ -14,6 +14,14 @@ import {
   getThreadAutoMarkDoneSearchAvailability,
 } from "./settingsSearch";
 
+/** Any environment whose server supports secret providers; gates the Secrets page, nav and search. */
+export function useHasSecretProvidersEnvironment() {
+  const { environments } = useEnvironments();
+  return environments.some(
+    (environment) => environment.serverConfig?.secretProviderSettings === true,
+  );
+}
+
 export function useAvailableSettingsSearchItems() {
   const { environments } = useEnvironments();
   // Explicit booleans keep flags out of the filter cache so environment updates do not rebuild the list.
@@ -34,6 +42,7 @@ export function useAvailableSettingsSearchItems() {
         environment.serverConfig?.environment.capabilities.fastWorktreeCheckout === true,
     ) === true;
   const hasPeerLinkHost = usePeerLinkHosts().length > 0;
+  const hasSecretProvidersEnvironment = useHasSecretProvidersEnvironment();
   const hasThreadAutoMarkDone =
     getThreadAutoMarkDoneSearchAvailability(environments).eligibleEnvironmentIds.length > 0;
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -55,5 +64,6 @@ export function useAvailableSettingsSearchItems() {
     hasFastWorktreeCheckoutEnvironment,
     hasPeerLinkHost,
     hasPrimaryEnvironment: primaryEnvironmentId !== null,
+    hasSecretProvidersEnvironment,
   });
 }

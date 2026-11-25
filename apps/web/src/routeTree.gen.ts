@@ -27,6 +27,7 @@ import { Route as ChatSettingsStorageRouteImport } from './routes/_chat.settings
 import { Route as ChatSettingsSourceControlRouteImport } from './routes/_chat.settings.source-control'
 import { Route as ChatSettingsSnapShotRouteImport } from './routes/_chat.settings.snap-shot'
 import { Route as ChatSettingsSidepulseRouteImport } from './routes/_chat.settings.sidepulse'
+import { Route as ChatSettingsSecretsRouteImport } from './routes/_chat.settings.secrets'
 import { Route as ChatSettingsProvidersRouteImport } from './routes/_chat.settings.providers'
 import { Route as ChatSettingsProjectsRouteImport } from './routes/_chat.settings.projects'
 import { Route as ChatSettingsOpenSourceLicensesRouteImport } from './routes/_chat.settings.open-source-licenses'
@@ -136,6 +137,11 @@ const ChatSettingsSnapShotRoute = ChatSettingsSnapShotRouteImport.update({
 const ChatSettingsSidepulseRoute = ChatSettingsSidepulseRouteImport.update({
   id: '/sidepulse',
   path: '/sidepulse',
+  getParentRoute: () => ChatSettingsRoute,
+} as any)
+const ChatSettingsSecretsRoute = ChatSettingsSecretsRouteImport.update({
+  id: '/secrets',
+  path: '/secrets',
   getParentRoute: () => ChatSettingsRoute,
 } as any)
 const ChatSettingsProvidersRoute = ChatSettingsProvidersRouteImport.update({
@@ -273,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/settings/open-source-licenses': typeof ChatSettingsOpenSourceLicensesRoute
   '/settings/projects': typeof ChatSettingsProjectsRoute
   '/settings/providers': typeof ChatSettingsProvidersRoute
+  '/settings/secrets': typeof ChatSettingsSecretsRoute
   '/settings/sidepulse': typeof ChatSettingsSidepulseRoute
   '/settings/snap-shot': typeof ChatSettingsSnapShotRoute
   '/settings/source-control': typeof ChatSettingsSourceControlRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByTo {
   '/settings/open-source-licenses': typeof ChatSettingsOpenSourceLicensesRoute
   '/settings/projects': typeof ChatSettingsProjectsRoute
   '/settings/providers': typeof ChatSettingsProvidersRoute
+  '/settings/secrets': typeof ChatSettingsSecretsRoute
   '/settings/sidepulse': typeof ChatSettingsSidepulseRoute
   '/settings/snap-shot': typeof ChatSettingsSnapShotRoute
   '/settings/source-control': typeof ChatSettingsSourceControlRoute
@@ -353,6 +361,7 @@ export interface FileRoutesById {
   '/_chat/settings/open-source-licenses': typeof ChatSettingsOpenSourceLicensesRoute
   '/_chat/settings/projects': typeof ChatSettingsProjectsRoute
   '/_chat/settings/providers': typeof ChatSettingsProvidersRoute
+  '/_chat/settings/secrets': typeof ChatSettingsSecretsRoute
   '/_chat/settings/sidepulse': typeof ChatSettingsSidepulseRoute
   '/_chat/settings/snap-shot': typeof ChatSettingsSnapShotRoute
   '/_chat/settings/source-control': typeof ChatSettingsSourceControlRoute
@@ -394,6 +403,7 @@ export interface FileRouteTypes {
     | '/settings/open-source-licenses'
     | '/settings/projects'
     | '/settings/providers'
+    | '/settings/secrets'
     | '/settings/sidepulse'
     | '/settings/snap-shot'
     | '/settings/source-control'
@@ -433,6 +443,7 @@ export interface FileRouteTypes {
     | '/settings/open-source-licenses'
     | '/settings/projects'
     | '/settings/providers'
+    | '/settings/secrets'
     | '/settings/sidepulse'
     | '/settings/snap-shot'
     | '/settings/source-control'
@@ -473,6 +484,7 @@ export interface FileRouteTypes {
     | '/_chat/settings/open-source-licenses'
     | '/_chat/settings/projects'
     | '/_chat/settings/providers'
+    | '/_chat/settings/secrets'
     | '/_chat/settings/sidepulse'
     | '/_chat/settings/snap-shot'
     | '/_chat/settings/source-control'
@@ -616,6 +628,13 @@ declare module '@tanstack/react-router' {
       path: '/sidepulse'
       fullPath: '/settings/sidepulse'
       preLoaderRoute: typeof ChatSettingsSidepulseRouteImport
+      parentRoute: typeof ChatSettingsRoute
+    }
+    '/_chat/settings/secrets': {
+      id: '/_chat/settings/secrets'
+      path: '/secrets'
+      fullPath: '/settings/secrets'
+      preLoaderRoute: typeof ChatSettingsSecretsRouteImport
       parentRoute: typeof ChatSettingsRoute
     }
     '/_chat/settings/providers': {
@@ -780,6 +799,7 @@ interface ChatSettingsRouteChildren {
   ChatSettingsOpenSourceLicensesRoute: typeof ChatSettingsOpenSourceLicensesRoute
   ChatSettingsProjectsRoute: typeof ChatSettingsProjectsRoute
   ChatSettingsProvidersRoute: typeof ChatSettingsProvidersRoute
+  ChatSettingsSecretsRoute: typeof ChatSettingsSecretsRoute
   ChatSettingsSidepulseRoute: typeof ChatSettingsSidepulseRoute
   ChatSettingsSnapShotRoute: typeof ChatSettingsSnapShotRoute
   ChatSettingsSourceControlRoute: typeof ChatSettingsSourceControlRoute
@@ -808,6 +828,7 @@ const ChatSettingsRouteChildren: ChatSettingsRouteChildren = {
   ChatSettingsOpenSourceLicensesRoute: ChatSettingsOpenSourceLicensesRoute,
   ChatSettingsProjectsRoute: ChatSettingsProjectsRoute,
   ChatSettingsProvidersRoute: ChatSettingsProvidersRoute,
+  ChatSettingsSecretsRoute: ChatSettingsSecretsRoute,
   ChatSettingsSidepulseRoute: ChatSettingsSidepulseRoute,
   ChatSettingsSnapShotRoute: ChatSettingsSnapShotRoute,
   ChatSettingsSourceControlRoute: ChatSettingsSourceControlRoute,

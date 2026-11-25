@@ -817,6 +817,15 @@ importers:
       '@supaterm/provider-pi':
         specifier: workspace:*
         version: link:../../packages/provider-pi
+      '@supaterm/secret-provider-core':
+        specifier: workspace:*
+        version: link:../../packages/secret-provider-core
+      '@supaterm/secret-provider-definitions':
+        specifier: workspace:*
+        version: link:../../packages/secret-provider-definitions
+      '@supaterm/secret-provider-onepassword':
+        specifier: workspace:*
+        version: link:../../packages/secret-provider-onepassword
       '@supaterm/source-control-azure-devops':
         specifier: workspace:*
         version: link:../../packages/source-control-azure-devops
@@ -1010,6 +1019,12 @@ importers:
       '@supaterm/provider-core':
         specifier: workspace:*
         version: link:../../packages/provider-core
+      '@supaterm/secret-provider-definitions':
+        specifier: workspace:*
+        version: link:../../packages/secret-provider-definitions
+      '@supaterm/secret-provider-onepassword':
+        specifier: workspace:*
+        version: link:../../packages/secret-provider-onepassword
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../../packages/shared

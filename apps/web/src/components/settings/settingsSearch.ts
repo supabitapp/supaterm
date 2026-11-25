@@ -40,6 +40,7 @@ export type SettingsPath =
   | "/settings/worktrees"
   | "/settings/connections"
   | "/settings/access"
+  | "/settings/secrets"
   | "/settings/maintenance"
   | "/settings/about"
   | "/settings/archived";
@@ -70,6 +71,7 @@ export interface SettingsSearchItem {
   readonly wslAvailableOnly?: boolean;
   readonly fastWorktreeCheckoutOnly?: boolean;
   readonly peerLinksOnly?: boolean;
+  readonly secretProvidersOnly?: boolean;
   readonly secondary?: boolean;
   readonly requiresThreadAutoMarkDone?: boolean;
 }
@@ -83,6 +85,7 @@ export interface SettingsSearchAvailability {
   readonly hasFastWorktreeCheckoutEnvironment?: boolean;
   readonly hasPeerLinkHost?: boolean;
   readonly hasPrimaryEnvironment?: boolean;
+  readonly hasSecretProvidersEnvironment?: boolean;
 }
 
 export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
@@ -105,6 +108,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/worktrees": "Worktrees",
   "/settings/connections": "Environments",
   "/settings/access": "Sharing & access",
+  "/settings/secrets": "Secrets",
   "/settings/maintenance": "Maintenance",
   "/settings/about": "About",
   "/settings/archived": "Archive",
@@ -144,7 +148,10 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
     heading: "Code",
     paths: ["/settings/projects", "/settings/source-control", "/settings/worktrees"],
   },
-  { heading: "Connections", paths: ["/settings/connections", "/settings/access"] },
+  {
+    heading: "Connections",
+    paths: ["/settings/connections", "/settings/access", "/settings/secrets"],
+  },
   {
     heading: "More",
     headingHidden: true,
@@ -1179,6 +1186,21 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "secret-providers",
+    title: "Secret providers",
+    to: "/settings/secrets",
+    searchTerms: ["1password vault credentials api key"],
+    secretProvidersOnly: true,
+  },
+  {
+    id: "secret-providers-add",
+    title: "Add secret provider",
+    to: "/settings/secrets",
+    targetId: "secret-providers",
+    searchTerms: ["new 1password vault op cli account"],
+    secretProvidersOnly: true,
+  },
+  {
     id: "archive",
     title: "Archived threads",
     to: "/settings/archived",
@@ -1210,6 +1232,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/worktrees": "project-defaults",
   "/settings/connections": "connections",
   "/settings/access": "connections",
+  "/settings/secrets": null,
   "/settings/maintenance": null,
   "/settings/about": null,
   "/settings/archived": "project-defaults",
@@ -1336,7 +1359,8 @@ export function filterAvailableSettingsSearchItems(
       (!item.requiresThreadAutoMarkDone || availability.hasThreadAutoMarkDone) &&
       (!item.fastWorktreeCheckoutOnly ||
         availability.hasFastWorktreeCheckoutEnvironment === true) &&
-      (!item.peerLinksOnly || availability.hasPeerLinkHost === true),
+      (!item.peerLinksOnly || availability.hasPeerLinkHost === true) &&
+      (!item.secretProvidersOnly || availability.hasSecretProvidersEnvironment === true),
   );
 }
 

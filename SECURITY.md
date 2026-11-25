@@ -84,6 +84,9 @@ once it has one.
   at pairing.
 - `SUPATERM_DEV_AUTH_TOKEN` and dev startup URLs are administrative by design and
   ignored outside development servers.
+- A session with `providers:manage` can point a credential field at any secret
+  the configured secret provider's account can read. Saving or answering with a
+  secret reference needs that scope for this reason.
 - An attacker already running code as the same OS user.
 
 ## Where enforcement lives

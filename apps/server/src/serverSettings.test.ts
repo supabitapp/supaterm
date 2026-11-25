@@ -11,6 +11,7 @@ import {
   ProviderInstanceId,
   resolveProviderInstanceEnabled,
   ServerSettings,
+  ServerSettingsPatch,
 } from "@supaterm/contracts";
 import { createModelSelection } from "@supaterm/shared/model";
 import { assert, it } from "@effect/vitest";
@@ -36,6 +37,7 @@ import { resolveProviderInstanceTerminalEnvironment } from "./terminal/Manager.t
 
 const decodeServerSettings = Schema.decodeUnknownEffect(ServerSettings);
 const decodeServerSettingsJson = Schema.decodeUnknownEffect(Schema.fromJsonString(ServerSettings));
+const decodeServerSettingsPatch = Schema.decodeUnknownEffect(ServerSettingsPatch);
 const encodeModelSelectionJson = Schema.encodeEffect(Schema.fromJsonString(ModelSelection));
 const encodeProjectScriptsJson = Schema.encodeEffect(
   Schema.fromJsonString(Schema.Array(ProjectScript)),
@@ -80,6 +82,44 @@ const layerFailingSecretStore = (cause: ServerSecretStore.SecretStoreError) =>
   );
 
 it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings", (it) => {
+  it.effect("sends clients a known secret provider's config but never an unknown kind's", () =>
+    Effect.gen(function* () {
+      const settings = yield* decodeServerSettings({
+        secretProviders: {
+          personal: { kind: "one_password", label: "Personal", config: { account: "my" } },
+          vault: { kind: "openbao", label: "Vault", config: { token: "bao-token" } },
+        },
+      });
+      assert.deepStrictEqual<unknown>(
+        ServerSettingsModule.redactServerSettingsForClient(settings, { secretReferences: true })
+          .secretProviders,
+        {
+          personal: { kind: "one_password", label: "Personal", config: { account: "my" } },
+          vault: { kind: "openbao", label: "Vault" },
+        },
+      );
+    }),
+  );
+
+  it.effect("stores no secret provider of an unloaded kind or with a config its kind rejects", () =>
+    Effect.gen(function* () {
+      const service = yield* ServerSettingsModule.ServerSettingsService;
+      const write = (entry: unknown) =>
+        decodeServerSettingsPatch({ secretProviders: { personal: entry } }).pipe(
+          Effect.flatMap(service.updateSettings),
+          Effect.flip,
+        );
+      for (const entry of [
+        { kind: "one_password", label: "Personal", config: { account: "--help" } },
+        { kind: "one_password", label: "Personal" },
+        { kind: "openbao", label: "Vault", config: { address: "https://x" } },
+      ]) {
+        assert.deepInclude(yield* write(entry), { operation: "write-secret-provider" });
+      }
+      assert.deepStrictEqual((yield* service.getSettings).secretProviders, {});
+    }).pipe(Effect.provide(layerServerSettings())),
+  );
+
   it.effect("enables Encrypted Relay by default and persists opting out", () =>
     Effect.gen(function* () {
       const service = yield* ServerSettingsModule.ServerSettingsService;
@@ -1297,7 +1337,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           "gitcafe-secret",
           "expo-secret",
         ];
-        const client = ServerSettingsModule.redactServerSettingsForClient(saved);
+        const client = ServerSettingsModule.redactServerSettingsForClient(saved, {
+          secretReferences: true,
+        });
         const disk = yield* fs.readFileString(config.settingsPath);
         for (const value of values) {
           assert.include(JSON.stringify(saved), value);
@@ -1330,7 +1372,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
             instance: { ...client.providerInstances[instanceId]!, config: { apiKey } },
           });
           assert.propertyVal(changed.providerInstances[instanceId]?.config, "apiKey", apiKey);
-          const redacted = ServerSettingsModule.redactServerSettingsForClient(changed);
+          const redacted = ServerSettingsModule.redactServerSettingsForClient(changed, {
+            secretReferences: true,
+          });
           assert.propertyVal(
             redacted.providerInstances[instanceId]?.config,
             "apiKey",
@@ -1405,7 +1449,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         "serverPassword",
         "legacy-password",
       );
-      const client = ServerSettingsModule.redactServerSettingsForClient(saved);
+      const client = ServerSettingsModule.redactServerSettingsForClient(saved, {
+        secretReferences: true,
+      });
       for (const value of ["legacy-api-key", "legacy-password"]) {
         assert.notInclude(yield* fs.readFileString(config.settingsPath), value);
         assert.notInclude(JSON.stringify(client), value);
@@ -1449,7 +1495,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         for (const secret of ["bb-access", "ghp_dotcom", "ghp_ghe"]) assert.notInclude(raw, secret);
         assert.include(raw, "me@example.com");
 
-        const clientSettings = ServerSettingsModule.redactServerSettingsForClient(saved);
+        const clientSettings = ServerSettingsModule.redactServerSettingsForClient(saved, {
+          secretReferences: true,
+        });
         const forClient = clientSettings.sourceControlHosts;
         assert.equal(forClient.bitbucket?.email, "me@example.com");
         assert.notInclude(String(forClient.bitbucket?.accessToken), "bb-access");

@@ -1125,6 +1125,7 @@ it.effect.each([
             },
             yield* ServerBrowser.ServerBrowser,
             () => Effect.void,
+            { secretReferences: true },
           ).pipe(Layer.provide(configRpcServices)),
         ),
       );
@@ -1170,8 +1171,8 @@ it.effect.each([
         key: "mod+alt+z",
         command: "terminal.split",
       });
-      const expectedSettings = [duringDiscovery, latestSettings].map(
-        ServerSettings.redactServerSettingsForClient,
+      const expectedSettings = [duringDiscovery, latestSettings].map((value) =>
+        ServerSettings.redactServerSettingsForClient(value, { secretReferences: true }),
       );
       const expectedKeybindings = [duringAck.keybindings, latestKeybindings.keybindings];
       // The two sources can interleave, but each must retain its own publication order.
@@ -1199,7 +1200,7 @@ it.effect.each([
         assert.deepEqual(resolved.config.remoteOpenTargets, targets);
         assert.deepEqual(
           resolved.config.settings,
-          ServerSettings.redactServerSettingsForClient(latestSettings),
+          ServerSettings.redactServerSettingsForClient(latestSettings, { secretReferences: true }),
         );
         assert.deepEqual(resolved.config.keybindings, latestKeybindings.keybindings);
         yield* acknowledge;
@@ -1214,7 +1215,9 @@ it.effect.each([
           assert.deepEqual(resolved.config.directEndpoints, endpoints);
           assert.deepEqual(
             resolved.config.settings,
-            ServerSettings.redactServerSettingsForClient(latestSettings),
+            ServerSettings.redactServerSettingsForClient(latestSettings, {
+              secretReferences: true,
+            }),
           );
           assert.deepEqual(resolved.config.keybindings, latestKeybindings.keybindings);
           yield* acknowledge;
@@ -1276,6 +1279,7 @@ it.effect("a client's settings update never turns the legacy Linked environments
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true },
         ).pipe(
           Layer.provide(services),
           Layer.merge(RpcAuthorization.layer([AuthSettingsWriteScope])),
@@ -1337,6 +1341,7 @@ it.effect("access changes made while the snapshot loads reach the client after i
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true },
         ).pipe(
           Layer.merge(RpcAuthorization.layer([AuthAccessReadScope])),
           Layer.provide(
@@ -1533,6 +1538,7 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true },
         ).pipe(Layer.provide(configRpcServices)),
       ),
     );
@@ -1890,6 +1896,7 @@ it.effect("a missing thread worktree gets its project's skills in the cwd snapsh
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true },
         ).pipe(Layer.provide(services)),
       ),
     );
@@ -1966,6 +1973,7 @@ it.effect("a git action that fails partway still refreshes the repository status
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true },
         ).pipe(
           Layer.provide(services),
           Layer.merge(RpcAuthorization.layer([AuthSourceControlWriteScope])),
@@ -2043,6 +2051,7 @@ it.effect("a publish whose push fails still refreshes the new remote", () =>
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true },
         ).pipe(
           Layer.provide(services),
           Layer.merge(RpcAuthorization.layer([AuthSourceControlWriteScope])),
@@ -2526,6 +2535,7 @@ it.effect("ACP session RPCs list a thread missing its history and repair it on i
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true },
         ).pipe(
           Layer.provide(services),
           Layer.merge(
