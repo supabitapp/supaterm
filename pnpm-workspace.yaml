@@ -24,7 +24,6 @@ allowBuilds:
   node-pty: true
   "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.20.tgz": true
   sharp: true
-  "@tsc-rs/typescript": true
   utf-8-validate: false
 
 catalog:
@@ -51,7 +50,6 @@ catalog:
   react: 19.3.0
   react-dom: 19.3.0
   tailwindcss: 4.3.3
-  typescript: npm:@tsc-rs/typescript@0.8.0
   undici: 8.12.4
   vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vite-plus: 1.4.0
@@ -72,7 +70,14 @@ catalog:
   unified: 11.0.5
 
 minimumReleaseAgeExclude:
-  - "@tsc-rs/*"
+  - "@effect/tsgo-darwin-arm64@0.67.1"
+  - "@effect/tsgo-darwin-x64@0.67.1"
+  - "@effect/tsgo-linux-arm64@0.67.1"
+  - "@effect/tsgo-linux-arm@0.67.1"
+  - "@effect/tsgo-linux-x64@0.67.1"
+  - "@effect/tsgo-win32-arm64@0.67.1"
+  - "@effect/tsgo-win32-x64@0.67.1"
+  - "@effect/tsgo@0.67.1"
   - "@effect/atom-react@4.1.5"
   - "@effect/graphql-generator@4.1.5"
   - "@effect/openapi-generator@4.1.5"

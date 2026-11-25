@@ -30,7 +30,11 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 
 import * as EnvironmentRegistry from "../connection/registry.ts";
-import { AVAILABLE_CONNECTION_STATE, type SupervisorConnectionState } from "../connection/model.ts";
+import {
+  AVAILABLE_CONNECTION_STATE,
+  BearerConnectionTarget,
+  type SupervisorConnectionState,
+} from "../connection/model.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import { v2Projection } from "./orchestrationV2TestFixtures.ts";
@@ -110,7 +114,11 @@ const makeHarness = Effect.fn("TestThreadCommands.makeHarness")(function* (optio
     phase: "connected",
   });
   const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
-    target: { environmentId: ENVIRONMENT_ID },
+    target: new BearerConnectionTarget({
+      environmentId: ENVIRONMENT_ID,
+      label: "Test",
+      connectionId: "test",
+    }),
     state: connection,
     session: yield* SubscriptionRef.make(
       Option.some({

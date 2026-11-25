@@ -65,8 +65,7 @@ const flavor = makeAntigravityAcpAdapterFlavor({
   selfInvocation: undefined as never,
   makeRuntime: () => Effect.die("not spawned in this test"),
   withProcess: (_stop, task) => task,
-  // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-  defaultModel: Effect.succeed(undefined),
+  defaultModel: Effect.undefined,
 });
 
 function permissionRequest(
@@ -228,8 +227,7 @@ describe("AntigravityAdapterV2 compaction", () => {
               })),
             ),
           withProcess: (_stop, task) => task,
-          // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-          defaultModel: Effect.succeed(undefined),
+          defaultModel: Effect.undefined,
           supportsNativeGoals: Ref.get(goalSupport).pipe(
             Effect.tap(() => Deferred.succeed(startupMilestone, undefined)),
           ),
@@ -347,8 +345,7 @@ describe("AntigravityAdapterV2 session open", () => {
         selfInvocation: yield* resolveSelfInvocation(),
         makeRuntime: () => Effect.fail(cause),
         withProcess: (_stop, task) => task,
-        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-        defaultModel: Effect.succeed(undefined),
+        defaultModel: Effect.undefined,
       });
       const threadId = ThreadId.make("thread-antigravity-sign-in");
       const error = yield* adapter
@@ -421,8 +418,7 @@ describe("AntigravityAdapterV2 client file system", () => {
             })),
           ),
         withProcess: (_stop, task) => task,
-        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-        defaultModel: Effect.succeed(undefined),
+        defaultModel: Effect.undefined,
       });
       const workspace = yield* fileSystem.makeTempDirectoryScoped({
         prefix: "supaterm-antigravity-workspace-",
@@ -596,8 +592,7 @@ describe("AntigravityAdapterV2 workspace changes", () => {
             })),
           ),
         withProcess: (_stop, task) => task,
-        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-        defaultModel: Effect.succeed(undefined),
+        defaultModel: Effect.undefined,
       });
       const workspaceA = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-ag-a-" });
       const workspaceB = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-ag-b-" });
@@ -867,8 +862,7 @@ describe("AntigravityAdapterV2 html_render pages", () => {
             })),
           ),
         withProcess: (_stop, task) => task,
-        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-        defaultModel: Effect.succeed(undefined),
+        defaultModel: Effect.undefined,
       });
       const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
         runtimeMode: "full-access",
@@ -2591,8 +2585,7 @@ describe("AntigravityAdapterV2 subagent reads", () => {
               })),
             ),
           withProcess: (_stop, task) => task,
-          // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-          defaultModel: Effect.succeed(undefined),
+          defaultModel: Effect.undefined,
         });
         const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
           runtimeMode: "full-access",
@@ -2892,8 +2885,7 @@ describe("AntigravityAdapterV2 session system prompt", () => {
               })),
             ),
           withProcess: (_stop, task) => task,
-          // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-          defaultModel: Effect.succeed(undefined),
+          defaultModel: Effect.undefined,
         });
         const workspace = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-ag-sp-" });
         const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({

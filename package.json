@@ -60,13 +60,13 @@
     "i18n:untranslated": "node scripts/i18n-untranslated.ts"
   },
   "devDependencies": {
+    "@effect/tsgo": "0.67.1",
     "@shadcn/lint": "0.1.5",
     "@types/node": "catalog:",
     "effect": "catalog:",
     "knip": "6.34.0",
     "oxlint": "1.88.0",
     "oxlint-plugin-react-doctor": "0.9.23",
-    "typescript": "catalog:",
     "ultracite": "7.11.0",
     "vite-plus": "catalog:"
   },

@@ -47,7 +47,7 @@
     "generate:highlights": "node scripts/generate-highlights.mts",
     "generate:nitro": "cd modules/supaterm-highlights && nitrogen",
     "test": "vp test run --project unit --project react",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "effect-tsgo tsrs --noEmit",
     "sync:ui-icons": "node scripts/sync-ui-icons.mjs",
     "i18n:generate": "gt generate"
   },
@@ -152,8 +152,7 @@
     "jsdom": "^30.0.1",
     "nitrogen": "0.37.2",
     "react-test-renderer": "19.3.0",
-    "tailwindcss": "^4.0.0",
-    "typescript": "catalog:"
+    "tailwindcss": "^4.0.0"
   },
   "enriched-markdown": {
     "enableMath": true,
@@ -163,7 +162,6 @@
     "install": {
       "exclude": [
         "react-native-keyboard-controller",
-        "typescript",
         "react-native-screens",
         "react-native-enriched-markdown",
         "react-native-gesture-handler",

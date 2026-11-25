@@ -642,13 +642,11 @@ const makeReader = Effect.fnUntraced(function* (filename: string, pool: { unavai
 
   return Effect.suspend((): Effect.Effect<Connection | undefined> =>
     pool.unavailable
-      ? // @effect-diagnostics-next-line effectSucceedWithVoid:off - The connection result distinguishes undefined from void.
-        Effect.succeed(undefined)
+      ? Effect.undefined
       : acquire.pipe(
           Effect.map((connection) => (pool.unavailable ? undefined : connection)),
           Effect.catch((error) => {
-            // @effect-diagnostics-next-line effectSucceedWithVoid:off - The connection result distinguishes undefined from void.
-            if (pool.unavailable) return Effect.succeed(undefined);
+            if (pool.unavailable) return Effect.undefined;
             pool.unavailable = true;
             const { reason, permanent } = startFailure(error);
             // Pool state belongs to the client: never log or retry with the failed read's services.

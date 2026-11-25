@@ -20,7 +20,7 @@
   },
   "scripts": {
     "sync": "node scripts/sync-phosphor-icons.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "effect-tsgo tsrs --noEmit",
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "dependencies": {

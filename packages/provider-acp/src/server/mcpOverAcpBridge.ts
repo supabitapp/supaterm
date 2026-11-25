@@ -1,4 +1,4 @@
-// @effect-diagnostics preferSchemaOverJson:off
+// @effect-diagnostics globalJsonInEffect:off
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Semaphore from "effect/Semaphore";
