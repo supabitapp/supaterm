@@ -12,6 +12,7 @@ import {
   branchNamingChoiceOf,
   branchNamingChoicePatch,
   ClientSettingsSchema,
+  ClientServerSettingsPatch,
   ClaudeSettings,
   DEFAULT_SERVER_SETTINGS,
   requiredScopesForProjectMutation,
@@ -34,9 +35,22 @@ const decodeStringOnlyEnvironment = Schema.decodeUnknownSync(
   ),
 );
 const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
+const decodeClientServerSettingsPatch = Schema.decodeUnknownSync(ClientServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const encodeServerSettingsPatch = Schema.encodeSync(ServerSettingsPatch);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
+
+it("drops theme defaults from a client's settings patch", () => {
+  expect(
+    decodeClientServerSettingsPatch({
+      newWorktreesStartFromOrigin: false,
+      defaultTheme: "grove",
+      defaultThemeSetAt: "2026-11-13T00:00:00.000Z",
+      defaultAppearance: "dark",
+      defaultAppearanceSetAt: "2026-11-13T00:00:00.000Z",
+    }),
+  ).toEqual({ newWorktreesStartFromOrigin: false });
+});
 
 describe("automatic pull", () => {
   it("enables automatic pull when no preference is saved", () => {

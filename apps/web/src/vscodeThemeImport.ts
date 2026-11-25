@@ -8,6 +8,7 @@ import {
   parseThemeFile,
   themeColorDistance,
   readableThemeColorOn,
+  renameTheme,
   themeColorToHex,
   themeIdFromName,
   THEME_FILE_VERSION,
@@ -462,17 +463,27 @@ export function pairVsCodeThemes(
     // whose stripped name collides with a built-in id ("Nord Light" +
     // "Nord Dark" -> the reserved "nord") stays two single themes rather
     // than failing the whole batch.
-    if (group.light.length === 1 && group.dark.length === 1) {
+    const [light] = group.light;
+    const [dark] = group.dark;
+    // A theme carries one stylesheet for both modes, so conflicting CSS stays as two themes.
+    if (
+      light &&
+      dark &&
+      group.light.length === 1 &&
+      group.dark.length === 1 &&
+      (!light.css || !dark.css || light.css === dark.css)
+    ) {
       try {
         paired.push({
           order: group.order,
           theme: parseThemeFile({
             version: THEME_FILE_VERSION,
-            ...(options?.pairedId ? { id: options.pairedId(group.light[0]!, group.dark[0]!) } : {}),
+            ...(options?.pairedId ? { id: options.pairedId(light, dark) } : {}),
             name: key,
             appearance: "light",
-            colors: group.light[0]!.colors,
-            variants: { dark: group.dark[0]!.colors },
+            colors: light.colors,
+            variants: { dark: dark.colors },
+            css: light.css ?? dark.css,
           }),
         });
         continue;
@@ -491,14 +502,7 @@ export function resolveThemeLabelCollisions(
 ): ReadonlyArray<ThemeDefinition> {
   const rename = (theme: ThemeDefinition, name: string): ThemeDefinition | null => {
     try {
-      return parseThemeFile({
-        version: THEME_FILE_VERSION,
-        name: name.slice(0, 48),
-        appearance: theme.appearance,
-        colors: theme.colors,
-        ...(theme.variants ? { variants: theme.variants } : {}),
-        ...(theme.managed ? { managed: true } : {}),
-      });
+      return renameTheme(theme, name.slice(0, 48));
     } catch {
       return null;
     }

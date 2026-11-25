@@ -855,6 +855,9 @@ it.effect("separates host file URLs from readable attachment URLs", () =>
     yield* client[WS_METHODS.assetsCreateUrl]({
       resource: { _tag: "native-app-icon", app: { _tag: "app-id", appId: "com.apple.calculator" } },
     });
+    yield* client[WS_METHODS.assetsCreateUrl]({
+      resource: { _tag: "environment-theme-background", themeId: "nightfall" },
+    });
     for (const resource of [
       { _tag: "workspace-file", threadId: ThreadId.make("thread"), path: "file.txt" },
       { _tag: "media-file", threadId: ThreadId.make("thread"), path: "/repo/image.png" },
@@ -867,7 +870,7 @@ it.effect("separates host file URLs from readable attachment URLs", () =>
         requiredScope: AuthFilesystemReadScope,
       });
     }
-    expect(handled).toBe(2);
+    expect(handled).toBe(3);
   }),
 );
 

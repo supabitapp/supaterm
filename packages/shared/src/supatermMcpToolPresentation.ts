@@ -55,6 +55,8 @@ export type SupatermMcpToolSummaryAction =
   | "environment-link"
   | "environment-unlink"
   | "environment-update"
+  | "theme-read"
+  | "theme-set"
   | "attachment-prepare"
   | "attachment-discard"
   | "attachment-send"
@@ -430,6 +432,8 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     ["Update", "Updating", "Updated", "environment preferences"],
     "environment-update",
   ),
+  supaterm_theme_read: tool(["Read", "Reading", "Read", "themes"], "theme-read"),
+  supaterm_theme_set: tool(["Set", "Setting", "Set", "the theme"], "theme-set"),
   supaterm_thread_launch: tool(
     ["Launch", "Launching", "Launched", "a project thread"],
     "thread-create",

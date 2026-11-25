@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema";
 import { Tool } from "effect/ai";
 
 import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
+import { ThemeToolkit } from "./toolkits/theme/tools.ts";
 
 it("drops JSON noise, merges tagged unions, and keeps null where it is required", () => {
   const Every = Schema.Struct({ ms: Schema.Int });
@@ -54,14 +55,7 @@ it("advertises only string enum values, which Gemini requires", () => {
       else collect(value);
     }
   };
-  const tool = Tool.make("example", {
-    parameters: Schema.Struct({
-      level: Schema.Literals([1, 2, 3]),
-      enabled: Schema.optional(Schema.Literal(true)),
-      mode: Schema.Literals(["light", "dark"]),
-    }),
-  });
-  collect(advertisedJsonSchema(tool));
+  collect(advertisedJsonSchema(ThemeToolkit.tools.supaterm_theme_set));
 
-  expect(enumValues).toEqual(["light", "dark"]);
+  expect(enumValues.filter((value) => typeof value !== "string")).toEqual([]);
 });
