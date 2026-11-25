@@ -12,9 +12,6 @@ import * as Statement from "effect/sql/Statement";
 
 import * as DatabaseMaintenance from "./DatabaseMaintenance.ts";
 import * as Sqlite from "./Sqlite.ts";
-import * as EventStore from "../orchestration-v2/EventStore.ts";
-import * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenance.ts";
-import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 
 it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))(
   "DatabaseMaintenance",
@@ -43,18 +40,8 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         });
         const dbPath = path.join(baseDir, "userdata", "statev2.sqlite");
         const files = DatabaseMaintenance.reclaimFiles(path, dbPath);
-        // Compaction checks the projections first, so the database needs built ones.
-        yield* Effect.flatMap(
-          ProjectionMaintenance.ProjectionMaintenanceV2,
-          (projections) => projections.rebuild,
-        ).pipe(
-          Effect.provide(
-            ProjectionMaintenance.layer.pipe(
-              Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
-              Layer.provideMerge(Sqlite.layerFromPath(dbPath)),
-            ),
-          ),
-        );
+        // Opening the database migrates it.
+        yield* Effect.void.pipe(Effect.provide(Sqlite.layerFromPath(dbPath)));
         const autoVacuum = Effect.flatMap(
           SqlClient.SqlClient,
           (sql) => sql<{ readonly auto_vacuum: number }>`PRAGMA auto_vacuum`,
@@ -126,17 +113,8 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-compact-" });
         const dbPath = path.join(baseDir, "userdata", "statev2.sqlite");
         // A migrated database created before incremental auto_vacuum, with free pages.
-        yield* Effect.flatMap(
-          ProjectionMaintenance.ProjectionMaintenanceV2,
-          (projections) => projections.rebuild,
-        ).pipe(
-          Effect.provide(
-            ProjectionMaintenance.layer.pipe(
-              Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
-              Layer.provideMerge(Sqlite.layerFromPath(dbPath)),
-            ),
-          ),
-        );
+        // Opening the database migrates it.
+        yield* Effect.void.pipe(Effect.provide(Sqlite.layerFromPath(dbPath)));
         yield* Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
           yield* sql`PRAGMA auto_vacuum = NONE`;

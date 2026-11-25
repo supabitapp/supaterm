@@ -14,9 +14,7 @@ import * as NodeOS from "node:os";
 import * as SqlClient from "effect/sql/SqlClient";
 import { isSqlError } from "effect/sql/SqlError";
 
-import * as EventStore from "../orchestration-v2/EventStore.ts";
 import * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenance.ts";
-import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import { rebuildMessageSearch } from "../orchestration-v2/messageSearchIndex.ts";
 
 export class DatabaseMissingError extends Schema.TaggedError<DatabaseMissingError>()(
@@ -42,15 +40,6 @@ export class DatabaseInUseError extends Schema.TaggedError<DatabaseInUseError>()
       return `Stop Supaterm server process ${this.pid}${this.serviceManaged ? "" : ", which the background service did not start,"} before compacting the database.`;
     }
     return "Stop the Supaterm server and desktop app before compacting the database.";
-  }
-}
-
-export class DatabaseProjectionsInvalidError extends Schema.TaggedError<DatabaseProjectionsInvalidError>()(
-  "DatabaseProjectionsInvalidError",
-  { path: Schema.String },
-) {
-  override get message() {
-    return "Database projections need repair before compaction. Start Supaterm once so it rebuilds them, then run doctor again. If this CLI is older than the one that wrote the database, update Supaterm first.";
   }
 }
 
@@ -108,17 +97,12 @@ export class DatabaseMaintenance extends Context.Service<
         readonly afterBytes: number;
         readonly deletedEventCount: number;
       },
-      | DatabaseMissingError
-      | DatabaseInUseError
-      | DatabaseProjectionsInvalidError
-      | DatabaseCompactError
+      DatabaseMissingError | DatabaseInUseError | DatabaseCompactError
     >;
   }
 >()("supaterm/persistence/DatabaseMaintenance") {}
 
-const isDomainError = Schema.is(
-  Schema.Union([DatabaseMissingError, DatabaseInUseError, DatabaseProjectionsInvalidError]),
-);
+const isDomainError = Schema.is(Schema.Union([DatabaseMissingError, DatabaseInUseError]));
 
 const readStorage = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
@@ -185,13 +169,7 @@ const make = Effect.gen(function* () {
         yield* sql`COMMIT`;
         const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
         yield* onStep("compact-events");
-        if (!(yield* maintenance.verify).valid) {
-          return yield* new DatabaseProjectionsInvalidError({ path: databasePath });
-        }
         const summary = yield* maintenance.compactEventStore();
-        if (!(yield* maintenance.verify).valid) {
-          return yield* new DatabaseProjectionsInvalidError({ path: databasePath });
-        }
         yield* onStep("vacuum");
         // VACUUM rebuilds the file, which is the only way to switch an existing
         // database to incremental auto_vacuum; the server reclaims online after.
@@ -205,7 +183,6 @@ const make = Effect.gen(function* () {
       }).pipe(
         Effect.provide(
           ProjectionMaintenance.layer.pipe(
-            Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
             Layer.provideMerge(NodeSqliteClient.layer({ filename: databasePath })),
           ),
         ),

@@ -68,6 +68,7 @@ import * as ThreadViewers from "./ThreadViewers.ts";
 import * as EventStore from "./EventStore.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProjectionMaintenance from "./ProjectionMaintenance.ts";
+import * as ProjectionReplay from "./testkit/ProjectionReplay.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as ProviderRuntimeRecovery from "./ProviderRuntimeRecoveryService.ts";
@@ -114,6 +115,9 @@ const layerCommandReceiptStoreProvided = CommandReceiptStore.layer.pipe(
 );
 const layerIsolatedOutbox = Layer.fresh(EffectOutbox.layer.pipe(Layer.provideMerge(layerDatabase)));
 const layerProjectionMaintenanceProvided = ProjectionMaintenance.layer.pipe(
+  Layer.provide(layerDatabase),
+);
+const layerProjectionReplayProvided = ProjectionReplay.layer.pipe(
   Layer.provide(layerStoresProvided),
 );
 const layerTest = Layer.mergeAll(
@@ -123,6 +127,7 @@ const layerTest = Layer.mergeAll(
   layerCommandReceiptStoreProvided,
   IdAllocator.layer,
   layerProjectionMaintenanceProvided,
+  layerProjectionReplayProvided,
 );
 
 const providerInstanceId = ProviderInstanceId.make("codex");
@@ -177,85 +182,6 @@ function threadCreatedEvent(input: {
   };
 }
 
-it.effect("rebuilds event history one bounded page at a time", () =>
-  Effect.gen(function* () {
-    const eventStore = yield* EventStore.EventStoreV2;
-    const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
-    const now = yield* DateTime.now;
-    const threadId = ThreadId.make("thread:foundation-paged-rebuild");
-    const thread = makeThread(threadId, now);
-    const eventCount = 1_005;
-    yield* eventStore.append({
-      events: [
-        threadCreatedEvent({ id: "event:paged-rebuild:0", thread, now }),
-        ...Array.from({ length: eventCount - 1 }, (_, index) => ({
-          id: EventId.make(`event:paged-rebuild:${index + 1}`),
-          type: "thread.metadata-updated" as const,
-          threadId,
-          occurredAt: now,
-          payload: { ...thread, title: `Rebuilt update ${index + 1}` },
-        })),
-      ],
-    });
-    let applied = 0;
-    let failAfterFirstPage = false;
-    const appliedAtRead: Array<number> = [];
-    const layerObservedStores = Layer.mergeAll(
-      Layer.succeed(EventStore.EventStoreV2, {
-        ...eventStore,
-        read: (input) =>
-          Stream.suspend(() => {
-            appliedAtRead.push(applied);
-            if (failAfterFirstPage && applied >= 500) {
-              return Stream.fail(
-                new EventStore.EventStoreReadEventsError({ afterSequence: input?.afterSequence }),
-              );
-            }
-            return eventStore.read(input);
-          }),
-      }),
-      Layer.succeed(ProjectionStore.ProjectionStoreV2, {
-        ...projectionStore,
-        apply: (event) =>
-          projectionStore.apply(event).pipe(
-            Effect.tap(() =>
-              Effect.sync(() => {
-                applied += 1;
-              }),
-            ),
-          ),
-      }),
-    );
-    const rebuild = Effect.gen(function* () {
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
-      return yield* maintenance.rebuild;
-    }).pipe(
-      Effect.provide(
-        Layer.fresh(ProjectionMaintenance.layer.pipe(Layer.provide(layerObservedStores))),
-      ),
-    );
-    const rebuilt = yield* rebuild;
-    assert.isTrue(rebuilt.valid);
-    assert.equal(applied, eventCount);
-    assert.deepEqual(appliedAtRead, [0, 500, 1_000]);
-    assert.equal(
-      (yield* projectionStore.getThreadProjection(threadId)).thread.title,
-      "Rebuilt update 1004",
-    );
-    applied = 0;
-    failAfterFirstPage = true;
-    const failed = yield* Effect.exit(rebuild);
-    assert.equal(failed._tag, "Failure");
-    assert.equal(applied, 500);
-    assert.equal(
-      (yield* projectionStore.getThreadProjection(threadId)).thread.title,
-      "Rebuilt update 1004",
-    );
-    const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
-    assert.isTrue((yield* maintenance.verify).valid);
-  }).pipe(Effect.provide(layerTest)),
-);
-
 const seedCompaction = Effect.fnUntraced(function* () {
   const sql = yield* SqlClient.SqlClient;
   yield* sql`WITH RECURSIVE history(n) AS (
@@ -292,7 +218,6 @@ it.effect("discovers on the reader worker and deletes on the writer", () =>
     }).pipe(
       Effect.provide(
         ProjectionMaintenance.layer.pipe(
-          Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
           Layer.provideMerge(SqlitePersistence.layerFromPath(filename)),
         ),
       ),
@@ -1382,7 +1307,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
     Effect.gen(function* () {
       const eventSink = yield* EventSink.EventSinkV2;
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const now = yield* DateTime.now;
       const firstThreadId = ThreadId.make("thread:foundation-shared-session:first");
       const secondThreadId = ThreadId.make("thread:foundation-shared-session:second");
@@ -1447,6 +1372,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
     Effect.gen(function* () {
       const eventSink = yield* EventSink.EventSinkV2;
       const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const replay = yield* ProjectionReplay.ProjectionReplay;
       const sql = yield* SqlClient.SqlClient;
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
@@ -1583,8 +1509,8 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
         ],
       );
 
-      assert.isTrue((yield* maintenance.verify).valid);
-      assert.isTrue((yield* maintenance.rebuild).valid);
+      assert.isTrue((yield* replay.verify).valid);
+      assert.isTrue((yield* replay.rebuild).valid);
       assert.deepEqual(yield* projections.getThreadProjection(threadId), beforeCompaction);
     }),
   );
@@ -1593,7 +1519,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
     Effect.gen(function* () {
       const eventSink = yield* EventSink.EventSinkV2;
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const sql = yield* SqlClient.SqlClient;
       const now = yield* DateTime.now;
       const parentThreadId = ThreadId.make("thread:foundation-cross-thread:parent");
@@ -4075,7 +4001,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
     Effect.gen(function* () {
       const eventSink = yield* EventSink.EventSinkV2;
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const sql = yield* SqlClient.SqlClient;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:foundation-many-items");
@@ -4322,10 +4248,7 @@ it.effect("allows writes while compaction waits for the reader to discover obsol
     const path = yield* Path.Path;
     const directory = yield* fs.makeTempDirectoryScoped({ prefix: "compaction-reader-" });
     const database = SqlitePersistence.layerFromPath(path.join(directory, "statev2.sqlite"));
-    const maintenanceLayer = ProjectionMaintenance.layer.pipe(
-      Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
-      Layer.provideMerge(database),
-    );
+    const maintenanceLayer = ProjectionMaintenance.layer.pipe(Layer.provideMerge(database));
     yield* Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;

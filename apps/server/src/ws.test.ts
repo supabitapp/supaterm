@@ -2263,14 +2263,7 @@ it.effect("thread resume across compacted history keeps message order and final 
         ["synchronized"],
       ],
     );
-  }).pipe(
-    Effect.provide(
-      ProjectionMaintenance.layer.pipe(
-        Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
-        Layer.provideMerge(ReplayTestLayer),
-      ),
-    ),
-  ),
+  }).pipe(Effect.provide(ProjectionMaintenance.layer.pipe(Layer.provideMerge(ReplayTestLayer)))),
 );
 
 // A shell cursor at the high-water missed nothing; resuming must not resend a snapshot. A client
