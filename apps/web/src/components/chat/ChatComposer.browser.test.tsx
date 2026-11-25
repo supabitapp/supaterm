@@ -68,8 +68,6 @@ function composerProps(
     pendingUserInputs: [],
     activePendingIsResponding: false,
     respondingRequestIds: [],
-    activeTasksProgress: null,
-    activeTaskSteps: null,
     runtimeMode: "full-access",
     lockedProvider: null,
     providerStatuses: [],

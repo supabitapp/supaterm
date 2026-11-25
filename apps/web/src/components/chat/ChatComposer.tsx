@@ -136,13 +136,6 @@ import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
 import { useComposerFocusState } from "./useComposerFocusState";
 import { useComposerMultilinePrompt } from "./useComposerMultilinePrompt";
-import {
-  ComposerTasksBadge,
-  ComposerTasksContent,
-  ComposerTasksDrawer,
-  type ComposerTaskStep,
-  type ComposerTasksProgress,
-} from "./ComposerTasksBadge";
 import { useAttachmentExits, useAttachmentTrayMotion } from "./composerAttachmentMotion";
 import {
   type QueuedAttachmentContextBinding,
@@ -152,11 +145,7 @@ import {
 import { ComposerBanner } from "./ComposerBanner";
 import { ComposerSurface } from "./ComposerSurface";
 import { CollapsedComposerPromptPreview } from "./CollapsedComposerPromptPreview";
-import {
-  ComposerBannerStack,
-  type ComposerBannerStackContent,
-  type ComposerBannerStackItem,
-} from "./ComposerBannerStack";
+import { ComposerBannerStack, type ComposerBannerStackItem } from "./ComposerBannerStack";
 import {
   ComposerVoiceButton,
   ComposerVoiceSession,
@@ -327,7 +316,6 @@ import {
   resolveProviderSlashCommandsForCwd,
 } from "@supaterm/client-runtime/providerSkills";
 import * as Schema from "effect/Schema";
-import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { useSoftwareKeyboardOpen } from "../../hooks/useSoftwareKeyboardOpen";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -335,8 +323,6 @@ import { usePanelAnimationSettings } from "../../panelAnimations";
 import { readEnvironmentScope, readPreparedConnection } from "../../state/session";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 import { isQueuedFileAttachment, isQueuedImageAttachment } from "./queuedMessageEdit";
-
-const COMPOSER_TASKS_EXPANDED_KEY = "supaterm:composer:tasks-expanded";
 
 /** Reads and disarms a paste-as-text deadline: the shortcut applies to one paste only. */
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
@@ -470,9 +456,6 @@ export interface ChatComposerProps {
   supportsQuestionAutoDismiss?: boolean;
   activePendingIsResponding: boolean;
   respondingRequestIds: RuntimeRequestId[];
-
-  activeTasksProgress: ComposerTasksProgress | null;
-  activeTaskSteps: readonly ComposerTaskStep[] | null;
 
   runtimeMode: RuntimeMode;
 
@@ -715,8 +698,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const activePendingProgress = holdingUserInput ? null : incomingPendingProgress;
   const activePendingIsResponding = !holdingUserInput && incomingPendingIsResponding;
   const isLiteralPendingAnswer = activePendingProgress?.activeQuestion?.initialAnswer !== undefined;
-  const activeTasksProgress = props.activeTasksProgress;
-  const activeTaskSteps = props.activeTaskSteps;
   const isEditingQueuedMessage = editingQueuedAttachments !== null;
   const applyThreadModelPick = useApplyThreadModelPick();
   const composerDraft = useComposerThreadDraft(composerDraftTarget);
@@ -1181,11 +1162,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const [composerMenuAnchor, setComposerMenuAnchor] = useState<HTMLDivElement | null>(null);
   const [hasWrappedPrompt, observeWrappedPrompt] = useComposerMultilinePrompt();
   const hasMultilinePrompt = prompt.includes("\n") || hasWrappedPrompt;
-  const [tasksExpandedPreference, setTasksExpandedPreference] = useLocalStorage(
-    COMPOSER_TASKS_EXPANDED_KEY,
-    false,
-    Schema.Boolean,
-  );
   // Set by the voice session, which starts later in this component, so its controls in the
   // footer stay on screen while recording.
   const [voiceSessionOpen, setVoiceSessionOpen] = useState(false);
@@ -2661,10 +2637,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         },
       ]
     : props.bannerItems;
-  const hasBannerItems = bannerItems.length > 0;
-  const hasBlockingComposerTopDrawer = pendingUserInputs.length > 0;
-  const canShowTasks =
-    activeTasksProgress !== null && activeTaskSteps !== null && !hasBlockingComposerTopDrawer;
   const hasImageAttachmentAttention = standaloneComposerImages.some((image) => {
     const upload = uploadsByImageId[image.id];
     const failedInCurrentEnvironment =
@@ -2673,9 +2645,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       upload.environmentId === environmentId;
     return nonPersistedComposerImageIdSet.has(image.id) && !failedInCurrentEnvironment;
   });
-  // Banners and the tasks drawer dock above the surface rather than inside
-  // it, so they do not hold the composer open; only surface-internal chrome
-  // does.
+  // Banners dock above the surface rather than inside it, so they do not hold the composer open;
+  // only surface-internal chrome does.
   const composerHasExpandedChrome =
     isEditingQueuedMessage ||
     showComposerTopDrawer ||
@@ -2696,24 +2667,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     hasMultilinePrompt,
     timelineOverflows,
   });
-  const isTasksDrawerOpen = canShowTasks && tasksExpandedPreference && !isComposerResting;
-  const toggleTasksDrawer = () => {
-    setIsComposerScrollCollapsed(false);
-    setTasksExpandedPreference(!isTasksDrawerOpen);
-  };
-  const toggleTasksDrawerStable = useStableCallback(toggleTasksDrawer);
-  const showInlineTasksBadge =
-    canShowTasks &&
-    !isTasksDrawerOpen &&
-    (hasBannerItems || showComposerTopDrawer || isComposerCollapsedMobile);
-  const inlineTasksBadge = showInlineTasksBadge ? (
-    <ComposerTasksBadge
-      expanded={false}
-      onToggle={toggleTasksDrawerStable}
-      progress={activeTasksProgress}
-      steps={activeTaskSteps}
-    />
-  ) : null;
   const expandedComposerImages = isComposerResting
     ? standaloneComposerImages.filter((image) => pendingSnapShotIdSet.has(image.id))
     : standaloneComposerImages;
@@ -2805,10 +2758,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const canTrackComposerScrollGesture =
     routeKind === "server" && activeThreadId !== null && !isMobileViewport;
   const canScrollCollapseComposer =
-    canTrackComposerScrollGesture &&
-    !hasMultilinePrompt &&
-    !composerHasExpandedChrome &&
-    !showInlineTasksBadge;
+    canTrackComposerScrollGesture && !hasMultilinePrompt && !composerHasExpandedChrome;
   // Clear rather than mask: once eligibility drops, the composer stays expanded until the next
   // scroll gesture even if it becomes eligible again.
   if (!canScrollCollapseComposer && isComposerScrollCollapsed) {
@@ -2982,37 +2932,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       getModelDisabledReason={getModelDisabledReason}
     />
   );
-  const showTasksTab =
-    !hasBannerItems &&
-    !showComposerTopDrawer &&
-    !isTasksDrawerOpen &&
-    !isComposerCollapsedMobile &&
-    activeTasksProgress !== null &&
-    activeTaskSteps !== null &&
-    activeTasksProgress.totalSteps > 0;
-  const activityStackContent =
-    hasBannerItems && canShowTasks ? (
-      <ComposerTasksContent
-        expanded={isTasksDrawerOpen}
-        onToggle={toggleTasksDrawerStable}
-        progress={activeTasksProgress}
-        steps={activeTaskSteps}
-      />
-    ) : null;
-  const activityStackItem: ComposerBannerStackContent | null = activityStackContent
-    ? {
-        id: "composer-activity",
-        variant: "default",
-        priority: "activity",
-        content: activityStackContent,
-      }
-    : null;
   const voiceBannerItem = composerVoiceBannerItem(voice);
-  const bannerStackItems = [
-    ...(activityStackItem ? [activityStackItem] : []),
-    ...(voiceBannerItem ? [voiceBannerItem] : []),
-    ...bannerItems,
-  ];
+  const bannerStackItems = voiceBannerItem ? [voiceBannerItem, ...bannerItems] : bannerItems;
 
   const insertComposerText = (
     text: string,
@@ -3912,17 +3833,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             className="relative z-0"
             items={bannerStackItems}
           />
-          {!activityStackItem && inlineTasksBadge ? (
-            <ComposerBanner.Attachment>
-              <ComposerBanner.Root data-chat-composer-activity-strip="true">
-                {inlineTasksBadge}
-              </ComposerBanner.Root>
-            </ComposerBanner.Attachment>
-          ) : null}
-          <ComposerBanner.Drawer
-            key={`top-drawer:${activeThreadId}`}
-            open={showComposerTopDrawer && !isTasksDrawerOpen}
-          >
+          <ComposerBanner.Drawer key={`top-drawer:${activeThreadId}`} open={showComposerTopDrawer}>
             <ComposerBanner.Root data-chat-composer-top-drawer="true" variant="info">
               {!isComposerCollapsedMobile && pendingUserInputs.length > 0 ? (
                 <ComposerPendingUserInputPanel
@@ -4007,17 +3918,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               ) : null}
             </ComposerBanner.Root>
           </ComposerBanner.Drawer>
-          {activeTasksProgress &&
-          activeTaskSteps &&
-          (showTasksTab || (!activityStackItem && isTasksDrawerOpen)) ? (
-            <ComposerTasksDrawer
-              key={`tasks:${activeThreadId}`}
-              expanded={isTasksDrawerOpen}
-              onToggle={toggleTasksDrawerStable}
-              progress={activeTasksProgress}
-              steps={activeTaskSteps}
-            />
-          ) : null}
           {props.attachedContextStrip}
           <Fragment key={`outbox:${activeThreadId}`}>{props.outboxControl}</Fragment>
         </ComposerBanner.Column>
