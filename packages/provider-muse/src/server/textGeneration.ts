@@ -9,7 +9,6 @@ import type { MuseSettings } from "../settings.ts";
 import { formatGeneratedBranchName, sanitizeFeatureBranchName } from "@supaterm/shared/git";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
 import { extractJsonObject } from "@supaterm/shared/schemaJson";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -94,12 +93,11 @@ class MuseTurnFailure extends Schema.TaggedError<MuseTurnFailure>()("MuseTurnFai
   }
 }
 const isMuseTurnFailure = Schema.is(MuseTurnFailure);
+const isMuseSdkError = Schema.is(MuseSdkError);
 
 function museFailureDetail(cause: unknown): string {
   const error =
-    Cause.isUnknownError(cause) && isMuseTurnFailure(cause.cause)
-      ? cause.cause.turnError
-      : undefined;
+    isMuseSdkError(cause) && isMuseTurnFailure(cause.cause) ? cause.cause.turnError : undefined;
   // Muse sends `quota` only for quota exhaustion, which it still labels `modelError`.
   if (error?.quota !== undefined || isMuseUsageLimitFailure(error?.message))
     return "Muse Code usage limit reached. Try again after it resets.";

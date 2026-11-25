@@ -56,7 +56,7 @@ import {
   type CodexAppServerProviderSnapshot,
 } from "./CodexProvider.ts";
 import { BUNDLED_CLAUDE_MODEL_CATALOG } from "./ClaudeModelCatalog.ts";
-import { checkClaudeProviderStatus } from "./ClaudeProvider.ts";
+import { checkClaudeProviderStatus, ClaudeCapabilitiesProbeSdkError } from "./ClaudeProvider.ts";
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as AntigravityInstallation from "./AntigravityInstallation.ts";
 import * as ModelManifest from "./ModelManifest.ts";
@@ -5359,7 +5359,10 @@ it.layer(
         message: "Claude status check timed out. Try again when the environment is less busy.",
       },
       {
-        error: new Cause.UnknownError(new Error("secret-sdk-output")),
+        error: new ClaudeCapabilitiesProbeSdkError({
+          operation: "initialize",
+          cause: new Error("secret-sdk-output"),
+        }),
         message: "Claude status check failed. Try refreshing provider status.",
       },
     ])(

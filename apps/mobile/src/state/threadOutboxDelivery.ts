@@ -268,6 +268,15 @@ const storage = <A>(
   });
 
 /** The head was not handled; back off and try it again. */
+class OutboxDeliveryStepError extends Schema.TaggedError<OutboxDeliveryStepError>()(
+  "OutboxDeliveryStepError",
+  { step: Schema.Literals(["voice-upload", "branch-resolution"]), cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return `Queued message ${this.step} failed.`;
+  }
+}
+
 export class DeliveryRetry extends Schema.TaggedError<DeliveryRetry>()("DeliveryRetry", {}) {}
 
 const retryDelivery = Effect.fail(new DeliveryRetry());
@@ -741,26 +750,28 @@ export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMes
           false,
         ),
       }
-    : yield* Effect.tryPromise(() =>
-        uploadEnvironmentVoiceRecording({
-          environmentId: queuedMessage.environmentId,
-          uri: file.uri,
-          request: {
-            sizeBytes: voice.sizeBytes,
-            language: voice.language,
-            submit: {
-              threadId: queuedMessage.threadId,
-              commandId: queuedMessage.commandId,
-              messageId: queuedMessage.messageId,
-              modelSelection,
-              delivery: queuedMessage.dispatchMode ?? "auto",
-              creationSource: "mobile",
-              ...(queuedMessage.freshContext ? { freshContext: true } : {}),
+    : yield* Effect.tryPromise({
+        try: () =>
+          uploadEnvironmentVoiceRecording({
+            environmentId: queuedMessage.environmentId,
+            uri: file.uri,
+            request: {
+              sizeBytes: voice.sizeBytes,
+              language: voice.language,
+              submit: {
+                threadId: queuedMessage.threadId,
+                commandId: queuedMessage.commandId,
+                messageId: queuedMessage.messageId,
+                modelSelection,
+                delivery: queuedMessage.dispatchMode ?? "auto",
+                creationSource: "mobile",
+                ...(queuedMessage.freshContext ? { freshContext: true } : {}),
+              },
             },
-          },
-          ...(voice.streamedUploadId === queuedMessage.commandId ? { streamed: true } : {}),
-        }),
-      ).pipe(
+            ...(voice.streamedUploadId === queuedMessage.commandId ? { streamed: true } : {}),
+          }),
+        catch: (cause) => new OutboxDeliveryStepError({ step: "voice-upload", cause }),
+      }).pipe(
         Effect.map((result) => ({ result })),
         Effect.catch((error) => Effect.succeed({ error: error.cause })),
       );
@@ -1177,11 +1188,13 @@ export function createThreadOutboxDelivery(): {
     const hasAccess = () =>
       readEnvironmentScope(initialMessage.environmentId, AuthOrchestrationOperateScope);
     if (!hasAccess()) return;
-    const workspaceResult = yield* Effect.tryPromise(() =>
-      prepareQueuedThreadCreation(initialMessage, projectCwd, (target) =>
-        runAtomCommand(appAtomRegistry, fetchVcsRefs, target, { reportFailure: false }),
-      ),
-    ).pipe(
+    const workspaceResult = yield* Effect.tryPromise({
+      try: () =>
+        prepareQueuedThreadCreation(initialMessage, projectCwd, (target) =>
+          runAtomCommand(appAtomRegistry, fetchVcsRefs, target, { reportFailure: false }),
+        ),
+      catch: (cause) => new OutboxDeliveryStepError({ step: "branch-resolution", cause }),
+    }).pipe(
       Effect.catch((error) =>
         Effect.sync(() =>
           threadOutboxDebug.log("could not persist the queued task's base branch; retrying", {

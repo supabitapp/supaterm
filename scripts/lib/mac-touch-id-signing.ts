@@ -17,6 +17,15 @@ const decodeProfile = Schema.decodeUnknownEffect(
 );
 const decodeEntitlements = Schema.decodeUnknownEffect(Schema.Record(Schema.String, Schema.Boolean));
 
+class PropertyListParseError extends Schema.TaggedError<PropertyListParseError>()(
+  "PropertyListParseError",
+  { source: Schema.String, cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return `Could not parse the ${this.source} property list.`;
+  }
+}
+
 export const prepareMacTouchIdSigning = Effect.fn("prepareMacTouchIdSigning")(function* (input: {
   readonly platform: string;
   readonly signed: boolean;
@@ -36,7 +45,10 @@ export const prepareMacTouchIdSigning = Effect.fn("prepareMacTouchIdSigning")(fu
   const xml = yield* spawner.string(
     ChildProcess.make("security", ["cms", "-D", "-i", profilePath]),
   );
-  const parsedProfile = yield* Effect.try(() => Plist.parse(xml));
+  const parsedProfile = yield* Effect.try({
+    try: () => Plist.parse(xml),
+    catch: (cause) => new PropertyListParseError({ source: "provisioning profile", cause }),
+  });
   const profile = yield* decodeProfile(parsedProfile);
   const teamId = profile.TeamIdentifier[0];
   if (teamId && /^[A-Z0-9]{10}$/.test(teamId)) {
@@ -49,7 +61,12 @@ export const prepareMacTouchIdSigning = Effect.fn("prepareMacTouchIdSigning")(fu
       const appEntitlements = yield* fs
         .readFileString(path.join(input.repoRoot, "apps/desktop/resources/entitlements.mac.plist"))
         .pipe(
-          Effect.flatMap((xml) => Effect.try(() => Plist.parse(xml))),
+          Effect.flatMap((xml) =>
+            Effect.try({
+              try: () => Plist.parse(xml),
+              catch: (cause) => new PropertyListParseError({ source: "app entitlements", cause }),
+            }),
+          ),
           Effect.flatMap(decodeEntitlements),
         );
       yield* fs.writeFileString(

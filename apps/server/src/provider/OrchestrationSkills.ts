@@ -4,6 +4,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import { OrchestrationSkillsError, type OrchestrationSkillsStatus } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -26,6 +27,15 @@ export class OrchestrationSkills extends Context.Service<
     readonly uninstall: Effect.Effect<OrchestrationSkillsStatus, OrchestrationSkillsError>;
   }
 >()("supaterm/provider/OrchestrationSkills") {}
+
+class SkillLinkError extends Schema.TaggedError<SkillLinkError>()("SkillLinkError", {
+  directory: Schema.String,
+  cause: Schema.Defect(),
+}) {
+  override get message(): string {
+    return `Could not link the skill at ${this.directory}.`;
+  }
+}
 
 const notFound = <A, E extends { readonly reason: { readonly _tag: string } }, R>(
   effect: Effect.Effect<A, E, R>,
@@ -159,13 +169,15 @@ const make = Effect.gen(function* () {
     // Replaces whatever holds our skill name. A link is removed without touching its target.
     if (state.state === "conflict") yield* fs.remove(directory, { recursive: true });
     yield* fs.makeDirectory(root, { recursive: true });
-    yield* Effect.tryPromise(() =>
-      NodeFSP.symlink(
-        bundledDirectory(skill.name),
-        directory,
-        platform === "win32" ? "junction" : "dir",
-      ),
-    );
+    yield* Effect.tryPromise({
+      try: () =>
+        NodeFSP.symlink(
+          bundledDirectory(skill.name),
+          directory,
+          platform === "win32" ? "junction" : "dir",
+        ),
+      catch: (cause) => new SkillLinkError({ directory, cause }),
+    });
     return true;
   });
   const uninstallSkill = Effect.fn("OrchestrationSkills.uninstallSkill")(function* (

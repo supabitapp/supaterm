@@ -2,6 +2,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 
@@ -25,6 +26,15 @@ export class MacInputMonitoring extends Context.Service<
     readonly requestIfUndetermined: Effect.Effect<void>;
   }
 >()("@supaterm/desktop/permissions/MacInputMonitoring") {}
+
+class InputMonitoringAccessError extends Schema.TaggedError<InputMonitoringAccessError>()(
+  "InputMonitoringAccessError",
+  { operation: Schema.Literals(["check", "request"]), cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return `Could not ${this.operation} Input Monitoring access.`;
+  }
+}
 
 const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -54,9 +64,10 @@ const make = Effect.gen(function* () {
       };
     }));
 
-  const access = Effect.tryPromise(() => loadIOKit().then((api) => api.check())).pipe(
-    Effect.option,
-  );
+  const access = Effect.tryPromise({
+    try: () => loadIOKit().then((api) => api.check()),
+    catch: (cause) => new InputMonitoringAccessError({ operation: "check", cause }),
+  }).pipe(Effect.option);
 
   const status = Effect.gen(function* () {
     if (environment.platform !== "darwin") return "unavailable" as const;
@@ -71,7 +82,10 @@ const make = Effect.gen(function* () {
     if (environment.platform !== "darwin") return;
     const result = yield* access;
     if (Option.isNone(result) || result.value !== ACCESS_UNKNOWN) return;
-    yield* Effect.tryPromise(() => loadIOKit().then((api) => api.request())).pipe(Effect.ignore);
+    yield* Effect.tryPromise({
+      try: () => loadIOKit().then((api) => api.request()),
+      catch: (cause) => new InputMonitoringAccessError({ operation: "request", cause }),
+    }).pipe(Effect.ignore);
   }).pipe(Effect.withSpan("desktop.macInputMonitoring.requestIfUndetermined"));
 
   return MacInputMonitoring.of({ status, requestIfUndetermined });

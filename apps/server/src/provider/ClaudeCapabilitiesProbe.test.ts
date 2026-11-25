@@ -179,8 +179,11 @@ it.effect("records an SDK failure without exposing the rejection message", () =>
       decodeClaudeSettings({ binaryPath: "claude" }),
     ).pipe(Effect.result);
     assert.equal(Result.isFailure(result), true);
-    if (Result.isFailure(result)) assert.equal(result.failure._tag, "UnknownError");
-    assert.deepEqual(messages, [["Claude capability probe failed.", { errorTag: "UnknownError" }]]);
+    if (Result.isFailure(result))
+      assert.equal(result.failure._tag, "ClaudeCapabilitiesProbeSdkError");
+    assert.deepEqual(messages, [
+      ["Claude capability probe failed.", { errorTag: "ClaudeCapabilitiesProbeSdkError" }],
+    ]);
     assert.equal(JSON.stringify(messages).includes("secret-sdk-output"), false);
   }).pipe(Effect.scoped, Effect.provide([NodeServices.layer, Logger.layer([logger])]));
 });

@@ -47,6 +47,15 @@ const chooseAccount = async (details: Electron.SelectWebauthnAccountDetails) => 
   return details.accounts[response]?.credentialId;
 };
 
+class PasskeyConfigurationError extends Schema.TaggedError<PasskeyConfigurationError>()(
+  "PasskeyConfigurationError",
+  { cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return "Could not configure Touch ID passkeys.";
+  }
+}
+
 /** @public */
 export const make = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -64,7 +73,10 @@ export const make = Effect.gen(function* () {
     configure:
       keychainAccessGroup === undefined
         ? Effect.void
-        : Effect.try(() => app.configureWebAuthn({ touchID: { keychainAccessGroup } })).pipe(
+        : Effect.try({
+            try: () => app.configureWebAuthn({ touchID: { keychainAccessGroup } }),
+            catch: (cause) => new PasskeyConfigurationError({ cause }),
+          }).pipe(
             Effect.catch((error) =>
               Effect.logWarning("Could not configure Touch ID passkeys", { cause: error }),
             ),

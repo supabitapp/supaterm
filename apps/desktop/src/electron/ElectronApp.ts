@@ -103,11 +103,23 @@ const addScopedAppListener = <Args extends ReadonlyArray<unknown>>(
       }),
   ).pipe(Effect.asVoid);
 
+class MachineSymbolReadError extends Schema.TaggedError<MachineSymbolReadError>()(
+  "MachineSymbolReadError",
+  { symbolName: Schema.String, cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return `Could not read the ${this.symbolName} machine symbol.`;
+  }
+}
+
 const readEnvironmentMachineSymbol = Effect.fn("desktop.readEnvironmentMachineSymbol")(
   (name: string) =>
-    Effect.try(() => {
-      const image = Electron.nativeImage.createFromNamedImage(name, { pointSize: 32 });
-      return image.isEmpty() ? null : image.toDataURL();
+    Effect.try({
+      try: () => {
+        const image = Electron.nativeImage.createFromNamedImage(name, { pointSize: 32 });
+        return image.isEmpty() ? null : image.toDataURL();
+      },
+      catch: (cause) => new MachineSymbolReadError({ symbolName: name, cause }),
     }).pipe(Effect.orElseSucceed(() => null)),
 );
 
