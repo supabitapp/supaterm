@@ -217,7 +217,10 @@ export const make = Effect.gen(function* () {
     capabilities: {
       fileAttachments: { maxUploadBytes: PROVIDER_SEND_TURN_MAX_FILE_BYTES },
       threadStop: true,
+      issues: true,
       linkedThreadRefreshes: true,
+      issueLinkedThreads: true,
+      issueTrackerAccounts: true,
       sideChats: true,
       vcsBranchStatus: true,
       ...(hostPlatform === "darwin" ? { fastWorktreeCheckout: true } : {}),
