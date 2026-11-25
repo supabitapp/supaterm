@@ -3,67 +3,71 @@ import { useEffect } from "react";
 import { BackHandler, Keyboard } from "react-native";
 import { AppBar } from "../../../components/ui/AppBar";
 import { useHardwareKeyboardCommand } from "../../keyboard/hardwareKeyboardCommands";
-import { WorkspaceBrandTitle } from "./WorkspaceBrandTitle";
+import { WorkspaceConnectionTitle } from "../../home/WorkspaceConnectionTitle";
+import type { SharedSlotTab } from "./navigation-tab-order";
+import { SharedSlotTitle } from "./SharedSlotTitle";
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { type WorkspaceFilterMenu, workspaceFilterAppBarMenu } from "./workspace-filter-menu";
 import { openSettings } from "../../settings/settings-navigation";
 
-/** PR search shares the thread list's Android header. */
-export function PullRequestToolbar(props: {
-  readonly filters: WorkspaceFilterMenu | null;
+/** Pull request and issue search share the thread list's Android header. */
+export function ListSearchToolbar(props: {
+  readonly tab: SharedSlotTab;
+  readonly filters?: WorkspaceFilterMenu | null;
   readonly onRequestVisibility?: () => void;
 }) {
   const navigation = useNavigation();
-  const { filters } = props;
+  const { filters, tab: section } = props;
   const workspace = useWorkspaceTabs()!;
   const { dispatch, getScrollOffset, recordScrollOffset, isTabActive } = workspace;
   const { onRequestVisibility } = props;
-  const tab = workspace.state.tabs.pullRequests;
+  const tab = workspace.state.tabs[section];
   const searching = tab.searchMode !== "resting";
   const openSearch = () => {
     onRequestVisibility?.();
     dispatch({
       type: "scroll",
-      tab: "pullRequests",
-      offset: getScrollOffset("pullRequests"),
+      tab: section,
+      offset: getScrollOffset(section),
     });
-    dispatch({ type: "search", tab: "pullRequests" });
+    dispatch({ type: "search", tab: section });
     return true;
   };
   useHardwareKeyboardCommand("focusSearch", openSearch);
   const closeSearch = () => {
     Keyboard.dismiss();
-    recordScrollOffset("pullRequests", tab.searchEntryOffset);
-    dispatch({ type: "cancel", tab: "pullRequests" });
+    recordScrollOffset(section, tab.searchEntryOffset);
+    dispatch({ type: "cancel", tab: section });
   };
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to BackHandler while searching to close the PR search on Android back
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to BackHandler while searching to close the list search on Android back
   useEffect(() => {
     if (!searching) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
       // Frozen Home screens stay mounted under a detail route or another tab,
-      // so back only applies while the PR list is in front.
+      // so back only applies while this list is in front.
       const state = navigation.getState();
-      if (!state || state.routes[state.index]?.name !== "Home" || !isTabActive("pullRequests"))
+      if (!state || state.routes[state.index]?.name !== "Home" || !isTabActive(section))
         return false;
       if (Keyboard.isVisible()) Keyboard.dismiss();
       else closeSearch();
       return true;
     });
     return () => subscription.remove();
-  }, [searching, closeSearch, navigation, isTabActive]);
+  }, [searching, closeSearch, navigation, isTabActive, section]);
   return (
     <AppBar
       title="Supaterm"
       titleContent={
-        <WorkspaceBrandTitle
-          accessibilityLabel="Supaterm, Pull requests"
-          onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
+        <WorkspaceConnectionTitle
+          grow
+          onPress={() => openSettings(navigation, "SettingsEnvironments")}
+          brand={<SharedSlotTitle tab={section} />}
         />
       }
       search={{
         value: tab.query,
-        onChangeText: (query) => dispatch({ type: "query", tab: "pullRequests", query }),
-        placeholder: "Search pull requests",
+        onChangeText: (query) => dispatch({ type: "query", tab: section, query }),
+        placeholder: section === "issues" ? "Search issues" : "Search pull requests",
         active: searching,
         onOpen: openSearch,
         onClose: closeSearch,

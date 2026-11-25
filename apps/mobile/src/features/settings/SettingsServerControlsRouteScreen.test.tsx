@@ -46,6 +46,7 @@ vi.mock("../../state/preferences", () => ({
   saveMobilePreferences: {},
 }));
 vi.mock("./components/AutoMarkDoneDaysField", () => ({ AutoMarkDoneDaysField: () => null }));
+vi.mock("./components/IssueTrackerSection", () => ({ IssueTrackerSection: () => null }));
 vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 vi.mock("@react-navigation/native", () => ({ useNavigation: () => ({}) }));
 vi.mock("../../state/session", () => ({

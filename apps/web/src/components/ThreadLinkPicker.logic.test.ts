@@ -1,6 +1,6 @@
 import { expect, it } from "vite-plus/test";
 
-import { threadLinkMatcher } from "./PullRequestThreadLinks.logic";
+import { threadLinkMatcher } from "./ThreadLinkPicker.logic";
 
 it.each([
   ["cafe", "Café planning", undefined],

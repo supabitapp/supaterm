@@ -55,9 +55,9 @@
       "types": "./src/modelTraits.ts",
       "default": "./src/modelTraits.ts"
     },
-    "./pull-request-saved-views": {
-      "types": "./src/pullRequestSavedViews.ts",
-      "default": "./src/pullRequestSavedViews.ts"
+    "./saved-views": {
+      "types": "./src/savedViews.ts",
+      "default": "./src/savedViews.ts"
     },
     "./link-request": {
       "types": "./src/linkRequest.ts",
@@ -327,6 +327,10 @@
       "types": "./src/state/providerInstanceDisplay.ts",
       "default": "./src/state/providerInstanceDisplay.ts"
     },
+    "./state/issues": {
+      "types": "./src/state/issues.ts",
+      "default": "./src/state/issues.ts"
+    },
     "./state/pull-requests": {
       "types": "./src/state/pullRequests.ts",
       "default": "./src/state/pullRequests.ts"
@@ -370,6 +374,10 @@
     "./state/shell": {
       "types": "./src/state/shell.ts",
       "default": "./src/state/shell.ts"
+    },
+    "./state/issue-trackers": {
+      "types": "./src/state/issueTrackers.ts",
+      "default": "./src/state/issueTrackers.ts"
     },
     "./state/source-control": {
       "types": "./src/state/sourceControl.ts",
@@ -631,6 +639,14 @@
       "types": "./src/pullRequestReply.ts",
       "default": "./src/pullRequestReply.ts"
     },
+    "./issue-presentation": {
+      "types": "./src/issuePresentation.ts",
+      "default": "./src/issuePresentation.ts"
+    },
+    "./issue-list": {
+      "types": "./src/issueList.ts",
+      "default": "./src/issueList.ts"
+    },
     "./pull-request-query": {
       "types": "./src/pullRequestQuery.ts",
       "default": "./src/pullRequestQuery.ts"
@@ -638,6 +654,14 @@
     "./pull-request-reviewers": {
       "types": "./src/pullRequestReviewers.ts",
       "default": "./src/pullRequestReviewers.ts"
+    },
+    "./issue-links": {
+      "types": "./src/issueLinks.ts",
+      "default": "./src/issueLinks.ts"
+    },
+    "./issue-selection": {
+      "types": "./src/issueSelection.ts",
+      "default": "./src/issueSelection.ts"
     },
     "./pull-request-selection": {
       "types": "./src/pullRequestSelection.ts",
@@ -664,6 +688,7 @@
   "dependencies": {
     "@pierre/diffs": "catalog:",
     "@supaterm/contracts": "workspace:*",
+    "@supaterm/issue-tracker-linear": "workspace:*",
     "@supaterm/mermaid": "workspace:*",
     "@supaterm/provider-acp-registry": "workspace:*",
     "@supaterm/provider-core": "workspace:*",

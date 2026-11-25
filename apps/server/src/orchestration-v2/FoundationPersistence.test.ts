@@ -1455,7 +1455,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
       const messageId = MessageId.make("message:foundation-compact");
       const threadStateEvent = (
         suffix: string,
-        type: "thread.visited" | "thread.metadata-updated",
+        type: "thread.visited" | "thread.metadata-updated" | "thread.issue-synced",
       ): OrchestrationV2DomainEvent => ({
         id: EventId.make(`event:foundation-compact:${suffix}`),
         type,
@@ -1542,6 +1542,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
         events: [
           threadCreatedEvent({ id: "event:foundation-compact:create", thread, now }),
           threadStateEvent("meta", "thread.metadata-updated"),
+          threadStateEvent("issue", "thread.issue-synced"),
           threadStateEvent("visit-1", "thread.visited"),
           messageEvent("message-1", "streaming"),
           nodeEvent("node-1", "running"),
@@ -1559,7 +1560,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
       const beforeCompaction = yield* projections.getThreadProjection(threadId);
 
       const summary = yield* maintenance.compactEventStore();
-      assert.isAtLeast(summary.deletedEventCount, 504);
+      assert.isAtLeast(summary.deletedEventCount, 505);
 
       const remaining = yield* sql<{ readonly event_id: string }>`
         SELECT event_id
@@ -1572,7 +1573,7 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
         remaining.map((row) => row.event_id),
         [
           "event:foundation-compact:create",
-          "event:foundation-compact:meta",
+          "event:foundation-compact:issue",
           "event:foundation-compact:message-1",
           "event:foundation-compact:node-1",
           "event:foundation-compact:item-1",

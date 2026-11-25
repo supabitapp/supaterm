@@ -39,6 +39,7 @@ import { PullRequestsUnavailableState } from "./PullRequestsUnavailableState";
 import { threadEnvironment } from "~/state/threads";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { RelativeTime } from "~/components/RelativeTime";
+import { ThreadDetailsIssueRows } from "../chat/ThreadDetailsIssueRows";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { MiddleTruncate } from "../ui/middle-truncate";
@@ -385,8 +386,8 @@ export function ThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
   if (!configs.has(threadRef.environmentId)) {
     return (
       <PullRequestsUnavailableState
-        title="Linked pull requests unavailable"
-        error="This environment is not connected."
+        title="Linked items unavailable"
+        error="The thread's environment is not available."
       />
     );
   }
@@ -395,6 +396,7 @@ export function ThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
 
 function EnabledThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThreadRef }) {
   const thread = useThreadShell(threadRef);
+  const issues = thread?.issues ?? [];
   const projects = useProjects();
   const environmentProjects = projects
     .filter((project) => project.environmentId === threadRef.environmentId)
@@ -485,7 +487,7 @@ function EnabledThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
     primaryEnvironmentId,
   };
 
-  if (linkCount === 0) {
+  if (linkCount === 0 && issues.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
         <PullRequestGlyph.link aria-hidden className="size-6 text-muted-foreground/60" />
@@ -511,6 +513,26 @@ function EnabledThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
           data={lines}
           keyExtractor={lineKey}
           extraData={rowInputs}
+          ListHeaderComponent={
+            issues.length > 0 ? (
+              <>
+                <section aria-label="Linked issues" className="flex flex-col">
+                  <h2 className="px-2 py-1 text-xs font-medium text-muted-foreground">Issues</h2>
+                  <ThreadDetailsIssueRows
+                    links={issues}
+                    threadRef={threadRef}
+                    compact={false}
+                    mountScope="linked-items"
+                  />
+                </section>
+                {linkCount > 0 ? (
+                  <h2 className="mt-2 border-t border-border/60 px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                    Pull requests
+                  </h2>
+                ) : null}
+              </>
+            ) : null
+          }
           renderItem={({ item: line }) => (
             <LinkRow
               line={line}
@@ -535,7 +557,7 @@ function EnabledThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
         />
         <footer className="flex items-center justify-between border-t border-border/60 px-2 py-1.5 text-2xs text-muted-foreground">
           <span>
-            {openCount} open · {linkCount} linked
+            {linkCount > 0 ? `${openCount} open · ${linkCount} linked` : null}
             {lastSynced ? (
               <>
                 {" · synced "}
@@ -545,7 +567,7 @@ function EnabledThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
           </span>
           <Button size="xs" variant="ghost" onClick={openLinkDialog}>
             <PlusIcon className="size-3.5" />
-            Link
+            Link pull request
           </Button>
         </footer>
       </div>

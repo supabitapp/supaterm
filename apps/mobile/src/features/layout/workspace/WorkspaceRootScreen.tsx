@@ -1,4 +1,6 @@
 import { WorkspaceNoTabs } from "./WorkspaceNoTabs";
+import { isSharedSlotTab } from "./navigation-tab-order";
+import { SharedSlotTitle } from "./SharedSlotTitle";
 import { WORKSPACE_TAB_LABELS, useEnabledNavigationTabs } from "./navigation-tabs";
 import { WorkspaceExtraTab } from "./WorkspaceExtraTab";
 import { WorkspaceSettingsList } from "../../settings/SettingsRouteScreen";
@@ -27,13 +29,18 @@ import { HomeRouteScreen } from "../../home/HomeRouteScreen";
 import { WorkspaceConnectionTitle } from "../../home/WorkspaceConnectionTitle";
 import { useAdaptiveWorkspaceLayout } from "../AdaptiveWorkspaceLayout";
 import { PullRequestsScreen } from "../../pull-requests/PullRequestsScreen";
+import { IssuesScreen } from "../../issues/IssuesScreen";
 import {
   WorkspaceTabsContext,
   WorkspaceTabsProvider,
   useWorkspaceTabs,
 } from "./WorkspaceTabsContext";
 import { WorkspaceToolbar } from "./WorkspaceToolbar";
-import { WORKSPACE_DOCK, workspaceDockBottomClearance } from "./workspace-tabs-state";
+import {
+  WORKSPACE_DOCK,
+  workspaceDockBottomClearance,
+  workspaceUsesColumns,
+} from "./workspace-tabs-state";
 import { WorkspaceTabDock } from "./WorkspaceTabDock";
 import { useSidebarWorkspaceTabs, useSystemWorkspaceTabBar } from "./useSystemWorkspaceTabBar";
 import { openSettings } from "../../settings/settings-navigation";
@@ -55,7 +62,13 @@ function WorkspaceRootTitle(props: {
   return (
     <View style={{ width: maxWidth, minHeight: 32, justifyContent: "center" }}>
       <WorkspaceConnectionTitle
-        brand={<CompactBrandTitle accessibilityLabel={`Supaterm, ${tabTitle}`} fit />}
+        brand={
+          !settingsOpen && isSharedSlotTab(state.selectedTab) ? (
+            <SharedSlotTitle tab={state.selectedTab} />
+          ) : (
+            <CompactBrandTitle accessibilityLabel={`Supaterm, ${tabTitle}`} fit />
+          )
+        }
         maxWidth={maxWidth}
         onPress={props.onOpenEnvironments}
       />
@@ -155,6 +168,8 @@ function WorkspaceRootContent() {
           <HomeRouteScreen />
         ) : state.selectedTab === "pullRequests" ? (
           <PullRequestsScreen />
+        ) : state.selectedTab === "issues" ? (
+          <IssuesScreen />
         ) : (
           <WorkspaceExtraTab tab={state.selectedTab} />
         )}
@@ -162,8 +177,7 @@ function WorkspaceRootContent() {
           <WorkspaceTabDock placement="column" />
         ) : null}
         {enabled.length === 0 && !settingsOpen ? null : settingsOpen ||
-          state.selectedTab === "threads" ||
-          state.selectedTab === "pullRequests" ? (
+          workspaceUsesColumns(state.selectedTab) ? (
           <WorkspaceToolbar sidebar={sidebarNavigation} onNewTask={startNewTask} />
         ) : (
           <WorkspaceSectionToolbar onNewTask={startNewTask} showCompose={false} />

@@ -39,6 +39,7 @@
     "@effect/platform-node-shared": "catalog:",
     "@ff-labs/fff-node": "0.11.0",
     "@napi-rs/keyring": "^1.3.0",
+    "@supaterm/issue-tracker-linear": "workspace:*",
     "@supaterm/provider-acp": "workspace:*",
     "@supaterm/provider-acp-registry": "workspace:*",
     "@supaterm/provider-core": "workspace:*",

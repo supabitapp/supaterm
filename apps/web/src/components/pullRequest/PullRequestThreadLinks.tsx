@@ -2,24 +2,22 @@ import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentId, PullRequestRef, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
-import { CheckIcon, MessageSquareIcon } from "@supaterm/icons";
+import { MessageSquareIcon } from "@supaterm/icons";
 import { useState } from "react";
 import { usePullRequestLinking } from "~/hooks/usePullRequestLinking";
 
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
-import { useProjects, useServerConfigs, useThreadShell, useThreadShells } from "~/state/entities";
+import { useServerConfigs, useThreadShell } from "~/state/entities";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
-import { useThreadSearch } from "~/state/queries";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { openCommandPalette } from "~/commandPaletteBus";
 import { Button } from "../ui/button";
-import { Command, CommandInput, CommandItem, CommandList } from "../ui/command";
+import { ThreadLinkPicker } from "../ThreadLinkPicker";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import { MenuItem } from "../ui/menu";
 import { toastManager } from "../ui/toast";
-import { threadLinkMatcher } from "./PullRequestThreadLinks.logic";
 import { PullRequestGlyph } from "./pullRequestIcons";
 
 interface PullRequestThreadLinksProps {
@@ -156,86 +154,15 @@ function EnabledPullRequestThreadLinks({
         <Dialog open onOpenChange={onPickerOpenChange}>
           <DialogPopup className="max-w-md" showCloseButton={false}>
             <DialogTitle className="sr-only">Link {term} to a thread</DialogTitle>
-            <ThreadPicker
+            <ThreadLinkPicker
               environmentId={environmentId}
-              url={url}
               pending={pending}
+              isLinked={(candidate) => linking.isLinked(candidate, url)}
               onSelect={(threadId) => void changeLink(threadId, false)}
             />
           </DialogPopup>
         </Dialog>
       ) : null}
     </>
-  );
-}
-
-function ThreadPicker({
-  environmentId,
-  url,
-  pending,
-  onSelect,
-}: {
-  environmentId: EnvironmentId;
-  url: string;
-  pending: boolean;
-  onSelect: (threadId: ThreadId) => void;
-}) {
-  const threads = useThreadShells();
-  const linking = usePullRequestLinking(environmentId);
-  const projects = useProjects();
-  const [query, setQuery] = useState("");
-  // Mounts older done threads matching the query, which shells may leave out.
-  useThreadSearch([environmentId], query, { titlesOnly: true });
-  const projectNames = new Map(
-    projects
-      .filter((project) => project.environmentId === environmentId)
-      .map((project) => [project.id, project.title]),
-  );
-  const matches = threadLinkMatcher(query);
-  const candidates = threads
-    .filter(
-      (thread) =>
-        thread.environmentId === environmentId &&
-        thread.archivedAt === null &&
-        matches(`${thread.title} ${projectNames.get(thread.projectId) ?? ""}`),
-    )
-    .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  return (
-    <Command mode="none" value={query} onValueChange={setQuery} aria-label="Choose a thread">
-      <CommandInput placeholder="Search threads or projects..." disabled={pending} />
-      <CommandList className="max-h-80 overflow-y-auto">
-        {candidates.length === 0 ? (
-          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            No active threads found.
-          </div>
-        ) : (
-          candidates.map((thread) => {
-            const linked = linking.isLinked(thread, url);
-            return (
-              <CommandItem
-                key={thread.id}
-                value={thread.id}
-                disabled={pending || linked}
-                onClick={() => onSelect(thread.id)}
-              >
-                <MessageSquareIcon aria-hidden className="size-4 shrink-0" />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate">{thread.title || "Untitled thread"}</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {projectNames.get(thread.projectId)}
-                  </span>
-                </span>
-                {linked ? (
-                  <>
-                    <CheckIcon aria-hidden className="size-3.5" />
-                    <span className="text-xs text-muted-foreground">Linked</span>
-                  </>
-                ) : null}
-              </CommandItem>
-            );
-          })
-        )}
-      </CommandList>
-    </Command>
   );
 }

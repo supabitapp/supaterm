@@ -244,7 +244,7 @@ const layerSupatermHome = ServerConfig.layerTest(process.cwd(), { prefix: "supat
 it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("layerCliConfig", (it) => {
   it.effect("does not migrate a Supaterm home a running server owns", () =>
     Effect.gen(function* () {
-      const recorded = Math.max(...migrationManifest.map(([id]) => id)) - 1;
+      const recorded = migrationManifest.at(-2)?.[0] ?? 0;
       yield* migrateTo(recorded);
       yield* ownSupatermHome();
 

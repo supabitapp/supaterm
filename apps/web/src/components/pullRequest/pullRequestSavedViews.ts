@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
-import { PullRequestSavedViewIdentity } from "@supaterm/client-runtime/pull-request-saved-views";
+import { SavedViewIdentity } from "@supaterm/client-runtime/saved-views";
 
+import type { SavedView, SavedViewsKind } from "../SavedViewsMenu";
 import {
   pullRequestListPreferences,
   PullRequestListPreferencesSchema,
@@ -8,19 +9,8 @@ import {
   type PullRequestListPreferences,
 } from "./pullRequestListPreferences";
 
-export const PULL_REQUEST_SAVED_VIEWS_KEY = "supaterm.pullRequests.savedViews";
-
-export const PullRequestSavedViews = Schema.Array(
-  Schema.Struct({
-    ...PullRequestSavedViewIdentity.fields,
-    preferences: PullRequestListPreferencesSchema,
-  }),
-);
-export type PullRequestSavedView = (typeof PullRequestSavedViews.Type)[number];
-export const EMPTY_PULL_REQUEST_SAVED_VIEWS: typeof PullRequestSavedViews.Type = [];
-
 export function pullRequestViewMatches(
-  view: PullRequestSavedView,
+  view: SavedView<typeof PullRequestListPreferencesSchema.Type>,
   preferences: PullRequestListPreferences,
 ): boolean {
   const key = (value: PullRequestListPreferences) => {
@@ -32,6 +22,25 @@ export function pullRequestViewMatches(
   };
   return key(pullRequestListPreferences(view.preferences)) === key(preferences);
 }
+
+export const PULL_REQUEST_SAVED_VIEWS = {
+  storageKey: "supaterm.pullRequests.savedViews",
+  schema: Schema.Array(
+    Schema.Struct({ ...SavedViewIdentity.fields, preferences: PullRequestListPreferencesSchema }),
+  ),
+  empty: [],
+  noun: "pull request",
+  shortNoun: "PR",
+  placeholder: "PRs Requesting My Review",
+  suggestedName: (preferences) =>
+    preferences.involvement === "reviewing" ? "PRs Requesting My Review" : "",
+  normalize: pullRequestListPreferences,
+  matches: pullRequestViewMatches,
+} as const satisfies SavedViewsKind<
+  PullRequestListPreferences,
+  typeof PullRequestListPreferencesSchema.Type,
+  unknown
+>;
 
 /** Explicit clears replace the old list scope without touching the independently selected PR. */
 export function pullRequestSavedViewPatch(

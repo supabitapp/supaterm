@@ -29,6 +29,7 @@ import { DatabaseStorageNotice } from "./components/DatabaseStorageNotice";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
+import { IssueTrackerSection } from "./components/IssueTrackerSection";
 import { SettingsProjectOverridesSection } from "./components/SettingsProjectOverridesSection";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import { useSettingsWriter } from "./useSettingsWriter";
@@ -45,7 +46,7 @@ type SettingsPage = "threads" | "source-control" | "worktrees" | "maintenance";
 
 const PAGE_TITLES: Record<SettingsPage, string> = {
   threads: "Threads",
-  "source-control": "Source control",
+  "source-control": "Source control & issues",
   worktrees: "Worktrees",
   maintenance: "Maintenance",
 };
@@ -383,6 +384,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
 
             {props.page === "source-control" ? (
               <>
+                {projectSelected ? null : <IssueTrackerSection environments={selectedTargets} />}
                 <SettingsSection title="Pull requests">
                   <SettingsSwitchRow
                     icon={PullRequestGlyph.merged}

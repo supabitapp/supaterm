@@ -34,6 +34,8 @@ import { ArrowUpRightIcon as ArrowUpRightSource } from "@phosphor-icons/react/di
 export const ArrowUpRightIcon = /* @__PURE__ */ withIconDefaults(ArrowUpRightSource);
 import { AsteriskIcon as AsteriskSource } from "@phosphor-icons/react/dist/csr/Asterisk";
 export const AsteriskIcon = /* @__PURE__ */ withIconDefaults(AsteriskSource);
+import { AtIcon as AtSignSource } from "@phosphor-icons/react/dist/csr/At";
+export const AtSignIcon = /* @__PURE__ */ withIconDefaults(AtSignSource);
 import { AtomIcon as AtomSource } from "@phosphor-icons/react/dist/csr/Atom";
 export const AtomIcon = /* @__PURE__ */ withIconDefaults(AtomSource);
 import { BatteryEmptyIcon as BatterySource } from "@phosphor-icons/react/dist/csr/BatteryEmpty";

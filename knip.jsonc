@@ -175,6 +175,11 @@
       // surface draws an icon from only one of the two.
       "ignoreIssues": { "src/generated/{components,nodes}.ts": ["exports"] },
     },
+    "packages/issue-tracker-linear": {
+      // graphqlgen reads its config; the generated operations export every selection's class.
+      "entry": ["graphql.config.ts"],
+      "ignoreIssues": { "**/*.graphql.ts": ["exports", "types", "namespaceMembers"] },
+    },
     "packages/source-control-github": {
       // graphqlgen reads its config; the generated operations export every selection's class.
       "entry": ["graphql.config.ts", "scripts/measure-pr-preview.ts"],

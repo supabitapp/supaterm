@@ -84,7 +84,8 @@ export function parseGitHubAuth(
       ...providerAuth({
         status: "unauthenticated",
         host: fallback.host,
-        detail: "Every GitHub host gh is signed in to is turned off in Settings → Source Control.",
+        detail:
+          "Every GitHub host gh is signed in to is turned off in Settings → Source control & issues.",
       }),
       ...accounts,
     };
@@ -294,7 +295,7 @@ export const make = Effect.gen(function* () {
               candidate: firstInvalid,
               detail:
                 firstInvalid.source === "settings"
-                  ? `GitHub refused the token saved for ${firstInvalid.host}. Replace or remove it in Settings → Source Control.`
+                  ? `GitHub refused the token saved for ${firstInvalid.host}. Replace or remove it in Settings → Source control & issues.`
                   : `GitHub refused the token in ${firstInvalid.environmentVariable}. Replace it, or unset it to use \`gh auth login\`.`,
             });
       if (failed === undefined) return cli;

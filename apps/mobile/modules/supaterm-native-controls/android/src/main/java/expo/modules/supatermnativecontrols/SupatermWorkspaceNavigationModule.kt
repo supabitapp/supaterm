@@ -130,7 +130,7 @@ class SupatermWorkspaceNavigationView(
   private val onTabSelected by EventDispatcher()
   private val onNewThread by EventDispatcher()
   private val onOverlayChange by EventDispatcher()
-  var tabs by mutableStateOf(listOf("threads", "pullRequests", "usage", "settings"))
+  var tabs by mutableStateOf(listOf("threads", "pullRequests", "issues", "usage", "settings"))
   var selectedTab by mutableStateOf("threads")
   var rail by mutableStateOf(false)
   var floating by mutableStateOf(false)
@@ -419,6 +419,7 @@ class SupatermWorkspaceNavigationView(
   private fun tabTitle(tab: String) = when (tab) {
     "threads" -> "Threads"
     "pullRequests" -> "Pulls"
+    "issues" -> "Issues"
     "usage" -> "Usage"
     else -> "Settings"
   }
@@ -431,6 +432,7 @@ class SupatermWorkspaceNavigationView(
     when (tab) {
       "threads" -> R.drawable.supaterm_chats
       "pullRequests" -> R.drawable.supaterm_pull_requests
+      "issues" -> R.drawable.supaterm_issues
       "usage" -> R.drawable.supaterm_usage
       else -> R.drawable.supaterm_settings
     }
