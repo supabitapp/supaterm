@@ -2657,7 +2657,9 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      const parent = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-edge-space-repo-" });
+      const parent = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-edge-space-repo-",
+      });
       const driver = yield* GitVcsDriver.makeVcsDriverShape();
       // The newline name takes the per-path fallback; the others take the one-spawn answer.
       for (const name of ["repo ", "repo\r", "multi\nline "]) {

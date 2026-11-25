@@ -330,6 +330,7 @@ it("Escape cancels a column resize without closing the panel sheet", async () =>
       animationDurationMs: 0,
       open: true,
       onClose: onCloseSheet,
+      // oxlint-disable-next-line react/no-children-prop -- RightPanelSheet types children as a required prop
       children: createElement(
         "div",
         { style: { display: "flex", width: "300px", height: "300px" } },

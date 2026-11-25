@@ -9,7 +9,7 @@ export type TimelineDisclosureToggle = (target: EventTarget | null, closing: boo
 
 export const TimelineDisclosureContext = createContext<TimelineDisclosureToggle>(() => {});
 
-export function useTimelineDisclosureToggle() {
+function useTimelineDisclosureToggle() {
   return use(TimelineDisclosureContext);
 }
 

@@ -864,9 +864,9 @@ export const make = Effect.gen(function* () {
       );
       // Visibility already hides local rollbacks; an ancestor's later rollback leaves the fork's
       // inherited work in place. A queued run shows its message before it starts.
-      const runSelections = [...runs, ...ancestorRuns.flat()]
-        .filter((run) => visibleRunIds.has(run.id) && run.startedAt !== null)
-        .map((run) => run.modelSelection);
+      const runSelections = [...runs, ...ancestorRuns.flat()].flatMap((run) =>
+        visibleRunIds.has(run.id) && run.startedAt !== null ? [run.modelSelection] : [],
+      );
       const providers = yield* providerRegistry.getProviders;
       const producedBy = Arr.dedupeWith(
         (runSelections.length > 0 ? runSelections : [thread.modelSelection]).map(

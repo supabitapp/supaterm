@@ -244,7 +244,7 @@ export const layerThreadWorktreeRestore = Layer.effect(
       takeRecreated: Effect.fn("ThreadWorktreeRestore.takeRecreated")(function* (
         threadId: ThreadId,
       ) {
-        const result = recreated.get(threadId);
+        const result = yield* Effect.sync(() => recreated.get(threadId));
         recreated.delete(threadId);
         return result;
       }),

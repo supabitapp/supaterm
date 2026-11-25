@@ -537,9 +537,11 @@ export function openNotebook(bytes: ArrayBuffer): OfficeWorkerResult {
           );
           if (text.trim() || output.output_type !== "error") return { kind: "text" as const, text };
           const summary = [output.ename, output.evalue]
-            .filter((part) => typeof part === "string")
-            .map((part) => terminalOutputPlainText(notebookText(part)))
-            .filter((part) => part.trim().length > 0)
+            .flatMap((part) => {
+              if (typeof part !== "string") return [];
+              const plain = terminalOutputPlainText(notebookText(part));
+              return plain.trim().length > 0 ? [plain] : [];
+            })
             .join(": ");
           return { kind: "text" as const, text: summary };
         })
