@@ -10,7 +10,6 @@ import * as Launch from "../orchestration-v2/ThreadLaunchService.ts";
 import * as Threads from "../orchestration-v2/ThreadManagementService.ts";
 import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
-import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as Projects from "../project/ProjectService.ts";
 import * as Providers from "../provider/ProviderRegistry.ts";
@@ -27,7 +26,6 @@ const dependencies = Layer.mergeAll(
   NodeServices.layer,
   Sqlite.layerMemory,
   ServerSettings.layerTest(),
-  ManagedPolicy.layerTest(),
   Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
     namedProjectsRoot: "/projects",
     isScratchProject: () => Effect.succeed(false),
