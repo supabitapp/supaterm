@@ -604,6 +604,7 @@ function SpeedToggleControl({
         {choices.map((choice) => (
           <MenuCheckboxItem
             key={choice.level}
+            variant="plain"
             checked={speedToggle.level === choice.level}
             closeOnClick
             onCheckedChange={(checked) => onSelect(checked ? choice.value : speedToggle.offValue)}
@@ -612,7 +613,10 @@ function SpeedToggleControl({
               <ComposerControlIcon
                 icon={choice.level === "ultrafast" ? UltrafastIcon : ZapFilledIcon}
                 size="sm"
-                className="mt-0.5 text-fast-mode"
+                className={cn(
+                  "mt-0.5",
+                  speedToggle.level === choice.level ? "text-fast-mode" : "text-muted-foreground",
+                )}
               />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span>{choice.level === "fast" ? "Fast" : "Ultrafast"}</span>
