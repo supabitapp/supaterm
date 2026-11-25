@@ -12,6 +12,7 @@ import * as TestClock from "effect/testing/TestClock";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenance.ts";
 import * as DatabaseMaintenance from "./DatabaseMaintenance.ts";
 import * as DatabaseStorage from "./DatabaseStorage.ts";
@@ -30,6 +31,7 @@ const storageLayer = <E>(
 ) =>
   DatabaseStorage.layer.pipe(
     Layer.provide(ProjectionMaintenance.layer),
+    Layer.provide(ServerSettings.layerTest()),
     Layer.provideMerge(Sqlite.layerMemory),
     Layer.provideMerge(config),
     Layer.provide(NodeServices.layer),
@@ -72,15 +74,19 @@ it.effect("a new database returns freed pages online without losing data", () =>
 );
 
 const compactionLayer = (
-  compactEventStore: ProjectionMaintenance.ProjectionMaintenanceV2["Service"]["compactEventStore"],
+  passes: Partial<ProjectionMaintenance.ProjectionMaintenanceV2Shape>,
+  settings: { readonly pruneEventHistory?: boolean } = {},
 ) =>
   DatabaseStorage.layer.pipe(
     Layer.provide(
       Layer.succeed(ProjectionMaintenance.ProjectionMaintenanceV2, {
-        compactEventStore,
+        compactEventStore: () => Effect.die("unexpected compaction"),
         pruneEventStore: () => Effect.die("unexpected prune"),
+        previewEventStorePrune: Effect.die("unexpected preview"),
+        ...passes,
       }),
     ),
+    Layer.provide(ServerSettings.layerTest(settings)),
     Layer.provide(Sqlite.layerMemory),
   );
 
@@ -120,7 +126,7 @@ it.effect("remembers completion only after the paced pass finishes", () =>
       assert.isTrue(yield* Deferred.isDone(completed));
       assert.equal(Number(yield* fs.readFileString(timestampPath)), startupTime + minute + 300);
     }).pipe(
-      Effect.provide(compactionLayer(compact)),
+      Effect.provide(compactionLayer({ compactEventStore: compact })),
       Effect.provideService(FileSystem.FileSystem, {
         ...fs,
         writeFileString: (file, content, options) =>
@@ -132,6 +138,42 @@ it.effect("remembers completion only after the paced pass finishes", () =>
   }).pipe(Effect.provide(testConfig.pipe(Layer.provideMerge(NodeServices.layer)))),
 );
 
+// Deletion is opt-in: the scheduled pass prunes, after backing up beside the database, only with
+// pruning turned on, and otherwise only removes superseded events.
+it.effect.each([false, true])("a scheduled pass prunes only when pruning is on: %s", (prune) =>
+  Effect.gen(function* () {
+    yield* TestClock.setTime(startupTime);
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const config = yield* ServerConfig.ServerConfig;
+    const ran = yield* Deferred.make<"compact" | "prune">();
+    yield* Effect.gen(function* () {
+      yield* TestClock.adjust(minute);
+      assert.equal(yield* Deferred.await(ran), prune ? "prune" : "compact");
+      assert.equal(
+        yield* fs.exists(DatabaseMaintenance.pruneBackupPath(path, config.dbPath)),
+        prune,
+      );
+    }).pipe(
+      Effect.provide(
+        compactionLayer(
+          {
+            compactEventStore: () =>
+              Deferred.succeed(ran, "compact").pipe(Effect.as(emptyCompaction)),
+            pruneEventStore: (options) =>
+              options.backUp.pipe(
+                Effect.orDie,
+                Effect.andThen(Deferred.succeed(ran, "prune")),
+                Effect.as({ schedule: { _tag: "Unmarked" as const }, ...emptyCompaction }),
+              ),
+          },
+          { pruneEventHistory: prune },
+        ),
+      ),
+    );
+  }).pipe(Effect.provide(testConfig.pipe(Layer.provideMerge(NodeServices.layer)))),
+);
+
 // NONE is a database from before automatic shrinking, which the repair converts.
 const reclaimLayer = (
   restart: Effect.Effect<void> | null,
@@ -139,6 +181,7 @@ const reclaimLayer = (
 ) =>
   DatabaseStorage.layer.pipe(
     Layer.provide(ProjectionMaintenance.layer),
+    Layer.provide(ServerSettings.layerTest()),
     Layer.provide(Layer.succeed(DatabaseStorage.ServerRestart, restart)),
     Layer.provide(
       Layer.effectDiscard(

@@ -30,14 +30,37 @@ export interface ProjectionMaintenanceV2Shape {
     ProjectionMaintenanceError
   >;
   /** Deletes events the projections already cover once they are older than the retained history. */
-  readonly pruneEventStore: (betweenPages?: Effect.Effect<void>) => Effect.Effect<
+  readonly pruneEventStore: <E>(options: {
+    /** Runs before the first pass that deletes anything; nothing is deleted when it fails. */
+    readonly backUp: Effect.Effect<unknown, E>;
+    readonly betweenPages?: Effect.Effect<void>;
+  }) => Effect.Effect<
     {
+      readonly schedule: EventLogPruneSchedule;
       readonly deletedEventCount: number;
       readonly reclaimableBytes: number;
     },
     ProjectionMaintenanceError
   >;
+  /** What pruneEventStore would delete now. Writes nothing. */
+  readonly previewEventStorePrune: Effect.Effect<
+    {
+      readonly schedule: EventLogPruneSchedule;
+      readonly prunableEventCount: number;
+      readonly eventCount: number;
+      readonly backupNeeded: boolean;
+    },
+    ProjectionMaintenanceError
+  >;
 }
+
+/** Where pruning stands, read when a pass starts. */
+export type EventLogPruneSchedule =
+  /** No pass has marked the log: the next one marks it and deletes nothing. */
+  | { readonly _tag: "Unmarked" }
+  /** The mark is younger than the retained history. */
+  | { readonly _tag: "Waiting"; readonly dueAt: DateTime.Utc }
+  | { readonly _tag: "Due"; readonly throughSequence: number };
 
 export class ProjectionMaintenanceV2 extends Context.Service<
   ProjectionMaintenanceV2,
@@ -279,6 +302,7 @@ export const layer: Layer.Layer<ProjectionMaintenanceV2, never, SqlClient.SqlCli
       throughSequence: number,
       head: number,
       betweenPages: Effect.Effect<void>,
+      mode: "delete" | "count",
     ) {
       const referenced = yield* readPromptReferences(throughSequence, head, betweenPages);
       // Stream heads at or below the boundary are kept, so the anchors they borrow must stay too.
@@ -327,7 +351,9 @@ export const layer: Layer.Layer<ProjectionMaintenanceV2, never, SqlClient.SqlCli
         const candidates = rows.filter((row) => row.prunable === 1).map((row) => row.sequence);
         // Never hold a transaction or the reader lock across a yield or a rest.
         yield* Effect.yieldNow;
-        if (candidates.length > 0) {
+        if (mode === "count") {
+          deleted += candidates.filter((sequence) => !referenced.has(sequence)).length;
+        } else if (candidates.length > 0) {
           deleted += yield* sql.withTransaction(
             Effect.gen(function* () {
               // Rows appended since the reference scan may borrow a prompt from a candidate.
@@ -365,52 +391,109 @@ export const layer: Layer.Layer<ProjectionMaintenanceV2, never, SqlClient.SqlCli
       return deleted;
     });
 
-    // A pass prunes through the mark the previous pass left once that mark is a day old, so
-    // at least RETAINED_EVENT_HISTORY of events always remains. Receipts stay for idempotency.
-    const pruneEventStore = Effect.fn("ProjectionMaintenance.pruneEventStore")(function* (
-      betweenPages: Effect.Effect<void> = Effect.void,
-    ) {
+    const readPruneState = Effect.fnUntraced(function* () {
       const now = yield* DateTime.now;
       const metadata = yield* sql<MetadataRow>`
-          SELECT projection_name, last_sequence, updated_at
-          FROM orchestration_v2_projection_metadata
-          WHERE projection_name IN (
-            'thread-projections', ${EVENT_LOG_PRUNE_MARK}, ${EVENT_LOG_PRUNED_THROUGH}
-          )
-        `.pipe(NodeSqliteClient.readOnly);
+        SELECT projection_name, last_sequence, updated_at
+        FROM orchestration_v2_projection_metadata
+        WHERE projection_name IN (
+          'thread-projections', ${EVENT_LOG_PRUNE_MARK}, ${EVENT_LOG_PRUNED_THROUGH}
+        )
+      `.pipe(NodeSqliteClient.readOnly);
       const read = (name: string) => metadata.find((row) => row.projection_name === name);
       const projected = read("thread-projections")?.last_sequence ?? 0;
       const mark = read(EVENT_LOG_PRUNE_MARK);
-      const prunedThrough = read(EVENT_LOG_PRUNED_THROUGH)?.last_sequence ?? 0;
+      const prunedThroughRow = read(EVENT_LOG_PRUNED_THROUGH);
+      const prunedThrough = prunedThroughRow?.last_sequence ?? 0;
       // Fixed bounds: foreground commits during the pass wait for the next one.
       const bounds = yield* sql<{ readonly sequence: number }>`
-          SELECT COALESCE((SELECT MAX(sequence) FROM orchestration_events), 0) AS sequence
-        `.pipe(NodeSqliteClient.readOnly);
-      const head = bounds[0]?.sequence ?? 0;
+        SELECT COALESCE((SELECT MAX(sequence) FROM orchestration_events), 0) AS sequence
+      `.pipe(NodeSqliteClient.readOnly);
+      const dueAt = (marked: MetadataRow) =>
+        DateTime.add(DateTime.makeUnsafe(marked.updated_at), {
+          milliseconds: Duration.toMillis(RETAINED_EVENT_HISTORY),
+        });
+      const schedule: EventLogPruneSchedule =
+        mark === undefined
+          ? { _tag: "Unmarked" }
+          : DateTime.isLessThan(now, dueAt(mark))
+            ? { _tag: "Waiting", dueAt: dueAt(mark) }
+            : {
+                _tag: "Due",
+                throughSequence: Math.max(Math.min(mark.last_sequence, projected), prunedThrough),
+              };
+      return {
+        now,
+        head: bounds[0]?.sequence ?? 0,
+        schedule,
+        prunedThrough,
+        // The first boundary a pass publishes needs a backup; later ones extend a pruned log.
+        publishesFirstBoundary:
+          prunedThroughRow === undefined &&
+          schedule._tag === "Due" &&
+          schedule.throughSequence > prunedThrough,
+      };
+    });
 
+    // A pass prunes through the mark the previous pass left once that mark is a day old, so
+    // at least RETAINED_EVENT_HISTORY of events always remains. Receipts stay for idempotency.
+    const pruneEventStore = Effect.fn("ProjectionMaintenance.pruneEventStore")(function* <
+      E,
+    >(options: {
+      readonly backUp: Effect.Effect<unknown, E>;
+      readonly betweenPages?: Effect.Effect<void>;
+    }) {
+      const betweenPages = options.betweenPages ?? Effect.void;
+      const { now, head, schedule, prunedThrough, publishesFirstBoundary } =
+        yield* readPruneState();
       let deletedEventCount = 0;
-      const markIsDue =
-        mark !== undefined &&
-        DateTime.toEpochMillis(now) - Date.parse(mark.updated_at) >=
-          Duration.toMillis(RETAINED_EVENT_HISTORY);
-      if (mark !== undefined && markIsDue) {
-        const throughSequence = Math.max(Math.min(mark.last_sequence, projected), prunedThrough);
-        if (throughSequence > prunedThrough) {
+      if (schedule._tag === "Due") {
+        if (publishesFirstBoundary) yield* options.backUp;
+        if (schedule.throughSequence > prunedThrough) {
           // Publish the boundary first so resuming clients take a snapshot, never a partial replay.
-          yield* writeMetadata(EVENT_LOG_PRUNED_THROUGH, throughSequence, now);
+          yield* writeMetadata(EVENT_LOG_PRUNED_THROUGH, schedule.throughSequence, now);
         }
-        deletedEventCount += yield* pruneEvents(throughSequence, head, betweenPages);
+        deletedEventCount += yield* pruneEvents(
+          schedule.throughSequence,
+          head,
+          betweenPages,
+          "delete",
+        );
       }
-      if (mark === undefined || markIsDue) yield* writeMetadata(EVENT_LOG_PRUNE_MARK, head, now);
+      if (schedule._tag !== "Waiting") yield* writeMetadata(EVENT_LOG_PRUNE_MARK, head, now);
 
       const freelistRows = yield* sql<{ readonly freelist_count: number }>`PRAGMA freelist_count`;
       const pageSizeRows = yield* sql<{ readonly page_size: number }>`PRAGMA page_size`;
       const reclaimableBytes =
         (freelistRows[0]?.freelist_count ?? 0) * (pageSizeRows[0]?.page_size ?? 0);
 
-      return { deletedEventCount, reclaimableBytes };
+      return { schedule, deletedEventCount, reclaimableBytes };
     }, mapError("prune event store"));
 
-    return ProjectionMaintenanceV2.of({ compactEventStore, pruneEventStore });
+    const previewEventStorePrune = Effect.gen(function* () {
+      const { head, schedule, publishesFirstBoundary } = yield* readPruneState();
+      const prunableEventCount =
+        schedule._tag === "Due"
+          ? yield* pruneEvents(schedule.throughSequence, head, Effect.void, "count")
+          : 0;
+      const counts = yield* sql<{ readonly event_count: number }>`
+        SELECT COUNT(*) AS event_count FROM orchestration_events
+      `.pipe(NodeSqliteClient.readOnly);
+      return {
+        schedule,
+        prunableEventCount,
+        eventCount: counts[0]?.event_count ?? 0,
+        backupNeeded: publishesFirstBoundary,
+      };
+    }).pipe(
+      Effect.withSpan("ProjectionMaintenance.previewEventStorePrune"),
+      mapError("preview prune"),
+    );
+
+    return ProjectionMaintenanceV2.of({
+      compactEventStore,
+      pruneEventStore,
+      previewEventStorePrune,
+    });
   }),
 );

@@ -18,6 +18,7 @@ import * as ServerConfig from "../config.ts";
 import * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenance.ts";
 import * as DatabaseMaintenance from "./DatabaseMaintenance.ts";
 import { forkParked } from "../serverActivation.ts";
+import * as ServerSettings from "../serverSettings.ts";
 
 // Bound each reclaim pass to one minute of churn.
 const RECLAIM_PAGES_PER_PASS = 1024;
@@ -43,10 +44,10 @@ export const ServerRestart = Context.Reference<Effect.Effect<void> | null>(
 
 const formatGiB = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
 
-// Deleted events have newer retained replacements; old cursors replay to the same state.
 const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+  const settings = yield* ServerSettings.ServerSettingsService;
   const config = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -150,12 +151,32 @@ const make = Effect.gen(function* () {
       yield* Effect.sleep((Number(elapsed) / 1_000_000) * 9);
       sliceStarted = yield* Clock.monotonicTimeNanos;
     });
-    const result = yield* maintenance.compactEventStore(betweenPages);
+    // Pruning is opt-in: it deletes history projections cover, which no replay can bring back.
+    const prune = yield* settings.getSettings.pipe(
+      Effect.map((current) => current.pruneEventHistory),
+      Effect.orElseSucceed(() => false),
+    );
+    if (prune) {
+      const result = yield* maintenance.pruneEventStore({
+        betweenPages,
+        backUp: DatabaseMaintenance.backUpBeforePruning(config.dbPath).pipe(
+          Effect.provideService(SqlClient.SqlClient, sql),
+          Effect.provideService(FileSystem.FileSystem, fs),
+          Effect.provideService(Path.Path, path),
+        ),
+      });
+      if (result.deletedEventCount > 0) {
+        yield* Effect.logInfo("Pruned orchestration history", result);
+      }
+    } else {
+      // Deleted events have newer retained replacements; old cursors replay to the same state.
+      const result = yield* maintenance.compactEventStore(betweenPages);
+      if (result.deletedEventCount > 0) {
+        yield* Effect.logInfo("Compacted orchestration history", result);
+      }
+    }
     const completedAt = yield* Clock.currentTimeMillis;
     yield* fs.writeFileString(compactedAtPath, String(completedAt)).pipe(Effect.ignore);
-    if (result.deletedEventCount > 0) {
-      yield* Effect.logInfo("Compacted orchestration history", result);
-    }
   }).pipe(
     Effect.catch((cause) =>
       Effect.logWarning("Orchestration history compaction failed", { cause }),

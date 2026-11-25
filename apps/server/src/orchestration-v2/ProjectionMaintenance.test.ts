@@ -15,6 +15,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
@@ -263,7 +264,10 @@ it.effect("prunes events the projections cover once the retained day has passed"
     yield* sink.write({ events: [itemEvent(threadId, now, itemSpecs[1], 0)] });
 
     // The first pass only marks the head; nothing is a day old yet.
-    assert.equal((yield* maintenance.pruneEventStore()).deletedEventCount, 0);
+    assert.equal(
+      (yield* maintenance.pruneEventStore({ backUp: Effect.void })).deletedEventCount,
+      0,
+    );
     const markedThrough = yield* eventStore.latestSequence();
 
     // Repeating prompt A borrows it from the anchors written before the mark.
@@ -273,9 +277,15 @@ it.effect("prunes events the projections cover once the retained day has passed"
     const projection = yield* projections.getThreadProjection(threadId);
 
     yield* TestClock.adjust("23 hours");
-    assert.equal((yield* maintenance.pruneEventStore()).deletedEventCount, 0);
+    assert.equal(
+      (yield* maintenance.pruneEventStore({ backUp: Effect.void })).deletedEventCount,
+      0,
+    );
     yield* TestClock.adjust("1 hour");
-    assert.equal((yield* maintenance.pruneEventStore()).deletedEventCount, 4);
+    assert.equal(
+      (yield* maintenance.pruneEventStore({ backUp: Effect.void })).deletedEventCount,
+      4,
+    );
 
     assert.deepEqual(yield* remainingEventIds(threadId), [
       "event:turn-item-compaction:thread",
@@ -313,9 +323,12 @@ it.effect("keeps the anchor a retained stream head borrows from", () =>
     yield* sink.write({ events: subagentEvents(threadId, now, 0) });
     // The stream's newest row borrows prompt A, so it is kept below the boundary.
     yield* sink.write({ events: subagentEvents(threadId, now, 0, "repeat") });
-    yield* maintenance.pruneEventStore();
+    yield* maintenance.pruneEventStore({ backUp: Effect.void });
     yield* TestClock.adjust("1 day");
-    assert.isAbove((yield* maintenance.pruneEventStore()).deletedEventCount, 0);
+    assert.isAbove(
+      (yield* maintenance.pruneEventStore({ backUp: Effect.void })).deletedEventCount,
+      0,
+    );
 
     assert.include(
       yield* remainingEventIds(threadId),
@@ -342,7 +355,7 @@ it.effect("keeps an anchor that a row appended during the pass borrows from", ()
       const threadId = ThreadId.make("thread:prune-race");
       yield* sink.write({ events: [threadCreated(makeThread(threadId, now), now)] });
       yield* sink.write({ events: subagentEvents(threadId, now, 0) });
-      yield* maintenance.pruneEventStore();
+      yield* maintenance.pruneEventStore({ backUp: Effect.void });
       yield* sink.write({ events: [itemEvent(threadId, now, itemSpecs[0], 0)] });
       yield* TestClock.adjust("1 day");
 
@@ -361,7 +374,7 @@ it.effect("keeps an anchor that a row appended during the pass borrows from", ()
         return Effect.succeed(statement);
       };
       const pass = yield* maintenance
-        .pruneEventStore()
+        .pruneEventStore({ backUp: Effect.void })
         .pipe(
           Effect.provideService(Statement.CurrentTransformer, blockFirstScanPage),
           Effect.forkScoped,
@@ -382,4 +395,86 @@ it.effect("keeps an anchor that a row appended during the pass borrows from", ()
       );
     }),
   ).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("backs up before the first prune only, and a failed backup prunes nothing", () =>
+  Effect.gen(function* () {
+    const sink = yield* EventSink.EventSinkV2;
+    const events = yield* OrchestrationEventStore.OrchestrationEventStore;
+    const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+    const now = yield* DateTime.now;
+    const threadId = ThreadId.make("thread:prune-backup");
+    yield* sink.write({ events: [threadCreated(makeThread(threadId, now), now)] });
+    for (const revision of [0, 1, 2]) {
+      yield* sink.write({ events: [itemEvent(threadId, now, itemSpecs[0], revision)] });
+    }
+    let backups = 0;
+    const backUp = Effect.sync(() => {
+      backups += 1;
+    });
+    assert.equal((yield* maintenance.pruneEventStore({ backUp })).schedule._tag, "Unmarked");
+    yield* TestClock.adjust("1 day");
+    const before = yield* remainingEventIds(threadId);
+
+    const failed = yield* Effect.exit(
+      maintenance.pruneEventStore({ backUp: Effect.fail("no space for the backup") }),
+    );
+    assert.isTrue(Exit.isFailure(failed));
+    assert.equal(yield* events.prunedThroughSequence, 0);
+    assert.deepEqual(yield* remainingEventIds(threadId), before);
+
+    const pruned = yield* maintenance.pruneEventStore({ backUp });
+    assert.equal(pruned.schedule._tag, "Due");
+    assert.equal(pruned.deletedEventCount, 2);
+    assert.equal(backups, 1);
+
+    yield* sink.write({ events: [itemEvent(threadId, now, itemSpecs[0], 3)] });
+    yield* TestClock.adjust("1 day");
+    assert.equal((yield* maintenance.pruneEventStore({ backUp })).deletedEventCount, 1);
+    assert.equal(backups, 1);
+  }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("previews what a pass would delete without writing anything", () =>
+  Effect.gen(function* () {
+    const sink = yield* EventSink.EventSinkV2;
+    const events = yield* OrchestrationEventStore.OrchestrationEventStore;
+    const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+    const now = yield* DateTime.now;
+    const threadId = ThreadId.make("thread:prune-preview");
+    yield* sink.write({ events: [threadCreated(makeThread(threadId, now), now)] });
+    for (const revision of [0, 1, 2]) {
+      yield* sink.write({ events: [itemEvent(threadId, now, itemSpecs[0], revision)] });
+    }
+    yield* sink.write({ events: subagentEvents(threadId, now, 0) });
+    yield* sink.write({ events: subagentEvents(threadId, now, 0, "repeat") });
+
+    const unmarked = yield* maintenance.previewEventStorePrune;
+    assert.deepEqual(unmarked.schedule, { _tag: "Unmarked" });
+    assert.equal(unmarked.prunableEventCount, 0);
+    assert.equal(unmarked.eventCount, 8);
+    assert.equal((yield* maintenance.previewEventStorePrune).schedule._tag, "Unmarked");
+
+    yield* maintenance.pruneEventStore({ backUp: Effect.void });
+    const waiting = yield* maintenance.previewEventStorePrune;
+    assert.deepEqual(waiting.schedule, {
+      _tag: "Waiting",
+      dueAt: DateTime.add(now, { days: 1 }),
+    });
+
+    yield* TestClock.adjust("1 day");
+    const due = yield* maintenance.previewEventStorePrune;
+    assert.equal(due.schedule._tag, "Due");
+    assert.isTrue(due.backupNeeded);
+    assert.equal(yield* events.prunedThroughSequence, 0);
+    // Everything but thread.created, the stream head, and the anchor the head borrows.
+    assert.equal(due.prunableEventCount, 5);
+    const ids = yield* remainingEventIds(threadId);
+    assert.equal(ids.length, 8);
+    assert.equal(
+      (yield* maintenance.pruneEventStore({ backUp: Effect.void })).deletedEventCount,
+      due.prunableEventCount,
+    );
+    assert.isFalse((yield* maintenance.previewEventStorePrune).backupNeeded);
+  }).pipe(Effect.provide(layerTest)),
 );

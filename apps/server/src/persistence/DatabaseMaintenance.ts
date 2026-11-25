@@ -70,7 +70,27 @@ export class DiskSpaceCheckError extends Schema.TaggedError<DiskSpaceCheckError>
   }
 }
 
-export type DatabaseCompactStep = "compact-events" | "vacuum" | "rebuild-search" | "checkpoint";
+export class DatabaseBackupSpaceError extends Schema.TaggedError<DatabaseBackupSpaceError>()(
+  "DatabaseBackupSpaceError",
+  { path: Schema.String, neededBytes: Schema.Number, freeBytes: Schema.Number },
+) {
+  override get message() {
+    return `Backing up the database before its first prune needs ${formatGiB(this.neededBytes)} of free disk space beside it. ${formatGiB(this.freeBytes)} is free.`;
+  }
+}
+
+export type DatabaseCompactStep =
+  | "compact-events"
+  | "back-up"
+  | "prune-events"
+  | "vacuum"
+  | "rebuild-search"
+  | "checkpoint";
+
+/** Superseded events only, or every event the projections cover once it is a day old. */
+export type HistoryRemoval = "compact" | "prune";
+
+const formatGiB = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
 
 /** Offline inspection and repair of a Supaterm state database, for `supaterm doctor`. */
 export class DatabaseMaintenance extends Context.Service<
@@ -90,14 +110,33 @@ export class DatabaseMaintenance extends Context.Service<
      */
     readonly compact: (
       databasePath: string,
-      onStep?: (step: DatabaseCompactStep) => Effect.Effect<void>,
+      options?: {
+        readonly history?: HistoryRemoval;
+        readonly onStep?: (step: DatabaseCompactStep) => Effect.Effect<void>;
+      },
     ) => Effect.Effect<
       {
         readonly beforeBytes: number;
         readonly afterBytes: number;
         readonly deletedEventCount: number;
+        /** Where pruning stood when the repair started; null when it only compacted. */
+        readonly pruneSchedule: ProjectionMaintenance.EventLogPruneSchedule | null;
       },
       DatabaseMissingError | DatabaseInUseError | DatabaseCompactError
+    >;
+    /** What pruning would delete now and where its first backup goes. Opens read-only. */
+    readonly previewPrune: (databasePath: string) => Effect.Effect<
+      {
+        readonly schedule: ProjectionMaintenance.EventLogPruneSchedule;
+        readonly prunableEventCount: number;
+        readonly eventCount: number;
+        readonly backup: {
+          readonly path: string;
+          readonly neededBytes: number;
+          readonly freeBytes: number;
+        } | null;
+      },
+      DatabaseMissingError | DatabaseInspectError
     >;
   }
 >()("supaterm/persistence/DatabaseMaintenance") {}
@@ -120,6 +159,7 @@ const readStorage = Effect.gen(function* () {
 
 const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
 
   const locate = Effect.fn("DatabaseMaintenance.locate")(function* (databasePath: string) {
     if (!(yield* fs.exists(databasePath))) {
@@ -145,8 +185,12 @@ const make = Effect.gen(function* () {
   const compact = Effect.fn("DatabaseMaintenance.compact")(
     function* (
       databasePath: string,
-      onStep: (step: DatabaseCompactStep) => Effect.Effect<void> = () => Effect.void,
+      options: {
+        readonly history?: HistoryRemoval;
+        readonly onStep?: (step: DatabaseCompactStep) => Effect.Effect<void>;
+      } = {},
     ) {
+      const onStep = options.onStep ?? (() => Effect.void);
       yield* locate(databasePath);
       const beforeBytes = Number((yield* fs.stat(databasePath)).size);
       const result = yield* Effect.gen(function* () {
@@ -168,8 +212,24 @@ const make = Effect.gen(function* () {
         );
         yield* sql`COMMIT`;
         const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
-        yield* onStep("compact-events");
-        const summary = yield* maintenance.compactEventStore();
+        const summary =
+          options.history === "prune"
+            ? yield* onStep("prune-events").pipe(
+                Effect.andThen(
+                  maintenance.pruneEventStore({
+                    backUp: onStep("back-up").pipe(
+                      Effect.andThen(backUpBeforePruning(databasePath)),
+                      Effect.provideService(SqlClient.SqlClient, sql),
+                      Effect.provideService(FileSystem.FileSystem, fs),
+                      Effect.provideService(Path.Path, path),
+                    ),
+                  }),
+                ),
+              )
+            : yield* onStep("compact-events").pipe(
+                Effect.andThen(maintenance.compactEventStore()),
+                Effect.map((compacted) => ({ ...compacted, schedule: null })),
+              );
         yield* onStep("vacuum");
         // VACUUM rebuilds the file, which is the only way to switch an existing
         // database to incremental auto_vacuum; the server reclaims online after.
@@ -192,6 +252,7 @@ const make = Effect.gen(function* () {
         beforeBytes,
         afterBytes,
         deletedEventCount: result.deletedEventCount,
+        pruneSchedule: result.schedule,
       };
     },
     (effect, databasePath) =>
@@ -202,10 +263,95 @@ const make = Effect.gen(function* () {
       ),
   );
 
-  return DatabaseMaintenance.of({ inspect, compact });
+  const previewPrune = Effect.fn("DatabaseMaintenance.previewPrune")(
+    function* (databasePath: string) {
+      yield* locate(databasePath);
+      return yield* Effect.gen(function* () {
+        const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+        const preview = yield* maintenance.previewEventStorePrune;
+        const backupPath = pruneBackupPath(path, databasePath);
+        const backup = preview.backupNeeded
+          ? {
+              path: backupPath,
+              neededBytes: backupBytesNeeded(yield* readStorage),
+              freeBytes: yield* freeBytes(path.dirname(backupPath)),
+            }
+          : null;
+        return {
+          schedule: preview.schedule,
+          prunableEventCount: preview.prunableEventCount,
+          eventCount: preview.eventCount,
+          backup,
+        };
+      }).pipe(
+        Effect.provide(
+          ProjectionMaintenance.layer.pipe(
+            Layer.provideMerge(NodeSqliteClient.layer({ filename: databasePath, readonly: true })),
+          ),
+        ),
+      );
+    },
+    (effect, databasePath) =>
+      effect.pipe(
+        Effect.mapError((cause) =>
+          isDomainError(cause) ? cause : new DatabaseInspectError({ path: databasePath, cause }),
+        ),
+      ),
+  );
+
+  return DatabaseMaintenance.of({ inspect, compact, previewPrune });
 });
 
 export const layer = Layer.effect(DatabaseMaintenance, make);
+
+/** The copy taken before the first prune deletes anything. Restoring it brings back the whole log. */
+export const pruneBackupPath = (path: Path.Path, databasePath: string) => {
+  const extension = path.extname(databasePath);
+  return path.join(
+    path.dirname(databasePath),
+    `${path.basename(databasePath, extension)}-before-pruning${extension}`,
+  );
+};
+
+const backupBytesNeeded = (storage: {
+  readonly databaseBytes: number;
+  readonly reclaimableBytes: number;
+}) => Math.ceil((storage.databaseBytes - storage.reclaimableBytes) * 1.1);
+
+/**
+ * Copies the database beside itself with VACUUM INTO on the reader, then syncs and renames the
+ * copy into place. ProjectionMaintenance runs it before the first pass that deletes events.
+ */
+export const backUpBeforePruning = Effect.fn("DatabaseMaintenance.backUpBeforePruning")(function* (
+  databasePath: string,
+) {
+  const sql = yield* SqlClient.SqlClient;
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const target = pruneBackupPath(path, databasePath);
+  const partial = `${target}.partial`;
+  const neededBytes = backupBytesNeeded(yield* readStorage);
+  const available = yield* freeBytes(path.dirname(target));
+  // The copy shares a disk with the live database; filling it would fail the server's writes.
+  if (available < neededBytes) {
+    return yield* new DatabaseBackupSpaceError({
+      path: target,
+      neededBytes,
+      freeBytes: available,
+    });
+  }
+  yield* fs.remove(partial, { force: true });
+  yield* Effect.gen(function* () {
+    yield* sql`VACUUM INTO ${partial}`.pipe(NodeSqliteClient.readOnly);
+    yield* Effect.scoped(Effect.flatMap(fs.open(partial, { flag: "r+" }), (file) => file.sync));
+    yield* fs.rename(partial, target);
+  }).pipe(Effect.onError(() => fs.remove(partial, { force: true }).pipe(Effect.ignore)));
+  // Best effort: Windows cannot open a directory to sync the rename.
+  yield* Effect.scoped(
+    Effect.flatMap(fs.open(path.dirname(target), { flag: "r" }), (directory) => directory.sync),
+  ).pipe(Effect.ignore);
+  yield* Effect.logInfo("Backed up the database before its first prune", { path: target });
+});
 
 /** Settings' Reclaim writes the request; the failure stays for Settings until the next request. */
 export const reclaimFiles = (path: Path.Path, databasePath: string) => ({

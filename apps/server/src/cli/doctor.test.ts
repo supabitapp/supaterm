@@ -62,7 +62,7 @@ it.effect(
                     Effect.ensuring(Effect.sync(() => calls.push("resume"))),
                   ),
               }),
-              Layer.succeed(DatabaseMaintenance, {
+              Layer.mock(DatabaseMaintenance)({
                 // An unconverted database: reclaiming space is recommended.
                 inspect: () =>
                   Effect.succeed({
@@ -78,6 +78,7 @@ it.effect(
                         beforeBytes: 2000,
                         afterBytes: 1000,
                         deletedEventCount: 1,
+                        pruneSchedule: null,
                       };
                     }),
                   ),
@@ -170,23 +171,24 @@ it.effect("warns how long reclaiming can take and reports each step with its ela
                 Effect.ensuring(Effect.sync(() => output.push("<resume>"))),
               ),
           }),
-          Layer.succeed(DatabaseMaintenance, {
+          Layer.mock(DatabaseMaintenance)({
             inspect: () =>
               Effect.succeed({
                 databaseBytes: 12.8 * 1024 ** 3,
                 reclaimableBytes: 0,
                 incrementalVacuumEnabled: false,
               }),
-            compact: (_databasePath, onStep) =>
+            compact: (_databasePath, options) =>
               Effect.gen(function* () {
                 for (const [step, duration] of steps) {
-                  if (onStep) yield* onStep(step);
+                  if (options?.onStep) yield* options.onStep(step);
                   yield* TestClock.adjust(duration);
                 }
                 return {
                   beforeBytes: 12.8 * 1024 ** 3,
                   afterBytes: 12.8 * 1024 ** 3,
                   deletedEventCount: 0,
+                  pruneSchedule: null,
                 };
               }),
           }),
@@ -220,4 +222,82 @@ it.effect("warns how long reclaiming can take and reports each step with its ela
       "each compaction step must print one line with the elapsed time as it starts",
     );
   }).pipe(Effect.provide(layerHost)),
+);
+
+// Deletion is opt-in: without --prune-events doctor never previews or prunes, and a dry run with
+// it reports what would go without touching the database.
+it.effect.each([
+  { pruneEvents: false, dryRun: false, expected: ["compact:compact"] },
+  { pruneEvents: true, dryRun: true, expected: ["preview"] },
+  { pruneEvents: true, dryRun: false, expected: ["preview", "compact:prune"] },
+])(
+  "prunes history only with --prune-events (prune: $pruneEvents, dry run: $dryRun)",
+  ({ pruneEvents, dryRun, expected }) =>
+    Effect.gen(function* () {
+      const calls: string[] = [];
+      const stateDir = yield* (yield* FileSystem.FileSystem).makeTempDirectoryScoped();
+      const path = yield* Path.Path;
+      yield* runDoctor(
+        {
+          dbPath: path.join(stateDir, "statev2.sqlite"),
+          serverRuntimeStatePath: path.join(stateDir, "server-runtime.json"),
+        },
+        { fix: true, dryRun, pruneEvents, interactive: false },
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.mock(BootService.BootService)({ withStopped: (operation) => operation }),
+            Layer.mock(DatabaseMaintenance)({
+              inspect: () =>
+                Effect.succeed({
+                  databaseBytes: 3 * 1024 ** 3,
+                  reclaimableBytes: 2 * 1024 ** 3,
+                  incrementalVacuumEnabled: true,
+                }),
+              previewPrune: () =>
+                Effect.sync(() => calls.push("preview")).pipe(
+                  Effect.as({
+                    schedule: { _tag: "Due" as const, throughSequence: 1_200 },
+                    prunableEventCount: 1_100,
+                    eventCount: 1_300,
+                    backup: {
+                      path: "/home/statev2-before-pruning.sqlite",
+                      neededBytes: 1024 ** 3,
+                      freeBytes: 8 * 1024 ** 3,
+                    },
+                  }),
+                ),
+              compact: (_databasePath, options) =>
+                Effect.sync(() => calls.push(`compact:${options?.history ?? "compact"}`)).pipe(
+                  Effect.as({
+                    beforeBytes: 3 * 1024 ** 3,
+                    afterBytes: 1024 ** 3,
+                    deletedEventCount: 1_100,
+                    pruneSchedule: pruneEvents
+                      ? { _tag: "Due" as const, throughSequence: 1_200 }
+                      : null,
+                  }),
+                ),
+            }),
+          ),
+        ),
+      );
+      assert.deepEqual(calls, expected);
+      const output = (yield* TestConsole.logLines).join("\n");
+      if (pruneEvents) {
+        assert.include(output, "1,100 of them would be removed.");
+        assert.include(output, "/home/statev2-before-pruning.sqlite");
+        assert.include(output, "cannot use the database afterwards");
+      } else {
+        assert.notInclude(output, "older than a day");
+      }
+      if (!dryRun) {
+        assert.include(
+          output,
+          pruneEvents
+            ? "1,100 events older than a day removed."
+            : "1,100 superseded events removed.",
+        );
+      }
+    }).pipe(Effect.provide(Layer.merge(layerHost, TestConsole.layer))),
 );
