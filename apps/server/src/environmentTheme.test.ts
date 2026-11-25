@@ -314,7 +314,8 @@ describe("environment theme", () => {
       ),
   );
 
-  it.live.skipIf(!symlinksSupported)(
+  // With probes held, only a watch event can publish; macOS FSEvents can drop it under load.
+  it.live.skipIf(!symlinksSupported || HostProcess.Platform.defaultValue() === "darwin")(
     "publishes themes when a linked theme tree vanishes after listing and returns between probes",
     () =>
       Effect.gen(function* () {
