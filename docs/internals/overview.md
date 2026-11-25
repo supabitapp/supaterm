@@ -54,8 +54,8 @@ select known environment-local checkouts; the group itself does not store inheri
 
 ## Durable intent and side effects
 
-The event log is the source of truth for orchestration state. The
-[v2 orchestrator](../../apps/server/src/orchestration-v2/Orchestrator.ts) serializes commands and
+Orchestration state is decided as events, and projections are the source of truth once they apply
+them. The [v2 orchestrator](../../apps/server/src/orchestration-v2/Orchestrator.ts) serializes commands and
 decides events without performing provider or filesystem work.
 [EventSink](../../apps/server/src/orchestration-v2/EventSink.ts) commits events, persisted projections,
 the accepted command receipt, and outbox effects in one database transaction. Subscribers receive
@@ -68,7 +68,25 @@ therefore means the intent committed, not that the provider, checkpoint, or othe
 finished. Keep external I/O out of command decisions and the database transaction. Effects tied to
 a lost provider process cannot simply replay; recovery retires them before admitting new work.
 
-Persisted events must remain decodable on replay. Changing a schema affects old environments at
+By default the log keeps every event a replay needs: background maintenance removes only events a
+newer one supersedes, so old cursors replay to the same state. History pruning is opt-in (the
+`pruneEventHistory` setting, or `supaterm doctor --prune-events`). With it,
+[ProjectionMaintenance](../../apps/server/src/orchestration-v2/ProjectionMaintenance.ts) deletes
+events the projections cover once they are more than a day old, so projections can no longer be
+rebuilt from the log. It keeps each stream's newest event (high-water marks, stream versions,
+snapshot sequences), `thread.created`, every `running` run update (Codex usage history reads the
+first of each attempt), prompt anchors that retained subagent rows reference, and v1 rows, which
+no projection covers. Before its first deletion it copies the database beside itself. A thread
+client whose cursor is below both its thread's newest event and the recorded pruned-through
+sequence missed pruned events, so it resumes from a snapshot; an idle thread's cursor resumes
+without one, and the resume rechecks the boundary after reading, since a pass can prune during the
+read. Shell resume reads only which aggregates changed after the cursor, which the kept stream
+heads preserve. Command receipts stay: a retry older than a day is still deduplicated, but its
+replay comes back without the pruned events. A build without the boundary check replays pruned
+ranges as if they were whole, so an older Supaterm cannot use a pruned database. A new reader of
+old events must add what it needs to the keep-list.
+
+Retained events must remain decodable on replay. Changing a schema affects old environments at
 startup as well as live RPC traffic. Compatibility work must account for stored history, not just
 what the newest client sends.
 
