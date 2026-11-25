@@ -13,6 +13,7 @@ import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 import { useSidebarWorkspaceTabs } from "./useSystemWorkspaceTabBar";
 
 const PULL_REQUEST_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/pull-request.png");
+const ISSUE_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/issue.png");
 
 export function WorkspaceTabToolbarButtons() {
   const order = useNavigationTabOrder();
@@ -36,7 +37,9 @@ export function WorkspaceTabToolbarButtons() {
           icon={
             tab === "pullRequests"
               ? { type: "image", source: PULL_REQUEST_ICON, tinted: true }
-              : NAVIGATION_TAB_ICONS[tab]
+              : tab === "issues"
+                ? { type: "image", source: ISSUE_ICON, tinted: true }
+                : NAVIGATION_TAB_ICONS[tab]
           }
           tintColor={selected === tab ? selectedTint : undefined}
           onPress={() => selectTab(tab)}

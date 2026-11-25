@@ -27,6 +27,7 @@ import { workspaceListFilterMenu } from "./WorkspaceListHeader.types";
 const SEARCH_LABELS = {
   threads: "Search threads",
   pullRequests: "Search pull requests",
+  issues: "Search issues",
   settings: "Search settings",
 } as const;
 

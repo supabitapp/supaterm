@@ -45,6 +45,7 @@ import { WorkspaceTabsProvider, useWorkspaceTabs } from "./workspace/WorkspaceTa
 import { WorkspaceNativeTabs } from "./workspace/WorkspaceNativeTabs.ios";
 import { WorkspaceTabDock } from "./workspace/WorkspaceTabDock";
 import { workspaceUsesColumns } from "./workspace/workspace-tabs-state";
+import { selectedIssueKeyOf } from "../issues/issueParams";
 import { isSettingsRoute, settingsOpenIn } from "../settings/settings-navigation";
 import { workspaceRoutesOf } from "./workspace-overlay-routes";
 import { setNativelyPoppingWorkspaceRoute } from "./workspace/workspace-detail-selection";
@@ -95,6 +96,8 @@ const isPullRequestRoute = (route: Route) =>
   route.name === "PullRequestFile" ||
   route.name === "PullRequestFiles";
 
+const isIssueRoute = (route: Route) => route.name.startsWith("Issue");
+
 // Every step of starting a task, from the project picker to the draft thread itself.
 const isNewTaskRoute = (route: Route) =>
   route.name.startsWith("NewTask") ||
@@ -112,6 +115,7 @@ function ColumnScreen(props: {
   readonly animatesPush?: boolean;
   readonly selectedThreadKey?: string | null;
   readonly selectedPullRequestKey?: string | null;
+  readonly selectedIssueKey?: string | null;
   readonly onDismiss: (routeKey: string, native: boolean) => void;
   readonly onAppearance: (
     type: "willAppear" | "didAppear" | "willDisappear" | "didDisappear",
@@ -137,6 +141,7 @@ function ColumnScreen(props: {
         presented,
         selectedThreadKey: props.selectedThreadKey ?? null,
         selectedPullRequestKey: props.selectedPullRequestKey ?? null,
+        selectedIssueKey: props.selectedIssueKey ?? null,
       }
     : null;
   const key = descriptor.route.key;
@@ -269,7 +274,10 @@ function WorkspaceColumns(
   // The cover detail rail needs room for thread tools above the fixed tabs.
   // The unfolded Duo keeps compose in its detail bar.
   const detailCompose =
-    deviceType === "duo-unfolded" && selectedTab !== "pullRequests" && !settingsOpen
+    deviceType === "duo-unfolded" &&
+    selectedTab !== "pullRequests" &&
+    selectedTab !== "issues" &&
+    !settingsOpen
       ? openNewTask
       : undefined;
   // Pages a hidden tab opens as it's shown belong to the tab, so they appear in place.
@@ -303,6 +311,7 @@ function WorkspaceColumns(
     typeof pullRequestParams.number === "number"
       ? `${pullRequestParams.environmentId}:${pullRequestParams.host}:${pullRequestParams.repository}:${pullRequestParams.number}`
       : null;
+  const selectedIssueKey = selectedIssueKeyOf(props.detail.findLast(isIssueRoute)?.params);
   const selectedThreadKey =
     threadParams &&
     "environmentId" in threadParams &&
@@ -380,7 +389,7 @@ function WorkspaceColumns(
         if (workspace.some((route) => route.name !== "Home" && route.name !== "Settings")) return;
         const tab = workspace.some((route) => route.name === "Settings")
           ? "settings"
-          : (["threads", "pullRequests", "usage"] as const).find((candidate) =>
+          : (["threads", "pullRequests", "issues", "usage"] as const).find((candidate) =>
               workspaceTabs?.isTabActive(candidate),
             );
         openWorkspaceTab(tab ?? "threads", { columns: true });
@@ -427,6 +436,7 @@ function WorkspaceColumns(
             footer={deviceType === "pad" ? <WorkspaceTabDock placement="column" /> : undefined}
             selectedThreadKey={selectedThreadKey}
             selectedPullRequestKey={selectedPullRequestKey}
+            selectedIssueKey={selectedIssueKey}
             onDismiss={handleNativeDismiss}
             onAppearance={followCollapsedSplit}
             navigation={props.navigation}

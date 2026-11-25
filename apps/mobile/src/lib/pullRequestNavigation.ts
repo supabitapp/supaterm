@@ -1,7 +1,8 @@
 import { parsePullRequestAnchor } from "@supaterm/shared/pullRequestAnchor";
 import { resolveChangeRequestLinkTarget } from "@supaterm/client-runtime/change-request-links";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
-import { EnvironmentId, ProjectId } from "@supaterm/contracts";
+import { EnvironmentId, ProjectId, type IssueRef } from "@supaterm/contracts";
 
 /** The PullRequest route for a change request link from a project, or null for the browser. */
 export function nativePullRequestDestination(
@@ -26,6 +27,28 @@ export function nativePullRequestDestination(
     repository: target.repository,
     number: target.number,
     ...(parsePullRequestAnchor(url) ? { navigationUrl: url } : {}),
-    host: target.host,
+    ...(target.host === undefined ? {} : { host: target.host }),
+  };
+}
+
+/**
+ * The pull request an issue link may name instead, on a host that numbers both in one sequence
+ * and writes every `#12` through its issue route. Null elsewhere. Only a candidate to read.
+ */
+export function pullRequestCandidateForIssueLink(
+  url: string,
+  ref: Pick<IssueRef, "projectId" | "host" | "scope" | "key">,
+) {
+  const candidateUrl = sourceControlClients.changeRequestUrlFromReferenceAutolink(url);
+  const number = Number(ref.key);
+  if (candidateUrl === null || !Number.isInteger(number) || number <= 0) return null;
+  return {
+    target: {
+      projectId: ref.projectId,
+      ...(ref.host === undefined ? {} : { host: ref.host }),
+      repository: ref.scope,
+      number,
+    },
+    navigationUrl: parsePullRequestAnchor(candidateUrl) ? candidateUrl : undefined,
   };
 }

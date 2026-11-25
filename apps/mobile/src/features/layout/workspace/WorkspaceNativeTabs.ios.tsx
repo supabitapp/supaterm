@@ -41,6 +41,7 @@ import { useAdaptiveWorkspaceLayout, useWorkspacePaneState } from "../AdaptiveWo
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 
 const PULL_REQUEST_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/pull-request.png");
+const ISSUE_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/issue.png");
 const COMPOSE_TAB = "compose";
 
 /** Retain each native controller tree; removing its root can leave RNS's stack empty. */
@@ -253,7 +254,9 @@ export function WorkspaceNativeTabs(props: {
                     ? { type: "sfSymbol", name: "gearshape" }
                     : tab === "pullRequests"
                       ? { type: "templateSource", templateSource: PULL_REQUEST_ICON }
-                      : { type: "sfSymbol", name: NAVIGATION_TAB_ICONS[tab] },
+                      : tab === "issues"
+                        ? { type: "templateSource", templateSource: ISSUE_ICON }
+                        : { type: "sfSymbol", name: NAVIGATION_TAB_ICONS[tab] },
                   selectedIcon:
                     !settings && tab === "threads"
                       ? { type: "sfSymbol", name: "text.bubble.fill" }
