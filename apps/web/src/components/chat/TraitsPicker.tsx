@@ -543,6 +543,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
 
 function SpeedToggleControl({
   speedToggle,
+  descriptors,
   size,
   disabled,
   hidden,
@@ -550,6 +551,7 @@ function SpeedToggleControl({
   onSelect,
 }: {
   speedToggle: SpeedToggle;
+  descriptors: ReadonlyArray<ProviderOptionDescriptor>;
   size: ComposerControlSize;
   disabled: boolean;
   hidden: boolean;
@@ -557,10 +559,10 @@ function SpeedToggleControl({
   onSelect: (value: string | boolean) => void;
 }) {
   const composerFloatingLayerProps = useComposerMenuProps();
-  const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
+  const choices = getSpeedToggleChoices(speedToggle, descriptors);
+  const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled || !choices);
   const speedOn = speedToggle.level !== "off";
   const speedIcon = speedOn ? ZapFilledIcon : ZapIcon;
-  const choices = getSpeedToggleChoices(speedToggle);
   const button = (
     <ComposerControl
       size={size}
@@ -601,7 +603,14 @@ function SpeedToggleControl({
             closeOnClick
             onCheckedChange={(checked) => onSelect(checked ? choice.value : speedToggle.offValue)}
           >
-            {choice.level === "fast" ? "Fast" : "Ultrafast"}
+            <span className="flex w-full min-w-0 flex-col">
+              <span>{choice.level === "fast" ? "Fast" : "Ultrafast"}</span>
+              {choice.description ? (
+                <span className="max-w-56 text-pretty text-muted-foreground/80 text-xs">
+                  {choice.description}
+                </span>
+              ) : null}
+            </span>
           </MenuCheckboxItem>
         ))}
       </MenuPopup>
@@ -659,6 +668,7 @@ export const TraitsPicker = memo(function TraitsPicker({
   const speedToggleControl = speedToggle ? (
     <SpeedToggleControl
       speedToggle={speedToggle}
+      descriptors={descriptors}
       size={size}
       disabled={disabled}
       hidden={hidden}

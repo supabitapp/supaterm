@@ -31,7 +31,7 @@ function serviceTierDescriptor(
     options: [
       { id: "default", label: "Standard", isDefault: true },
       { id: "priority", label: "Fast" },
-      { id: "ultrafast", label: "Ultrafast" },
+      { id: "ultrafast", label: "Ultrafast", description: "Even faster, more expensive" },
       { id: "flex", label: "Flex" },
     ],
     currentValue,
@@ -97,24 +97,26 @@ describe("getSpeedToggle", () => {
   });
 
   it("offers Fast and Ultrafast as separate choices", () => {
-    const toggle = getSpeedToggle([serviceTierDescriptor("default")]);
-    expect(toggle && getSpeedToggleChoices(toggle)).toEqual([
-      { level: "fast", value: "priority" },
-      { level: "ultrafast", value: "ultrafast" },
+    const descriptors = [serviceTierDescriptor("default")];
+    const toggle = getSpeedToggle(descriptors);
+    expect(toggle && getSpeedToggleChoices(toggle, descriptors)).toEqual([
+      { level: "fast", value: "priority", description: undefined },
+      { level: "ultrafast", value: "ultrafast", description: "Even faster, more expensive" },
     ]);
   });
 
   it("selects the provider's Ultrafast tier ID", () => {
     const descriptor = serviceTierDescriptor("default");
-    const toggle = getSpeedToggle([
+    const descriptors = [
       {
         ...descriptor,
         options: descriptor.options.map((option) =>
           option.label === "Ultrafast" ? { ...option, id: "ultra-priority" } : option,
         ),
       },
-    ]);
-    expect(toggle && getSpeedToggleChoices(toggle)?.[1]?.value).toBe("ultra-priority");
+    ];
+    const toggle = getSpeedToggle(descriptors);
+    expect(toggle && getSpeedToggleChoices(toggle, descriptors)?.[1]?.value).toBe("ultra-priority");
   });
 
   it("has no choices when only one speed tier exists", () => {
@@ -125,10 +127,10 @@ describe("getSpeedToggle", () => {
     const withoutFast = getSpeedToggle([
       { ...descriptor, options: descriptor.options.filter(({ id }) => id !== "priority") },
     ]);
-    expect(withoutUltrafast && getSpeedToggleChoices(withoutUltrafast)).toBeNull();
-    expect(withoutFast && getSpeedToggleChoices(withoutFast)).toBeNull();
+    expect(withoutUltrafast && getSpeedToggleChoices(withoutUltrafast, [])).toBeNull();
+    expect(withoutFast && getSpeedToggleChoices(withoutFast, [])).toBeNull();
     const fastMode = getSpeedToggle([fastModeDescriptor(false)]);
-    expect(fastMode && getSpeedToggleChoices(fastMode)).toBeNull();
+    expect(fastMode && getSpeedToggleChoices(fastMode, [])).toBeNull();
   });
 
   it("has no toggle for service tiers without a speed tier", () => {

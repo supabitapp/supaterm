@@ -67,14 +67,25 @@ export function getSpeedToggleNextValue(toggle: SpeedToggle): string | boolean {
 export type SpeedToggleChoice = {
   level: Exclude<SpeedToggleLevel, "off">;
   value: string | boolean;
+  description: string | undefined;
 };
 
 export function getSpeedToggleChoices(
   toggle: SpeedToggle,
+  descriptors: ReadonlyArray<ProviderOptionDescriptor>,
 ): ReadonlyArray<SpeedToggleChoice> | null {
   if (toggle.ultrafastValue === undefined || toggle.ultrafastValue === toggle.onValue) return null;
+  const descriptor = descriptors.find(({ id }) => id === toggle.descriptorId);
+  const describe = (value: string | boolean) =>
+    descriptor?.type === "select"
+      ? descriptor.options.find(({ id }) => id === value)?.description
+      : undefined;
   return [
-    { level: "fast", value: toggle.onValue },
-    { level: "ultrafast", value: toggle.ultrafastValue },
+    { level: "fast", value: toggle.onValue, description: describe(toggle.onValue) },
+    {
+      level: "ultrafast",
+      value: toggle.ultrafastValue,
+      description: describe(toggle.ultrafastValue),
+    },
   ];
 }
