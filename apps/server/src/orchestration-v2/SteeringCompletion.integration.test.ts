@@ -1443,7 +1443,7 @@ it.effect("starts a new work clock for a steer aimed at a run that already compl
           (event) =>
             event.type === "run.updated" &&
             event.payload.id === first.runId &&
-            event.payload.status === "waiting",
+            event.payload.status === "completed",
         ),
         Stream.take(1),
         Stream.runDrain,
