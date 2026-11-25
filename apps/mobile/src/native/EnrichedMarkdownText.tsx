@@ -15,15 +15,25 @@ import {
 } from "../lib/markdownDocument";
 import { markdownMermaidMedia } from "../lib/markdownMermaidMedia";
 import { NativeMermaidBlock } from "./NativeMermaidBlock";
-import { isValidElement, useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  isValidElement,
+  useCallback,
+  useMemo,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { Platform, Share, StyleSheet, useWindowDimensions, View } from "react-native";
 import {
   EnrichedMarkdownText,
+  type MarkdownCodeBlock,
   type MarkdownImageBlock,
   type MarkdownImageOccurrence,
   type MarkdownLinkOccurrence,
   type MarkdownStyle,
 } from "react-native-enriched-markdown";
+import { codeFenceRenderer } from "./codeBlockMarkdown";
+import { HighlightedCodeBlock } from "./HighlightedCodeBlock";
 import type { SelectableMarkdownTextProps } from "./SelectableMarkdownText.types";
 
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
@@ -31,6 +41,7 @@ import { Menu } from "../components/ui/Menu";
 import { useEnrichedLinkVariants } from "./useEnrichedLinkVariants";
 import { useRetryingImageSource } from "./useRetryingImageSource";
 import { copyTextWithHaptic } from "../lib/copyTextWithHaptic";
+import type { HighlightScheme } from "../lib/highlights";
 import {
   ENRICHED_INLINE_FILE_LINK_REGEX,
   enrichedSkillLinkRegex,
@@ -164,6 +175,49 @@ function enrichedStyle(
       checkedStrikethrough: false,
     },
   };
+}
+
+/**
+ * Math fences, as web draws them, and code enriched-markdown cannot colour. Mermaid fences turn
+ * into images before parsing (markdownMermaidMedia), so one that reaches here is unclosed and stays native.
+ */
+function codeBlockElement(
+  block: MarkdownCodeBlock,
+  textStyle: SelectableMarkdownTextProps["textStyle"],
+  markdownStyle: MarkdownStyle,
+  mathRenderingEnabled: boolean,
+  scheme: HighlightScheme,
+): ReactElement | undefined {
+  const renderer = codeFenceRenderer(block.language, mathRenderingEnabled);
+  if (renderer.kind === "math") {
+    return block.isComplete ? (
+      <EnrichedMarkdownText
+        // A blank line would end the paragraph, and so the math, early.
+        markdown={`$$\n${block.code.replace(/\n\s*\n/g, "\n").trim()}\n$$`}
+        markdownStyle={markdownStyle}
+        md4cFlags={{ latexMath: true }}
+        containerStyle={{ flexShrink: 1, minWidth: 0 }}
+        flavor="github"
+        selectable
+        selectionColor={textStyle.selectionColor}
+        selectionHandleColor={textStyle.selectionHandleColor}
+      />
+    ) : undefined;
+  }
+  if (renderer.kind === "highlight" && markdownStyle.codeBlock) {
+    return (
+      <HighlightedCodeBlock
+        code={block.code}
+        fence={block.language}
+        language={renderer.language}
+        complete={block.isComplete}
+        scheme={scheme}
+        textStyle={textStyle}
+        codeStyle={markdownStyle.codeBlock}
+      />
+    );
+  }
+  return undefined;
 }
 
 const NO_PARSED_LINKS: {
@@ -307,16 +361,21 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     [props.selectionMenuItems],
   );
   const { fontScale } = useWindowDimensions();
-  const markdownStyle = useMemo(() => {
+  const baseMarkdownStyle = useMemo(() => {
     const style = enrichedStyle(props.textStyle, themeAppearance === "dark", fontScale);
     return {
       ...style,
       paragraph: props.textAlign
         ? { ...style.paragraph, textAlign: props.textAlign }
         : style.paragraph,
-      linkVariants,
     };
-  }, [props.textStyle, props.textAlign, themeAppearance, fontScale, linkVariants]);
+  }, [props.textStyle, props.textAlign, themeAppearance, fontScale]);
+  // Link variants change as a message streams. The code renderer reads only the base style, so
+  // it stays the same function and the library keeps its rendered blocks.
+  const markdownStyle = useMemo(
+    () => ({ ...baseMarkdownStyle, linkVariants }),
+    [baseMarkdownStyle, linkVariants],
+  );
   const renderDiagram = props.isStreaming ? null : (props.renderDiagram ?? null);
   const renderImageBlock = useCallback(
     (block: MarkdownImageBlock) => {
@@ -338,8 +397,21 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     },
     [mermaidSources, props.textStyle, renderImage, renderDiagram],
   );
-  const renderers =
-    renderImage || mermaidSources.size > 0 ? { image: renderImageBlock } : undefined;
+  const renderCodeBlock = useCallback(
+    (block: MarkdownCodeBlock) =>
+      codeBlockElement(
+        block,
+        props.textStyle,
+        baseMarkdownStyle,
+        mathRenderingEnabled,
+        themeAppearance,
+      ),
+    [props.textStyle, baseMarkdownStyle, mathRenderingEnabled, themeAppearance],
+  );
+  const renderers = {
+    image: renderImage || mermaidSources.size > 0 ? renderImageBlock : undefined,
+    code: renderCodeBlock,
+  };
   const retryingImageSource = useRetryingImageSource(resolveImageSource);
   // A Mermaid placeholder image is replaced by its diagram, so it never asks for a source.
   const resolveNativeImageSource = useMemo(
