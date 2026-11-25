@@ -80,6 +80,7 @@ const runCursorSdkWorkerWithStdio = Effect.fn("CursorAgentSdkWorker.run")(functi
     number,
     { readonly sessionId: number; readonly run: CursorAgentSdk.CursorAgentSdkRun }
   >();
+  const backgroundShellStops = new Map<string, () => void>();
   const startingSendIds = new Set<number>();
   const pendingCancelledSendIds = new Set<number>();
   const sessionIdByOptions = new WeakMap<object, number>();
@@ -104,6 +105,10 @@ const runCursorSdkWorkerWithStdio = Effect.fn("CursorAgentSdkWorker.run")(functi
   const closeSession = Effect.fnUntraced(function* (
     sessionId: number,
   ): Effect.fn.Return<Exit.Exit<void, CursorAgentSdk.CursorAgentSdkRunnerError>> {
+    const shellPrefix = `${sessionId}:`;
+    for (const key of backgroundShellStops.keys()) {
+      if (key.startsWith(shellPrefix)) backgroundShellStops.delete(key);
+    }
     if (openingSessionIds.has(sessionId)) {
       pendingClosedSessionIds.add(sessionId);
     }
@@ -227,6 +232,34 @@ const runCursorSdkWorkerWithStdio = Effect.fn("CursorAgentSdkWorker.run")(functi
                   writeMessage({ type: "startupPhase", sendId: req.id, phase });
                 }
               }),
+            ...(req.listenBackgroundShells === true
+              ? {
+                  onBackgroundShell: (event: CursorAgentSdk.CursorBackgroundShellEvent) =>
+                    Effect.sync(() => {
+                      const key = `${req.sessionId}:${event.id}`;
+                      if (event.type === "started") {
+                        backgroundShellStops.set(key, event.stop);
+                        writeMessage({
+                          type: "backgroundShell",
+                          sessionId: req.sessionId,
+                          event: {
+                            type: "started",
+                            id: event.id,
+                            pid: event.pid,
+                            command: event.command,
+                          },
+                        });
+                        return;
+                      }
+                      backgroundShellStops.delete(key);
+                      writeMessage({
+                        type: "backgroundShell",
+                        sessionId: req.sessionId,
+                        event,
+                      });
+                    }),
+                }
+              : {}),
           }),
         ).pipe(
           Effect.ensuring(
@@ -292,6 +325,15 @@ const runCursorSdkWorkerWithStdio = Effect.fn("CursorAgentSdkWorker.run")(functi
           Effect.asVoid,
           Effect.forkIn(workerScope),
         );
+        return;
+      }
+
+      case "stopBackgroundShell": {
+        const key = `${req.sessionId}:${req.shellId}`;
+        const stop = backgroundShellStops.get(key);
+        backgroundShellStops.delete(key);
+        yield* Effect.try({ try: () => stop?.(), catch: () => undefined }).pipe(Effect.ignore);
+        writeMessage({ type: "response", id: req.id, ok: true, result: null });
         return;
       }
 

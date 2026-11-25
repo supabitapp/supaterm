@@ -2,5 +2,8 @@
 useDefault = true
 
 [allowlist]
-description = "Self-signed localhost key that a test server presents so linking can refuse its certificate"
-paths = ['''apps/server/src/peer/fixtures/localhost-key\.pem''']
+description = "Self-signed localhost key that a test server presents so linking can refuse its certificate, and the Cursor SDK patch whose minified bundle reads as generic API keys"
+paths = [
+  '''apps/server/src/peer/fixtures/localhost-key\.pem''',
+  '''patches/@cursor__sdk@1\.4\.2\.patch''',
+]
