@@ -13,6 +13,7 @@ import {
   type OrchestratorMcpListScheduledTasksInput,
   OrchestratorMcpTarget,
   type OrchestrationV2ThreadShell,
+  type Project,
   type ScheduledTask,
   type ScheduledTaskUpsertInput,
   ScheduledTaskId,
@@ -4104,7 +4105,15 @@ describe("OrchestratorMcpService provider resolution", () => {
       /** Stores each keyed create under the id its key derives, as the real service does. */
       created?: Ref.Ref<ReadonlyArray<ScheduledTask>>,
     ) =>
-      layerOrchestratorService.pipe(
+      OrchestratorMcpService.layer.pipe(
+        Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
+        Layer.provide(
+          Layer.mock(GitVcsDriver.GitVcsDriver)({
+            resolvePrimaryRemoteName: () => Effect.succeed("origin"),
+            resolveDefaultBranchName: () => Effect.succeed("main"),
+            resolveCommit: () => Effect.succeed({ commitSha: "abc123" }),
+          }),
+        ),
         Layer.provide(
           Layer.mergeAll(
             NodeServices.layer,
@@ -4118,7 +4127,14 @@ describe("OrchestratorMcpService provider resolution", () => {
             Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({
               list: () => Effect.succeed([]),
             }),
-            Layer.mock(ProjectService.ProjectService)({ getById: () => Effect.succeedNone }),
+            Layer.mock(ProjectService.ProjectService)({
+              getById: (id) =>
+                Effect.succeedSome({
+                  id,
+                  workspaceRoot: "/repo/scheduled",
+                  defaultModelSelection: saved.modelSelection,
+                } as Project),
+            }),
             Layer.mock(SecretRequests.SecretRequests)({}),
             Layer.mock(RemoteDelegation.RemoteDelegation)({}),
             Layer.mock(ScheduledTaskService.ScheduledTaskService)({
