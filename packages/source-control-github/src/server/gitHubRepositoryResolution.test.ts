@@ -216,7 +216,10 @@ describe("gitHubApiHostForRemote", () => {
           hostHint: undefined,
           defaultHost: "github.com",
         }),
-        { host: "github.com", locator: { host: "github.com", owner: "pingdotgg", name: "supaterm" } },
+        {
+          host: "github.com",
+          locator: { host: "github.com", owner: "supabitapp", name: "supaterm" },
+        },
         url,
       );
     }
