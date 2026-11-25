@@ -37,6 +37,7 @@ import {
   workEntryIndicatesToolFailure,
 } from "@supaterm/client-runtime/work-log/presentation";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
+import { repositoryCheckpointScopeIds } from "@supaterm/client-runtime/state/thread-repositories";
 import type {
   ThreadPendingApproval,
   ThreadPendingUserInput,
@@ -1144,11 +1145,18 @@ function isRewindableCheckpoint(checkpoint: Pick<OrchestrationV2Checkpoint, "sta
 }
 
 export function findRevertCheckpoint(
-  checkpoints: ReadonlyArray<OrchestrationV2Checkpoint>,
+  projection:
+    | Pick<OrchestrationV2ThreadProjection, "checkpoints" | "checkpointScopes">
+    | null
+    | undefined,
   turnCount: number,
 ): OrchestrationV2Checkpoint | undefined {
-  return checkpoints.findLast(
+  if (projection == null) return undefined;
+  // A tracked repository's baseline also sits at ordinal zero; it is never a rewind target.
+  const repositoryScopeIds = repositoryCheckpointScopeIds(projection.checkpointScopes);
+  return projection.checkpoints.findLast(
     (checkpoint) =>
+      !repositoryScopeIds.has(checkpoint.scopeId) &&
       isRewindableCheckpoint(checkpoint) &&
       (turnCount === 0
         ? checkpoint.ordinalWithinScope === 0 && checkpoint.appRunOrdinal === null

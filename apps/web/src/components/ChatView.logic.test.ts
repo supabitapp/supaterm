@@ -15,6 +15,7 @@ import {
   snapshotComposerSend,
   mergeDirectPreviewAnnotation,
   deriveThreadPendingBackgroundTasks,
+  resolveProactiveTurnDiffAction,
 } from "./ChatView.logic";
 import {
   isThreadEnvironmentLocked,
@@ -28,6 +29,7 @@ import { ensureInlineContextReferences } from "../lib/composerContextReferences"
 import { terminalContextReference } from "../lib/composerContextRecords";
 import { headlineUsageWindows } from "@supaterm/shared/usageLimits";
 import {
+  CheckpointScopeId,
   CommandId,
   EnvironmentId,
   MessageId,
@@ -1334,6 +1336,7 @@ describe("planComposerTurn", () => {
     sendEnvMode: "worktree" as const,
     worktreePath: null,
     activeThreadBranch: "main",
+    projectIsGitRepo: true,
     isScratchProject: false,
     worktreeBaseRefsSettled: true,
     environmentUnavailable: false,
@@ -1361,6 +1364,10 @@ describe("planComposerTurn", () => {
       planComposerTurn({ ...base, activeThreadBranch: null, worktreeBaseRefsSettled: false })
         .missingWorktreeBaseBranch,
     ).toBe(false);
+    // A plain folder that tracks repositories has no branch of its own to start from.
+    expect(
+      planComposerTurn({ ...base, activeThreadBranch: null, projectIsGitRepo: false }),
+    ).toMatchObject({ missingWorktreeBaseBranch: false, baseBranchForWorktree: "HEAD" });
     expect(
       planComposerTurn({ ...base, activeThreadBranch: null, isScratchProject: true }),
     ).toMatchObject({
@@ -1619,5 +1626,53 @@ describe("resolveThreadErrorBanner", () => {
     },
   ])("$name", ({ input, expected }) => {
     expect(resolveThreadErrorBanner(input)).toEqual(expected);
+  });
+});
+
+describe("resolveProactiveTurnDiffAction", () => {
+  const file = { path: "src/a.ts", kind: "modified", additions: 60, deletions: 0 };
+  const repository = (files: ReadonlyArray<typeof file>) => ({
+    scopeId: CheckpointScopeId.make("scope-api"),
+    name: "api",
+    repositoryPath: "/work/api",
+    cwd: "/work/api",
+    files,
+    baselineMissing: files.length === 0,
+  });
+
+  it("opens for repository changes in a folder that is not a Git repository", () => {
+    expect(
+      resolveProactiveTurnDiffAction({
+        checkpoint: { status: "missing", files: [], repositories: [repository([file])] },
+        isGitRepo: false,
+      }),
+    ).toBe("open");
+    expect(
+      resolveProactiveTurnDiffAction({
+        checkpoint: { status: "missing", files: [], repositories: [repository([])] },
+        isGitRepo: false,
+      }),
+    ).toBe("ignore");
+  });
+
+  it("keeps waiting on a missing checkpoint and ignores a folder without Git", () => {
+    expect(
+      resolveProactiveTurnDiffAction({
+        checkpoint: { status: "missing", files: [] },
+        isGitRepo: true,
+      }),
+    ).toBe("defer");
+    expect(
+      resolveProactiveTurnDiffAction({
+        checkpoint: { status: "ready", files: [file] },
+        isGitRepo: false,
+      }),
+    ).toBe("ignore");
+    expect(
+      resolveProactiveTurnDiffAction({
+        checkpoint: { status: "ready", files: [file] },
+        isGitRepo: true,
+      }),
+    ).toBe("open");
   });
 });

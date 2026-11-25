@@ -75,9 +75,10 @@ export function shouldShowEnvironmentIndicator(input: {
 export function offersWorkspaceModes(input: {
   isScratchProject: boolean;
   isGitRepo: boolean;
+  tracksGitRepositories: boolean;
 }): boolean {
   // No project never has git, even while its status loads and isGitRepo still assumes it does.
-  return !input.isScratchProject && input.isGitRepo;
+  return !input.isScratchProject && (input.isGitRepo || input.tracksGitRepositories);
 }
 
 export function shouldShowComposerContextStrip(input: {

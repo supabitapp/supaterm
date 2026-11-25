@@ -125,6 +125,7 @@ function sendInput(
     runtimeMode: "full-access",
     sendEnvMode: "local",
     startFromOrigin: false,
+    worktreeRepositories: undefined,
     worktreeBaseRefsSettled: true,
     localCheckoutBranchMismatch: null,
     logicalProjectEnvironments: [],
