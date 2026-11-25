@@ -2625,8 +2625,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         {
           id: "reply-to",
           variant: "default",
-          // It is part of the message, so another notice must not stack it out of sight.
-          alwaysVisible: true,
           icon: <ReplyIcon />,
           title: replyTo.subagents
             ? `Replying to ${replyTo.subagents.map((subagent) => subagent.title).join(", ")}`
@@ -3828,11 +3826,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         : null}
       <ComposerBanner.Dock className={isComposerResting ? "hidden" : undefined}>
         <ComposerBanner.Column>
-          <ComposerBannerStack
-            key={`stack:${activeThreadId}`}
-            className="relative z-0"
-            items={bannerStackItems}
-          />
+          <ComposerBannerStack key={`stack:${activeThreadId}`} items={bannerStackItems} />
           <ComposerBanner.Drawer key={`top-drawer:${activeThreadId}`} open={showComposerTopDrawer}>
             <ComposerBanner.Root data-chat-composer-top-drawer="true" variant="info">
               {!isComposerCollapsedMobile && pendingUserInputs.length > 0 ? (

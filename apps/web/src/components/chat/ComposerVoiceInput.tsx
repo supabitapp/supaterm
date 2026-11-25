@@ -215,7 +215,6 @@ export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBann
   return {
     id: "voice-input",
     variant: "error",
-    priority: "urgent",
     icon: <CircleAlertIcon />,
     title: state.error ?? "Voice input stopped.",
     description:
