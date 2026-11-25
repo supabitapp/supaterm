@@ -826,6 +826,9 @@ importers:
       '@supaterm/source-control-core':
         specifier: workspace:*
         version: link:../../packages/source-control-core
+      '@supaterm/source-control-cursor-origin':
+        specifier: workspace:*
+        version: link:../../packages/source-control-cursor-origin
       '@supaterm/source-control-definitions':
         specifier: workspace:*
         version: link:../../packages/source-control-definitions
@@ -2055,6 +2058,9 @@ importers:
       '@supaterm/source-control-core':
         specifier: workspace:*
         version: link:../source-control-core
+      '@supaterm/source-control-cursor-origin':
+        specifier: workspace:*
+        version: link:../source-control-cursor-origin
       '@supaterm/source-control-forgejo':
         specifier: workspace:*
         version: link:../source-control-forgejo
