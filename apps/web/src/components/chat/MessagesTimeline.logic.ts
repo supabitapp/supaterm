@@ -1495,12 +1495,17 @@ function runningSubagentsAtRunTail(entries: ReadonlyArray<TimelineEntry>, runId:
   return running;
 }
 
-// Pending approvals and questions are answered from the composer, so Zen needs no row for them.
-function workShownAsFinalAnswerOnly(entry: TimelineEntry): boolean {
+function workShownAsFinalAnswerOnly(
+  entry: TimelineEntry,
+  pendingApprovalRequestIds: ReadonlySet<RuntimeRequestId> | undefined,
+): boolean {
   if (entry.kind === "event") return entry.projectedItem.item.type !== "subagent";
   if (entry.kind !== "work") return true;
   const work = entry.entry;
+  const item = work.projectedItem?.item;
   return (
+    (item?.type === "approval_request" &&
+      pendingApprovalRequestIds?.has(item.requestId) === true) ||
     work.questionAnswer !== undefined ||
     timelineEntryIsCompaction(entry) ||
     timelineEntryStartsResponse(entry) ||
@@ -1563,6 +1568,7 @@ function timelineRowEntries(
     | "isWorking"
     | "latestRun"
     | "runningRunId"
+    | "pendingApprovalRequestIds"
   >,
 ) {
   const entries = withoutSubagentDelegationRows(settleSupersededReasoning(input.timelineEntries));
@@ -1579,7 +1585,9 @@ function timelineRowEntries(
     const steerAnswerIds = deriveInFlightSteerAnswerIds(entries);
     const lastSteerIndex = entries.findLastIndex(timelineEntryIsSteer);
     shown = entries.filter((entry, index) => {
-      if (entry.kind !== "message") return workShownAsFinalAnswerOnly(entry);
+      if (entry.kind !== "message") {
+        return workShownAsFinalAnswerOnly(entry, input.pendingApprovalRequestIds);
+      }
       const { message } = entry;
       return (
         message.role !== "assistant" ||

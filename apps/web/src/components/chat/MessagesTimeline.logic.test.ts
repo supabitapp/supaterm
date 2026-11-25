@@ -4215,9 +4215,11 @@ describe("v2 run and attempt history", () => {
       toolCallVisibility: "hideSuccessful" | "hideAll" | "zen",
       latestRun?: typeof ended | typeof running,
       revealed: { readonly cited?: string; readonly jumped?: string } = {},
+      pendingApprovalRequestIds?: ReadonlySet<RuntimeRequestId>,
     ) =>
       deriveMessagesTimelineRows({
         timelineEntries,
+        ...(pendingApprovalRequestIds ? { pendingApprovalRequestIds } : {}),
         expandedRunIds: new Set([runId]),
         isWorking: latestRun !== undefined,
         ...(latestRun ? { latestRun } : {}),
@@ -4295,6 +4297,27 @@ describe("v2 run and attempt history", () => {
       },
     };
     expect(rows([user, step, created, final], "zen")).toEqual(["user", "created", "final"]);
+    const approvalRequestId = RuntimeRequestId.make("zen-approval");
+    const approval: TimelineEntry = {
+      id: "approval",
+      kind: "work",
+      createdAt: at(12),
+      entry: {
+        id: "approval",
+        createdAt: at(12),
+        runId,
+        label: "Command approval",
+        tone: "tool",
+        itemType: "approval_request",
+        projectedItem: {
+          item: { type: "approval_request", requestId: approvalRequestId },
+        } as never,
+      },
+    };
+    expect(rows([user, step, approval, final], "zen")).toEqual(["user", "final"]);
+    expect(
+      rows([user, step, approval, final], "zen", undefined, {}, new Set([approvalRequestId])),
+    ).toEqual(["user", "approval", "final"]);
     const thought: TimelineEntry = {
       id: "thought",
       kind: "work",
