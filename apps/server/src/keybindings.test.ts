@@ -475,15 +475,19 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       const keybindings = yield* Keybindings.Keybindings;
-      const target = { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" } as const;
-      const sibling = { ...target, key: "mod+n" };
+      const target = {
+        key: "mod+alt+enter",
+        command: "composer.sendBackground",
+        when: "composerFocus && draftThreadRoute",
+      } as const;
+      const sibling = { ...target, key: "mod+enter" };
       const unrelated = { ...sibling, command: "threadPanel.toggle" } as const;
       yield* writeKeybindingsConfig(keybindingsConfigPath, [unrelated]);
 
       const replacement = { ...target, key: "f8" };
       const saved = yield* keybindings.upsertKeybindingRule({
         ...replacement,
-        replace: { ...target, key: "Shift+Mod+O", when: "!(terminalFocus)" },
+        replace: { ...target, key: "Alt+Mod+Enter", when: "(composerFocus) && draftThreadRoute" },
       });
       const relevant = (rule: (typeof saved.keybindings)[number]) =>
         rule.command === target.command || rule.command === unrelated.command;
@@ -506,13 +510,17 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       const keybindings = yield* Keybindings.Keybindings;
       yield* writeKeybindingsConfig(keybindingsConfigPath, []);
 
-      const added = { key: "f9", command: "chat.new" } as const;
+      const added = { key: "f9", command: "composer.sendBackground" } as const;
       const saved = yield* keybindings.upsertKeybindingRule(added);
       assert.deepEqual(
         saved.keybindings.filter((rule) => rule.command === added.command),
         SharedKeybindings.compileResolvedKeybindingsConfig([
-          { key: "mod+n", command: added.command, when: "!terminalFocus" },
-          { key: "mod+shift+o", command: added.command, when: "!terminalFocus" },
+          { key: "mod+enter", command: added.command, when: "composerFocus && draftThreadRoute" },
+          {
+            key: "mod+alt+enter",
+            command: added.command,
+            when: "composerFocus && draftThreadRoute",
+          },
           added,
         ]),
       );
@@ -533,7 +541,11 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       ]);
       yield* fs.writeFileString(keybindingsConfigPath, original);
 
-      const target = { key: "mod+n", command: "chat.new", when: "!terminalFocus" } as const;
+      const target = {
+        key: "mod+enter",
+        command: "composer.sendBackground",
+        when: "composerFocus && draftThreadRoute",
+      } as const;
       const result = yield* toDetailResult(
         keybindings.upsertKeybindingRule({ ...target, key: "f8", replace: target }),
       );
@@ -548,14 +560,18 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       const keybindings = yield* Keybindings.Keybindings;
       yield* writeKeybindingsConfig(
         keybindingsConfigPath,
-        Array.from({ length: 210 }, (_, index) => ({
+        Array.from({ length: 175 }, (_, index) => ({
           key: "mod+alt+f1",
           command: `script.filler-${index}.run` as const,
         })),
       );
 
-      const target = { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" } as const;
-      const local = { ...target, key: "mod+shift+n", command: "chat.newLocal" } as const;
+      const target = {
+        key: "mod+alt+enter",
+        command: "composer.sendBackground",
+        when: "composerFocus && draftThreadRoute",
+      } as const;
+      const local = { key: "mod+n", command: "chat.newLocal", when: "!terminalFocus" } as const;
       const relevant = (rule: { readonly command: KeybindingCommand }) =>
         rule.command === target.command || rule.command === local.command;
       const before = yield* keybindings.getSnapshot;
@@ -581,19 +597,23 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         const keybindings = yield* Keybindings.Keybindings;
         yield* writeKeybindingsConfig(
           keybindingsConfigPath,
-          Array.from({ length: 209 }, (_, index) => ({
+          Array.from({ length: 174 }, (_, index) => ({
             key: "mod+alt+f1",
             command: `script.filler-${index}.run` as const,
           })),
         );
 
-        const target = { key: "mod+n", command: "chat.new", when: "!terminalFocus" } as const;
-        const sibling = { ...target, key: "mod+shift+o" };
-        const isChatNew = (binding: { readonly command: KeybindingCommand }) =>
+        const target = {
+          key: "mod+enter",
+          command: "composer.sendBackground",
+          when: "composerFocus && draftThreadRoute",
+        } as const;
+        const sibling = { ...target, key: "mod+alt+enter" };
+        const isTargetCommand = (binding: { readonly command: KeybindingCommand }) =>
           binding.command === target.command;
         const before = yield* keybindings.getSnapshot;
         assert.deepEqual(
-          before.keybindings.filter(isChatNew),
+          before.keybindings.filter(isTargetCommand),
           SharedKeybindings.compileResolvedKeybindingsConfig([target, sibling]),
         );
 
@@ -602,14 +622,14 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
           command: "script.extra.run",
         });
         assert.deepEqual(
-          afterUnrelatedSave.keybindings.filter(isChatNew),
+          afterUnrelatedSave.keybindings.filter(isTargetCommand),
           SharedKeybindings.compileResolvedKeybindingsConfig([sibling]),
         );
 
         const replacement = { ...target, key: "f8" };
         const saved = yield* keybindings.upsertKeybindingRule({ ...replacement, replace: target });
         assert.deepEqual(
-          saved.keybindings.filter(isChatNew),
+          saved.keybindings.filter(isTargetCommand),
           SharedKeybindings.compileResolvedKeybindingsConfig([sibling, replacement]),
         );
       }).pipe(Effect.provide(layerKeybindings())),
