@@ -1524,6 +1524,7 @@ const workingWindow = Effect.fn("serverMetrics.workingWindow")(function* (
   let stopping = false;
   let sequence = 0;
   const work = Effect.fn("serverMetrics.workingThread")(function* (threadId: string) {
+    // oxlint-disable-next-line no-unmodified-loop-condition -- the window's end sets it while turns run
     while (!stopping) {
       const marker = `bench-run-${firstMarker + sequence++}`;
       const messageId = `bench-message-${marker}`;
@@ -2008,7 +2009,9 @@ const competingCpuSeconds = Effect.gen(function* () {
     return false;
   };
   return Option.some(
-    new Map([...cpu].filter(([pid]) => !ours(pid)).map(([, { key, seconds }]) => [key, seconds])),
+    new Map(
+      [...cpu].flatMap(([pid, { key, seconds }]) => (ours(pid) ? [] : [[key, seconds] as const])),
+    ),
   );
 }).pipe(Effect.orElseSucceed(() => Option.none<ReadonlyMap<string, number>>()));
 

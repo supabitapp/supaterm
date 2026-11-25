@@ -304,9 +304,11 @@ async function odfHtml(node: XmlNode, archive: JSZip, imageAlt = ""): Promise<st
   const childImageAlt =
     node.name === "draw:frame"
       ? ["svg:title", "svg:desc"]
-          .map((name) => node.children.find((child) => child.name === name))
-          .map((child) => (child ? text(child).trim() : ""))
-          .filter(Boolean)
+          .flatMap((name) => {
+            const child = node.children.find((candidate) => candidate.name === name);
+            const value = child ? text(child).trim() : "";
+            return value ? [value] : [];
+          })
           .join(" ")
       : "";
   let children = "";

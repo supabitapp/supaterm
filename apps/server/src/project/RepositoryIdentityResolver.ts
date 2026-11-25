@@ -350,18 +350,17 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
     configResult._tag === "Some" && configResult.value.code === 0 ? configResult.value.stdout : "",
   );
   const remotes = new Map(
-    [...parseGitRemoteFetchUrls(remoteResult.value.stdout)]
-      .map(([remoteName, fetchUrl]): [string, string] => {
+    [...parseGitRemoteFetchUrls(remoteResult.value.stdout)].flatMap(
+      ([remoteName, fetchUrl]): Array<[string, string]> => {
         const configuredUrl = configuredUrls.get(remoteName);
-        return [
-          remoteName,
+        const url =
           configuredUrl !== undefined &&
           (sourceControlDefinitions.recognizeRemote(configuredUrl)?.kind ?? "unknown") !== "unknown"
             ? configuredUrl
-            : fetchUrl,
-        ];
-      })
-      .filter(([, url]) => !isLocalRemoteUrl(url)),
+            : fetchUrl;
+        return isLocalRemoteUrl(url) ? [] : [[remoteName, url]];
+      },
+    ),
   );
   const remote =
     (yield* readGhBaseRemote(cacheKey.rootPath, remotes, env)) ?? pickPrimaryRemote(remotes);

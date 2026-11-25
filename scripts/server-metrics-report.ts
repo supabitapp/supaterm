@@ -235,7 +235,7 @@ export function slope(points: ReadonlyArray<readonly [number, number]>) {
 }
 
 /** Numeric leaves by dotted path, such as `quiet.cpuPct` or `firstWord.worktree.toRequestMs.p90`. */
-export function flatten(measured: Measured): Map<string, number> {
+function flatten(measured: Measured): Map<string, number> {
   const values = new Map<string, number>();
   const visit = (value: unknown, path: string) => {
     if (typeof value === "number") values.set(path, value);
@@ -266,7 +266,7 @@ const informational = (pattern: RegExp): NoiseRule => ({ pattern, floor: 0, gate
 // Estimated from A/A runs on cups (16 cores, load 1 to 20) on 2026-11-23, with and without the
 // agent scope, rounded up and taking the larger of the two.
 // busy and soak had no A/A run and keep the earlier floors.
-export const NOISE_RULES: ReadonlyArray<NoiseRule> = [
+const NOISE_RULES: ReadonlyArray<NoiseRule> = [
   informational(/loopDelayP50Ms$/),
   informational(/^(rest|quiet|streaming|clients\.attached\.\d+)\.loopDelay(P99|Max)Ms$/),
   informational(/^(rest|quiet|clients\.attached\.\d+)\.gc(Count|PauseMs)$/),
@@ -321,7 +321,7 @@ export const NOISE_RULES: ReadonlyArray<NoiseRule> = [
   { pattern: /./, floor: 300, gate: true },
 ];
 
-export function noiseRule(metric: string, rules: ReadonlyArray<NoiseRule> = NOISE_RULES) {
+function noiseRule(metric: string, rules: ReadonlyArray<NoiseRule> = NOISE_RULES) {
   return rules.find((rule) => rule.pattern.test(metric)) ?? { floor: 0, gate: true };
 }
 
@@ -353,7 +353,7 @@ export function profileMismatch(before: ServerMetrics, after: ServerMetrics) {
 }
 
 /** Throughput, where a drop is the regression. */
-export const higherIsBetter = (metric: string) => metric.endsWith("PerMin");
+const higherIsBetter = (metric: string) => metric.endsWith("PerMin");
 
 /** Fields that describe a run rather than measure it. */
 const isMetric = (metric: string) =>
@@ -375,8 +375,8 @@ const isMetric = (metric: string) =>
  * where that is unknown, when the 1-minute load passed this much per CPU. The load counts the
  * run's own agents too, so it is only the fallback.
  */
-export const HEAVY_LOAD_PER_CPU = 0.75;
-export const HEAVY_OTHER_CPU_SHARE = 0.25;
+const HEAVY_LOAD_PER_CPU = 0.75;
+const HEAVY_OTHER_CPU_SHARE = 0.25;
 
 /** One line per side whose runs shared the machine with heavy load, so its numbers are suspect. */
 export function loadWarnings(side: string, metrics: ServerMetrics) {
@@ -405,7 +405,7 @@ const median = (values: ReadonlyArray<number>) => {
 };
 
 /** 95% bootstrap interval of median(b) - median(a), with a fixed seed so reruns agree. */
-export function bootstrapMedianDifference(a: ReadonlyArray<number>, b: ReadonlyArray<number>) {
+function bootstrapMedianDifference(a: ReadonlyArray<number>, b: ReadonlyArray<number>) {
   let seed = 0x5eed;
   const random = () => {
     seed = (seed + 0x6d2b79f5) | 0;
@@ -478,7 +478,7 @@ const ceilSignificant = (value: number) => {
 };
 
 /** An A/A interval wider than this share of a metric's median makes it informational. */
-export const NOISY_SHARE = 0.5;
+const NOISY_SHARE = 0.5;
 
 export interface NoiseRow {
   readonly metric: string;
@@ -709,12 +709,12 @@ export function heapGrowth(
   after: ReturnType<typeof heapByConstructor>,
 ) {
   return [...after]
-    .map(([name, { count, bytes }]) => ({
-      constructor: name,
-      count: count - (before.get(name)?.count ?? 0),
-      bytes: bytes - (before.get(name)?.bytes ?? 0),
-    }))
-    .filter((entry) => entry.bytes > 0)
+    .flatMap(([name, { count, bytes }]) => {
+      const grown = bytes - (before.get(name)?.bytes ?? 0);
+      return grown > 0
+        ? [{ constructor: name, count: count - (before.get(name)?.count ?? 0), bytes: grown }]
+        : [];
+    })
     .toSorted((a, b) => b.bytes - a.bytes)
     .slice(0, 25)
     .map(({ bytes, ...entry }) => ({ ...entry, MB: round(bytes / 1e6, 2) }));

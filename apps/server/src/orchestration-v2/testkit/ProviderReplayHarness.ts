@@ -306,12 +306,12 @@ export function layerWithRegistry<Error>(
         scenario.name.replace(/[^a-z0-9_-]+/gi, "-"),
       ).pipe(Effect.orDie);
       return {
-        resolve: Effect.fn("RuntimePolicyV2.resolve")(function* (input) {
-          return {
+        resolve: Effect.fn("RuntimePolicyV2.resolve")(function (input) {
+          return Effect.succeed({
             runtimeMode: input.thread.runtimeMode,
             interactionMode: input.thread.interactionMode,
             cwd: input.thread.worktreePath ?? workspace,
-          };
+          });
         }),
       };
     }),
