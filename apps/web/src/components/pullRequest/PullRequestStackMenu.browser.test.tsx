@@ -34,12 +34,18 @@ const HEAD_MOVED = "The stack head moved. Refresh the stack before trying again.
 
 it.each([
   { label: "Merge stack", detail: HEAD_MOVED, description: HEAD_MOVED },
+  { label: "Auto-merge stack", detail: HEAD_MOVED, description: HEAD_MOVED },
   { label: "Rebase stack", detail: HEAD_MOVED, description: HEAD_MOVED },
   {
     label: "Rebase stack",
     detail: "GitHub CLI command failed.",
     description:
       "The host refused the rebase. A rebase stops at the first commit that does not apply cleanly.",
+  },
+  {
+    label: "Cancel stack auto-merge",
+    detail: "GitHub CLI command failed.",
+    description: "The host refused to cancel auto-merge. Refresh and try again.",
   },
 ])("$label refused with $detail shows $description", async (row) => {
   setup(row.detail);
@@ -65,10 +71,10 @@ it.each([
         shownHeadSha="shown"
         stale={false}
         canRebase
-        canAutoMerge={false}
-        preferAutoMerge={false}
-        autoMergeArmed={false}
-        canCancelAutoMerge={false}
+        canAutoMerge
+        preferAutoMerge={row.label === "Auto-merge stack"}
+        autoMergeArmed={row.label === "Cancel stack auto-merge"}
+        canCancelAutoMerge
         mergeMethod="squash"
         onActed={() => {}}
       />
@@ -78,18 +84,31 @@ it.each([
     await screen.getByRole("button", { name: "Stack 1, layer 1 of 1" }).click();
     await page.getByRole("menuitem", { name: row.label }).click();
     await pressAgain(page.getByRole("menuitem", { name: "Confirm rebase" }).element());
+  } else if (row.label === "Cancel stack auto-merge") {
+    await screen.getByRole("button", { name: "Stack 1, layer 1 of 1" }).click();
+    await page.getByRole("menuitem", { name: row.label }).click();
   } else {
+    const confirmLabel = row.label === "Merge stack" ? "Confirm merge" : "Confirm auto-merge";
     await screen.getByRole("button", { name: row.label, exact: true }).click();
-    await pressAgain(screen.getByRole("button", { name: "Confirm merge", exact: true }).element());
+    await pressAgain(screen.getByRole("button", { name: confirmLabel, exact: true }).element());
   }
   await expect.element(page.getByText(row.description, { exact: true })).toBeInTheDocument();
   // The stack's own read can be ahead of the head the reader was shown; a merge lands only that one.
+  const merging = row.label === "Merge stack" || row.label === "Auto-merge stack";
   expect(state.sent).toEqual([
     expect.objectContaining(
-      row.label === "Merge stack"
-        ? { expectedHeadSha: "shown", expectedStackHeads: [{ number: 2, headSha: "abc123" }] }
-        : { action: "update-branch" },
+      merging
+        ? {
+            action: row.label === "Merge stack" ? "merge" : "enable-auto-merge",
+            stackNumber: 1,
+            mergeMethod: "squash",
+            expectedHeadSha: "shown",
+            expectedStackHeads: [{ number: 2, headSha: "abc123" }],
+          }
+        : row.label === "Cancel stack auto-merge"
+          ? { action: "disable-auto-merge", stackNumber: 1 }
+          : { action: "update-branch" },
     ),
   ]);
-  if (row.label !== "Merge stack") expect(state.sent[0]).not.toHaveProperty("expectedHeadSha");
+  if (!merging) expect(state.sent[0]).not.toHaveProperty("expectedHeadSha");
 });
