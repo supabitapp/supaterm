@@ -1774,6 +1774,7 @@ export const layerWsRpc = (
           threadFindProgressive: true,
           transcriptionStreams: true,
           secretProviderSettings: true,
+          secretReferences: true,
           ...Option.match(scratchWorkspaceRoot, {
             onNone: () => ({}),
             onSome: (root) => ({ scratchWorkspaceRoot: root }),

@@ -1,0 +1,105 @@
+import { assert, it } from "@effect/vitest";
+import { SecretProviderId } from "@supaterm/contracts";
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
+import * as Effect from "effect/Effect";
+
+import {
+  collectSourceControlHostSecretReferences,
+  resolveSourceControlHostSecrets,
+} from "./sourceControlHostSecrets.ts";
+
+const source = (reference: string) => ({
+  provider: SecretProviderId.make("homelab"),
+  reference,
+});
+
+const secretsByReference = new Map([
+  ["bitbucket#token", "bb_from_provider"],
+  ["github#token", "ghp_from_provider"],
+]);
+
+const perHostHosts = {
+  github: { tokens: { "github.com": source("github#token"), "ghe.acme.test": "ghp_literal" } },
+};
+
+const hosts = {
+  bitbucket: { email: "me@example.test", accessToken: source("bitbucket#token") },
+  gitcafe: { token: source("missing#token") },
+  github: { tokens: { "github.com": "ghp_literal" } },
+};
+
+function countingResolver() {
+  const reads: Array<string> = [];
+  const resolver = SecretResolver.SecretResolver.of({
+    label: (provider) => Effect.succeed(provider),
+    read: (references) =>
+      Effect.sync(() =>
+        references.map((reference) => {
+          reads.push(reference.reference);
+          return secretsByReference.get(reference.reference);
+        }),
+      ),
+    invalidate: () => Effect.void,
+  });
+  return { reads, resolver };
+}
+
+it.effect(
+  "replaces only the requested kind's credential references with the secrets they name",
+  () =>
+    Effect.gen(function* () {
+      const { reads, resolver } = countingResolver();
+      const resolved = yield* resolveSourceControlHostSecrets(resolver, hosts, "bitbucket");
+      assert.deepEqual(resolved, {
+        ...hosts,
+        bitbucket: { email: "me@example.test", accessToken: "bb_from_provider" },
+      });
+      assert.deepEqual(reads, ["bitbucket#token"]);
+    }),
+);
+
+it.effect("keeps a reference the provider cannot read, so it never passes for an unset one", () =>
+  Effect.gen(function* () {
+    const { reads, resolver } = countingResolver();
+    const resolved = yield* resolveSourceControlHostSecrets(resolver, hosts, "gitcafe");
+    assert.deepEqual(resolved.gitcafe, { token: source("missing#token") });
+    assert.deepEqual(reads, ["missing#token"]);
+  }),
+);
+
+it.effect("leaves the resolver unused for a kind that holds no reference", () =>
+  Effect.gen(function* () {
+    const { reads, resolver } = countingResolver();
+    const resolved = yield* resolveSourceControlHostSecrets(resolver, hosts, "github");
+    assert.strictEqual(resolved, hosts);
+    assert.deepEqual(reads, []);
+  }),
+);
+
+it.effect("replaces a per-host token reference and keeps the literal beside it", () =>
+  Effect.gen(function* () {
+    const { reads, resolver } = countingResolver();
+    const resolved = yield* resolveSourceControlHostSecrets(resolver, perHostHosts, "github");
+    assert.deepEqual(resolved, {
+      github: { tokens: { "github.com": "ghp_from_provider", "ghe.acme.test": "ghp_literal" } },
+    });
+    assert.deepEqual(reads, ["github#token"]);
+  }),
+);
+
+it("collects the references held in credential fields and skips literal values", () => {
+  assert.deepEqual(collectSourceControlHostSecretReferences(hosts), [
+    source("missing#token"),
+    source("bitbucket#token"),
+  ]);
+  assert.deepEqual(collectSourceControlHostSecretReferences(perHostHosts), [
+    source("github#token"),
+  ]);
+  assert.deepEqual(
+    collectSourceControlHostSecretReferences({
+      bitbucket: { accessToken: "literal" },
+      github: { tokens: { "github.com": "ghp_literal" } },
+    }),
+    [],
+  );
+});

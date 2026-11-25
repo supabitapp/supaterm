@@ -85,7 +85,7 @@ const credentialFailure = (
 ): typeof GitCafeApiFailure.Type =>
   error._tag === "GitCafeCliMissingError"
     ? "missing-tool"
-    : error._tag === "GitCafeNotSignedInError"
+    : error._tag === "GitCafeNotSignedInError" || error._tag === "SettingsSecretUnresolvedError"
       ? "unauthenticated"
       : "failed";
 

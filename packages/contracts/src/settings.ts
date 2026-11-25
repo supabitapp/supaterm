@@ -1674,9 +1674,9 @@ export const ServerSettingsPatch = Schema.Struct({
     }),
   ),
   /**
-   * Merges per host: a patched field replaces the saved one, so a client sends a per-server-host
-   * map whole, with the redaction marker for each saved secret it keeps. An empty or omitted
-   * secret is removed from the secret store.
+   * Merges per host: a patched field replaces the saved one, and redaction markers keep saved
+   * secrets while empty ones remove them. A non-empty token map keeps the saved tokens of hosts
+   * it omits; an empty map clears them all.
    */
   sourceControlHosts: Schema.optionalKey(Schema.Record(Schema.String, SourceControlHostSettings)),
   // Whole-map replacement for the new instance config. Patching individual

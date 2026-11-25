@@ -10,6 +10,7 @@ import {
   type ProviderInstanceEnvironment,
   ProviderInstanceId,
   resolveProviderInstanceEnabled,
+  SecretProviderId,
   ServerSettings,
   ServerSettingsPatch,
 } from "@supaterm/contracts";
@@ -33,6 +34,7 @@ import * as ServerConfig from "./config.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import { writeFileStringAtomically } from "@supaterm/shared/atomicWrite";
 import * as ServerSettingsModule from "./serverSettings.ts";
+import { SECRET_REDACTED } from "./settingsSecrets.ts";
 import { resolveProviderInstanceTerminalEnvironment } from "./terminal/Manager.ts";
 
 const decodeServerSettings = Schema.decodeUnknownEffect(ServerSettings);
@@ -1533,7 +1535,93 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         assert.isTrue(Option.isNone(yield* stored("bitbucket", "accessToken", null)));
         assert.isTrue(Option.isNone(yield* stored("github", "tokens", "github.com")));
         assert.isTrue(Option.isSome(yield* stored("github", "tokens", "ghe.acme.test")));
+
+        const reference = {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/Bitbucket/token",
+        };
+        const gitHubReference = {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/GitHub/token",
+        };
+        yield* serverSettings.updateSettings({
+          sourceControlHosts: {
+            bitbucket: { accessToken: "bb-access" },
+            github: { tokens: { "github.com": "ghp_dotcom", "ghe.acme.test": "ghp_ghe" } },
+          },
+        });
+        assert.isTrue(Option.isSome(yield* stored("bitbucket", "accessToken", null)));
+        assert.isTrue(Option.isSome(yield* stored("github", "tokens", "github.com")));
+        const referenced = yield* serverSettings.updateSettings({
+          sourceControlHosts: {
+            bitbucket: { accessToken: reference },
+            github: { tokens: { "github.com": gitHubReference, "ghe.acme.test": "ghp_ghe" } },
+          },
+        });
+        assert.deepEqual(referenced.sourceControlHosts.bitbucket?.accessToken, reference);
+        assert.isTrue(Option.isNone(yield* stored("bitbucket", "accessToken", null)));
+        assert.isTrue(Option.isNone(yield* stored("github", "tokens", "github.com")));
+        assert.isTrue(Option.isSome(yield* stored("github", "tokens", "ghe.acme.test")));
+        const redacted = ServerSettingsModule.redactServerSettingsForClient(referenced, {
+          secretReferences: true,
+        }).sourceControlHosts;
+        assert.deepEqual(redacted.bitbucket?.accessToken, reference);
+        const tokens = redacted.github?.tokens as Record<string, unknown>;
+        assert.deepEqual(tokens["github.com"], gitHubReference);
+        assert.notEqual(tokens["ghe.acme.test"], "ghp_ghe");
+
+        // A client that cannot decode references sees saved secrets and can send them back.
+        const legacy = ServerSettingsModule.redactServerSettingsForClient(referenced, {
+          secretReferences: false,
+        });
+        assert.notInclude(JSON.stringify(legacy), "op://");
+        assert.equal(legacy.sourceControlHosts.bitbucket?.accessToken, SECRET_REDACTED);
+        const echoed = yield* serverSettings.updateSettings({
+          sourceControlHosts: legacy.sourceControlHosts,
+        });
+        assert.deepEqual(echoed.sourceControlHosts.bitbucket?.accessToken, reference);
+        assert.deepEqual(echoed.sourceControlHosts.github?.tokens, {
+          "github.com": gitHubReference,
+          "ghe.acme.test": "ghp_ghe",
+        });
+        assert.isTrue(Option.isSome(yield* stored("github", "tokens", "ghe.acme.test")));
       }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
+  );
+
+  it.effect("removing a secret provider unsets every field that read from it", () =>
+    Effect.gen(function* () {
+      const service = yield* ServerSettingsModule.ServerSettingsService;
+      const personal = (reference: string) => ({
+        provider: SecretProviderId.make("personal"),
+        reference: `op://Private/${reference}`,
+      });
+      const work = { provider: SecretProviderId.make("work"), reference: "op://Work/token" };
+      yield* decodeServerSettingsPatch({
+        secretProviders: {
+          personal: { kind: "one_password", label: "Personal", config: { account: "my" } },
+          work: { kind: "one_password", label: "Work", config: { account: "work" } },
+        },
+      }).pipe(Effect.flatMap(service.updateSettings));
+      yield* service.updateSettings({
+        sourceControlHosts: {
+          bitbucket: { accessToken: personal("Bitbucket/token") },
+          github: { tokens: { "github.com": personal("GitHub/token"), "ghe.acme.test": work } },
+        },
+      });
+
+      // An older client's save echoes a reference it cannot decode as the redacted marker.
+      const removed = yield* service.updateSettings({
+        secretProviders: { [SecretProviderId.make("personal")]: null },
+        sourceControlHosts: { bitbucket: { accessToken: SECRET_REDACTED } },
+      });
+      assert.notInclude(JSON.stringify(removed), "op://Private");
+      assert.equal(removed.sourceControlHosts.bitbucket?.accessToken, "");
+      assert.deepEqual(removed.sourceControlHosts.github?.tokens, {
+        "github.com": "",
+        "ghe.acme.test": work,
+      });
+      assert.deepEqual(Object.keys(removed.secretProviders), ["work"]);
+    }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
   );
 
   it.effect("keeps the retired keys for another load when a token cannot be copied", () => {

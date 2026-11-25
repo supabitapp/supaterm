@@ -166,7 +166,7 @@ function discoveryTokenHosts(
 ): ReadonlyArray<DiscoveryTokenHost> {
   const enabledSavedHosts = Object.entries(settings.tokens)
     .flatMap(([host, token]) =>
-      token.trim() !== "" && settings.hosts[host]?.enabled !== false
+      (typeof token !== "string" || token.trim() !== "") && settings.hosts[host]?.enabled !== false
         ? [{ host, source: "settings" as const }]
         : [],
     )
@@ -219,7 +219,7 @@ export const make = Effect.gen(function* () {
       yield* credentials.invalidateAll;
       const settings = readSourceControlHostSettings(
         GitHubClient.settings,
-        yield* sourceControlHost.settings.get.pipe(
+        yield* sourceControlHost.settings.getWithSecrets(GitHubClient.definition.kind).pipe(
           Effect.map((current) => current.sourceControlHosts[GitHubClient.definition.kind]),
           Effect.orElseSucceed(() => undefined),
         ),
