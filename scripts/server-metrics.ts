@@ -44,7 +44,7 @@ import {
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import * as Socket from "effect/socket/Socket";
 
-import { run } from "./scenarios/shell.ts";
+import { run } from "./lib/run-command.ts";
 import {
   compareMetrics,
   CpuProfile,
