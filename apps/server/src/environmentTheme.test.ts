@@ -44,7 +44,7 @@ const SHARED_THEME: EnvironmentThemeFile = {
   colors: { canvas: "#eff1f5", accent: "#1e66f5" },
 };
 
-/** The settings mock refuses to make this theme the default, as a managed policy can. */
+/** The settings mock refuses to make this theme the default, as a failed settings write does. */
 const REFUSED_THEME_ID = "refused";
 
 const withEnvironmentThemes = <A, E>(
@@ -85,7 +85,7 @@ const withEnvironmentThemes = <A, E>(
                   ? Effect.fail(
                       new ServerSettingsError({
                         settingsPath: "settings.json",
-                        operation: "write-managed-setting",
+                        operation: "write-file",
                       }),
                     )
                   : Effect.sync(() => {
@@ -628,8 +628,8 @@ describe("environment theme", () => {
         assert.match(reserved.message, /not a valid theme id/);
         const unknown = yield* themes.apply({ themeId: "missing" }).pipe(Effect.flip);
         assert.match(unknown.message, /not a built-in or published theme/);
-        yield* themes.apply({ themeId: "grove" });
-        yield* themes.apply({ themeId: "grove", appearance: "dark" });
+        yield* themes.apply({ themeId: "midnight" });
+        yield* themes.apply({ themeId: "midnight", appearance: "dark" });
         yield* themes.apply({ appearance: "light" });
 
         assert.deepEqual(
@@ -639,8 +639,8 @@ describe("environment theme", () => {
         // Only a theme that was published or already exists becomes the environment theme.
         assert.deepEqual(selected, [
           { theme: "agent-look" },
-          { theme: "grove" },
-          { theme: "grove", appearance: "dark" },
+          { theme: "midnight" },
+          { theme: "midnight", appearance: "dark" },
           { appearance: "light" },
         ]);
       }),
