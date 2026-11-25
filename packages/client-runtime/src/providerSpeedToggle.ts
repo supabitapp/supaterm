@@ -60,10 +60,21 @@ export function getSpeedToggle(
   return null;
 }
 
-export function getSpeedToggleNextValue(
-  toggle: SpeedToggle,
-  preferUltrafast = false,
-): string | boolean {
-  if (preferUltrafast && toggle.ultrafastValue !== undefined) return toggle.ultrafastValue;
+export function getSpeedToggleNextValue(toggle: SpeedToggle): string | boolean {
   return toggle.level === "off" ? toggle.onValue : toggle.offValue;
+}
+
+export type SpeedToggleChoice = {
+  level: Exclude<SpeedToggleLevel, "off">;
+  value: string | boolean;
+};
+
+export function getSpeedToggleChoices(
+  toggle: SpeedToggle,
+): ReadonlyArray<SpeedToggleChoice> | null {
+  if (toggle.ultrafastValue === undefined || toggle.ultrafastValue === toggle.onValue) return null;
+  return [
+    { level: "fast", value: toggle.onValue },
+    { level: "ultrafast", value: toggle.ultrafastValue },
+  ];
 }

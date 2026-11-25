@@ -1,7 +1,11 @@
 import type { ProviderOptionDescriptor } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { getSpeedToggle, getSpeedToggleNextValue } from "./providerSpeedToggle.ts";
+import {
+  getSpeedToggle,
+  getSpeedToggleChoices,
+  getSpeedToggleNextValue,
+} from "./providerSpeedToggle.ts";
 
 const EFFORT: ProviderOptionDescriptor = {
   id: "reasoningEffort",
@@ -87,32 +91,12 @@ describe("getSpeedToggle", () => {
     expect(off && getSpeedToggleNextValue(off)).toBe("priority");
   });
 
-  it.each(["default", "priority", "ultrafast", "flex"] as const)(
-    "enables Ultrafast from %s when requested",
-    (currentValue) => {
-      const toggle = getSpeedToggle([serviceTierDescriptor(currentValue)]);
-      expect(toggle && getSpeedToggleNextValue(toggle, true)).toBe("ultrafast");
-    },
-  );
-
-  it.each(["default", "priority"] as const)(
-    "keeps the normal toggle behavior from %s when Ultrafast is unavailable",
-    (currentValue) => {
-      const descriptor = serviceTierDescriptor(currentValue);
-      const toggle = getSpeedToggle([
-        { ...descriptor, options: descriptor.options.filter(({ id }) => id !== "ultrafast") },
-      ]);
-      expect(toggle?.ultrafastValue).toBeUndefined();
-      expect(toggle && getSpeedToggleNextValue(toggle, true)).toBe(
-        currentValue === "default" ? "priority" : "default",
-      );
-    },
-  );
-
-  it.each([false, true])("keeps boolean Fast mode toggling from %s", (currentValue) => {
-    const toggle = getSpeedToggle([fastModeDescriptor(currentValue)]);
-    expect(toggle?.ultrafastValue).toBeUndefined();
-    expect(toggle && getSpeedToggleNextValue(toggle, true)).toBe(!currentValue);
+  it("offers Fast and Ultrafast as separate choices", () => {
+    const toggle = getSpeedToggle([serviceTierDescriptor("default")]);
+    expect(toggle && getSpeedToggleChoices(toggle)).toEqual([
+      { level: "fast", value: "priority" },
+      { level: "ultrafast", value: "ultrafast" },
+    ]);
   });
 
   it("selects the provider's Ultrafast tier ID", () => {
@@ -125,7 +109,21 @@ describe("getSpeedToggle", () => {
         ),
       },
     ]);
-    expect(toggle && getSpeedToggleNextValue(toggle, true)).toBe("ultra-priority");
+    expect(toggle && getSpeedToggleChoices(toggle)?.[1]?.value).toBe("ultra-priority");
+  });
+
+  it("has no choices when only one speed tier exists", () => {
+    const descriptor = serviceTierDescriptor("default");
+    const withoutUltrafast = getSpeedToggle([
+      { ...descriptor, options: descriptor.options.filter(({ id }) => id !== "ultrafast") },
+    ]);
+    const withoutFast = getSpeedToggle([
+      { ...descriptor, options: descriptor.options.filter(({ id }) => id !== "priority") },
+    ]);
+    expect(withoutUltrafast && getSpeedToggleChoices(withoutUltrafast)).toBeNull();
+    expect(withoutFast && getSpeedToggleChoices(withoutFast)).toBeNull();
+    const fastMode = getSpeedToggle([fastModeDescriptor(false)]);
+    expect(fastMode && getSpeedToggleChoices(fastMode)).toBeNull();
   });
 
   it("has no toggle for service tiers without a speed tier", () => {
