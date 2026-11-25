@@ -38,7 +38,7 @@ const effectSetting = (fallback: SidePulseEffect) =>
 
 const SidePulseEffects = Schema.Struct({
   idle: effectSetting("glow"),
-  done: effectSetting("solid"),
+  done: effectSetting("breathe"),
   working: effectSetting("roll"),
   attention: effectSetting("pulse"),
 });

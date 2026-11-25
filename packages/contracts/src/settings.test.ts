@@ -531,7 +531,7 @@ describe("SidePulse effects", () => {
     expect(decoded.sidePulse).toEqual({
       enabled: true,
       brightness: 100,
-      effects: { idle: "rainbow", done: "solid", working: "roll", attention: "pulse" },
+      effects: { idle: "rainbow", done: "breathe", working: "roll", attention: "pulse" },
       colors: { idle: null, done: null, working: "#ff00aa", attention: null },
     });
     expect(decodeClientSettings(encodeClientSettings(decoded)).sidePulse).toEqual(
