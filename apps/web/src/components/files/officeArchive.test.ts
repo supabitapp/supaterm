@@ -215,7 +215,7 @@ describe("Workbook relationship targets", () => {
         await workbookFile("worksheets/sheet2.xml", "xl/worksheets/sheet2.xml", "", "External"),
         "xlsx",
       ),
-    ).rejects.toMatchObject({ code: "workbook-sheet-count" });
+    ).rejects.toThrow("This workbook has invalid or too many sheets.");
   });
 
   it("handles a malformed external relationship in workbook relationships", async () => {

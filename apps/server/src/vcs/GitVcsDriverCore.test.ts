@@ -4613,6 +4613,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         Effect.gen(function* () {
           const pathService = yield* Path.Path;
           const cwd = pathService.join(yield* makeTmpDir(), "repo ");
+          yield* (yield* FileSystem.FileSystem).makeDirectory(cwd);
           yield* initRepoWithCommit(cwd);
           const driver = yield* GitVcsDriver.GitVcsDriver;
           yield* writeTextFile(cwd, "app/.keep", "");
@@ -7289,7 +7290,10 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           assert.equal(entrySeconds.length, 51);
           return entrySeconds.filter((seconds) => seconds >= indexSecond);
         });
-        while ((yield* racyEntries).length > 0 || (yield* fs.exists(`${indexPath}.supaterm-refresh`))) {
+        while (
+          (yield* racyEntries).length > 0 ||
+          (yield* fs.exists(`${indexPath}.supaterm-refresh`))
+        ) {
           yield* Queue.take(indexChanges);
         }
         assert.isFalse(yield* fs.exists(`${indexPath}.lock`));
