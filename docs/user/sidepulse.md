@@ -40,7 +40,7 @@ Archived and snoozed threads don't count.
 | --------- | -------------- | ---------------------------------------------------------- |
 | Needs you | Amber pulse    | An agent is waiting for your approval or answer, or failed |
 | Working   | Cyan roll      | An agent is running                                        |
-| Done      | Solid green    | An agent finished with a reply you have not seen           |
+| Done      | Green breathe  | An agent finished with a reply you have not seen           |
 | Idle      | Dim teal glow  | Nothing needs you                                          |
 
 A reply or failure counts as seen once you open the thread. The LEDs turn off while no Supaterm
