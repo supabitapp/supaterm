@@ -57,7 +57,7 @@ gets a worktree of its own, because its parent repository decides where it is ch
 
 ## Review changes
 
-Each turn lists the files it changed, grouped by repository, and its diff covers all of them. See
+A turn's diff covers every repository it changed. See
 [Review turn changes](source-control.md#review-turn-changes).
 
 On web and desktop, the Diff pane's **Uncommitted**, **Changes**, and **Commits** sources read one
