@@ -701,8 +701,12 @@ it.effect("show retains pull request metadata when reading a later message windo
         nextPosition: 199,
         hasMore: false,
       });
-    }) as ThreadTools["call"];
-    const { thread } = yield* readLatestMessages({ call }, threadId, 1);
+    }) as ServerTools["call"];
+    const { thread } = yield* readLatestMessages(
+      { origin: "http://127.0.0.1:1", call },
+      threadId,
+      1,
+    );
     assert.strictEqual(thread.status, "completed");
     assert.deepStrictEqual(thread.pullRequests, [link]);
     assert.strictEqual(thread.openPullRequestCount, 1);
