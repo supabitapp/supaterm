@@ -2538,6 +2538,7 @@ it.effect("listing ACP sessions reaches only an agent that advertises listing", 
               },
               yield* ServerBrowser.ServerBrowser,
               () => Effect.void,
+              { secretReferences: true },
             ).pipe(
               Layer.provide(services),
               Layer.merge(RpcAuthorization.layer([AuthOrchestrationReadScope])),
