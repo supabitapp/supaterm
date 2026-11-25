@@ -13246,7 +13246,11 @@ describe("AcpAdapterV2", () => {
       const fileSystem = yield* FileSystem.FileSystem;
       const host = yield* ProviderHost.ProviderHost;
       const selfInvocation = yield* resolveSelfInvocation();
-      const mockAgentPath = yield* bundledMockAgentPath;
+      const mockAgentPath = yield* Path.Path.pipe(
+        Effect.flatMap((path) =>
+          path.fromFileUrl(new URL("../../../scripts/acp-mock-agent.ts", import.meta.url)),
+        ),
+      );
       const sent: Array<EffectAcpSchema.PromptRequest["prompt"]> = [];
       const instanceId = ProviderInstanceId.make("acp-test-image-without-image-prompts");
       const threadId = ThreadId.make("thread-acp-image-without-image-prompts");
