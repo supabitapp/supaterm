@@ -1225,9 +1225,7 @@ export const make = Effect.gen(function* () {
             const reserveSelected = (bytes: number) => {
               selectedBytes += bytes;
               if (selectedBytes > MAX_TRANSCRIPT_SCAN_BYTES) {
-                throw new TranscriptJsonLimitError({
-                  message: "Transcript cwd fields exceed the scan limit",
-                });
+                throw new TranscriptJsonLimitError("Transcript cwd fields exceed the scan limit");
               }
             };
             // Claude writes cwd before message, so a record with a large image need not be read to its end.
@@ -1280,12 +1278,7 @@ export const make = Effect.gen(function* () {
               }
               return undefined;
             };
-            const parse = <A>(f: () => A) =>
-              Effect.try({
-                try: f,
-                catch: (cause) =>
-                  new TranscriptParseError({ filePath: transcript.filePath, cause }),
-              });
+            const parse = <A>(f: () => A) => Effect.try(f);
             const readLastRecord = () =>
               !recordStarted || !reserveRecord() ? null : finishRecord();
 
