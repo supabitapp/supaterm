@@ -34,7 +34,12 @@ export async function prepareQueuedThreadCreation<E>(
   if (!creation) {
     return AsyncResult.failure(Cause.fail(new Error("The queued task has no workspace.")));
   }
-  if (creation.workspaceMode !== "worktree" || creation.branch || !creation.useDefaultBranch) {
+  if (
+    creation.workspaceMode !== "worktree" ||
+    creation.branch ||
+    !creation.useDefaultBranch ||
+    creation.startsFromRepositoryDefaults
+  ) {
     return AsyncResult.success({ message, creation });
   }
   const revision = threadOutboxRevision(message.messageId);

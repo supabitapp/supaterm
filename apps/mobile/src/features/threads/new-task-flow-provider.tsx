@@ -912,6 +912,9 @@ function useNewTaskFlowValue(
           worktreePath: message.creation.worktreePath,
           startFromOrigin: message.creation.startFromOrigin ?? false,
           pullRequestReference: message.creation.pullRequestReference,
+          ...(message.creation.repositories !== undefined
+            ? { repositories: message.creation.repositories }
+            : {}),
         },
       });
     }
