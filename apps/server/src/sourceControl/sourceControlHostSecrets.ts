@@ -3,6 +3,7 @@ import {
   secretReferencesInSettings,
   secretSettingsFields,
   type SecretReference,
+  type ServerSettings,
 } from "@supaterm/contracts";
 import type * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import * as Effect from "effect/Effect";
@@ -95,3 +96,17 @@ export const resolveSourceControlHostSecrets = Effect.fn("SourceControlHost.reso
     return resolved === fields ? hosts : { ...hosts, [kind]: resolved };
   },
 );
+
+/** Settings that cannot be read clear every cached secret, so a refresh never keeps a stale one. */
+export const invalidateSettingsSecrets = Effect.fn("SettingsSecrets.invalidate")(function* <E>(
+  resolver: SecretResolver.SecretResolver["Service"],
+  settings: Effect.Effect<Pick<ServerSettings, "sourceControlHosts">, E>,
+) {
+  const references = yield* settings.pipe(
+    Effect.map((current) => [
+      ...collectSourceControlHostSecretReferences(current.sourceControlHosts),
+    ]),
+    Effect.orElseSucceed(() => undefined),
+  );
+  yield* resolver.invalidate(references);
+});

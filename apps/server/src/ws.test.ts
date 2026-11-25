@@ -1,3 +1,4 @@
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import { WebSocket } from "@effect/platform-node/NodeWS";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Bind an isolated WebSocket negotiation fixture.
@@ -844,6 +845,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ReviewService.ReviewService)({}),
   Layer.mock(ScheduledTasks.ScheduledTaskService)({}),
   Layer.mock(SecretRequests.SecretRequests)({}),
+  Layer.mock(SecretResolver.SecretResolver)({}),
   Layer.mock(Transcription.Transcription)({}),
   Layer.mock(TranscriptionUploads.TranscriptionUploads)({}),
 

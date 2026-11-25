@@ -5,6 +5,8 @@ import type * as Effect from "effect/Effect";
 
 export interface ProviderInstanceRegistryMutatorShape {
   readonly reconcile: (configMap: ProviderInstanceConfigMap) => Effect.Effect<void>;
+  /** Re-reads the secrets of every instance, or one, and rebuilds those whose secrets changed. */
+  readonly reloadSecrets: (instanceId?: ProviderInstanceId) => Effect.Effect<void>;
   /** Rebuilds these live instances from their current configuration and the host environment. */
   readonly rebuild: (instanceIds: ReadonlyArray<ProviderInstanceId>) => Effect.Effect<void>;
 }

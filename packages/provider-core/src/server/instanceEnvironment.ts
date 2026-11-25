@@ -15,6 +15,8 @@ export const mergeProviderInstanceEnvironment = Effect.fn(function* (
   const home = yield* HostProcess.HomeDirectory;
   const next: NodeJS.ProcessEnv = { ...baseEnv };
   for (const variable of environment) {
+    // An unresolved secret reference carries no value; the registry resolves it for the provider.
+    if (typeof variable.value !== "string") continue;
     next[variable.name] = expandHomeVariable(variable.name, variable.value, home);
   }
   return next;

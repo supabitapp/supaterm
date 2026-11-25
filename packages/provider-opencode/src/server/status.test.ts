@@ -16,6 +16,7 @@ import * as TestClock from "effect/testing/TestClock";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import { beforeEach } from "vite-plus/test";
+import { settingsSecretLiteral } from "@supaterm/contracts";
 
 import { OpenCodeSettings } from "../settings.ts";
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
@@ -386,8 +387,9 @@ beforeEach(() => {
   runtimeMock.reset();
 });
 
-const makeOpenCodeSettings = (overrides?: Partial<OpenCodeSettings>): OpenCodeSettings =>
-  decodeOpenCodeSettings({
+// As the instance registry hands them to the driver: a referenced password is already read.
+const makeOpenCodeSettings = (overrides?: Partial<OpenCodeSettings>) => {
+  const settings = decodeOpenCodeSettings({
     enabled: true,
     binaryPath: "opencode",
     serverUrl: "",
@@ -395,9 +397,11 @@ const makeOpenCodeSettings = (overrides?: Partial<OpenCodeSettings>): OpenCodeSe
     customModels: [],
     ...overrides,
   });
+  return { ...settings, serverPassword: settingsSecretLiteral(settings.serverPassword) };
+};
 
 const checkProvider = (
-  settings: OpenCodeSettings,
+  settings: ReturnType<typeof makeOpenCodeSettings>,
   server = replayOpenCodeServer(OPENCODE_2_RESPONSES, settings.serverPassword),
   openCode2Models: Effect.Effect<
     ReadonlyArray<OpenCode2Model>,

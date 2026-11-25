@@ -57,6 +57,7 @@ import { ProviderWizardAuthenticationStep } from "./ProviderWizardAuthentication
 import { resolveOfficialAcpRegistryIconUrl } from "./AcpRegistryIcon";
 import { AddManagedCodexAccountDialog } from "./CodexSetupSection";
 import { ProviderEnvironmentSection } from "./ProviderInstanceCard";
+import { useSecretSources } from "./SecretSourceInput";
 
 const INSTANCE_ID_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
@@ -154,6 +155,7 @@ export function AddProviderInstanceDialog({
   showMoreProviders: initialShowMoreProviders = false,
 }: AddProviderInstanceDialogProps) {
   const settings = useEnvironmentSettings(environmentId);
+  const secretSources = useSecretSources(environmentId);
   const persistProviderInstance = usePersistEnvironmentProviderInstanceMutation(environmentId);
   const canManageProviders = useEnvironmentScope(environmentId, AuthProvidersManageScope);
 
@@ -523,11 +525,14 @@ export function AddProviderInstanceDialog({
                               idPrefix="add-provider-acpRegistry-manual"
                               variant="settings"
                               onChange={setConfigDraft}
+                              environmentId={environmentId}
                             />
                             {isLocalAcp ? (
                               <ProviderEnvironmentSection
                                 environment={localEnvironment}
                                 onChange={setLocalEnvironment}
+                                secretSources={secretSources}
+                                environmentId={environmentId}
                               />
                             ) : null}
                           </SettingsGroup>
@@ -672,6 +677,7 @@ export function AddProviderInstanceDialog({
                     idPrefix={`add-provider-${driver}`}
                     variant="settings"
                     onChange={setConfigDraft}
+                    environmentId={environmentId}
                   />
                 </SettingsGroup>
               ) : !isAcpRegistry && wizardStep === 2 ? (

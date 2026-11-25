@@ -1811,9 +1811,12 @@ export const make = Effect.gen(function* () {
       const homes: Array<{ homePath: string; providerInstanceId: ProviderInstanceId }> = [];
       const seenHomes = new Set<string>();
       for (const { instanceId, config: instance } of instances) {
-        const environmentHome = (name: "CLAUDE_CONFIG_DIR" | "CODEX_HOME") =>
-          instance.environment?.findLast((variable) => variable.name === name)?.value ??
-          hostEnvironment[name];
+        const environmentHome = (name: "CLAUDE_CONFIG_DIR" | "CODEX_HOME") => {
+          const configured = instance.environment?.findLast(
+            (variable) => variable.name === name,
+          )?.value;
+          return typeof configured === "string" ? configured : hostEnvironment[name];
+        };
 
         let homePath: string;
         if (source === "pi") {

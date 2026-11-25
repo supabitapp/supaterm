@@ -1182,6 +1182,14 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         redactedLast: true,
       },
       {
+        label: "secret reference then redacted",
+        duplicate: {
+          value: { provider: SecretProviderId.make("personal"), reference: "op://Private/FOO" },
+          sensitive: true,
+        },
+        redactedLast: true,
+      },
+      {
         label: "inline seed, redacted then empty sensitive",
         duplicate: { value: "", sensitive: true },
         inline: '[{"name":"FOO","value":"stored-foo","sensitive":true}]',
@@ -1408,6 +1416,26 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         for (const name of secretNames) {
           assert.isTrue(Option.isSome(yield* store.get(name)), name);
         }
+        const secret = {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/Antigravity/token",
+        };
+        const referenced = yield* service.updateProviderInstance({
+          operation: "upsert",
+          instanceId,
+          instance: {
+            ...client.providerInstances[instanceId]!,
+            environment: [
+              { name: "API_TOKEN", value: secret, sensitive: true, valueRedacted: true },
+            ],
+          },
+        });
+        assert.isTrue(Option.isNone(yield* store.get(secretNames[1]!)));
+        assert.deepEqual(
+          ServerSettingsModule.redactServerSettingsForClient(referenced, { secretReferences: true })
+            .providerInstances[instanceId]?.environment,
+          [{ name: "API_TOKEN", value: secret, sensitive: true }],
+        );
         yield* service.updateSettings({
           providerInstances: {},
           sourceControlHosts: {
@@ -1571,14 +1599,43 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         assert.notEqual(tokens["ghe.acme.test"], "ghp_ghe");
 
         // A client that cannot decode references sees saved secrets and can send them back.
-        const legacy = ServerSettingsModule.redactServerSettingsForClient(referenced, {
+        const antigravityReference = {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/Gemini/key",
+        };
+        const openCodeReference = {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/OpenCode/password",
+        };
+        const antigravity = ProviderInstanceId.make("antigravity");
+        const openCode = ProviderInstanceId.make("opencode");
+        const withProviders = yield* serverSettings.updateSettings({
+          providerInstances: {
+            [antigravity]: {
+              driver: ProviderDriverKind.make("antigravity"),
+              config: { authMethod: "gemini-api-key", apiKey: antigravityReference },
+            },
+            [openCode]: {
+              driver: ProviderDriverKind.make("opencode"),
+              config: { serverUrl: "http://127.0.0.1:4096", serverPassword: openCodeReference },
+            },
+          },
+        });
+        const legacy = ServerSettingsModule.redactServerSettingsForClient(withProviders, {
           secretReferences: false,
         });
         assert.notInclude(JSON.stringify(legacy), "op://");
         assert.equal(legacy.sourceControlHosts.bitbucket?.accessToken, SECRET_REDACTED);
+        const configOf = (settings: ServerSettings, id: ProviderInstanceId) =>
+          settings.providerInstances[id]?.config as Record<string, unknown> | undefined;
+        assert.equal(configOf(legacy, antigravity)?.apiKey, SECRET_REDACTED);
+        assert.equal(configOf(legacy, openCode)?.serverPassword, SECRET_REDACTED);
         const echoed = yield* serverSettings.updateSettings({
           sourceControlHosts: legacy.sourceControlHosts,
+          providerInstances: legacy.providerInstances,
         });
+        assert.deepEqual(configOf(echoed, antigravity)?.apiKey, antigravityReference);
+        assert.deepEqual(configOf(echoed, openCode)?.serverPassword, openCodeReference);
         assert.deepEqual(echoed.sourceControlHosts.bitbucket?.accessToken, reference);
         assert.deepEqual(echoed.sourceControlHosts.github?.tokens, {
           "github.com": gitHubReference,
@@ -1596,6 +1653,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         reference: `op://Private/${reference}`,
       });
       const work = { provider: SecretProviderId.make("work"), reference: "op://Work/token" };
+      const instanceId = ProviderInstanceId.make("antigravity_refs");
       yield* decodeServerSettingsPatch({
         secretProviders: {
           personal: { kind: "one_password", label: "Personal", config: { account: "my" } },
@@ -1603,6 +1661,17 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         },
       }).pipe(Effect.flatMap(service.updateSettings));
       yield* service.updateSettings({
+        providerInstances: {
+          [instanceId]: {
+            driver: ProviderDriverKind.make("antigravity"),
+            config: { authMethod: "gemini-api-key", apiKey: personal("Gemini/key") },
+            environment: [
+              { name: "API_TOKEN", value: personal("Antigravity/env"), sensitive: true },
+              { name: "WORK_TOKEN", value: work, sensitive: true },
+              { name: "PLAIN", value: "kept", sensitive: false },
+            ],
+          },
+        },
         sourceControlHosts: {
           bitbucket: { accessToken: personal("Bitbucket/token") },
           github: { tokens: { "github.com": personal("GitHub/token"), "ghe.acme.test": work } },
@@ -1615,6 +1684,11 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         sourceControlHosts: { bitbucket: { accessToken: SECRET_REDACTED } },
       });
       assert.notInclude(JSON.stringify(removed), "op://Private");
+      assert.deepEqual(removed.providerInstances[instanceId]?.environment, [
+        { name: "WORK_TOKEN", value: work, sensitive: true },
+        { name: "PLAIN", value: "kept", sensitive: false },
+      ]);
+      assert.deepInclude(removed.providerInstances[instanceId]?.config, { apiKey: "" });
       assert.equal(removed.sourceControlHosts.bitbucket?.accessToken, "");
       assert.deepEqual(removed.sourceControlHosts.github?.tokens, {
         "github.com": "",
