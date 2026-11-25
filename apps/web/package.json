@@ -11,7 +11,8 @@
     "preview": "vp preview",
     "render:voice-cues": "node scripts/render-voice-input-cues.ts",
     "test": "vp test run --passWithNoTests --project unit --project browser",
-    "bench": "vp test bench --passWithNoTests --project \"unit (bench)\""
+    "bench": "vp test bench --passWithNoTests --project \"unit (bench)\"",
+    "i18n:generate": "gt generate"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

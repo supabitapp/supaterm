@@ -48,7 +48,8 @@
     "generate:nitro": "cd modules/supaterm-highlights && nitrogen",
     "test": "vp test run --project unit --project react",
     "typecheck": "tsc --noEmit",
-    "sync:ui-icons": "node scripts/sync-ui-icons.mjs"
+    "sync:ui-icons": "node scripts/sync-ui-icons.mjs",
+    "i18n:generate": "gt generate"
   },
   "dependencies": {
     "@effect/atom-react": "catalog:",
