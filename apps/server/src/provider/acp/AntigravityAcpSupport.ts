@@ -187,7 +187,9 @@ export function antigravitySessionMode(
 // MCP server's tool of the same name would pass.
 const ANTIGRAVITY_SUPATERM_MCP_TITLE = /^Run mcp_supaterm_(?<tool>[A-Za-z0-9_]+)\??$/;
 
-function isAntigravitySupatermMcpRequest(request: EffectAcpSchema.RequestPermissionRequest): boolean {
+function isAntigravitySupatermMcpRequest(
+  request: EffectAcpSchema.RequestPermissionRequest,
+): boolean {
   const rawInput = unknownRecord(request.toolCall.rawInput);
   if (rawInput?.ServerName !== undefined) {
     return (
@@ -197,7 +199,8 @@ function isAntigravitySupatermMcpRequest(request: EffectAcpSchema.RequestPermiss
     );
   }
   if (typeof rawInput?.CommandLine === "string") return false;
-  const tool = ANTIGRAVITY_SUPATERM_MCP_TITLE.exec(request.toolCall.title?.trim() ?? "")?.groups?.tool;
+  const tool = ANTIGRAVITY_SUPATERM_MCP_TITLE.exec(request.toolCall.title?.trim() ?? "")?.groups
+    ?.tool;
   return tool !== undefined && SUPATERM_MCP_TOOL_NAMES.has(tool);
 }
 

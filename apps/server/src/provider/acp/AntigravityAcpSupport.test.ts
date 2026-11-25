@@ -153,7 +153,10 @@ describe("Antigravity Auto", () => {
       ]) {
         expect(antigravityPermissionDisposition(policy, supatermCall)).toBe("allow");
         expect(
-          antigravityPermissionDisposition({ ...policy, approvalPolicy: "on-request" }, supatermCall),
+          antigravityPermissionDisposition(
+            { ...policy, approvalPolicy: "on-request" },
+            supatermCall,
+          ),
         ).toBe("ask");
         expect(
           antigravityPermissionDisposition(
