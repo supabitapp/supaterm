@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
-import { registerCommands } from "~/shortcuts/dispatcher";
+import { observeKeyDown } from "~/shortcuts/dispatcher";
 import { act, render } from "../../../test/render";
 import { DiffCommentAnnotation } from "./DiffCommentAnnotation";
 
@@ -19,10 +19,7 @@ it("leaves IME keys in a diff comment to the composition", async () => {
   );
   const heard: Array<{ key: string; consumed: boolean }> = [];
   using _observer = {
-    [Symbol.dispose]: registerCommands(
-      {},
-      { observe: (event, consumed) => heard.push({ key: event.key, consumed }) },
-    ),
+    [Symbol.dispose]: observeKeyDown((event, consumed) => heard.push({ key: event.key, consumed })),
   };
   const draft = screen.getByRole("textbox", { name: "Comment on lines 3" });
   await draft.fill("Draft");
