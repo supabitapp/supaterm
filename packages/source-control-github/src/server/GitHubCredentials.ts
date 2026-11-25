@@ -16,7 +16,11 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
-import type { ServerSettings } from "@supaterm/contracts";
+import {
+  requireSettingsSecretLiteral,
+  type ServerSettings,
+  type SettingsSecretUnresolvedError,
+} from "@supaterm/contracts";
 
 import * as GitHubClient from "../shared/definition.ts";
 import { makeGhProcess } from "./gitHubCliProcess.ts";
@@ -92,7 +96,8 @@ export type GitHubCredentialUnavailableError =
   | GitHubNotSignedInError
   | GitHubHostDisabledError
   | GitHubCliFailedError
-  | GitHubCliTimeoutError;
+  | GitHubCliTimeoutError
+  | SettingsSecretUnresolvedError;
 
 export class GitHubCredentials extends Context.Service<
   GitHubCredentials,
@@ -206,9 +211,16 @@ export const make = Effect.gen(function* () {
     );
 
   const savedToken = (host: string) =>
-    sourceControlHost.settings.get.pipe(
-      Effect.map((settings) => readSettings(settings).tokens[host]?.trim() || null),
-      Effect.orElseSucceed(() => null),
+    sourceControlHost.settings.getWithSecrets(GitHubClient.definition.kind).pipe(
+      Effect.map((settings) => ({
+        token: readSettings(settings).tokens[host],
+        secretProviders: settings.secretProviders,
+      })),
+      Effect.orElseSucceed(() => ({ token: undefined, secretProviders: {} })),
+      Effect.flatMap(({ token, secretProviders }) =>
+        requireSettingsSecretLiteral(token, secretProviders),
+      ),
+      Effect.map((token) => token.trim() || null),
     );
 
   const cacheKey = (host: string, account: string | undefined) =>

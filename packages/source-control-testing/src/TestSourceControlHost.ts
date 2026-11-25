@@ -56,7 +56,7 @@ export const layer = (
     Effect.gen(function* () {
       const settings = yield* Ref.make(options.settings ?? DEFAULT_SERVER_SETTINGS);
       const host = SourceControlHost.SourceControlHost.of({
-        settings: { get: Ref.get(settings) },
+        settings: { get: Ref.get(settings), getWithSecrets: () => Ref.get(settings) },
         process: {
           run:
             options.process?.run ??

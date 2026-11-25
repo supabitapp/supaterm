@@ -2,6 +2,7 @@ import { resolveProviderProbeTimeoutMs } from "@supaterm/provider-core/server/sn
 import {
   ProviderDriverKind,
   ProviderSetupError,
+  settingsSecretLiteral,
   TextGenerationError,
   type ServerProviderModel,
 } from "@supaterm/contracts";
@@ -208,6 +209,8 @@ export const OpenCodeDriver: ProviderDriver<
       ...config,
       enabled,
       binaryPath: expandHomePath(config.binaryPath, homeDirectory),
+      // The instance registry has already read a referenced password from its secret provider.
+      serverPassword: settingsSecretLiteral(config.serverPassword),
     } satisfies OpenCodeSettings;
     const runtimeProbe = yield* makeOpenCodeRuntimeProbe(
       probeOpenCodeRuntime(effectiveConfig, providerProbeEnvironment(processEnv)).pipe(

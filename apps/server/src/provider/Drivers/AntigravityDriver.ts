@@ -4,6 +4,7 @@ import {
   ProviderDriverKind,
   ProviderSetupError,
   RuntimeMode,
+  settingsSecretLiteral,
 } from "@supaterm/contracts";
 import { writeFileStringAtomically } from "@supaterm/shared/atomicWrite";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -156,7 +157,8 @@ export const AntigravityDriver: ProviderDriver<
     const settings = { ...config, enabled } satisfies AntigravitySettings;
     const auth: AntigravityAuthConfig = {
       authMethod: settings.authMethod,
-      apiKey: settings.apiKey,
+      // The instance registry has already read a referenced key from its secret provider.
+      apiKey: settingsSecretLiteral(settings.apiKey),
       gcpProject: settings.gcpProject,
       gcpLocation: settings.gcpLocation,
     };

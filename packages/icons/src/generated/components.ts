@@ -602,6 +602,8 @@ import { UserMinusIcon as UserXSource } from "@phosphor-icons/react/dist/csr/Use
 export const UserXIcon = /* @__PURE__ */ withIconDefaults(UserXSource);
 import { UsersIcon as UsersSource } from "@phosphor-icons/react/dist/csr/Users";
 export const UsersIcon = /* @__PURE__ */ withIconDefaults(UsersSource);
+import { VaultIcon as VaultSource } from "@phosphor-icons/react/dist/csr/Vault";
+export const VaultIcon = /* @__PURE__ */ withIconDefaults(VaultSource);
 import { VideoIcon as VideoSource } from "@phosphor-icons/react/dist/csr/Video";
 export const VideoIcon = /* @__PURE__ */ withIconDefaults(VideoSource);
 import { SpeakerHighIcon as VolumeSource } from "@phosphor-icons/react/dist/csr/SpeakerHigh";

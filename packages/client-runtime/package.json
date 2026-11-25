@@ -666,6 +666,7 @@
     "@supaterm/provider-muse": "workspace:*",
     "@supaterm/provider-opencode": "workspace:*",
     "@supaterm/provider-pi": "workspace:*",
+    "@supaterm/secret-provider-definitions": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@supaterm/source-control-core": "workspace:*",
     "@supaterm/source-control-definitions": "workspace:*",

@@ -109,6 +109,13 @@ extra authority: [every RPC declares a required
 scope](../../apps/server/src/auth/RpcAuthorization.ts), and the WebSocket RPC
 group's `RpcScopeAuthorization` middleware checks it before any handler runs.
 
+A request that names a secret for the server to read needs `providers:manage` on top of its
+method's scope, whether the secret reference is saved in settings or used once, as in a secret
+request answered with a reference. A reference can name any secret the provider's account holds,
+and the server sends what it reads wherever the field points, such as a source control host.
+Typed values need only the method's scope. Clients hide the secret provider picker from sessions
+without it.
+
 Scope changes must not prevent older clients from connecting. Token exchange
 intersects recognized requests with the pairing grant; retired and unknown names
 are dropped. A request with no granted scopes fails before consuming the link.

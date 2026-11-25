@@ -4,6 +4,8 @@ import {
   ProviderDriverKind,
   ProjectSettingsOverrides,
   ProviderInstanceId,
+  SecretProviderId,
+  SecretProviderKind,
   ServerSettingsPatch,
   WorktreeCleanupRules,
   ServerSettings,
@@ -180,6 +182,24 @@ describe("serverSettings helpers", () => {
       hosts: { "github.com": { enabled: false } },
       tokens: {},
     });
+  });
+
+  it("keeps a source control host's saved tokens when a patch sets another host's token", () => {
+    const reference = { provider: "vault", reference: "github/token" };
+    const saved = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      sourceControlHosts: { github: { tokens: { "github.com": reference } } },
+    });
+    const patched = applyServerSettingsPatch(saved, {
+      sourceControlHosts: { github: { tokens: { "ghe.example": "x" } } },
+    });
+    expect(patched.sourceControlHosts.github?.tokens).toEqual({
+      "github.com": reference,
+      "ghe.example": "x",
+    });
+    const recased = applyServerSettingsPatch(saved, {
+      sourceControlHosts: { github: { tokens: { " GitHub.com ": "ghp_new" } } },
+    });
+    expect(recased.sourceControlHosts.github?.tokens).toEqual({ "github.com": "ghp_new" });
   });
 
   it("inherits actions, preserves existing actions, and supports empty overrides and reset", () => {
@@ -747,6 +767,28 @@ describe("serverSettings helpers", () => {
         rules: { ...stored.worktreeCleanup.rules, worktreeDoneAfterDays: null },
       });
     });
+  });
+
+  it("upserts and removes secretProviders per entry so concurrent edits cannot clobber", () => {
+    const personal = SecretProviderId.make("personal");
+    const work = SecretProviderId.make("work");
+    const onePassword = (label: string, account: string) => ({
+      kind: SecretProviderKind.make("one_password"),
+      label,
+      config: { account },
+    });
+    const current = {
+      ...DEFAULT_SERVER_SETTINGS,
+      secretProviders: { [personal]: onePassword("Personal", "my.1password.com") },
+    };
+
+    const added = applyServerSettingsPatch(current, {
+      secretProviders: { [work]: onePassword("Work", "team.1password.com") },
+    });
+    expect(Object.keys(added.secretProviders)).toEqual([personal, work]);
+
+    const removed = applyServerSettingsPatch(added, { secretProviders: { [personal]: null } });
+    expect(Object.keys(removed.secretProviders)).toEqual([work]);
   });
 
   it("replaces and removes individual usage prices without clobbering other models", () => {

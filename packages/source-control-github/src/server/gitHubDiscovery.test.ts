@@ -1,10 +1,17 @@
-import { SourceControlProviderKind } from "@supaterm/contracts";
+import {
+  DEFAULT_SERVER_SETTINGS,
+  SecretProviderId,
+  SettingsSecretUnresolvedError,
+  SourceControlProviderKind,
+  VcsProcessSpawnError,
+} from "@supaterm/contracts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
 
@@ -159,4 +166,60 @@ it.effect("claims a remote through the shared gh login, not a request's pinned c
     assert.strictEqual(provider?.kind, SourceControlProviderKind.make("github"));
     assert.isTrue(spawned.some((command) => command.startsWith("gh auth token")));
   }),
+);
+
+it.effect(
+  "reports a saved token its secret provider cannot read as signed out, not a fallback",
+  () =>
+    Effect.gen(function* () {
+      const hosts: Array<string> = [];
+      const discovery = yield* GitHubProviderDiscovery.make.pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.mock(GitHubRest.GitHubRest)({
+              rest: (input) => {
+                hosts.push(input.host);
+                return Effect.fail(new SettingsSecretUnresolvedError({ provider: "Work vault" }));
+              },
+            }),
+            Layer.mock(GitHubCredentials.GitHubCredentials)({ invalidateAll: Effect.void }),
+            TestSourceControlHost.layer({
+              settings: {
+                ...DEFAULT_SERVER_SETTINGS,
+                sourceControlHosts: {
+                  github: {
+                    tokens: {
+                      "github.com": {
+                        provider: SecretProviderId.make("vault"),
+                        reference: "op://Work/GitHub/token",
+                      },
+                    },
+                  },
+                },
+              },
+              process: {
+                run: (input) =>
+                  Effect.fail(
+                    new VcsProcessSpawnError({
+                      operation: input.operation,
+                      command: input.command,
+                      cwd: input.cwd,
+                      cause: new Error("gh is not installed"),
+                    }),
+                  ),
+              },
+            }),
+            FileSystem.layerNoop({}),
+          ),
+        ),
+        Effect.provideService(HostProcess.Environment, { GH_TOKEN: "env-token" }),
+      );
+      if (discovery.type !== "managed-cli") return assert.fail("expected a managed CLI");
+
+      const item = yield* discovery.probe("/repo");
+
+      assert.strictEqual(item.auth.status, "unauthenticated");
+      assert.include(Option.getOrThrow(item.auth.detail), '"Work vault"');
+      assert.deepStrictEqual(hosts, ["github.com"]);
+    }),
 );

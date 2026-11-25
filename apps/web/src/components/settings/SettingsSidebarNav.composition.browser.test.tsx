@@ -15,6 +15,7 @@ vi.mock("./useAvailableSettingsSearchItems", () => ({
   useAvailableSettingsSearchItems: () => [
     { id: "theme", title: "Theme", to: "/settings/appearance" },
   ],
+  useHasSecretProvidersEnvironment: () => false,
 }));
 vi.mock("../chat/GlobalVoiceInputIndicator", () => ({ GlobalVoiceInputIndicator: () => null }));
 
@@ -118,7 +119,9 @@ it("moves Tab through every settings section", async () => {
   await userEvent.click(page.getByRole("combobox", { name: "Search settings" }));
 
   const sections = SETTINGS_NAV_GROUPS.flatMap((group) =>
-    group.paths.filter(isSettingsSectionAvailable).map((to) => SETTINGS_SECTION_LABELS[to]),
+    group.paths
+      .filter((to) => isSettingsSectionAvailable(to) && to !== "/settings/secrets")
+      .map((to) => SETTINGS_SECTION_LABELS[to]),
   );
   const tabbed: string[] = [];
   for (let step = 0; step < sections.length; step += 1) {

@@ -21,6 +21,7 @@ import {
   MessageId,
   ORCHESTRATION_V2_WS_METHODS,
   RunId,
+  SecretProviderId,
   WS_METHODS,
   WsRpcGroup,
 } from "@supaterm/contracts";
@@ -446,6 +447,12 @@ describe("settings mutation authorization", () => {
           providerInstanceMutation,
         }).pipe(Effect.flip),
       ).toMatchObject({ requiredScope: AuthSettingsWriteScope });
+      // Removing a secret provider clears settings fields that read from it.
+      expect(
+        yield* client[WS_METHODS.serverUpdateSettings]({
+          patch: { secretProviders: { [SecretProviderId.make("personal")]: null } },
+        }).pipe(Effect.flip),
+      ).toMatchObject({ requiredScope: AuthSettingsWriteScope });
       expect(handled).toBe(1);
     }),
   );
@@ -602,10 +609,131 @@ describe("settings mutation authorization", () => {
           providerInstanceMutation,
         }).pipe(Effect.flip),
       ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+      expect(
+        yield* client[WS_METHODS.serverUpdateSettings]({
+          patch: { secretProviders: { [SecretProviderId.make("personal")]: null } },
+        }).pipe(Effect.flip),
+      ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+      // A reference names any secret the store holds, and the host entry names where it goes.
+      expect(
+        yield* client[WS_METHODS.serverUpdateSettings]({
+          patch: {
+            sourceControlHosts: {
+              github: {
+                tokens: {
+                  "github.com": {
+                    provider: SecretProviderId.make("personal"),
+                    reference: "op://Private/OpenAI/credential",
+                  },
+                },
+              },
+            },
+          },
+        }).pipe(Effect.flip),
+      ).toMatchObject({ requiredScope: AuthProvidersManageScope });
       expect(handled).toBe(false);
     }),
   );
 });
+
+it.effect("does not let a settings grant send a named secret to an Expo account it checks", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.deviceEasAccount> =>
+          tag !== WS_METHODS.deviceEasAccount,
+      ),
+    );
+    let handled = 0;
+    const client = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          group.toLayerHandler(WS_METHODS.deviceEasAccount, () =>
+            Effect.sync(() => {
+              handled++;
+              return { signedInAs: "agent", credentialSource: "settings" as const, apps: [] };
+            }),
+          ),
+          RpcAuthorization.layer([AuthSettingsWriteScope]),
+        ),
+      ),
+    );
+    yield* client[WS_METHODS.deviceEasAccount]({ accessToken: "typed-token" });
+    expect(handled).toBe(1);
+    expect(
+      yield* client[WS_METHODS.deviceEasAccount]({
+        accessToken: {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/Expo/token",
+        },
+      }).pipe(Effect.flip),
+    ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+    expect(handled).toBe(1);
+  }),
+);
+
+it.effect("answering a secret request with a reference needs provider management", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<
+          keyof typeof RPC_REQUIRED_SCOPES,
+          typeof WS_METHODS.secretsAnswerRequest
+        > => tag !== WS_METHODS.secretsAnswerRequest,
+      ),
+    );
+    const handled: string[] = [];
+    const handler = group.toLayerHandler(WS_METHODS.secretsAnswerRequest, ({ answer }) =>
+      Effect.sync(() => {
+        handled.push(answer.type);
+      }),
+    );
+    const clientWith = (...scopes: Parameters<typeof RpcAuthorization.layer>[0]) =>
+      RpcTest.makeClient(group).pipe(
+        Effect.provide(Layer.merge(handler, RpcAuthorization.layer(scopes))),
+      );
+    const request = { threadId: ThreadId.make("thread"), turnItemId: TurnItemId.make("item") };
+    const reference = {
+      type: "reference" as const,
+      reference: {
+        provider: SecretProviderId.make("personal"),
+        reference: "op://Private/OpenAI/credential",
+      },
+    };
+
+    const operate = yield* clientWith(AuthOrchestrationOperateScope);
+    expect(
+      yield* operate[WS_METHODS.secretsAnswerRequest]({ ...request, answer: reference }).pipe(
+        Effect.flip,
+      ),
+    ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+    expect(handled).toEqual([]);
+    // Typed values stay with the scope that runs the thread, whatever the fields are called.
+    yield* operate[WS_METHODS.secretsAnswerRequest]({
+      ...request,
+      answer: { type: "save", secret: "typed-value" },
+    });
+    yield* operate[WS_METHODS.secretsAnswerRequest]({
+      ...request,
+      answer: { type: "save", values: { provider: "personal", reference: "typed-value" } },
+    });
+    expect(handled).toEqual(["save", "save"]);
+
+    const manage = yield* clientWith(AuthOrchestrationOperateScope, AuthProvidersManageScope);
+    yield* manage[WS_METHODS.secretsAnswerRequest]({ ...request, answer: reference });
+    expect(handled).toEqual(["save", "save", "reference"]);
+    const manageOnly = yield* clientWith(AuthProvidersManageScope);
+    expect(
+      yield* manageOnly[WS_METHODS.secretsAnswerRequest]({ ...request, answer: reference }).pipe(
+        Effect.flip,
+      ),
+    ).toMatchObject({ requiredScope: AuthOrchestrationOperateScope });
+  }),
+);
 
 it.effect("requires task permission before attaching a prepared worktree to a thread", () =>
   Effect.gen(function* () {
@@ -829,6 +957,54 @@ it.effect("sends OTLP endpoint checks only for connections that can save the end
       latencyMs: 1,
     });
     expect(checked).toEqual([input.url]);
+  }),
+);
+
+it.effect("checks a secret reference only for connections that can change settings", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<
+          keyof typeof RPC_REQUIRED_SCOPES,
+          typeof WS_METHODS.serverCheckSecretSource
+        > => tag !== WS_METHODS.serverCheckSecretSource,
+      ),
+    );
+    let checked = 0;
+    const makeClient = (scopes: Parameters<typeof RpcAuthorization.layer>[0]) =>
+      RpcTest.makeClient(group).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            group.toLayerHandler(WS_METHODS.serverCheckSecretSource, () =>
+              Effect.sync(() => {
+                checked++;
+                return { _tag: "Resolved" as const };
+              }),
+            ),
+            RpcAuthorization.layer(scopes),
+          ),
+        ),
+      );
+    const input = {
+      source: {
+        provider: SecretProviderId.make("personal"),
+        reference: "op://Private/OpenAI/credential",
+      },
+    };
+
+    const operator = yield* makeClient([AuthOrchestrationReadScope, AuthOrchestrationOperateScope]);
+    expect(
+      yield* operator[WS_METHODS.serverCheckSecretSource](input).pipe(Effect.flip),
+    ).toMatchObject({ requiredScope: AuthSettingsWriteScope });
+    expect(checked).toBe(0);
+
+    const settingsWriter = yield* makeClient([AuthSettingsWriteScope]);
+    expect(yield* settingsWriter[WS_METHODS.serverCheckSecretSource](input)).toEqual({
+      _tag: "Resolved",
+    });
+    expect(checked).toBe(1);
   }),
 );
 

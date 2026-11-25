@@ -35,6 +35,8 @@
     "@supaterm/icons": "workspace:*",
     "@supaterm/mermaid": "workspace:*",
     "@supaterm/provider-core": "workspace:*",
+    "@supaterm/secret-provider-definitions": "workspace:*",
+    "@supaterm/secret-provider-onepassword": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@tanstack/react-pacer": "^0.19.4",
     "@tanstack/react-router": "^1.160.2",

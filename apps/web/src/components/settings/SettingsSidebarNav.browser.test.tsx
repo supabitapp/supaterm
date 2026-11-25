@@ -28,6 +28,7 @@ vi.mock(import("./useAvailableSettingsSearchItems"), async () => {
   return {
     useAvailableSettingsSearchItems: () =>
       useSyncExternalStore(subscribe, () => searchItems.current),
+    useHasSecretProvidersEnvironment: () => false,
   };
 });
 vi.mock(import("@tanstack/react-router"), async (original) => ({

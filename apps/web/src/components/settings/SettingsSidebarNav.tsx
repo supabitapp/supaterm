@@ -9,6 +9,7 @@ import {
   GitBranchIcon,
   GlobeIcon,
   InfoIcon,
+  KeyIcon,
   KeyboardIcon,
   LightbulbIcon,
   MessageSquareTextIcon,
@@ -49,7 +50,10 @@ import {
   type SettingsPath,
   type SettingsSearchItem,
 } from "./settingsSearch";
-import { useAvailableSettingsSearchItems } from "./useAvailableSettingsSearchItems";
+import {
+  useAvailableSettingsSearchItems,
+  useHasSecretProvidersEnvironment,
+} from "./useAvailableSettingsSearchItems";
 import { handleSettingsSectionKeyDown } from "./settingsSectionNavigation";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { isImeComposing } from "~/lib/imeComposition";
@@ -76,6 +80,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/worktrees": FolderTreeIcon,
   "/settings/connections": ServerIcon,
   "/settings/access": ShieldIcon,
+  "/settings/secrets": KeyIcon,
   "/settings/maintenance": WrenchIcon,
   "/settings/about": InfoIcon,
   "/settings/archived": ArchiveIcon,
@@ -91,6 +96,11 @@ const SETTINGS_NAV_SECTIONS = SETTINGS_NAV_GROUPS.map((group) => ({
   ...group,
   paths: group.paths.filter(isSettingsSectionAvailable),
 })).filter((group) => group.paths.length > 0);
+
+const SETTINGS_NAV_SECTIONS_WITHOUT_SECRETS = SETTINGS_NAV_SECTIONS.map((group) => ({
+  ...group,
+  paths: group.paths.filter((path) => path !== "/settings/secrets"),
+}));
 
 // Attached only to the highlighted result, so it runs whenever the highlight lands on a row.
 function scrollResultIntoView(row: HTMLElement | null) {
@@ -115,6 +125,9 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const [compactSearchOpen, setCompactSearchOpen] = useState(false);
   const [activeResultIndex, setActiveResultIndex] = useState(0);
   const searchableItems = useAvailableSettingsSearchItems();
+  const navSections = useHasSecretProvidersEnvironment()
+    ? SETTINGS_NAV_SECTIONS
+    : SETTINGS_NAV_SECTIONS_WITHOUT_SECRETS;
   const results = searchSettings(query, searchableItems);
   const isSearching = query.trim().length > 0;
   const hasResults = results.length > 0;
@@ -351,7 +364,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                   </SidebarMenu>
                 )}
                 <div onKeyDown={handleSettingsSectionKeyDown} className="flex flex-col gap-3">
-                  {SETTINGS_NAV_SECTIONS.map((group, index) => (
+                  {navSections.map((group, index) => (
                     <div
                       key={group.heading}
                       className="flex flex-col gap-1 max-md:border-t max-md:border-sidebar-border max-md:pt-3 max-md:first:border-t-0 max-md:first:pt-0"

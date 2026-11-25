@@ -7,16 +7,24 @@ import {
   secretRequestInputs,
   secretRequestLink,
   SECRET_REQUEST_PRIVACY_NOTE,
+  secretRequestReference,
+  secretRequestSources,
   secretRequestValue,
   type SecretRequestInput,
   type SecretRequestItem,
   type SecretRequestReply,
+  type SecretRequestSource,
 } from "@supaterm/client-runtime/secret-request";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import type { EnvironmentId, OrchestrationV2ProjectedTurnItem } from "@supaterm/contracts";
+import {
+  AuthProvidersManageScope,
+  type EnvironmentId,
+  type OrchestrationV2ProjectedTurnItem,
+  type SecretProviderId,
+} from "@supaterm/contracts";
 import {
   CheckIcon,
   ClockIcon,
@@ -30,8 +38,11 @@ import {
 import { useId, useRef, useState, type FormEvent } from "react";
 
 import { serverEnvironment } from "../../state/server";
+import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { SecretSourceSelect } from "../settings/SecretSourceInput";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { WorkLogRow } from "./WorkLog";
 
@@ -80,6 +91,17 @@ export function SecretRequestCard(props: {
   return <PendingSecretRequestForm environmentId={props.environmentId} item={item} />;
 }
 
+const NO_SOURCES: ReadonlyArray<SecretRequestSource> = [];
+
+function useSecretRequestSources(environmentId: EnvironmentId) {
+  const config = useAtomValue(serverEnvironment.configValueAtom(environmentId));
+  // The server accepts a reference answer only with this scope; without it the card is typed.
+  const canUseReferences = useEnvironmentScope(environmentId, AuthProvidersManageScope);
+  return canUseReferences && config?.secretProviderSettings === true
+    ? secretRequestSources(config, config.settings.secretProviders)
+    : NO_SOURCES;
+}
+
 function PendingSecretRequestForm(props: {
   readonly environmentId: EnvironmentId;
   readonly item: SecretRequestItem;
@@ -99,6 +121,12 @@ function PendingSecretRequestForm(props: {
   const canAnswer = useAtomValue(
     serverEnvironment.answerSecretRequest.permissionAtom(props.environmentId),
   );
+  // A reference answers one value, so a card with fields is always typed.
+  const configuredSources = useSecretRequestSources(props.environmentId);
+  const sources = item.fields === undefined ? configuredSources : NO_SOURCES;
+  const [sourceId, setSourceId] = useState<SecretProviderId | null>(null);
+  const source = sources.find((candidate) => candidate.id === sourceId) ?? null;
+  const [reference, setReference] = useState("");
   const [values, setValues] = useState<Readonly<Record<string, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const locked = submitting || !canAnswer;
@@ -118,7 +146,10 @@ function PendingSecretRequestForm(props: {
       inFlight.current = false;
       setSubmitting(false);
     });
-    if (result._tag === "Success") return;
+    if (result._tag === "Success") {
+      setReference("");
+      return;
+    }
     if (reply.type === "save") setValues(reply.values);
     if (!isAtomCommandInterrupted(result)) {
       pipe(squashAtomCommandFailure(result), secretRequestFailureMessage, setError);
@@ -127,9 +158,19 @@ function PendingSecretRequestForm(props: {
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void send({ type: "save", values });
+    if (source === null) {
+      void send({ type: "save", values });
+    } else if (secretRequestReference(source, reference) === undefined) {
+      setError(source.invalidReferenceMessage);
+    } else {
+      void send({ type: "reference", source, reference });
+    }
   };
-  const incomplete = secretRequestAnswerInput(item, { type: "save", values }) === null;
+  const incomplete =
+    source === null
+      ? secretRequestAnswerInput(item, { type: "save", values }) === null
+      : reference.trim().length === 0;
+  const describedBy = error !== null ? `${privacyId} ${errorId}` : privacyId;
   const link = secretRequestLink(item);
   const renderField = (input: SecretRequestInput, index: number) => (
     <SecretRequestField
@@ -139,7 +180,7 @@ function PendingSecretRequestForm(props: {
       value={secretRequestValue(values, input.key)}
       disabled={locked}
       invalid={error !== null}
-      describedBy={error !== null ? `${privacyId} ${errorId}` : privacyId}
+      describedBy={describedBy}
       showLabel={item.fields !== undefined}
       onChange={(value) => setValues((current) => ({ ...current, [input.key]: value }))}
     />
@@ -192,7 +233,41 @@ function PendingSecretRequestForm(props: {
       ) : null}
       {inputs.slice(0, -1).map(renderField)}
       <div className="flex min-w-0 items-end gap-2">
-        {inputs.slice(-1).map((input) => renderField(input, inputs.length - 1))}
+        {sources.length > 0 ? (
+          <SecretSourceSelect
+            value={source?.id ?? null}
+            sources={sources}
+            label={item.label}
+            disabled={locked}
+            onValueChange={(next) => {
+              setSourceId(next);
+              setError(null);
+            }}
+          />
+        ) : null}
+        {source === null ? (
+          inputs.slice(-1).map((input) => renderField(input, inputs.length - 1))
+        ) : (
+          <div className="min-w-0 flex-1">
+            <Input
+              id={inputId(0)}
+              font="mono"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder={source.referencePlaceholder}
+              value={reference}
+              disabled={locked}
+              aria-invalid={error !== null || undefined}
+              aria-describedby={describedBy}
+              onChange={(event) => {
+                setReference(event.currentTarget.value);
+                setError(null);
+              }}
+            />
+          </div>
+        )}
         <Button type="submit" disabled={locked || incomplete}>
           Send
         </Button>

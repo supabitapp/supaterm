@@ -97,6 +97,9 @@ once it has one.
   at pairing.
 - `SUPATERM_DEV_AUTH_TOKEN` and dev startup URLs are administrative by design and
   ignored outside development servers.
+- A session with `providers:manage` can point a credential field at any secret
+  the configured secret provider's account can read. Saving or answering with a
+  secret reference needs that scope for this reason.
 - The machine owner's own configuration. Whoever sets a provider's launch
   arguments, an environment variable, a binary path, or the endpoint or file
   Supaterm points at already holds the OS account, so a value weakening their own
