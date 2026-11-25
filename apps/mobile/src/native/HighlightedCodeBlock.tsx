@@ -46,7 +46,7 @@ export function HighlightedCodeBlock(props: {
   readonly codeStyle: NonNullable<MarkdownStyle["codeBlock"]>;
 }) {
   const { code, codeStyle, textStyle } = props;
-  const [wrapped, setWrapped] = useState(false);
+  const [wrapped, setWrapped] = useState(true);
   const lines = useMarkdownCodeHighlight({
     code,
     language: props.language,
