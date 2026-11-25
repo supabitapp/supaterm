@@ -10,6 +10,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import * as Context from "effect/Context";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
@@ -161,6 +162,14 @@ function runGitSyncForFakeCheckout(cwd: string, args: readonly string[]): void {
     `Failed to simulate a host checkout with git ${args.join(" ")}: ${result.stderr?.trim() || "unknown error"}`,
   );
 }
+// Git blocks file submodule transports (CVE-2022-39253) despite repo config; local fixtures need env permission.
+const withGitFileProtocol = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.flatMap(HostProcess.Environment, (env) =>
+    effect.pipe(
+      Effect.provideService(HostProcess.Environment, { ...env, GIT_ALLOW_PROTOCOL: "file" }),
+    ),
+  );
+
 function makeTempDir(
   prefix: string,
 ): Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem | Scope.Scope> {
@@ -6908,18 +6917,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     "checks out the submodules of the head an existing PR branch moves onto (head %s one)",
     (headChange) =>
       Effect.gen(function* () {
-        // Git blocks file submodule transports (CVE-2022-39253) despite repo config; local fixtures need env permission.
-        const previousAllowedProtocol = process.env.GIT_ALLOW_PROTOCOL;
-        process.env.GIT_ALLOW_PROTOCOL = "file";
-        yield* Effect.addFinalizer(() =>
-          Effect.sync(() => {
-            if (previousAllowedProtocol === undefined) {
-              delete process.env.GIT_ALLOW_PROTOCOL;
-            } else {
-              process.env.GIT_ALLOW_PROTOCOL = previousAllowedProtocol;
-            }
-          }),
-        );
         const submoduleDir = yield* makeTempDir("supaterm-git-submodule-");
         yield* initRepo(submoduleDir);
         const repoDir = yield* makeTempDir("supaterm-git-manager-");
@@ -6978,7 +6975,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         );
         expect((yield* runGit(worktreePath, ["status", "--porcelain"])).stdout).toBe("");
         expect(result).toMatchObject({ isOnPullRequestHead: true });
-      }),
+      }).pipe(withGitFileProtocol),
   );
 
   it.effect("refreshes a reused PR worktree onto the updated pull request head", () =>

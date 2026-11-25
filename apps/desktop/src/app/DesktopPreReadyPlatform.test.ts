@@ -63,6 +63,7 @@ vi.mock("node:child_process", () => ({
   execFileSync: execFileSyncMock,
 }));
 
+import * as DesktopConfig from "./DesktopConfig.ts";
 import * as DesktopPreReadyPlatform from "./DesktopPreReadyPlatform.ts";
 
 describe("DesktopPreReadyPlatform", () => {
@@ -131,8 +132,6 @@ describe("DesktopPreReadyPlatform", () => {
     { previousEntry: 'Exec="/Applications/deleted-previous.AppImage" %U', label: "stale" },
   ])("prepares a $label Linux desktop entry before startup yields", ({ previousEntry }) => {
     vi.stubEnv("VITE_DEV_SERVER_URL", "");
-    vi.stubEnv("XDG_DATA_HOME", "/xdg");
-    vi.stubEnv("APPIMAGE", "/Applications/current.AppImage");
     getSwitchValueMock.mockReturnValue("");
     let desktopName = "supaterm.desktop";
     let desktopEntry = previousEntry;
@@ -164,6 +163,12 @@ describe("DesktopPreReadyPlatform", () => {
         yield* Layer.build(
           DesktopPreReadyPlatform.layer.pipe(
             Layer.provide(Layer.succeed(HostProcess.Platform, "linux")),
+            Layer.provide(
+              DesktopConfig.layerTest({
+                XDG_DATA_HOME: "/xdg",
+                APPIMAGE: "/Applications/current.AppImage",
+              }),
+            ),
           ),
         );
         const identity = yield* Effect.promise(() => portalIdentity);
@@ -192,9 +197,6 @@ describe("DesktopPreReadyPlatform", () => {
     "restores the versioned AppImage path an update removed (updater relaunch: $relaunchedByUpdater)",
     ({ relaunchedByUpdater, restored }) => {
       vi.stubEnv("VITE_DEV_SERVER_URL", "");
-      vi.stubEnv("XDG_DATA_HOME", "/xdg");
-      vi.stubEnv("APPIMAGE", "/Applications/supaterm-x86_64.AppImage");
-      vi.stubEnv("APPIMAGE_SILENT_INSTALL", relaunchedByUpdater);
       getSwitchValueMock.mockReturnValue("");
       const entryPath = "/xdg/applications/com.supaterm.desktop.desktop";
       const files = new Map([
@@ -210,6 +212,13 @@ describe("DesktopPreReadyPlatform", () => {
           yield* Layer.build(
             DesktopPreReadyPlatform.layer.pipe(
               Layer.provide(Layer.succeed(HostProcess.Platform, "linux")),
+              Layer.provide(
+                DesktopConfig.layerTest({
+                  XDG_DATA_HOME: "/xdg",
+                  APPIMAGE: "/Applications/supaterm-x86_64.AppImage",
+                  APPIMAGE_SILENT_INSTALL: relaunchedByUpdater,
+                }),
+              ),
             ),
           );
           assert.deepEqual(
@@ -226,9 +235,6 @@ describe("DesktopPreReadyPlatform", () => {
 
   it.effect("points the early portal entry at a configured distribution launcher", () => {
     vi.stubEnv("VITE_DEV_SERVER_URL", "");
-    vi.stubEnv("XDG_DATA_HOME", "/xdg");
-    vi.stubEnv("APPIMAGE", "/Applications/current.AppImage");
-    vi.stubEnv("SUPATERM_DESKTOP_LAUNCHER_PATH", " /opt/Supaterm/supaterm ");
     getSwitchValueMock.mockReturnValue("");
 
     return Effect.scoped(
@@ -236,6 +242,13 @@ describe("DesktopPreReadyPlatform", () => {
         yield* Layer.build(
           DesktopPreReadyPlatform.layer.pipe(
             Layer.provide(Layer.succeed(HostProcess.Platform, "linux")),
+            Layer.provide(
+              DesktopConfig.layerTest({
+                XDG_DATA_HOME: "/xdg",
+                APPIMAGE: "/Applications/current.AppImage",
+                SUPATERM_DESKTOP_LAUNCHER_PATH: " /opt/Supaterm/supaterm ",
+              }),
+            ),
           ),
         );
         const entry = writeFileSyncMock.mock.calls.find(

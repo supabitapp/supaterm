@@ -182,14 +182,13 @@ export class MobileDatabase extends Context.Service<
   }
 >()("@supaterm/mobile/persistence/mobile-database/MobileDatabase") {}
 
+const loadSqlite = async (): Promise<typeof import("expo-sqlite")> =>
+  process.env.NODE_ENV === "test" ? await import("expo-sqlite") : require("expo-sqlite");
+
 const makeAvailable = Effect.gen(function* () {
   const database = yield* Effect.acquireRelease(
     Effect.tryPromise({
-      try: async () => {
-        const SQLite: typeof import("expo-sqlite") =
-          process.env.NODE_ENV === "test" ? await import("expo-sqlite") : require("expo-sqlite");
-        return SQLite.openDatabaseAsync(DATABASE_NAME);
-      },
+      try: async () => (await loadSqlite()).openDatabaseAsync(DATABASE_NAME),
       catch: databaseError("open"),
     }),
     (openDatabase) =>
