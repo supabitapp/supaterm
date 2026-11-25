@@ -23,7 +23,8 @@
     "@supaterm/provider-core": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "@supaterm/source-control-core": "workspace:*",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "@effect/graphql-generator": "catalog:",

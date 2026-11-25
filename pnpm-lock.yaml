@@ -2123,6 +2123,9 @@ importers:
       effect:
         specifier: 4.1.5
         version: 4.1.5(patch_hash=4efcfa75f4af910e670008caaea1aa2ce73194092a2bcc3e9be61658a6b88187)
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       '@effect/graphql-generator':
         specifier: 'catalog:'

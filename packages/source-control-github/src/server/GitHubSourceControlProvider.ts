@@ -46,6 +46,7 @@ import * as SourceControlProvider from "@supaterm/source-control-core/server/Sou
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import {
   parseGitRemoteHost,
+  readSourceControlHostSettings,
   unknownRemoteProvider,
 } from "@supaterm/source-control-core/shared/definition";
 import {
