@@ -1306,6 +1306,9 @@ importers:
       '@supaterm/provider-pi':
         specifier: workspace:*
         version: link:../provider-pi
+      '@supaterm/secret-provider-definitions':
+        specifier: workspace:*
+        version: link:../secret-provider-definitions
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../shared

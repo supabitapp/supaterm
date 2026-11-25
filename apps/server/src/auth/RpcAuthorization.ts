@@ -11,6 +11,7 @@ import {
   requiredScopesForServerSettingsPatch,
   requiredScopesForProjectMutation,
   ProjectMutation,
+  SecretRequestAnswerInput,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
   AuthEnvironmentMaintainScope,
@@ -260,6 +261,7 @@ const requiredScopesForSettingsUpdate = (payload: unknown) => {
 };
 
 const decodeProjectMutation = Schema.decodeUnknownSync(ProjectMutation);
+const decodeSecretRequestAnswer = Schema.decodeUnknownSync(SecretRequestAnswerInput);
 
 /**
  * A queued edit that omits `attachments` keeps the queued ones, which a payload cannot show;
@@ -309,6 +311,14 @@ const requiredScopesForRpcCall = (
   // This sends the credential it is given to Expo, as a saved setting would.
   if (method === WS_METHODS.deviceEasAccount && containsSecretReference(payload)) {
     return [AuthSettingsWriteScope, AuthProvidersManageScope];
+  }
+  // A reference answer has the server read a secret the caller names, as a saved reference does.
+  // Typed values can use any field names, so the answer's type decides, not its shape.
+  if (
+    method === WS_METHODS.secretsAnswerRequest &&
+    decodeSecretRequestAnswer(payload).answer.type === "reference"
+  ) {
+    return [AuthOrchestrationOperateScope, AuthProvidersManageScope];
   }
   if (method === WS_METHODS.projectsMutate) {
     return requiredScopesForProjectMutation(decodeProjectMutation(payload));

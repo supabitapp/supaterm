@@ -7,15 +7,23 @@ import {
   secretRequestInputs,
   SECRET_REQUEST_PRIVACY_NOTE,
   secretRequestLink,
+  secretRequestReference,
+  secretRequestSources,
   secretRequestValue,
   type SecretRequestItem,
   type SecretRequestReply,
+  type SecretRequestSource,
 } from "@supaterm/client-runtime/secret-request";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import type { EnvironmentId, OrchestrationV2ProjectedTurnItem } from "@supaterm/contracts";
+import {
+  AuthProvidersManageScope,
+  type EnvironmentId,
+  type OrchestrationV2ProjectedTurnItem,
+  type SecretProviderId,
+} from "@supaterm/contracts";
 import { useRef, useState } from "react";
 import { View, type ColorValue } from "react-native";
 
@@ -23,13 +31,16 @@ import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { AppText as Text, AppTextInput } from "../../components/ui/AppText";
 import { SecretTextInput } from "../../components/ui/SecretTextInput";
 import { serverEnvironment } from "../../state/server";
+import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { Button } from "../../components/ui/Button";
+import { Chip } from "../../components/ui/Chip";
 
 const LOCK_SYMBOL: AppSymbolName = { ios: "lock", android: "lock" };
 const PRIVATE_SYMBOL: AppSymbolName = { ios: "checkmark.shield", android: "lock" };
 const EXPIRED_SYMBOL: AppSymbolName = "clock";
+const NO_SOURCES: ReadonlyArray<SecretRequestSource> = [];
 
 export function SecretRequestCard(props: {
   readonly environmentId: EnvironmentId;
@@ -100,6 +111,17 @@ function PendingSecretRequestForm(props: {
     serverEnvironment.answerSecretRequest.permissionAtom(props.environmentId),
   );
   const inputs = secretRequestInputs(item);
+  const config = useAtomValue(serverEnvironment.configValueAtom(props.environmentId));
+  // The server accepts a reference answer only with this scope; without it the card is typed.
+  const canUseReferences = useEnvironmentScope(props.environmentId, AuthProvidersManageScope);
+  // A reference answers one value, so a card with fields is always typed.
+  const sources =
+    item.fields !== undefined || !canUseReferences || config?.secretProviderSettings !== true
+      ? NO_SOURCES
+      : secretRequestSources(config, config.settings.secretProviders);
+  const [sourceId, setSourceId] = useState<SecretProviderId | null>(null);
+  const source = sources.find((candidate) => candidate.id === sourceId) ?? null;
+  const [reference, setReference] = useState("");
   const [values, setValues] = useState<Readonly<Record<string, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const locked = submitting || !canAnswer;
@@ -119,12 +141,28 @@ function PendingSecretRequestForm(props: {
       inFlight.current = false;
       setSubmitting(false);
     });
-    if (result._tag === "Success") return;
+    if (result._tag === "Success") {
+      setReference("");
+      return;
+    }
     if (reply.type === "save") setValues(reply.values);
     if (!isAtomCommandInterrupted(result)) {
       pipe(squashAtomCommandFailure(result), secretRequestFailureMessage, setError);
     }
   };
+  const save = (typed: Readonly<Record<string, string>>) => {
+    if (source === null) {
+      void send({ type: "save", values: typed });
+    } else if (secretRequestReference(source, reference) === undefined) {
+      setError(source.invalidReferenceMessage);
+    } else {
+      void send({ type: "reference", source, reference });
+    }
+  };
+  const incomplete =
+    source === null
+      ? secretRequestAnswerInput(item, { type: "save", values }) === null
+      : reference.trim().length === 0;
   const link = secretRequestLink(item);
 
   return (
@@ -153,13 +191,60 @@ function PendingSecretRequestForm(props: {
           ) : null}
         </View>
       ) : null}
-      {inputs.map((input) => {
+      {sources.length > 0 ? (
+        <View className="flex-row flex-wrap gap-2">
+          <Chip
+            label="Value"
+            size="small"
+            selected={source === null}
+            disabled={locked}
+            onPress={() => {
+              setSourceId(null);
+              setError(null);
+            }}
+          />
+          {sources.map((candidate) => (
+            <Chip
+              key={candidate.id}
+              label={candidate.label}
+              size="small"
+              selected={candidate.id === source?.id}
+              disabled={locked}
+              onPress={() => {
+                setSourceId(candidate.id);
+                setError(null);
+              }}
+            />
+          ))}
+        </View>
+      ) : null}
+      {source !== null ? (
+        <AppTextInput
+          key={source.id}
+          accessibilityLabel={`${item.label} reference in ${source.label}`}
+          placeholder={source.referencePlaceholder}
+          value={reference}
+          onChangeText={(next) => {
+            setReference(next);
+            setError(null);
+          }}
+          editable={!locked}
+          autoCorrect={false}
+          autoCapitalize="none"
+          autoComplete="off"
+          textContentType="none"
+          importantForAutofill="no"
+          spellCheck={false}
+          returnKeyType="done"
+          onSubmitEditing={() => save(values)}
+        />
+      ) : null}
+      {(source === null ? inputs : []).map((input) => {
         const value = secretRequestValue(values, input.key);
         const onChangeText = (next: string) =>
           setValues((current) => ({ ...current, [input.key]: next }));
         // The field's own text, so a submit never uses a stale render of it.
-        const onSubmit = (next: string) =>
-          void send({ type: "save", values: { ...values, [input.key]: next } });
+        const onSubmit = (next: string) => save({ ...values, [input.key]: next });
         return (
           <View key={input.key} className="gap-1.5">
             {item.fields === undefined ? null : (
@@ -207,8 +292,8 @@ function PendingSecretRequestForm(props: {
         label="Send"
         tone="primary"
         fullWidth
-        disabled={locked || secretRequestAnswerInput(item, { type: "save", values }) === null}
-        onPress={() => void send({ type: "save", values })}
+        disabled={locked || incomplete}
+        onPress={() => save(values)}
       />
       <View className="flex-row items-center justify-between gap-2">
         <View className="flex-1 flex-row items-center gap-1.5">

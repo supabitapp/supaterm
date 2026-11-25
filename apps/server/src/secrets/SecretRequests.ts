@@ -5,6 +5,7 @@ import {
   CommandId,
   SecretRequestError,
   type OrchestrationV2TurnItem,
+  type SecretReference,
   type SecretRequestAnswerInput,
   type ThreadId,
   isOrchestrationV2RunSettled,
@@ -24,6 +25,7 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
 import * as KeyedLock from "@supaterm/shared/KeyedLock";
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
@@ -49,7 +51,7 @@ const fieldNames = (item: SecretRequestItem): ReadonlyArray<FieldName> =>
 /** The answer's value per field, or undefined when it does not answer exactly those fields. */
 function answerValues(
   item: SecretRequestItem,
-  answer: Extract<SecretRequestAnswerInput["answer"], { readonly type: "save" }>,
+  answer: Exclude<SecretRequestAnswerInput["answer"], { readonly type: "decline" }>,
 ): ReadonlyArray<readonly [FieldName, string]> | undefined {
   if (item.fields === undefined) {
     return "secret" in answer ? [[undefined, answer.secret]] : undefined;
@@ -95,6 +97,7 @@ const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const threadManagement = yield* ThreadManagementService.ThreadManagementService;
+  const resolver = yield* SecretResolver.SecretResolver;
   // Beside the store's own files so the same owner-only directory and cleanup rules apply.
   const filesDir = store.directory === undefined ? undefined : path.join(store.directory, "files");
 
@@ -125,6 +128,21 @@ const make = Effect.gen(function* () {
     Effect.forEach(fieldNames(item), (field) =>
       keyFor(threadId, item.id, field).pipe(Effect.flatMap((key) => removeLogged(storeName(key)))),
     );
+
+  const readReference = Effect.fn("SecretRequests.readReference")(function* (
+    reference: SecretReference,
+  ) {
+    // The resolver keeps failed reads for the server's life; a retry after unlocking must re-read.
+    yield* resolver.invalidate([reference]);
+    const [value] = yield* resolver.read([reference]);
+    if (value === undefined || value.trim() === "") {
+      return yield* new SecretRequestError({
+        reason: "reference_unreadable",
+        provider: yield* resolver.label(reference.provider),
+      });
+    }
+    return value;
+  });
 
   // One answer per card at a time: fields are stored one by one, so two racing answers could
   // otherwise each keep some of their values.
@@ -158,8 +176,10 @@ const make = Effect.gen(function* () {
       const values =
         input.answer.type === "decline"
           ? undefined
-          : (answerValues(item, input.answer) ??
-            (yield* new SecretRequestError({ reason: "fields_mismatch" })));
+          : input.answer.type === "reference" && item.fields === undefined
+            ? [[undefined, yield* readReference(input.answer.reference)] as const]
+            : (answerValues(item, input.answer) ??
+              (yield* new SecretRequestError({ reason: "fields_mismatch" })));
       if (values !== undefined) {
         const savedAt = yield* Clock.currentTimeMillis;
         yield* Effect.forEach(values, ([field, value]) =>

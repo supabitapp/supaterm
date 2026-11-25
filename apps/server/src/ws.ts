@@ -1780,6 +1780,7 @@ export const layerWsRpc = (
           transcriptionStreams: true,
           secretProviderSettings: true,
           secretReferences: true,
+          secretRequestReferences: true,
           ...Option.match(scratchWorkspaceRoot, {
             onNone: () => ({}),
             onSome: (root) => ({ scratchWorkspaceRoot: root }),
