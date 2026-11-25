@@ -65,6 +65,7 @@ type TraitsRenderInput = {
   triggerClassName?: string;
   isComposerOwned?: boolean;
   shortcutLabel?: string | null;
+  speedShortcutLabel?: string | null;
 };
 
 export function getComposerPromptInjectionState(prompt: string): ComposerPromptInjectionState {
@@ -216,6 +217,7 @@ function renderTraitsControl(
     triggerClassName,
     isComposerOwned,
     shortcutLabel,
+    speedShortcutLabel,
   } = input;
   const hasTarget = threadRef !== undefined || draftId !== undefined;
   const { selections: resolvedModelOptions } = resolveComposerOptionSelections(
@@ -254,6 +256,7 @@ function renderTraitsControl(
       {...(triggerClassName !== undefined ? { triggerClassName } : {})}
       {...(isComposerOwned ? { isComposerOwned } : {})}
       {...(shortcutLabel ? { shortcutLabel } : {})}
+      {...(speedShortcutLabel ? { speedShortcutLabel } : {})}
     />
   );
 }

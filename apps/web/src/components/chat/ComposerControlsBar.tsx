@@ -150,6 +150,7 @@ export function ComposerControlsBar(props: {
     onPromptEdit,
     isComposerOwned: true,
     shortcutLabel: shortcutLabelForCommand(keybindings, "composer.effort"),
+    speedShortcutLabel: shortcutLabelForCommand(keybindings, "composer.toggleFastMode"),
   } satisfies Parameters<typeof renderProviderTraitsPicker>[0];
   const providerTraitsPicker = renderProviderTraitsPicker(providerTraitsPickerInput);
   const restingProviderTraitsPicker = renderProviderTraitsPicker({

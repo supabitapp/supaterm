@@ -24,6 +24,7 @@ import {
 } from "@supaterm/shared/model";
 import {
   getSpeedToggle,
+  getSpeedToggleChoices,
   getSpeedToggleNextValue,
   SPEED_TOGGLE_LABELS,
   type SpeedToggle,
@@ -34,18 +35,20 @@ import { BrainIcon, ZapIcon, ZapFilledIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import {
   Menu,
+  MenuCheckboxItem,
   MenuGroup,
   MenuPopup,
   MenuRadioGroup,
   MenuRadioItem,
   MenuSeparator as MenuDivider,
+  MenuShortcut,
   MenuTrigger,
 } from "../ui/menu";
 import { useComposerDraftStore, DraftId } from "../../composerDraftStore";
 import { getProviderModelCapabilities, keepsUnavailableModelOptions } from "../../providerModels";
-import { cn, isMacPlatform } from "~/lib/utils";
+import { cn } from "~/lib/utils";
 import { Badge } from "../ui/badge";
-import { Tooltip, TooltipPopup, TooltipShortcutLabel, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   ComposerControl,
   ComposerControlChevron,
@@ -539,6 +542,101 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
   );
 });
 
+function SpeedToggleControl({
+  speedToggle,
+  descriptors,
+  size,
+  disabled,
+  hidden,
+  isComposerOwned,
+  shortcutLabel,
+  onSelect,
+}: {
+  speedToggle: SpeedToggle;
+  descriptors: ReadonlyArray<ProviderOptionDescriptor>;
+  size: ComposerControlSize;
+  disabled: boolean;
+  hidden: boolean;
+  isComposerOwned: boolean | undefined;
+  shortcutLabel: string | null;
+  onSelect: (value: string | boolean) => void;
+}) {
+  const composerFloatingLayerProps = useComposerMenuProps();
+  const choices = getSpeedToggleChoices(speedToggle, descriptors);
+  const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled || !choices);
+  const speedOn = speedToggle.level !== "off";
+  const speedIcon = speedOn ? ZapFilledIcon : ZapIcon;
+  const button = (
+    <ComposerControl
+      size={size}
+      iconOnly
+      activeBackground={false}
+      disabled={disabled}
+      {...(choices
+        ? { "aria-label": SPEED_TOGGLE_LABELS[speedToggle.level] }
+        : {
+            "aria-label": "Fast mode",
+            "aria-pressed": speedOn,
+            onClick: () => onSelect(getSpeedToggleNextValue(speedToggle)),
+          })}
+    />
+  );
+  const trigger = (
+    <Tooltip>
+      <TooltipTrigger render={choices ? <MenuTrigger render={button} /> : button}>
+        <ComposerControlIcon
+          icon={speedToggle.level === "ultrafast" ? UltrafastIcon : speedIcon}
+          size={size}
+          className={speedOn ? "text-fast-mode" : undefined}
+        />
+      </TooltipTrigger>
+      <TooltipPopup side="top" shortcut={shortcutLabel}>
+        {SPEED_TOGGLE_LABELS[speedToggle.level]}
+      </TooltipPopup>
+    </Tooltip>
+  );
+  if (!choices) return trigger;
+
+  return (
+    <Menu open={isMenuOpen} onOpenChange={(open) => setIsMenuOpen(open && !disabled)}>
+      {trigger}
+      <MenuPopup align="end" {...(isComposerOwned ? composerFloatingLayerProps : {})}>
+        {choices.map((choice) => (
+          <MenuCheckboxItem
+            key={choice.level}
+            variant="plain"
+            checked={speedToggle.level === choice.level}
+            closeOnClick
+            onCheckedChange={(checked) => onSelect(checked ? choice.value : speedToggle.offValue)}
+          >
+            <span className="flex w-full min-w-0 items-start gap-2">
+              <ComposerControlIcon
+                icon={choice.level === "ultrafast" ? UltrafastIcon : ZapFilledIcon}
+                size="sm"
+                className={cn(
+                  "mt-0.5",
+                  speedToggle.level === choice.level ? "text-fast-mode" : "text-muted-foreground",
+                )}
+              />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span>{choice.level === "fast" ? "Fast" : "Ultrafast"}</span>
+                {choice.description ? (
+                  <span className="max-w-56 text-pretty text-muted-foreground/80 text-xs">
+                    {choice.description}
+                  </span>
+                ) : null}
+              </span>
+              {choice.level === "fast" && shortcutLabel ? (
+                <MenuShortcut>{shortcutLabel}</MenuShortcut>
+              ) : null}
+            </span>
+          </MenuCheckboxItem>
+        ))}
+      </MenuPopup>
+    </Menu>
+  );
+}
+
 export const TraitsPicker = memo(function TraitsPicker({
   provider,
   instanceId,
@@ -552,6 +650,7 @@ export const TraitsPicker = memo(function TraitsPicker({
   triggerClassName,
   isComposerOwned,
   shortcutLabel = null,
+  speedShortcutLabel = null,
   size = "sm",
   hidden = false,
   disabled = false,
@@ -562,6 +661,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     hidden?: boolean;
     /** The key that opens the picker, shown on its trigger. */
     shortcutLabel?: string | null;
+    speedShortcutLabel?: string | null;
     disabled?: boolean;
   }) {
   const composerFloatingLayerProps = useComposerMenuProps();
@@ -586,54 +686,23 @@ export const TraitsPicker = memo(function TraitsPicker({
     return null;
   }
 
-  const speedOn = speedToggle !== null && speedToggle.level !== "off";
-  const speedIcon = speedOn ? ZapFilledIcon : ZapIcon;
   const speedToggleControl = speedToggle ? (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <ComposerControl
-            size={size}
-            iconOnly
-            activeBackground={false}
-            aria-pressed={speedOn}
-            aria-label="Fast mode"
-            disabled={disabled}
-            onClick={(event) =>
-              updateModelOptions(
-                buildProviderOptionSelectionsFromDescriptors(
-                  replaceDescriptorCurrentValue(
-                    descriptors,
-                    speedToggle.descriptorId,
-                    getSpeedToggleNextValue(speedToggle, event.altKey),
-                  ),
-                ),
-              )
-            }
-          />
-        }
-      >
-        <ComposerControlIcon
-          icon={speedToggle.level === "ultrafast" ? UltrafastIcon : speedIcon}
-          size={size}
-          className={speedOn ? "text-fast-mode" : undefined}
-        />
-      </TooltipTrigger>
-      <TooltipPopup side="top">
-        {speedToggle.ultrafastValue !== undefined ? (
-          <div className="grid gap-1.5 py-0.5">
-            <span className="font-medium">{SPEED_TOGGLE_LABELS[speedToggle.level]}</span>
-            <TooltipShortcutLabel
-              shortcut={isMacPlatform(navigator.platform) ? "⌥ Click" : "Alt+Click"}
-            >
-              Enable ultrafast
-            </TooltipShortcutLabel>
-          </div>
-        ) : (
-          SPEED_TOGGLE_LABELS[speedToggle.level]
-        )}
-      </TooltipPopup>
-    </Tooltip>
+    <SpeedToggleControl
+      speedToggle={speedToggle}
+      descriptors={descriptors}
+      size={size}
+      disabled={disabled}
+      hidden={hidden}
+      isComposerOwned={isComposerOwned}
+      shortcutLabel={speedShortcutLabel}
+      onSelect={(value) =>
+        updateModelOptions(
+          buildProviderOptionSelectionsFromDescriptors(
+            replaceDescriptorCurrentValue(descriptors, speedToggle.descriptorId, value),
+          ),
+        )
+      }
+    />
   ) : null;
 
   if (!hasMenuControls) {

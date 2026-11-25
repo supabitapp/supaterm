@@ -154,6 +154,9 @@ Leaving reasoning level or service tier unset uses the provider's own configurat
 On mobile, long-press the bolt in the composer to choose from the selected model's
 service tiers. Tap it to toggle fast mode.
 
+On web and desktop, when a model offers both Fast and Ultrafast, clicking the bolt
+lets you pick one. Pick the checked tier again to turn it off.
+
 ## Quote an assistant response
 
 On web and desktop, select text within one assistant response and choose
