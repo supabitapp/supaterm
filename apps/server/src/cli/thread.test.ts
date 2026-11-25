@@ -85,7 +85,7 @@ it.effect("list includes delegated threads across pages and still leaves out sub
       runtimeMode: "full-access",
       interactionMode: "default",
       linkedPullRequest: null,
-      settled: false,
+      done: false,
       doneAt: null,
       snoozed: false,
       snoozedUntil: null,
