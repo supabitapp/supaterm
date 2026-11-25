@@ -3046,7 +3046,9 @@ export default function ChatView(props: ChatViewProps) {
   });
 
   const respondToActiveApproval = (decision: "accept" | "decline", repeat: boolean) => {
-    const approval = activePendingApproval;
+    const approval = pendingApprovals.find(
+      (pending) => !heldApprovalRequestIds.has(pending.requestId),
+    );
     if (!approval || approval.responseCapability !== "live") return false;
     if (approval.options && !approval.options.some((option) => option.decision === decision)) {
       return false;
