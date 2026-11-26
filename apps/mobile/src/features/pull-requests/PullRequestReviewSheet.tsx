@@ -2,6 +2,7 @@ import { AsyncResult } from "effect/reactivity";
 import { useAtomRefresh } from "@effect/atom-react";
 import { StackActions, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { PullRequestReviewVerdict } from "@supaterm/contracts";
 import { useRef, useState } from "react";
@@ -22,7 +23,7 @@ import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import { PullRequestCompletionSuggestions } from "./PullRequestCompletionSuggestions";
 import { usePullRequestCompletions } from "./usePullRequestCompletions";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 
 function useActionSubmission(params: PullRequestParams) {
   const gt = useGT();
@@ -63,14 +64,8 @@ function useActionSubmission(params: PullRequestParams) {
   };
 }
 const VERDICTS = [
-  {
-    value: "comment",
-    title: "Comment",
-  },
-  {
-    value: "approve",
-    title: "Approve",
-  },
+  { value: "comment", title: msg("Comment", { $context: "review verdict" }) },
+  { value: "approve", title: msg("Approve", { $context: "review verdict" }) },
   {
     value: "request-changes",
     title: msg("Request changes"),
@@ -86,6 +81,7 @@ export function PullRequestReviewSheet({
   }
 >) {
   const gt = useGT();
+  const m = useMessages();
   const params = route.params;
   const target = pullRequestTarget(params);
   const result = useEnvironmentQuery(composerPullRequests.detail(target));
@@ -210,7 +206,7 @@ export function PullRequestReviewSheet({
         <SegmentedControl
           options={offered.map((option) => ({
             value: option.value,
-            label: option.title,
+            label: m(option.title),
           }))}
           selected={verdict?.value ?? "comment"}
           onSelect={(value) => {
@@ -251,8 +247,10 @@ export function PullRequestReviewSheet({
       {reviewing && store.draft.comments.length ? (
         <View className="gap-2">
           <Text className="text-sm font-supaterm-medium">
-            {store.draft.comments.length} pending line{" "}
-            {store.draft.comments.length === 1 ? "comment" : "comments"}
+            {gt(
+              "{count, plural, one {{count} pending line comment} other {{count} pending line comments}}",
+              { count: store.draft.comments.length },
+            )}
           </Text>
           {store.draft.comments.map((draft) => (
             <Pressable
@@ -304,9 +302,14 @@ export function PullRequestReviewSheet({
       ) : null}
       {reviewing && !canSubmitComments ? (
         <Text className="text-sm text-danger-foreground">
-          You can no longer submit line comments on this{" "}
-          {sourceControlClients.get(result.data?.provider).changeRequest.singular}. Your drafts are
-          kept here.
+          {gt(
+            "You can no longer submit line comments on this {term, select, mr {merge request} cr {change request} other {pull request}}. Your drafts are kept here.",
+            {
+              term: changeRequestTermKind(
+                sourceControlClients.get(result.data?.provider).changeRequest,
+              ),
+            },
+          )}
         </Text>
       ) : null}
       {submission.error || result.error || store.error ? (

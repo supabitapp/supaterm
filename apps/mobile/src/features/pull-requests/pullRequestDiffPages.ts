@@ -7,6 +7,8 @@ import {
   type ReviewRenderableFile,
 } from "../review/reviewModel";
 import { msg } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 
 export interface PullRequestDiffPage {
   readonly cursor: string | null;
@@ -29,10 +31,12 @@ export function getCachedPullRequestDiffPages(
   pages: readonly PullRequestDiffPage[],
   scope: string,
   terminology: ChangeRequestTerminology,
+  resolve: MessageResolver = m,
+  locale = "",
 ): ReviewParsedDiff {
   const first = pages[0];
   if (!first) return { kind: "empty" };
-  const key = JSON.stringify([scope, terminology.singular, first.cursor]);
+  const key = JSON.stringify([scope, terminology.singular, first.cursor, locale]);
   let snapshots = parsedSnapshots.get(first.result);
   if (!snapshots) {
     snapshots = new Map();
@@ -48,7 +52,7 @@ export function getCachedPullRequestDiffPages(
   )
     return previous.parsed;
   const cache = previous?.cache ?? new WeakMap<PullRequestDiffResult, ReviewParsedDiff>();
-  const parsed = combinePullRequestDiffPages(pages, cache, scope, terminology);
+  const parsed = combinePullRequestDiffPages(pages, cache, scope, terminology, resolve);
   snapshots.set(key, { pages, cache, parsed });
   return parsed;
 }
@@ -80,6 +84,7 @@ export function combinePullRequestDiffPages(
   cache: WeakMap<PullRequestDiffResult, ReviewParsedDiff>,
   scope: string,
   terminology: ChangeRequestTerminology,
+  resolve: MessageResolver = m,
 ): ReviewParsedDiff {
   const parsed = pages.map((page) => {
     const cached = cache.get(page.result);
@@ -123,7 +128,12 @@ export function combinePullRequestDiffPages(
     notice:
       pages.some((page) => page.result.truncated) ||
       parsed.some((page) => page.kind === "raw" || (page.kind === "files" && page.notice !== null))
-        ? `Some file contents are unavailable. Open the ${terminology.singular} on its provider to see the full changes.`
+        ? resolve(
+            msg(
+              "Some file contents are unavailable. Open the {term, select, mr {merge request} cr {change request} other {pull request}} on its provider to see the full changes.",
+              { term: changeRequestTermKind(terminology) },
+            ),
+          )
         : null,
   };
 }

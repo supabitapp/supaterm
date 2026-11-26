@@ -137,7 +137,9 @@ export function LocalPreviewScreen(props: {
                 <View className="w-full max-w-md">
                   <EmptyState
                     variant="plain"
-                    title={`${environmentLabel} doesn't share its localhost`}
+                    title={gt("{environment} doesn't share its localhost", {
+                      environment: environmentLabel,
+                    })}
                     detail={gt(
                       "The preview tunnel is off there, so its local servers only open in the streamed browser.",
                     )}
@@ -173,11 +175,14 @@ export function LocalPreviewScreen(props: {
                         ? gt("Update Supaterm on {environment}", { environment: environmentLabel })
                         : disconnected
                           ? gt("Not connected to {environment}", { environment: environmentLabel })
-                          : `Can't reach ${hostOf(current)}`
+                          : gt("Can't reach {host}", { host: hostOf(current) })
                     }
                     detail={
                       outdated
-                        ? `${environmentLabel} runs a version of Supaterm that can't open its localhost pages on this device. Update it there, then try again.`
+                        ? gt(
+                            "{environment} runs a version of Supaterm that can't open its localhost pages on this device. Update it there, then try again.",
+                            { environment: environmentLabel },
+                          )
                         : disconnected
                           ? gt(
                               "Pages on {environment}’s localhost load through its connection. Try again once it reconnects.",

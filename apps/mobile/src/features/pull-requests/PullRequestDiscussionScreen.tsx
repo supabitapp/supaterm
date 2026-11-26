@@ -222,7 +222,9 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
                   {thread.isResolved
                     ? gt("Resolved", { $context: "review thread state" })
                     : gt("Unresolved", { $context: "review thread state" })}
-                  {thread.isOutdated ? " · Outdated" : ""}
+                  {thread.isOutdated
+                    ? ` · ${gt("Outdated", { $context: "review thread state" })}`
+                    : ""}
                 </Text>
                 {filePath === null ? null : (
                   <Button

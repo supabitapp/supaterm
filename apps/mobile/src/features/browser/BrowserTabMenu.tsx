@@ -19,13 +19,16 @@ import { previewEnvironment } from "../../state/preview";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { browserTabUrl, loopbackUrlForDevice } from "./browserTabs";
 import { useOpenLocalPreview } from "./useOpenLocalPreview";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 const APPEARANCES = [
-  { id: "system", title: "System" },
-  { id: "light", title: "Light" },
-  { id: "dark", title: "Dark" },
+  {
+    id: "system",
+    title: msg("System", { $context: "appearance option, follow the system theme" }),
+  },
+  { id: "light", title: msg("Light", { $context: "appearance option" }) },
+  { id: "dark", title: msg("Dark", { $context: "appearance option" }) },
 ] as const;
 
 const VIEWPORTS = [
@@ -57,6 +60,7 @@ export function BrowserTabMenu({
   readonly onReleaseControl?: () => void;
 }) {
   const gt = useGT();
+  const resolveMessage = useMessages();
   const openLocalPreview = useOpenLocalPreview();
   const tunnelOff = useEnvironmentPreviewTunnelOff(environmentId);
   const adjust = useAtomCommand(previewEnvironment.adjust, "browser tab change");
@@ -104,7 +108,7 @@ export function BrowserTabMenu({
       image: "circle.lefthalf.filled",
       subactions: APPEARANCES.map((option) => ({
         id: `appearance:${option.id}`,
-        title: option.title,
+        title: resolveMessage(option.title),
         state: option.id === colorScheme ? "on" : "off",
       })),
     },
@@ -124,7 +128,7 @@ export function BrowserTabMenu({
       image: "rectangle.and.arrow.up.right.and.arrow.down.left",
       subactions: VIEWPORTS.map((option) => ({
         id: `viewport:${option.id}`,
-        title: option.title,
+        title: resolveMessage(option.title),
         state: option.id === viewportId ? "on" : "off",
       })),
     },

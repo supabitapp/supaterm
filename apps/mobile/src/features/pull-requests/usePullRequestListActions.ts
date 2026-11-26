@@ -17,6 +17,7 @@ import {
   openOnProviderLabel,
   pullRequestActionLabel,
 } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { scopedPullRequestListKey, type EnvironmentPullRequestListEntry } from "./pullRequestList";
 import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";
@@ -24,7 +25,7 @@ import { pullRequestTarget } from "./usePullRequestDiff";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { useOpenWorkspaceDetail } from "../layout/useOpenWorkspaceDetail";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 export function usePullRequestListActions(
   environmentIds: readonly EnvironmentId[],
   onChanged: (
@@ -33,6 +34,7 @@ export function usePullRequestListActions(
   ) => void,
 ) {
   const gt = useGT();
+  const m = useMessages();
   const registry = use(RegistryContext);
   const selectDetail = useSelectWorkspaceDetail();
   const openDetail = useOpenWorkspaceDetail();
@@ -119,7 +121,10 @@ export function usePullRequestListActions(
       playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(result);
       Dialog.alert(
-        `Couldn't update this ${terminology.singular}`,
+        gt(
+          "Couldn't update this {term, select, mr {merge request} cr {change request} other {pull request}}",
+          { term: changeRequestTermKind(terminology) },
+        ),
         cause instanceof Error ? cause.message : gt("Try again."),
       );
     }
@@ -167,7 +172,10 @@ export function usePullRequestListActions(
     return [
       {
         id: "open",
-        title: `Open ${terminology.singular}`,
+        title: gt(
+          "Open {term, select, mr {merge request} cr {change request} other {pull request}}",
+          { term: changeRequestTermKind(terminology) },
+        ),
         image: "arrow.up.right",
       },
       ...(writableEnvironments.has(entry.environmentId) && entry.state === "open"
@@ -184,7 +192,7 @@ export function usePullRequestListActions(
             },
             {
               id: "close",
-              title: pullRequestActionLabel("close", terminology),
+              title: pullRequestActionLabel("close", terminology, m),
               image: "xmark",
               attributes: { destructive: true },
             },
@@ -193,7 +201,7 @@ export function usePullRequestListActions(
           ? [
               {
                 id: "reopen",
-                title: pullRequestActionLabel("reopen", terminology),
+                title: pullRequestActionLabel("reopen", terminology, m),
                 image: "arrow.clockwise",
               },
             ]
@@ -206,7 +214,7 @@ export function usePullRequestListActions(
       { id: "copy", title: gt("Copy link"), image: "link" },
       {
         id: "provider",
-        title: openOnProviderLabel(entry.provider),
+        title: openOnProviderLabel(entry.provider, m),
         image: "safari",
       },
     ];

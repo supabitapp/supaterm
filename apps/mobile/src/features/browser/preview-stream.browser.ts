@@ -70,14 +70,14 @@ export function start(configuration: PreviewStreamConfiguration) {
   const container = document.createElement("div");
   const canvas = document.createElement("canvas");
   canvas.setAttribute("role", "img");
-  canvas.setAttribute("aria-label", "Browser page");
+  canvas.setAttribute("aria-label", configuration.labels.page);
   const agentCursor = document.createElement("div");
   agentCursor.className = "agent-cursor";
   agentCursor.setAttribute("aria-hidden", "true");
   agentCursor.innerHTML = AGENT_CURSOR_SVG;
   container.append(canvas, agentCursor);
   const input = document.createElement("textarea");
-  input.setAttribute("aria-label", "Browser page input");
+  input.setAttribute("aria-label", configuration.labels.pageInput);
   input.autocapitalize = "off";
   input.autocomplete = "off";
   input.spellcheck = false;

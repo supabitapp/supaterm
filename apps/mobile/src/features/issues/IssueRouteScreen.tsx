@@ -63,7 +63,7 @@ import {
   issueStatus,
   useIssueAccess,
 } from "./issuePresentation";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 type IssueAccess = NonNullable<ReturnType<typeof useIssueAccess>>;
 
@@ -172,13 +172,21 @@ function IssueIdentity(props: {
         </Text>
         <Text className="shrink text-right text-2xs text-foreground-muted" numberOfLines={1}>
           {issue.closedAt ? (
-            <>
-              Closed <RelativeTime timestamp={issue.closedAt} /> ago
-            </>
+            <T>
+              Closed{" "}
+              <Var>
+                <RelativeTime timestamp={issue.closedAt} />
+              </Var>{" "}
+              ago
+            </T>
           ) : (
-            <>
-              Opened <RelativeTime timestamp={issue.createdAt} /> ago
-            </>
+            <T>
+              Opened{" "}
+              <Var>
+                <RelativeTime timestamp={issue.createdAt} />
+              </Var>{" "}
+              ago
+            </T>
           )}
         </Text>
       </View>
@@ -279,7 +287,9 @@ function LinkedPullRequests(props: {
               </Text>
               <Text className="font-mono text-2xs text-foreground-muted" numberOfLines={1}>
                 {link.repository}#{link.number}
-                {link.closesIssue ? " · closes" : ""}
+                {link.closesIssue
+                  ? ` · ${gt("closes", { $context: "the pull request closes this issue" })}`
+                  : ""}
               </Text>
             </View>
             <SymbolView name="chevron.right" size={12} tintColorClassName="accent-icon-muted" />
@@ -721,8 +731,11 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
                     <View className="gap-3">
                       <PullRequestSectionHeading>
                         {detail.commentCount > 0
-                          ? `Activity · ${detail.commentCount} ${detail.commentCount === 1 ? "comment" : "comments"}`
-                          : "Activity"}
+                          ? gt(
+                              "{count, plural, one {Activity · {count} comment} other {Activity · {count} comments}}",
+                              { count: detail.commentCount },
+                            )
+                          : gt("Activity")}
                       </PullRequestSectionHeading>
                       {nextCursor !== null ? (
                         <Button

@@ -125,7 +125,9 @@ export function ReviewGuideExcerpt({
           <Text className="p-3 text-xs text-foreground-muted">
             {loading
               ? gt("Loading {path}…", { path: excerpt.path })
-              : `${excerpt.path}:${excerpt.start}–${excerpt.end} is not in the loaded diff.`}
+              : gt("{location} is not in the loaded diff.", {
+                  location: `${excerpt.path}:${excerpt.start}–${excerpt.end}`,
+                })}
           </Text>
         )}
       </View>

@@ -32,7 +32,7 @@ import { SettingsSection } from "./components/SettingsSection";
 import { AddClaudeAccount, ClaudeAccount } from "./ClaudeAccounts";
 import { CLAUDE_DRIVER } from "./claude-accounts";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
-import { useGT, T } from "gt-react-native";
+import { useGT, T, Var } from "gt-react-native";
 const TERMINAL_CONTROL_SEQUENCE = new RegExp(
   `${String.fromCharCode(0x1b)}\\[[0-?]*[ -/]*[@-~]`,
   "g",
@@ -55,11 +55,11 @@ export function SettingsProviderAccountsRouteScreen() {
         }}
       >
         <Text className="px-2 text-sm text-foreground-muted">
-          Accounts are saved on the environment that runs your agents.
+          <T>Accounts are saved on the environment that runs your agents.</T>
         </Text>
         {selectedTargets.length === 0 ? (
           <Text className="px-2 text-sm text-foreground-muted">
-            Select a connected environment with the filter above.
+            <T>Select a connected environment with the filter above.</T>
           </Text>
         ) : (
           selectedTargets.map((environment) => (
@@ -70,7 +70,10 @@ export function SettingsProviderAccountsRouteScreen() {
                     <T>Limited permissions</T>
                   </Text>
                   <Text className="text-sm text-foreground-muted">
-                    {`This session can view ${environment.label}'s providers but can't change their settings.`}
+                    {gt(
+                      "This session can view {environment}''s providers but can't change their settings.",
+                      { environment: environment.label },
+                    )}
                   </Text>
                 </View>
               ) : (
@@ -118,10 +121,10 @@ function EnvironmentProviders({
       {accounts.length === 0 ? (
         <View className="gap-1 p-4">
           <Text className="text-base font-supaterm-medium text-foreground">
-            No accounts to connect
+            <T>No accounts to connect</T>
           </Text>
           <Text className="text-sm text-foreground-muted">
-            Add a provider in web or desktop Settings → Providers.
+            <T>Add a provider in web or desktop Settings → Providers.</T>
           </Text>
         </View>
       ) : null}
@@ -215,11 +218,21 @@ function ProviderAccount({
     provider.driver === "antigravity" &&
     (provider.auth.type === "gemini-api-key" || provider.auth.type === "agent-platform");
   function signInLabels() {
-    if (pending) return { label: "Working…", accessibilityLabel: `Working on ${name} sign-in` };
+    if (pending)
+      return {
+        label: gt("Working…"),
+        accessibilityLabel: gt("Working on {provider} sign-in", { provider: name }),
+      };
     if (signedIn)
-      return { label: gt("Change account"), accessibilityLabel: `Change ${name} account` };
+      return {
+        label: gt("Change account"),
+        accessibilityLabel: gt("Change {provider} account", { provider: name }),
+      };
     if (state?.phase === "failed" || state?.phase === "cancelled")
-      return { label: "Retry sign-in", accessibilityLabel: `Retry ${name} sign-in` };
+      return {
+        label: gt("Retry sign-in"),
+        accessibilityLabel: gt("Retry {provider} sign-in", { provider: name }),
+      };
     if (usesCredentials)
       return {
         label: gt("Connect"),
@@ -232,17 +245,17 @@ function ProviderAccount({
   }
   function accountDescription() {
     if (active) return state.message;
-    if (!provider.enabled) return "Enable in web or desktop Settings → Providers.";
+    if (!provider.enabled) return gt("Enable in web or desktop Settings → Providers.");
     if (!provider.installed)
-      return "Install on this environment in web or desktop Settings → Providers.";
-    if (auth.error) return "Couldn’t load account status.";
-    if (loading) return isDiscovering ? "Finding sign-in methods…" : "Loading account…";
+      return gt("Install on this environment in web or desktop Settings → Providers.");
+    if (auth.error) return gt("Couldn’t load account status.");
+    if (loading) return isDiscovering ? gt("Finding sign-in methods…") : gt("Loading account…");
     if (state?.phase === "failed" || state?.phase === "cancelled") return state.message;
-    if (signedIn) return "Signed in.";
-    if (needsExternalSetup) return "Follow the provider’s setup guide to sign in.";
-    if (choosingMethod) return "Choose how to sign in below.";
-    if (usesCredentials) return "Connect to load models.";
-    return "Not signed in.";
+    if (signedIn) return gt("Signed in.");
+    if (needsExternalSetup) return gt("Follow the provider’s setup guide to sign in.");
+    if (choosingMethod) return gt("Choose how to sign in below.");
+    if (usesCredentials) return gt("Connect to load models.");
+    return gt("Not signed in.");
   }
   async function run(command: () => Promise<AtomCommandResult<unknown, unknown>>) {
     if (pendingRef.current) return false;
@@ -316,17 +329,17 @@ function ProviderAccount({
     <Button {...signInLabels()} disabled={disabled} loading={pending} onPress={chooseMethod} />
   ) : loading ? (
     <AppActivityIndicator
-      accessibilityLabel={`Loading ${name} account`}
+      accessibilityLabel={gt("Loading {provider} account", { provider: name })}
       colorClassName="accent-icon"
     />
   ) : !active && unavailable ? (
     <Text className="text-sm text-foreground-muted">
-      {provider.enabled ? gt("Not installed") : "Disabled"}
+      {provider.enabled ? gt("Not installed") : gt("Disabled", { $context: "provider status" })}
     </Text>
   ) : !active && auth.error ? (
     <Button
-      label="Retry"
-      accessibilityLabel={`Retry loading ${name} account`}
+      label={gt("Retry")}
+      accessibilityLabel={gt("Retry loading {provider} account", { provider: name })}
       onPress={auth.refresh}
     />
   ) : null;
@@ -362,7 +375,9 @@ function ProviderAccount({
         {stacked && trailing ? <View className="items-start">{trailing}</View> : null}
         {interaction?.type === "deviceCode" ? (
           <Text selectable className="text-foreground">
-            Enter code {interaction.userCode} on the sign-in page.
+            <T>
+              Enter code <Var>{interaction.userCode}</Var> on the sign-in page.
+            </T>
           </Text>
         ) : null}
         {interaction?.type === "terminal" ? (
@@ -372,7 +387,7 @@ function ProviderAccount({
                 {interaction.output.replace(TERMINAL_CONTROL_SEQUENCE, "")}
               </Text>
             </ScrollView>
-            {field("input", "Terminal response", true)}
+            {field("input", gt("Terminal response"), true)}
             <SettingsActionRow
               icon="arrow.up"
               label={gt("Send response")}
@@ -419,9 +434,9 @@ function ProviderAccount({
         {url && (interaction?.type === "browser" ? interaction.acceptsCallback : !interaction) ? (
           <>
             <Text className="text-sm text-foreground-muted">
-              If the browser can’t open the final page, paste its full address below.
+              <T>If the browser can’t open the final page, paste its full address below.</T>
             </Text>
-            {field("callback", "Return URL", false)}
+            {field("callback", gt("Return URL"), false)}
             <SettingsActionRow
               icon="arrow.right"
               label={gt("Continue")}
@@ -461,7 +476,10 @@ function ProviderAccount({
               key={method.id}
               icon="person.crop.circle"
               label={method.name}
-              accessibilityLabel={`Sign in to ${name} with ${method.name}`}
+              accessibilityLabel={gt("Sign in to {provider} with {method}", {
+                provider: name,
+                method: method.name,
+              })}
               disabled={disabled}
               onPress={() => {
                 setChoosingMethod(false);
@@ -482,8 +500,11 @@ function ProviderAccount({
               key={`remove:${method.id}`}
               icon="trash"
               tone="danger"
-              label={`Remove incomplete ${method.name}`}
-              accessibilityLabel={`Remove incomplete ${name} connection ${method.name}`}
+              label={gt("Remove incomplete {method}", { method: method.name })}
+              accessibilityLabel={gt("Remove incomplete {provider} connection {method}", {
+                provider: name,
+                method: method.name,
+              })}
               disabled={disabled || !canRemoveMethod}
               onPress={() => {
                 setChoosingMethod(false);
@@ -511,7 +532,7 @@ function ProviderAccount({
         <SettingsActionRow
           icon="globe"
           label={gt("Open sign-in page")}
-          accessibilityLabel={`Open ${name} sign-in page`}
+          accessibilityLabel={gt("Open {provider} sign-in page", { provider: name })}
           disabled={disabled}
           onPress={() => {
             void (async () => {
@@ -533,8 +554,8 @@ function ProviderAccount({
       {needsExternalSetup && provider.setup?.documentationUrl ? (
         <SettingsActionRow
           icon="globe"
-          label="Open docs"
-          accessibilityLabel={`Open ${name} setup docs`}
+          label={gt("Open docs")}
+          accessibilityLabel={gt("Open {provider} setup docs", { provider: name })}
           onPress={() => {
             void tryOpenExternalUrl(provider.setup!.documentationUrl!).then((opened) => {
               if (!opened) setError(gt("Could not open the provider docs."));
@@ -544,7 +565,7 @@ function ProviderAccount({
       ) : active && state?.flowId ? (
         <SettingsActionRow
           icon="xmark"
-          label="Cancel sign-in"
+          label={gt("Cancel sign-in")}
           accessibilityLabel={gt("Cancel {provider} sign-in", { provider: name })}
           disabled={disabled}
           onPress={() => {
@@ -564,7 +585,7 @@ function ProviderAccount({
         <SettingsActionRow
           icon="person.crop.circle"
           label={gt("Sign out")}
-          accessibilityLabel={`Sign out of ${name}`}
+          accessibilityLabel={gt("Sign out of {provider}", { provider: name })}
           tone="danger"
           disabled={disabled || state === null}
           onPress={() =>

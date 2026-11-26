@@ -8,6 +8,7 @@ import * as Arr from "effect/Array";
 import { pipe } from "effect/Function";
 import * as Order from "effect/Order";
 import { msg } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export type ReviewSectionKind = "turn" | "working-tree" | "branch-range";
 export type ReviewGitSectionKind = Exclude<ReviewSectionKind, "turn">;
@@ -126,16 +127,20 @@ export type ReviewParsedDiff =
       readonly notice: string | null;
     };
 
-function checkpointTitle(checkpoint: ThreadCheckpointSummary): string {
-  return `Turn ${checkpoint.checkpointTurnCount}`;
+function checkpointTitle(checkpoint: ThreadCheckpointSummary, resolve: MessageResolver): string {
+  return resolve(msg("Turn {count}", { count: checkpoint.checkpointTurnCount }));
 }
 
-function checkpointSubtitle(checkpoint: ThreadCheckpointSummary): string {
+function checkpointSubtitle(checkpoint: ThreadCheckpointSummary, resolve: MessageResolver): string {
   if (checkpoint.status !== "ready" && !turnHasChanges(checkpoint)) {
-    return `Diff ${checkpoint.status}`;
+    return resolve(msg("Diff {status}", { status: checkpoint.status }));
   }
   const { repositories, totals } = turnChanges(checkpoint);
-  const files = `${totals.count} file${totals.count === 1 ? "" : "s"} changed`;
+  const files = resolve(
+    msg("{count, plural, one {{count} file changed} other {{count} files changed}}", {
+      count: totals.count,
+    }),
+  );
   return repositories.length === 0
     ? files
     : `${files} · ${repositories.map((repository) => repository.name).join(", ")}`;
@@ -568,7 +573,9 @@ export function buildReviewSectionItems(input: {
   readonly gitSectionStates: Readonly<Record<ReviewGitSectionKind, "loading" | "failed" | null>>;
   /** Names the thread folder's own files beside its repositories. */
   readonly rootName?: string;
+  readonly resolve?: MessageResolver;
 }): ReadonlyArray<ReviewSectionItem> {
+  const resolve = input.resolve ?? m;
   const turnItems = getReadyReviewCheckpoints(input.checkpoints).map<ReviewSectionItem>(
     (checkpoint) => {
       const id = getReviewSectionIdForCheckpoint(checkpoint);
@@ -579,8 +586,8 @@ export function buildReviewSectionItems(input: {
       return {
         id,
         kind: "turn",
-        title: checkpointTitle(checkpoint),
-        subtitle: checkpointSubtitle(checkpoint),
+        title: checkpointTitle(checkpoint, resolve),
+        subtitle: checkpointSubtitle(checkpoint, resolve),
         diff: input.turnDiffById[id] ?? null,
         isLoading: false,
         ...(repositoryGroups.length === 0 ? {} : { repositoryGroups }),

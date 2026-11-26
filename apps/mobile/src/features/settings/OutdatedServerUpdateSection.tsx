@@ -56,7 +56,10 @@ export function OutdatedServerUpdateSection({
     if (busy || !release || !targetVersion) return;
     Dialog.alert(
       gt("Update {environment}?", { environment: label }),
-      `Install Supaterm ${targetVersion}. Supaterm restarts on that machine and reconnects. Running threads may be interrupted.`,
+      gt(
+        "Install {product} {version}. {product} restarts on that machine and reconnects. Running threads may be interrupted.",
+        { product: "Supaterm", version: targetVersion },
+      ),
       [
         { text: gt("Cancel"), style: "cancel" },
         {
@@ -93,7 +96,9 @@ export function OutdatedServerUpdateSection({
               ? release.targetVersion
                 ? gt("Version {version} is available.", { version: release.targetVersion })
                 : gt("No newer version is available yet.")
-              : "This app needs a newer version of Supaterm on this machine."}
+              : gt("This app needs a newer version of {product} on this machine.", {
+                  product: "Supaterm",
+                })}
         </Text>
         {error || state.status === "failed" ? (
           <Text selectable accessibilityRole="alert" className="text-sm text-danger-foreground">

@@ -27,7 +27,7 @@ import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "./components/SettingsSection";
-import { msg, useGT } from "gt-react-native";
+import { msg, T, useGT } from "gt-react-native";
 
 const FOLDER_STATE_LABELS: Record<WorkspaceFolderState, string> = {
   git: msg("Git repository"),
@@ -107,7 +107,7 @@ export function ProjectRepositoriesSection(props: {
       message: gt("Agents in this project stop working in {name}. Files on disk are not touched.", {
         name: folder.name,
       }),
-      confirmText: "Remove",
+      confirmText: gt("Remove", { $context: "verb, removes a folder from the project" }),
       destructive: true,
       onConfirm: () => void save({ untrack: folder.path }),
     });
@@ -154,7 +154,9 @@ export function ProjectRepositoriesSection(props: {
                 onPress={() => remove(folder)}
                 className="rounded-full border border-border bg-card px-3 py-1.5 disabled:opacity-40"
               >
-                <Text className="font-supaterm-medium text-xs text-danger-foreground">Remove</Text>
+                <Text className="font-supaterm-medium text-xs text-danger-foreground">
+                  <T context="verb, removes a folder from the project">Remove</T>
+                </Text>
               </Pressable>
             )
           }

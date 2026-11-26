@@ -222,7 +222,7 @@ export function IssuesScreen(
   // One filter menu in the header holds every filter, as the pull request list's does.
   const filterMenu: WorkspaceFilterMenu = {
     title: STATES[state],
-    accessibilityLabel: "Filter issues",
+    accessibilityLabel: gt("Filter issues"),
     actions: [
       {
         id: "state",

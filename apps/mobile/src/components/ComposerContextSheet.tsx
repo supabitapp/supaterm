@@ -31,7 +31,8 @@ import { AppText as Text } from "./ui/AppText";
 import { Sheet } from "./ui/Sheet";
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { getMobileTerminalTheme } from "../features/terminal/terminalTheme";
-import { T, useGT } from "gt-react-native";
+import { changeRequestTermKind } from "../lib/changeRequestTerm";
+import { T, useGT, Var } from "gt-react-native";
 
 function ContextField(props: { label: string; value: string | null | undefined; code?: boolean }) {
   if (!props.value) return null;
@@ -187,10 +188,12 @@ export function ComposerContextSheet(props: {
     record?.kind === "review-comment" && "pullRequest" in record
       ? record.pullRequest?.url
       : undefined;
-  const changeRequestTerm = (
-    (pullRequestUrl ? sourceControlClients.findByChangeRequestUrl(pullRequestUrl) : undefined) ??
-    sourceControlClients.get(undefined)
-  ).changeRequest.singular;
+  const term = changeRequestTermKind(
+    (
+      (pullRequestUrl ? sourceControlClients.findByChangeRequestUrl(pullRequestUrl) : undefined) ??
+      sourceControlClients.get(undefined)
+    ).changeRequest,
+  );
   const terminal = record?.kind === "terminal" && !("payload" in record) ? record : null;
   return (
     <Sheet title={terminal?.terminalLabel ?? props.label} onClose={props.onClose}>
@@ -207,7 +210,9 @@ export function ComposerContextSheet(props: {
       >
         {terminal ? (
           <Text className="text-sm text-foreground-muted">
-            Lines {terminal.lineStart}–{terminal.lineEnd}
+            <T>
+              Lines <Var>{terminal.lineStart}</Var>–<Var>{terminal.lineEnd}</Var>
+            </T>
           </Text>
         ) : null}
         {!record ? (
@@ -364,8 +369,8 @@ export function ComposerContextSheet(props: {
             ) : null}
             {record.kind === "model" ? (
               <>
-                <ContextField label="Provider" value={record.providerName} />
-                <ContextField label="Model" value={record.model} code />
+                <ContextField label={gt("Provider")} value={record.providerName} />
+                <ContextField label={gt("Model")} value={record.model} code />
               </>
             ) : null}
             {record.kind === "environment" ? (
@@ -374,10 +379,13 @@ export function ComposerContextSheet(props: {
             {record.kind === "response" ? (
               <>
                 <ContextField
-                  label="Subagent"
+                  label={gt("Subagent")}
                   value={record.subagents?.map((subagent) => subagent.title).join(", ")}
                 />
-                <ContextField label="Response" value={record.citation.text} />
+                <ContextField
+                  label={gt("Response", { $context: "noun" })}
+                  value={record.citation.text}
+                />
               </>
             ) : null}
             {record.kind === "skill" ? (
@@ -426,14 +434,22 @@ export function ComposerContextSheet(props: {
               props.onClose();
               void openPullRequest(pullRequestUrl).catch(() =>
                 Dialog.alert(
-                  `Could not open ${changeRequestTerm}`,
+                  gt(
+                    "Could not open {term, select, mr {merge request} cr {change request} other {pull request}}",
+                    { term },
+                  ),
                   gt("Try again when connected."),
                 ),
               );
             }}
             className="rounded-xl bg-subtle p-4"
           >
-            <Text className="text-foreground">Open {changeRequestTerm}</Text>
+            <Text className="text-foreground">
+              {gt(
+                "Open {term, select, mr {merge request} cr {change request} other {pull request}}",
+                { term },
+              )}
+            </Text>
           </Pressable>
         ) : null}
         {props.onOpenAttachment ? (
@@ -446,7 +462,10 @@ export function ComposerContextSheet(props: {
         ) : null}
         {props.onOpenPullRequest && !pullRequestUrl ? (
           <Button
-            label={`Open ${changeRequestTerm}`}
+            label={gt(
+              "Open {term, select, mr {merge request} cr {change request} other {pull request}}",
+              { term },
+            )}
             tone="secondary"
             onPress={props.onOpenPullRequest}
             fullWidth

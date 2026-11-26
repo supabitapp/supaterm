@@ -38,7 +38,7 @@ import { connectionTone } from "../connection/connectionTone";
 import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
 import { SettingsDragHandle } from "./components/SettingsDragHandle";
 import { SettingsSection } from "./components/SettingsSection";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 const NO_LATENCY = Atom.make("");
 
@@ -69,6 +69,7 @@ export function EnvironmentRoutesSection({
   readonly onAddRoute: () => void;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const registry = useContext(RegistryContext);
   const entry = useAtomValue(environmentCatalog.catalogValueAtom).entries.get(environmentId);
   const prepared = useAtomValue(environmentSession.preparedConnectionValueAtom(environmentId));
@@ -151,8 +152,8 @@ export function EnvironmentRoutesSection({
       trailing={
         <View className="flex-row items-center gap-2">
           <Button
-            label="Refresh"
-            accessibilityLabel="Refresh route latency"
+            label={gt("Refresh", { $context: "verb, measures route latency again" })}
+            accessibilityLabel={gt("Refresh route latency")}
             tone="text"
             onPress={() => {
               for (const route of routes) {
@@ -190,7 +191,9 @@ export function EnvironmentRoutesSection({
               </Text>
               {AUTH_SCOPE_OPTIONS.map(({ scope, title }) => (
                 <Text key={scope} className="text-sm text-foreground">
-                  {title}: {sessionGrantsScope(session, scope) ? "Allowed" : "Not granted"}
+                  {sessionGrantsScope(session, scope)
+                    ? gt("{scope}: Allowed", { scope: messages(title) })
+                    : gt("{scope}: Not granted", { scope: messages(title) })}
                 </Text>
               ))}
             </>
@@ -365,9 +368,17 @@ function RouteRow(props: {
             {props.inUse ? (
               <StatusPill {...connectionTone("connected")} label={gt("In use")} size="compact" />
             ) : null}
-            {direct ? <Text className="shrink-0 text-sm text-foreground-muted">Direct</Text> : null}
+            {direct ? (
+              <Text className="shrink-0 text-sm text-foreground-muted">
+                <T context="connection route that reaches the machine without a relay">Direct</T>
+              </Text>
+            ) : null}
             {props.unused ? (
-              <StatusPill {...connectionTone("unsupported")} label="Not used" size="compact" />
+              <StatusPill
+                {...connectionTone("unsupported")}
+                label={gt("Not used", { $context: "connection route status" })}
+                size="compact"
+              />
             ) : null}
             {props.refused ? (
               <StatusPill

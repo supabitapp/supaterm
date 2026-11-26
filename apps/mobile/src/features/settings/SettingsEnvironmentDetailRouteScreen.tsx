@@ -36,7 +36,7 @@ import {
   supportsEnvironmentUpdate,
 } from "./environment-maintenance";
 import { environmentReleaseCheckAtom, releaseCheckValue } from "./environmentUpdateCheck";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 export function SettingsEnvironmentDetailRouteScreen({
   route,
@@ -118,7 +118,15 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
       return;
     Dialog.alert(
       gt("Update {environment}?", { environment: environment?.environmentLabel ?? "environment" }),
-      `Install Supaterm ${targetVersion}. ${capabilities.serverSelfUpdate === "desktop-managed" ? "The desktop app will close and relaunch." : "The server will restart and reconnect."} Running threads may be interrupted.`,
+      capabilities.serverSelfUpdate === "desktop-managed"
+        ? gt(
+            "Install {product} {version}. The desktop app will close and relaunch. Running threads may be interrupted.",
+            { product: "Supaterm", version: targetVersion },
+          )
+        : gt(
+            "Install {product} {version}. The server will restart and reconnect. Running threads may be interrupted.",
+            { product: "Supaterm", version: targetVersion },
+          ),
       [
         {
           text: gt("Cancel"),
@@ -145,7 +153,9 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
               if (AsyncResult.isFailure(result)) throw squashAtomCommandFailure(result);
               setNotice(
                 result.value.upToDate
-                  ? `Already up to date on ${result.value.targetVersion}.`
+                  ? gt("Already up to date on {version}.", {
+                      version: result.value.targetVersion,
+                    })
                   : gt("Updated to {version}.", { version: result.value.targetVersion }),
               );
             }),
@@ -236,7 +246,11 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
               <>
                 <SettingsSection title="Supaterm">
                   <View className="gap-1 p-4">
-                    <Text className="text-base text-foreground">Version {version}</Text>
+                    <Text className="text-base text-foreground">
+                      <T>
+                        Version <Var>{version}</Var>
+                      </T>
+                    </Text>
                     {running ? (
                       <Text className="text-sm text-foreground-muted">
                         {updateState.stage === "resuming"
@@ -262,7 +276,9 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                       <Text className="text-sm text-foreground-muted">
                         {capabilities?.serverSelfUpdate === "desktop-managed"
                           ? gt("Update the desktop app on this machine.")
-                          : "Update and restart Supaterm on this machine."}
+                          : gt("Update and restart {product} on this machine.", {
+                              product: "Supaterm",
+                            })}
                       </Text>
                     ) : null}
                   </View>
@@ -328,12 +344,16 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                             </Text>
                           </View>
                           <Text className="text-sm text-foreground-muted">
-                            {provider.installed
-                              ? (provider.version ?? gt("Version unknown"))
-                              : gt("Not installed")}
                             {provider.versionAdvisory?.latestVersion
-                              ? ` · Latest ${provider.versionAdvisory.latestVersion}`
-                              : ""}
+                              ? gt("{version} · Latest {latest}", {
+                                  version: provider.installed
+                                    ? (provider.version ?? gt("Version unknown"))
+                                    : gt("Not installed"),
+                                  latest: provider.versionAdvisory.latestVersion,
+                                })
+                              : provider.installed
+                                ? (provider.version ?? gt("Version unknown"))
+                                : gt("Not installed")}
                           </Text>
                           {provider.updateState && provider.updateState.status !== "idle" ? (
                             <Text

@@ -1,22 +1,44 @@
+import { msg } from "gt-react-native";
+
 import type { MenuProps } from "../../components/ui/Menu.types";
+import { m, type MessageResolver } from "../../i18n/messages";
 import type { PullRequestListControls } from "./pullRequestList";
 
-const STATES = { open: "Open", closed: "Closed", merged: "Merged", all: "All states" } as const;
-const INVOLVEMENT = { all: "All PRs", reviewing: "Your review", authored: "By you" } as const;
-const DRAFTS = { all: "All drafts", only: "Drafts only", hide: "Hide drafts" } as const;
+const STATES = {
+  open: msg("Open", { $context: "pull request state filter" }),
+  closed: msg("Closed", { $context: "pull request state filter" }),
+  merged: msg("Merged", { $context: "pull request state filter" }),
+  all: msg("All states"),
+};
+const INVOLVEMENT = {
+  all: msg("All PRs"),
+  reviewing: msg("Your review"),
+  authored: msg("By you"),
+};
+const DRAFTS = { all: msg("All drafts"), only: msg("Drafts only"), hide: msg("Hide drafts") };
 const REVIEWS = {
-  all: "All reviews",
-  approved: "Approved",
-  "changes-requested": "Changes requested",
-  "review-required": "Review required",
-  none: "No reviews",
-} as const;
-const CHECKS = { all: "All checks", passing: "Passing", failing: "Failing" } as const;
+  all: msg("All reviews"),
+  approved: msg("Approved", { $context: "review status filter" }),
+  "changes-requested": msg("Changes requested"),
+  "review-required": msg("Review required"),
+  none: msg("No reviews"),
+};
+const CHECKS = {
+  all: msg("All checks"),
+  passing: msg("Passing", { $context: "CI checks filter" }),
+  failing: msg("Failing", { $context: "CI checks filter" }),
+};
+const CHECKS_TITLES = { passing: msg("Passing checks"), failing: msg("Failing checks") };
 const SORTS = {
-  updated: "Recently updated",
-  created: "Newest created",
-  oldest: "Oldest updated",
-} as const;
+  updated: msg("Recently updated"),
+  created: msg("Newest created"),
+  oldest: msg("Oldest updated"),
+};
+const resolveOptions = <Key extends string>(
+  options: Readonly<Record<Key, string>>,
+  resolve: MessageResolver,
+) =>
+  Object.fromEntries(Object.entries<string>(options).map(([key, title]) => [key, resolve(title)]));
 const id = (field: string, value: string) => JSON.stringify([field, value]);
 function choices(field: string, options: Readonly<Record<string, string>>, selected: string) {
   return Object.entries(options).map(([value, title]) => ({
@@ -26,21 +48,24 @@ function choices(field: string, options: Readonly<Record<string, string>>, selec
   }));
 }
 
-export function createPullRequestListFilterMenu(props: {
-  readonly environments: readonly { id: string; label: string }[];
-  readonly environmentId: string | null;
-  readonly onEnvironmentChange: (id: string | null) => void;
-  readonly value: PullRequestListControls;
-  readonly onChange: (value: PullRequestListControls) => void;
-  readonly onReset: () => void;
-  readonly authors: readonly string[];
-  readonly labels: readonly string[];
-  /** Dot colors by lowercased label name, for the labels that have one. */
-  readonly labelColors: Readonly<Record<string, string>>;
-  readonly projects: readonly { id: string; title: string; environmentId: string }[];
-  /** Opens a picker that searches the host, for a label or author no loaded row carries. */
-  readonly onSearch: (kind: "labels" | "authors") => void;
-}) {
+export function createPullRequestListFilterMenu(
+  props: {
+    readonly environments: readonly { id: string; label: string }[];
+    readonly environmentId: string | null;
+    readonly onEnvironmentChange: (id: string | null) => void;
+    readonly value: PullRequestListControls;
+    readonly onChange: (value: PullRequestListControls) => void;
+    readonly onReset: () => void;
+    readonly authors: readonly string[];
+    readonly labels: readonly string[];
+    /** Dot colors by lowercased label name, for the labels that have one. */
+    readonly labelColors: Readonly<Record<string, string>>;
+    readonly projects: readonly { id: string; title: string; environmentId: string }[];
+    /** Opens a picker that searches the host, for a label or author no loaded row carries. */
+    readonly onSearch: (kind: "labels" | "authors") => void;
+  },
+  resolve: MessageResolver = m,
+) {
   const { value } = props;
   const selectedLabels = value.filters.labels?.flat() ?? [];
   const selectedLabelSet = new Set(selectedLabels);
@@ -155,18 +180,28 @@ export function createPullRequestListFilterMenu(props: {
   const more: MenuProps["actions"] = [
     {
       id: "drafts",
-      title: value.filters.draft ? DRAFTS[value.filters.draft] : "Drafts",
-      subactions: choices("draft", DRAFTS, value.filters.draft ?? "all"),
+      title: value.filters.draft
+        ? resolve(DRAFTS[value.filters.draft])
+        : resolve(msg("Drafts", { $context: "filter menu" })),
+      subactions: choices("draft", resolveOptions(DRAFTS, resolve), value.filters.draft ?? "all"),
     },
     {
       id: "reviews",
-      title: value.filters.review ? REVIEWS[value.filters.review] : "Reviews",
-      subactions: choices("review", REVIEWS, value.filters.review ?? "all"),
+      title: value.filters.review
+        ? resolve(REVIEWS[value.filters.review])
+        : resolve(msg("Reviews", { $context: "filter menu" })),
+      subactions: choices(
+        "review",
+        resolveOptions(REVIEWS, resolve),
+        value.filters.review ?? "all",
+      ),
     },
     {
       id: "checks",
-      title: value.filters.checks ? `${CHECKS[value.filters.checks]} checks` : "Checks",
-      subactions: choices("checks", CHECKS, value.filters.checks ?? "all"),
+      title: value.filters.checks
+        ? resolve(CHECKS_TITLES[value.filters.checks])
+        : resolve(msg("Checks", { $context: "filter menu" })),
+      subactions: choices("checks", resolveOptions(CHECKS, resolve), value.filters.checks ?? "all"),
     },
     {
       id: "projects",
@@ -174,11 +209,11 @@ export function createPullRequestListFilterMenu(props: {
         props.projects.find(
           (project) =>
             project.id === value.projectId && project.environmentId === value.projectEnvironmentId,
-        )?.title ?? "Project",
+        )?.title ?? resolve(msg("Project", { $context: "filter menu" })),
       subactions: choices(
         "project",
         Object.fromEntries([
-          ["", "All projects"],
+          ["", resolve(msg("All projects"))],
           ...props.projects.map((project) => [
             JSON.stringify([project.environmentId, project.id]),
             project.title,
@@ -187,10 +222,14 @@ export function createPullRequestListFilterMenu(props: {
         value.projectId ? JSON.stringify([value.projectEnvironmentId, value.projectId]) : "",
       ),
     },
-    { id: "sort", title: SORTS[value.sort], subactions: choices("sort", SORTS, value.sort) },
+    {
+      id: "sort",
+      title: resolve(SORTS[value.sort]),
+      subactions: choices("sort", resolveOptions(SORTS, resolve), value.sort),
+    },
     {
       id: id("reset", ""),
-      title: "Reset filters",
+      title: resolve(msg("Reset filters")),
       attributes: {
         disabled: count === 0 && value.sort === "updated" && props.environmentId === null,
       },
@@ -203,28 +242,40 @@ export function createPullRequestListFilterMenu(props: {
   const actions: MenuProps["actions"] = [
     {
       id: "environment",
-      title: "Environment",
+      title: resolve(msg("Environment", { $context: "filter menu" })),
       subactions: choices(
         "environment",
         Object.fromEntries([
-          ["", "All environments"],
+          ["", resolve(msg("All environments"))],
           ...props.environments.map((environment) => [environment.id, environment.label]),
         ]),
         props.environmentId ?? "",
       ),
     },
-    { id: "state", title: "State", subactions: choices("state", STATES, value.state) },
+    {
+      id: "state",
+      title: resolve(msg("State", { $context: "filter menu" })),
+      subactions: choices("state", resolveOptions(STATES, resolve), value.state),
+    },
     {
       id: "involvement",
-      title: "Involvement",
-      subactions: choices("involvement", INVOLVEMENT, value.involvement),
+      title: resolve(msg("Involvement", { $context: "filter menu" })),
+      subactions: choices("involvement", resolveOptions(INVOLVEMENT, resolve), value.involvement),
     },
     {
       id: "labels",
-      title: "Labels",
+      title: resolve(msg("Labels", { $context: "filter menu" })),
       subactions: [
-        { id: id("search", "labels"), title: "Search labels…", image: "magnifyingglass" },
-        { id: id("labels", ""), title: "All labels", state: selectedLabels.length ? "off" : "on" },
+        {
+          id: id("search", "labels"),
+          title: resolve(msg("Search labels…")),
+          image: "magnifyingglass",
+        },
+        {
+          id: id("labels", ""),
+          title: resolve(msg("All labels")),
+          state: selectedLabels.length ? "off" : "on",
+        },
         ...labels.map((label) => {
           const color = props.labelColors[label.toLowerCase()];
           return {
@@ -238,14 +289,18 @@ export function createPullRequestListFilterMenu(props: {
     },
     {
       id: "author",
-      title: "Author",
+      title: resolve(msg("Author", { $context: "filter menu" })),
       subactions: [
-        { id: id("search", "authors"), title: "Search authors…", image: "magnifyingglass" },
+        {
+          id: id("search", "authors"),
+          title: resolve(msg("Search authors…")),
+          image: "magnifyingglass",
+        },
         ...choices(
           "author",
           Object.fromEntries([
-            ["", "All authors"],
-            ["me", "Me"],
+            ["", resolve(msg("All authors"))],
+            ["me", resolve(msg("Me", { $context: "author filter, the current user" }))],
             ...authors.map((login) => [login, login]),
           ]),
           author ?? "",
@@ -256,8 +311,8 @@ export function createPullRequestListFilterMenu(props: {
   ];
   const customized = count > 0 || props.environmentId !== null || value.sort !== "updated";
   return {
-    title: "Pull request filters",
-    accessibilityLabel: "Filter pull requests",
+    title: resolve(msg("Pull request filters")),
+    accessibilityLabel: resolve(msg("Filter pull requests")),
     actions,
     onPressAction: ({ nativeEvent }: Parameters<NonNullable<MenuProps["onPressAction"]>>[0]) =>
       select(nativeEvent.event),

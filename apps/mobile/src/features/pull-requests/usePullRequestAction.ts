@@ -12,6 +12,7 @@ import { useRef, useState } from "react";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { canPerformPullRequestAction, pullRequestActionLabel } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
@@ -50,7 +51,12 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
     if (AsyncResult.isFailure(response)) {
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
-        `Couldn't update this ${sourceControlClients.get(pr?.provider).changeRequest.singular}`,
+        gt(
+          "Couldn't update this {term, select, mr {merge request} cr {change request} other {pull request}}",
+          {
+            term: changeRequestTermKind(sourceControlClients.get(pr?.provider).changeRequest),
+          },
+        ),
         cause instanceof Error ? cause.message : gt("Try again."),
       );
       return;

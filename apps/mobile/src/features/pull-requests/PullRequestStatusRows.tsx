@@ -3,12 +3,10 @@ import { usePullRequestConnected } from "./usePullRequestConnected";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigation } from "@react-navigation/native";
 import type { PullRequestAction, PullRequestDetail } from "@supaterm/contracts";
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import Animated from "react-native-reanimated";
 import { PR_ROW_LAYOUT, PR_DISCLOSURE_ENTER, PR_ROW_EXIT } from "./pullRequestAnimations";
+import { T, useGT, useMessages } from "gt-react-native";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
@@ -26,6 +24,7 @@ import {
   PR_ACTION_ICONS,
   pullRequestActionLabel,
 } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import {
   checkStatus,
   isFailingCheck,
@@ -37,7 +36,6 @@ import {
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestAction } from "./usePullRequestAction";
 import { usePullRequestAgentActions } from "./usePullRequestAgentActions";
-import { T, useGT } from "gt-react-native";
 
 type RowProps = { readonly pr: PullRequestDetail; readonly params: PullRequestParams };
 const STATUS_ACTIONS: readonly PullRequestAction[] = [
@@ -60,13 +58,18 @@ const CHECK_PRIORITY = {
 export function PullRequestStatusMenu(props: RowProps) {
   const action = usePullRequestAction(props.params, props.pr);
   const actions = STATUS_ACTIONS.filter(action.available);
-  const status = pullRequestStatus(props.pr);
+  const gt = useGT();
+  const m = useMessages();
+  const status = pullRequestStatus(props.pr, m);
   const terminology = sourceControlClients.get(props.pr.provider).changeRequest;
-  const term = capitalizeTerm(terminology.singular);
+  const term = changeRequestTermKind(terminology);
   const trigger = (
     <Pressable
       accessibilityRole={actions.length ? "button" : undefined}
-      accessibilityLabel={`${term} status, ${status.label}`}
+      accessibilityLabel={gt(
+        "{term, select, mr {Merge request} cr {Change request} other {Pull request}} status, {status}",
+        { term, status: status.label },
+      )}
       disabled={!actions.length}
       className="min-h-8 flex-row items-center gap-1.5 active:opacity-70"
     >
@@ -80,10 +83,13 @@ export function PullRequestStatusMenu(props: RowProps) {
   if (!actions.length) return trigger;
   return (
     <Menu
-      title={`${term} status`}
+      title={gt(
+        "{term, select, mr {Merge request} cr {Change request} other {Pull request}} status",
+        { term },
+      )}
       actions={actions.map((id) => ({
         id,
-        title: pullRequestActionLabel(id, terminology),
+        title: pullRequestActionLabel(id, terminology, m),
         image: PR_ACTION_ICONS[id],
         attributes: { destructive: id === "close" },
       }))}
@@ -94,8 +100,11 @@ export function PullRequestStatusMenu(props: RowProps) {
         else if (selected === "revert")
           action.confirm(
             selected,
-            pullRequestActionLabel("revert", terminology),
-            `Open a new ${terminology.singular} that reverses these changes?`,
+            pullRequestActionLabel("revert", terminology, m),
+            gt(
+              "Open a new {term, select, mr {merge request} cr {change request} other {pull request}} that reverses these changes?",
+              { term },
+            ),
           );
         else void action.perform(selected);
       }}
@@ -106,7 +115,6 @@ export function PullRequestStatusMenu(props: RowProps) {
 }
 
 export function PullRequestChecksRow(props: RowProps) {
-  const gt = useGT();
   const linked = parsePullRequestAnchor(props.params.navigationUrl)?.kind === "checks";
   const [expanded, setExpanded] = useState(linked);
   const [seenNavigation, setSeenNavigation] = useState(props.params.navigationId);
@@ -114,7 +122,9 @@ export function PullRequestChecksRow(props: RowProps) {
     setSeenNavigation(props.params.navigationId);
     if (linked) setExpanded(true);
   }
-  const checks = pullRequestChecksSummary(props.pr);
+  const gt = useGT();
+  const m = useMessages();
+  const checks = pullRequestChecksSummary(props.pr, m);
   const action = usePullRequestAction(props.params, props.pr);
   const definition = sourceControlClients.get(props.pr.provider);
   return (
@@ -143,12 +153,20 @@ export function PullRequestChecksRow(props: RowProps) {
             <PullRequestCardRow
               title={gt("Approve workflows")}
               icon="checkmark"
-              detail={`${props.pr.workflowApprovalsRequired} waiting for approval`}
+              detail={gt(
+                "{count, plural, one {{count} waiting for approval} other {{count} waiting for approval}}",
+                {
+                  count: props.pr.workflowApprovalsRequired ?? 0,
+                },
+              )}
               onPress={() =>
                 action.confirm(
                   "approve-workflows",
-                  "Approve workflows",
-                  `Allow this ${definition.changeRequest.singular}'s workflows to run? Review the workflow changes first.`,
+                  gt("Approve workflows"),
+                  gt(
+                    "Allow this {term, select, mr {merge request} cr {change request} other {pull request}}''s workflows to run? Review the workflow changes first.",
+                    { term: changeRequestTermKind(definition.changeRequest) },
+                  ),
                 )
               }
             />
@@ -156,7 +174,7 @@ export function PullRequestChecksRow(props: RowProps) {
           {[...props.pr.checks]
             .sort((a, b) => CHECK_PRIORITY[a.status] - CHECK_PRIORITY[b.status])
             .map((check) => {
-              const status = checkStatus(check);
+              const status = checkStatus(check, m);
               const url = check.url;
               return (
                 <PullRequestCardRow
@@ -192,13 +210,14 @@ export function PullRequestChecksRow(props: RowProps) {
 }
 
 export function PullRequestBranchRow(props: RowProps) {
-  const gt = useGT();
   const action = usePullRequestAction(props.params, props.pr);
   const agent = usePullRequestAgentActions(props.params, props.pr);
+  const gt = useGT();
+  const m = useMessages();
   const methods = action.available("update-branch") ? allowedUpdateMethods(props.pr) : [];
   const canResolve =
     agent.canAsk && props.pr.state === "open" && props.pr.mergeability === "conflicting";
-  const summary = action.busy ? "Updating…" : pullRequestBranchSummary(props.pr);
+  const summary = action.busy ? gt("Updating…") : pullRequestBranchSummary(props.pr, m);
   const clean = props.pr.mergeability === "mergeable";
   const conflicting = props.pr.mergeability === "conflicting";
   const row = (
@@ -236,7 +255,16 @@ export function PullRequestBranchRow(props: RowProps) {
       title={gt("Branch", { $context: "git branch" })}
       actions={[
         ...(canResolve ? [agent.menuAction("conflicts")] : []),
-        ...methods.map((id) => ({ id, title: `Update with ${id}`, image: "arrow.up.circle" })),
+        ...methods.map((id) => ({
+          id,
+          title: gt(
+            "Update with {method, select, merge {merge} rebase {rebase} other {{method}}}",
+            {
+              method: id,
+            },
+          ),
+          image: "arrow.up.circle",
+        })),
       ]}
       onPressAction={({ nativeEvent }) => {
         const method = methods.find((id) => id === nativeEvent.event);
@@ -250,13 +278,14 @@ export function PullRequestBranchRow(props: RowProps) {
 }
 
 export function PullRequestReviewersRow(props: RowProps) {
-  const gt = useGT();
   const [expanded, setExpanded] = useState(false);
   const navigation = useNavigation();
+  const gt = useGT();
+  const m = useMessages();
   const activity = useEnvironmentQuery(
     composerPullRequests.activity(pullRequestTarget(props.params)),
   );
-  const summary = pullRequestReviewSummary(props.pr, activity.data);
+  const summary = pullRequestReviewSummary(props.pr, activity.data, m);
   const canWrite = useAtomValue(
     composerPullRequests.requestReviewers.permissionAtom(
       pullRequestTarget(props.params).environmentId,

@@ -54,7 +54,7 @@ import {
   type ZipEntry,
   type ZipTreeRow,
 } from "./zipTree";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 export function isZipFile(file: { readonly name: string; readonly mimeType: string }) {
@@ -81,7 +81,9 @@ type ZipFailure = typeof ZipFailure.Type;
 const SAVE_ZIP_HINT = "Save the ZIP to open it in another app.";
 const TOO_LARGE: ZipFailure = {
   title: msg("Too large to browse here"),
-  detail: `Browsing works up to ${formatAttachmentSize(ARCHIVE_MAX_BYTES)}. ${SAVE_ZIP_HINT}`,
+  detail: msg("Browsing works up to {size}. Save the ZIP to open it in another app.", {
+    size: formatAttachmentSize(ARCHIVE_MAX_BYTES),
+  }),
   retry: false,
 };
 const CANCELLED: ZipFailure = {
@@ -99,7 +101,7 @@ class ZipFailureError extends Schema.TaggedError<ZipFailureError>()("ZipFailureE
   failure: ZipFailure,
 }) {
   override get message(): string {
-    return this.failure.title;
+    return m(this.failure.title);
   }
 }
 
@@ -351,7 +353,11 @@ function ZipArchiveProgress(props: {
         label={gt("ZIP download progress")}
       />
       <Text className="text-sm text-foreground-muted">
-        {`Downloading the ZIP so its files can be listed.${timeLeft ? ` ${timeLeft} on this connection.` : ""}`}
+        {timeLeft
+          ? gt("Downloading the ZIP so its files can be listed. {timeLeft} on this connection.", {
+              timeLeft,
+            })
+          : gt("Downloading the ZIP so its files can be listed.")}
       </Text>
       <Button label={gt("Cancel")} onPress={props.onCancel} />
     </View>
@@ -364,12 +370,13 @@ function ZipArchiveFailure(props: {
   readonly onSave: () => void;
 }) {
   const gt = useGT();
+  const resolveMessage = useMessages();
   return (
     <View className="flex-1 items-center justify-center bg-sheet px-6">
       <EmptyState
         variant="plain"
-        title={props.failure.title}
-        detail={props.failure.detail}
+        title={resolveMessage(props.failure.title)}
+        detail={resolveMessage(props.failure.detail)}
         action={
           <View className="flex-row gap-3">
             {props.failure.retry ? (
@@ -429,7 +436,10 @@ function ZipArchiveList(props: {
                 accessibilityLabel={gt("Filter files in ZIP")}
                 autoCapitalize="none"
                 autoCorrect={false}
-                placeholder={`Filter ${fileCount} ${fileCount === 1 ? "file" : "files"}`}
+                placeholder={gt(
+                  "{count, plural, one {Filter {count} file} other {Filter {count} files}}",
+                  { count: fileCount },
+                )}
                 placeholderTextColorClassName="accent-placeholder"
                 cursorColorClassName="accent-focus"
                 className="min-w-0 flex-1 font-sans text-[15px] text-foreground"

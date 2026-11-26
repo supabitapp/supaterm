@@ -47,7 +47,7 @@ import { useDebouncedValue } from "../../state/queries";
 import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
 import { useSearchScrollRestoration } from "../layout/workspace/useSearchScrollRestoration";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 function PullRequestListError(props: { readonly message: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -94,6 +94,7 @@ export function PullRequestsScreen(
 ) {
   const navigation = useNavigation();
   const gt = useGT();
+  const messages = useMessages();
   const primaryColumn = use(NativePrimaryColumnContext);
   const workspace = useWorkspaceTabs()!;
   const { environments } = useWorkspaceState();
@@ -248,36 +249,44 @@ export function PullRequestsScreen(
     ? entries.findIndex((entry) => pullRequestKey(entry) === initialAnchor.key)
     : -1;
 
-  const filterMenu = createPullRequestListFilterMenu({
-    environments: environments.map((item) => ({
-      id: String(item.environmentId),
-      label: item.environmentLabel,
-    })),
-    environmentId,
-    onEnvironmentChange: listControls.setEnvironmentId,
-    onReset: listControls.reset,
-    value: typedDraft
-      ? { ...controls, filters: { ...controls.filters, draft: typedDraft } }
-      : controls,
-    onChange: (next) => {
-      const update = applyPullRequestDraftFilterChange(typedQuery, controls.filters, next.filters);
-      listControls.setControls(environmentId, { ...next, filters: update.filters });
-      if (update.query !== typedQuery)
-        workspace.dispatch({ type: "query", tab: "pullRequests", query: update.query });
+  const filterMenu = createPullRequestListFilterMenu(
+    {
+      environments: environments.map((item) => ({
+        id: String(item.environmentId),
+        label: item.environmentLabel,
+      })),
+      environmentId,
+      onEnvironmentChange: listControls.setEnvironmentId,
+      onReset: listControls.reset,
+      value: typedDraft
+        ? { ...controls, filters: { ...controls.filters, draft: typedDraft } }
+        : controls,
+      onChange: (next) => {
+        const update = applyPullRequestDraftFilterChange(
+          typedQuery,
+          controls.filters,
+          next.filters,
+        );
+        listControls.setControls(environmentId, { ...next, filters: update.filters });
+        if (update.query !== typedQuery)
+          workspace.dispatch({ type: "query", tab: "pullRequests", query: update.query });
+      },
+      authors: knownFacets.environmentId === environmentId ? knownFacets.authors : facets.authors,
+      labels: knownFacets.environmentId === environmentId ? knownFacets.labels : facets.labels,
+      labelColors,
+      projects,
+      onSearch: (kind) =>
+        navigation.navigate("PullRequestFilterSearch", {
+          kind,
+          environmentId,
+          environmentIds: targets.map((target) => String(target.environmentId)),
+          suggestions:
+            knownFacets.environmentId === environmentId ? knownFacets[kind] : facets[kind],
+          labelColors,
+        }),
     },
-    authors: knownFacets.environmentId === environmentId ? knownFacets.authors : facets.authors,
-    labels: knownFacets.environmentId === environmentId ? knownFacets.labels : facets.labels,
-    labelColors,
-    projects,
-    onSearch: (kind) =>
-      navigation.navigate("PullRequestFilterSearch", {
-        kind,
-        environmentId,
-        environmentIds: targets.map((target) => String(target.environmentId)),
-        suggestions: knownFacets.environmentId === environmentId ? knownFacets[kind] : facets[kind],
-        labelColors,
-      }),
-  });
+    messages,
+  );
   const headerFilterMenu = {
     ...filterMenu,
     onPressAction: (event: Parameters<typeof filterMenu.onPressAction>[0]) => {
@@ -402,7 +411,7 @@ export function PullRequestsScreen(
                           ? gt("No results")
                           : gt("No matching pull requests")
                         : environments.length
-                          ? "Pull requests unavailable"
+                          ? gt("Pull requests unavailable")
                           : gt("Connect an environment")
                 }
                 detail={
@@ -412,7 +421,9 @@ export function PullRequestsScreen(
                     : targets.length
                       ? gt("Pull requests from the selected environments' projects appear here.")
                       : environments.length
-                        ? "No selected environment supports pull request browsing. Connect a supported environment or update its server."
+                        ? gt(
+                            "No selected environment supports pull request browsing. Connect a supported environment or update its server.",
+                          )
                         : gt("Add an environment in Settings to browse its pull requests."))
                 }
                 variant="plain"

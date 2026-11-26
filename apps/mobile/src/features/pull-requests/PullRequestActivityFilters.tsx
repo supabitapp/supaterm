@@ -61,7 +61,10 @@ export function PullRequestActivityFilters({
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Filter activity, ${hiddenCount} hidden`}
+            accessibilityLabel={gt(
+              "{count, plural, one {Filter activity, {count} hidden} other {Filter activity, {count} hidden}}",
+              { count: hiddenCount },
+            )}
             className="min-h-11 flex-row items-center gap-1.5 active:opacity-60"
           >
             {hiddenCount > 0 ? (

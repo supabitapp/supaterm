@@ -87,7 +87,7 @@ export function IssueCommentComposer(props: {
         ) : (
           <View className="flex-row items-end">
             <TextInput
-              accessibilityLabel="Add a comment"
+              accessibilityLabel={gt("Add a comment")}
               value={draft}
               onChangeText={changeDraft}
               selection={selection}

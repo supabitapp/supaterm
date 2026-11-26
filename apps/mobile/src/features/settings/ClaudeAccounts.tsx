@@ -32,6 +32,7 @@ function useProviderInstanceMutation(environment: SettingsTarget) {
     reportFailure: false,
     reportDefect: false,
   });
+  const gt = useGT();
   const pendingRef = useRef(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +50,11 @@ function useProviderInstanceMutation(environment: SettingsTarget) {
     if (result._tag === "Success") return true;
     if (!isAtomCommandInterrupted(result)) {
       const failure = squashAtomCommandFailure(result);
-      setError(failure instanceof Error ? failure.message : "Could not save the Claude account.");
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : gt("Could not save the {provider} account.", { provider: "Claude" }),
+      );
     }
     return false;
   }
@@ -160,6 +165,7 @@ export function ClaudeAccount({
 }
 
 export function AddClaudeAccount({ environment }: { readonly environment: SettingsTarget }) {
+  const gt = useGT();
   const [adding, setAdding] = useState(false);
   return (
     <View className="border-t border-border-subtle">
@@ -173,8 +179,11 @@ export function AddClaudeAccount({ environment }: { readonly environment: Settin
       ) : (
         <ListActionRow
           icon="plus"
-          label="Add Claude account"
-          description="Use a Claude config folder that is already signed in on this server."
+          label={gt("Add {provider} account", { provider: "Claude" })}
+          description={gt(
+            "Use a {provider} config folder that is already signed in on this server.",
+            { provider: "Claude" },
+          )}
           onPress={() => setAdding(true)}
         />
       )}
@@ -228,10 +237,22 @@ function ClaudeAccountForm({
   return (
     <View className="gap-2 px-4 py-3">
       <Text textRole="footnote" className="text-foreground-muted">
-        {`Point at a CLAUDE_CONFIG_DIR folder on ${environment.label} where Claude Code is already signed in. Sign in there with the Claude CLI first.`}
+        {gt(
+          "Point at a {variable} folder on {environment} where {product} is already signed in. Sign in there with the {cli} first.",
+          {
+            variable: "CLAUDE_CONFIG_DIR",
+            environment: environment.label,
+            product: "Claude Code",
+            cli: "Claude CLI",
+          },
+        )}
       </Text>
-      {field("name", "Account name", "Name, e.g. Work")}
-      {field("configDir", "Claude config folder", "Config folder, e.g. ~/.claude-work")}
+      {field("name", gt("Account name"), gt("Name, e.g. Work"))}
+      {field(
+        "configDir",
+        gt("{provider} config folder", { provider: "Claude" }),
+        gt("Config folder, e.g. {path}", { path: "~/.claude-work" }),
+      )}
       {error ? (
         <Text accessibilityRole="alert" className="text-danger-foreground">
           {error}

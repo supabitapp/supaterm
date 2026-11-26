@@ -1,4 +1,4 @@
-import { useMessages } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 import {
   WORKSPACE_TAB_LABELS,
   NAVIGATION_TAB_ICONS,
@@ -149,6 +149,7 @@ export function WorkspaceNativeTabs(props: {
   /** The sidebar column draws the tabs itself, so they leave with it. */
   readonly tabsInSidebarColumn?: boolean;
 }) {
+  const gt = useGT();
   const m = useMessages();
   const workspace = useWorkspaceTabs()!;
   const order = useEnabledNavigationTabs();
@@ -239,7 +240,7 @@ export function WorkspaceNativeTabs(props: {
             const settings = slot === "settings";
             const tab = settings ? (overflow ?? selectedTab) : primaryTabs[index];
             if (!tab) return null;
-            const label = settings ? "Settings" : m(WORKSPACE_TAB_LABELS[tab]);
+            const label = settings ? gt("Settings") : m(WORKSPACE_TAB_LABELS[tab]);
             return (
               <Tabs.Screen
                 // Stable slot controllers keep UIKit's stacks attached when a section moves into Settings.
@@ -247,7 +248,7 @@ export function WorkspaceNativeTabs(props: {
                 screenKey={slot}
                 title={phoneBar ? label : ""}
                 tabBarItemAccessibilityLabel={
-                  !settings && tab === "pullRequests" ? "Pull requests" : label
+                  !settings && tab === "pullRequests" ? gt("Pull requests") : label
                 }
                 ios={{
                   prewarmRequest: prewarmRequests.get(slot) ?? 0,
@@ -283,7 +284,7 @@ export function WorkspaceNativeTabs(props: {
             <Tabs.Screen
               key={COMPOSE_TAB}
               screenKey={COMPOSE_TAB}
-              title="New chat"
+              title={gt("New chat")}
               preventNativeSelection
               ios={{
                 role: "search",

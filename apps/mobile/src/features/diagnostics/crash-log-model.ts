@@ -52,6 +52,7 @@ export function formatStartupCrashReport(
   app: { readonly version: string; readonly build: string },
 ): string {
   const header = `Supaterm ${app.version} (${app.build})`;
+  // oxlint-disable-next-line supaterm/no-untranslated-copy -- crash report text shared with maintainers
   if (records.length === 0) return `${header}\nNo startup crashes recorded.`;
   return [
     header,

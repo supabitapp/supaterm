@@ -32,7 +32,7 @@ import { usePullRequestFileFilter } from "./usePullRequestFileFilter";
 import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
 import { requestPullRequestFileJump } from "./pullRequestFileJump";
 import { fileDirectory, groupByDirectory } from "./pullRequestFileSections";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 const BREAKDOWN_LABELS = {
   code: "Code",
@@ -96,10 +96,16 @@ function FileRow(props: {
   readonly onPress: () => void;
 }) {
   const { file } = props;
+  const gt = useGT();
+  const values = { path: file.path, additions: file.additions, deletions: file.deletions };
   return (
     <RowPressable
       accessibilityRole="button"
-      accessibilityLabel={`View diff for ${file.path}, ${file.additions} additions, ${file.deletions} deletions${props.viewed ? ", viewed" : ""}`}
+      accessibilityLabel={
+        props.viewed
+          ? gt("View diff for {path}, {additions} additions, {deletions} deletions, viewed", values)
+          : gt("View diff for {path}, {additions} additions, {deletions} deletions", values)
+      }
       onPress={props.onPress}
       className="min-h-14 flex-row items-center gap-3 border-b border-border-subtle py-3 active:opacity-70"
     >
@@ -125,7 +131,9 @@ function FileRow(props: {
             numberOfLines={1}
             ellipsizeMode="middle"
           >
-            Renamed from {file.previousPath}
+            <T>
+              Renamed from <Var>{file.previousPath}</Var>
+            </T>
           </Text>
         ) : null}
       </View>

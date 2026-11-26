@@ -108,15 +108,20 @@ interface SettingsListSection {
 }
 
 function LocalSettingsRouteScreen() {
+  const gt = useGT();
   const { savedConnectionsById } = useSavedRemoteConnections();
-  return <SettingsList connections={[environmentsRow(Object.keys(savedConnectionsById).length)]} />;
+  return (
+    <SettingsList
+      connections={[environmentsRow(gt("Environments"), Object.keys(savedConnectionsById).length)]}
+    />
+  );
 }
 
-function environmentsRow(count: number): SettingsListRow {
+function environmentsRow(label: string, count: number): SettingsListRow {
   return {
     id: "SettingsEnvironments",
     icon: "desktopcomputer",
-    label: "Environments",
+    label,
     value: `${count}`,
     valuePosition: "trailing",
     target: "SettingsEnvironments",

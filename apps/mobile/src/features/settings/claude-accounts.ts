@@ -42,7 +42,13 @@ export function planClaudeAccountSave(input: {
   const adding = input.instanceId === null;
   if (adding && name.length === 0) return { error: m(msg("Enter a name for this account.")) };
   if (adding && configDir.length === 0) {
-    return { error: "Enter the Claude config folder this account is signed in with." };
+    return {
+      error: m(
+        msg("Enter the {provider} config folder this account is signed in with.", {
+          provider: "Claude",
+        }),
+      ),
+    };
   }
   const instanceId =
     input.instanceId ??

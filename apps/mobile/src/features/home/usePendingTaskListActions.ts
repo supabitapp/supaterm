@@ -90,8 +90,8 @@ export function usePendingTaskListActions(
               const messageId = pendingTask.message.messageId;
               if (!holdDeletingQueuedMessage(messageId)) {
                 Dialog.alert(
-                  "Pending task is open",
-                  "Close the pending task editor before deleting it.",
+                  m(msg("Pending task is open")),
+                  m(msg("Close the pending task editor before deleting it.")),
                 );
                 return;
               }

@@ -62,7 +62,7 @@ export function SettingsProjectGroupingRouteScreen() {
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
         <LanguageSettingsSection />
-        <SettingsSection title="Thread grouping">
+        <SettingsSection title={gt("Thread grouping")}>
           {THREAD_GROUPING_OPTIONS.map((option, index) => (
             <SettingsChoiceRow
               key={option.value}

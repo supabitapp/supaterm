@@ -107,7 +107,7 @@ import { useFabScroll } from "./FabScrollContext";
 import { holdLaunchSplashForHomeRows, settleLaunchSplashHomeRows } from "./home-launch-splash";
 import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
 import { resolveHomeEmptyState } from "./workspace-empty-state";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 interface HomeScreenProps {
   /** Whether this list is the one on screen; see `useHomeRouteVisible`. */
@@ -198,6 +198,7 @@ function renderHomeScrollView(props: ScrollViewProps) {
 
 export function HomeScreen(props: HomeScreenProps) {
   const gt = useGT();
+  const messages = useMessages();
   const tabActivity = use(NativeWorkspaceTabActivityContext);
   const usesNativeWorkspaceColumns = useNativeWorkspaceColumnsSupported();
   const workspace = useWorkspaceTabs();
@@ -722,11 +723,14 @@ export function HomeScreen(props: HomeScreenProps) {
       ? null
       : (props.savedConnectionsById[props.selectedEnvironmentId]?.environmentLabel ??
         "this environment");
-  const emptyState = resolveHomeEmptyState({
-    phase: props.catalogState.phase,
-    catalogPending: props.catalogState.catalogPending,
-    projectCount: props.projects.length,
-  });
+  const emptyState = resolveHomeEmptyState(
+    {
+      phase: props.catalogState.phase,
+      catalogPending: props.catalogState.catalogPending,
+      projectCount: props.projects.length,
+    },
+    messages,
+  );
 
   if (!hasAnyThreads) {
     return (
@@ -786,7 +790,9 @@ export function HomeScreen(props: HomeScreenProps) {
     ) : hasSearchQuery && threadSearch.failed ? (
       <EmptyState
         title={gt("Search failed")}
-        detail={`Couldn't search messages for "${props.searchQuery}". Change the search to try again.`}
+        detail={gt('Couldn\'t search messages for "{query}". Change the search to try again.', {
+          query: props.searchQuery,
+        })}
         variant={Platform.OS === "android" ? "plain" : undefined}
       />
     ) : hasSearchQuery ? (

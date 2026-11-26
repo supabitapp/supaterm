@@ -12,12 +12,14 @@ import {
 import { guideFocusedRows, type GuideDiffFocus } from "./guide/guideDiffFocus";
 
 import * as Clipboard from "expo-clipboard";
+import { T, useGT } from "gt-react-native";
 import { Button } from "../../components/ui/Button";
 import { usePullRequestReviewDraft } from "./usePullRequestReviewDraft";
 import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { annotatePullRequestDiff, reviewPosition } from "./pullRequestDiffComments";
 import { usePullRequestFileFilter } from "./usePullRequestFileFilter";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import {
   handlePullRequestDiffDebugEvent,
   pullRequestDiffInitialPosition,
@@ -90,13 +92,14 @@ export function PullRequestFileRouteScreen(props: PullRequestFileRouteProps) {
   const navigation =
     useNavigation<NativeStackNavigationProp<ReactNavigation.RootParamList, "PullRequestFile">>();
   const ready = usePullRequestDiffEntry(navigation);
+  const gt = useGT();
   if (ready) return <PullRequestFileRouteContent {...props} />;
-  const title = props.route.params.commit ? "Commit changes" : "Changes";
+  const title = props.route.params.commit ? gt("Commit changes") : gt("Changes");
   return (
     <View className="flex-1 bg-screen">
       <AppBar title={title} onBack={() => navigation.goBack()} />
       <View className="flex-1 items-center justify-center">
-        <AppActivityIndicator accessibilityLabel="Loading changes" />
+        <AppActivityIndicator accessibilityLabel={gt("Loading changes")} />
       </View>
     </View>
   );
@@ -104,6 +107,7 @@ export function PullRequestFileRouteScreen(props: PullRequestFileRouteProps) {
 
 function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   const navigation = useNavigation();
+  const gt = useGT();
   const insets = useSafeAreaInsets();
   const contentTopInset = useContentTopInset();
   const [toolbarHeight, setToolbarHeight] = usePullRequestToolbarHeight(insets.bottom);
@@ -339,19 +343,19 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     setSelectedRowId(null);
     filter.toggle();
   };
-  const title = commit ? "Commit changes" : "Changes";
+  const title = commit ? gt("Commit changes") : gt("Changes");
   const seekingFile = !targetFile && result.nextCursor !== null;
   const loadingDiff = (result.isPending && !data.rows.length) || (seekingFile && !result.error);
   const verticalControls = usePullRequestVerticalControls();
   const diffMenu: AppBarMenu = {
-    title: "Diff options",
+    title: gt("Diff options"),
     icon: "ellipsis",
     items: [
       ...(permissions.verdicts.length
         ? [
             {
               id: "submit-review",
-              title: "Submit review",
+              title: gt("Submit review"),
               icon: "text.bubble",
               onPress: () =>
                 navigation.navigate("PullRequestReview", {
@@ -366,7 +370,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
         ? [
             {
               id: "comment-on-pr",
-              title: "Add comment",
+              title: gt("Add comment"),
               icon: "plus.bubble",
               onPress: () =>
                 navigation.navigate("PullRequestReview", {
@@ -378,14 +382,14 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
         : []),
       {
         id: "word-wrap",
-        title: "Word wrap",
+        title: gt("Word wrap"),
         icon: "text.alignleft",
         selected: appearance.codeWordBreak,
         onPress: () => setCodeWordBreak(!appearance.codeWordBreak),
       },
       {
         id: "hide-tests",
-        title: "Hide test files",
+        title: gt("Hide test files"),
         icon: "line.3.horizontal.decrease",
         selected: filter.hideTestFiles,
         onPress: toggleTestFiles,
@@ -395,8 +399,8 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
             {
               id: "comment",
               title: route.params.replacingDraftId
-                ? "Move draft to this line"
-                : "Add review comment",
+                ? gt("Move draft to this line")
+                : gt("Add review comment"),
               icon: "bubble.left",
               onPress: () => commentOnLine(),
             },
@@ -406,7 +410,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
         ? [
             {
               id: "copy",
-              title: "Copy line",
+              title: gt("Copy line"),
               icon: "document.on.document",
               onPress: () => void Clipboard.setStringAsync(selectedRow.content ?? ""),
             },
@@ -418,13 +422,22 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     <View className="flex-1 android:bg-header ios:bg-screen">
       <AppBar
         title={title}
-        subtitle={`${commit ? commit.slice(0, 7) : `#${route.params.number}`} · ${data.files.length} ${data.files.length === 1 ? "file" : "files"}${filter.hideTestFiles && filter.hiddenCount ? ` · ${filter.hiddenCount} ${filter.hiddenCount === 1 ? "test" : "tests"} hidden` : ""}`}
+        subtitle={`${commit ? commit.slice(0, 7) : `#${route.params.number}`} · ${gt(
+          "{count, plural, one {{count} file} other {{count} files}}",
+          { count: data.files.length },
+        )}${
+          filter.hideTestFiles && filter.hiddenCount
+            ? ` · ${gt("{count, plural, one {{count} test hidden} other {{count} tests hidden}}", {
+                count: filter.hiddenCount,
+              })}`
+            : ""
+        }`}
         onBack={() => navigation.goBack()}
         menus={verticalControls ? undefined : [diffMenu]}
       />
       {route.params.replacingDraftId ? (
         <Text className="px-4 py-2 text-xs text-foreground-muted">
-          Select a current line, then choose “Move draft to this line” from its menu.
+          <T>Select a current line, then choose “Move draft to this line” from its menu.</T>
         </Text>
       ) : null}
       {viewed.error ? (
@@ -436,10 +449,10 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
           style={{ paddingTop: contentTopInset + 8 }}
         >
           <Text className="min-w-0 flex-1 text-xs text-foreground-muted">
-            The branch changed. Reload before adding line comments.
+            <T>The branch changed. Reload before adding line comments.</T>
           </Text>
           <Button
-            label="Reload changes"
+            label={gt("Reload changes")}
             onPress={() => {
               result.refresh();
               setDiffHead({ scopeKey, sha: detail.data?.headSha ?? null });
@@ -537,28 +550,39 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
             !seekingFile ? (
             <View style={{ paddingTop: contentTopInset }}>
               <EmptyState
-                title="Only test files changed"
-                detail="Test files are hidden from this review."
-                action={<Button label="Show test files" tone="contrast" onPress={filter.showAll} />}
+                title={gt("Only test files changed")}
+                detail={gt("Test files are hidden from this review.")}
+                action={
+                  <Button label={gt("Show test files")} tone="contrast" onPress={filter.showAll} />
+                }
                 variant="plain"
               />
             </View>
           ) : !result.isPending && !result.error && !seekingFile ? (
             <EmptyState
-              title="Diff unavailable"
-              detail={`Open this ${terminology.singular} on its provider to view the changes.`}
+              title={gt("Diff unavailable")}
+              detail={gt(
+                "Open this {term, select, mr {merge request} cr {change request} other {pull request}} on its provider to view the changes.",
+                { term: changeRequestTermKind(terminology) },
+              )}
               variant="plain"
             />
           ) : null}
           {result.nextCursor && result.isPending && data.rows.length && !seekingFile ? (
             <View className="flex-row items-center justify-center gap-2 py-2">
               <AppActivityIndicator size="small" />
-              <Text className="text-xs text-foreground-muted">Loading more files…</Text>
+              <Text className="text-xs text-foreground-muted">
+                <T>Loading more files…</T>
+              </Text>
             </View>
           ) : null}
           {result.error && result.nextCursor ? (
             <View className="self-center">
-              <Button label="Retry loading remaining files" tone="text" onPress={result.retry} />
+              <Button
+                label={gt("Retry loading remaining files")}
+                tone="text"
+                onPress={result.retry}
+              />
             </View>
           ) : null}
           {parsed.kind === "files" && parsed.notice ? (

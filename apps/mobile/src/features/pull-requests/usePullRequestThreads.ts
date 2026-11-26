@@ -171,7 +171,10 @@ export function usePullRequestThreads(
       );
       previousPrompts.current.set(draftKey, pullRequestAgentPrompt(task, terminology));
       if (thread) openThread(thread);
-      else openThreadRoute({ draft: { draftId: draftKey, title: `Ask about #${pr.number}` } });
+      else
+        openThreadRoute({
+          draft: { draftId: draftKey, title: gt("Ask about #{number}", { number: pr.number }) },
+        });
     });
     pending.current = false;
     setBusy(false);
