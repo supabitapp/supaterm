@@ -416,8 +416,8 @@ function useThreadFilesWorkspace(params: {
 }
 
 function FilesUnavailable({
-  title = "Files unavailable",
-  detail = "This thread does not have an active workspace path.",
+  title,
+  detail,
   onBack,
 }: {
   title?: string;
@@ -435,7 +435,10 @@ function FilesUnavailable({
       />
       <ScreenContent>
         <View className="flex-1 items-center justify-center px-6">
-          <EmptyState title={title} detail={detail} />
+          <EmptyState
+            title={title ?? gt("Files unavailable")}
+            detail={detail ?? gt("This thread does not have an active workspace path.")}
+          />
         </View>
       </ScreenContent>
     </View>
