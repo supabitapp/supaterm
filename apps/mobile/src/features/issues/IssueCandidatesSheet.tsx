@@ -35,11 +35,12 @@ export function IssueCandidatesSheet(props: {
   readonly onToggle: (key: string) => void;
 }) {
   const gt = useGT();
+  const labels = props.noun === "labels";
   const searching = props.query.trim().length > 0;
   return (
     <PullRequestSearchSheet
       title={props.title}
-      placeholder={`Search ${props.noun}`}
+      placeholder={labels ? gt("Search labels") : gt("Search people")}
       closeAccessibilityLabel={gt("Close {title}", { title: props.title.toLowerCase() })}
       clearAccessibilityLabel={gt("Clear search")}
       query={props.query}
@@ -91,10 +92,14 @@ export function IssueCandidatesSheet(props: {
                 <EmptyState
                   title={
                     props.loadError
-                      ? `Couldn't load ${props.noun}`
+                      ? labels
+                        ? gt("Couldn't load labels")
+                        : gt("Couldn't load people")
                       : searching
-                        ? `No matching ${props.noun}`
-                        : props.noun === "labels"
+                        ? labels
+                          ? gt("No matching labels")
+                          : gt("No matching people")
+                        : labels
                           ? gt("This tracker has no labels")
                           : gt("Nobody can be assigned here")
                   }
@@ -113,7 +118,9 @@ export function IssueCandidatesSheet(props: {
           ListFooterComponent={
             props.truncated ? (
               <Text className="py-4 text-xs text-foreground-muted">
-                More {props.noun} exist than are listed here.
+                {labels
+                  ? gt("More labels exist than are listed here.")
+                  : gt("More people exist than are listed here.")}
               </Text>
             ) : undefined
           }
