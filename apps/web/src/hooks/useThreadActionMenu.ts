@@ -106,7 +106,7 @@ export function useThreadActionMenu(input: {
   });
   const { copyToClipboard: copyBranchToClipboard } = useCopyToClipboard<{ branch: string }>({
     target: "branch name",
-    onError: (error) => failureToast("Failed to copy branch", error),
+    onError: (error) => failureToast(m(msg("Failed to copy branch")), error),
   });
   const { copyToClipboard: copyThreadIdToClipboard } = useCopyToClipboard<{ threadId: ThreadId }>({
     onError: (error) => failureToast(m(msg("Failed to copy thread ID")), error),
@@ -147,7 +147,7 @@ export function useThreadActionMenu(input: {
       if (!preset) return;
       const result = await snoozeThread(threadRef, preset.snoozedUntil);
       if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-        failureToast("Failed to snooze thread", squashAtomCommandFailure(result));
+        failureToast(m(msg("Failed to snooze thread")), squashAtomCommandFailure(result));
       }
       return;
     }
@@ -185,12 +185,14 @@ export function useThreadActionMenu(input: {
           }),
         );
         if (result._tag === "Failure") {
-          failureToast("Could not create thread", squashAtomCommandFailure(result));
+          failureToast(m(msg("Could not create thread")), squashAtomCommandFailure(result));
         }
         return;
       }
       case "mark-done":
-        await reportFailure("Failed to mark thread as Done", () => markThreadDone(threadRef));
+        await reportFailure(m(msg("Failed to mark thread as Done")), () =>
+          markThreadDone(threadRef),
+        );
         return;
       case "reopen":
         await reportFailure(m(msg("Failed to reopen thread")), () => reopenThread(threadRef));
@@ -209,7 +211,7 @@ export function useThreadActionMenu(input: {
       }
       case "auto-mark-done:enabled":
       case "auto-mark-done:disabled":
-        await reportFailure("Failed to update automatic completion", () =>
+        await reportFailure(m(msg("Failed to update automatic completion")), () =>
           setThreadAutoMarkDone(threadRef, action === "auto-mark-done:enabled"),
         );
         return;
@@ -239,7 +241,10 @@ export function useThreadActionMenu(input: {
             description: thread.title,
           });
         } else if (!isAtomCommandInterrupted(result)) {
-          failureToast("Could not turn thread into a project", squashAtomCommandFailure(result));
+          failureToast(
+            m(msg("Could not turn thread into a project")),
+            squashAtomCommandFailure(result),
+          );
         }
         return;
       }
@@ -309,7 +314,7 @@ export function useThreadActionMenu(input: {
           // that itself, and "Failed to delete thread" would be a lie.
           readThreadShell(threadRef) !== null
         ) {
-          failureToast("Failed to delete thread", squashAtomCommandFailure(deleted));
+          failureToast(m(msg("Failed to delete thread")), squashAtomCommandFailure(deleted));
         }
         return;
       }

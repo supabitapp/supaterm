@@ -39,6 +39,7 @@ import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
 
+import { m, type MessageResolver } from "../i18n/messages";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { useFilesystemReadAccess } from "./filesystem";
 import { orchestrationEnvironment } from "./orchestration";
@@ -384,7 +385,10 @@ interface ProjectContentSearchTarget {
   readonly useRegex: boolean;
 }
 
-export function useProjectContentSearch(target: ProjectContentSearchTarget) {
+export function useProjectContentSearch(
+  target: ProjectContentSearchTarget,
+  resolve: MessageResolver = m,
+) {
   const hasTarget = target.environmentId !== null && target.cwd !== null;
   const fileAccess = useFilesystemReadAccess(target.environmentId);
   const canReadFiles = hasTarget && fileAccess.canReadFiles;
@@ -440,9 +444,13 @@ export function useProjectContentSearch(target: ProjectContentSearchTarget) {
       !hasTarget || isCheckingAccess
         ? null
         : !canReadFiles
-          ? (fileAccess.error ?? msg("This connection cannot search host files."))
+          ? (fileAccess.error ?? resolve(msg("This connection cannot search host files.")))
           : queryTooLong
-            ? `Search is limited to ${PROJECT_SEARCH_CONTENTS_QUERY_MAX_LENGTH} characters.`
+            ? resolve(
+                msg("Search is limited to {count} characters.", {
+                  count: PROJECT_SEARCH_CONTENTS_QUERY_MAX_LENGTH,
+                }),
+              )
             : result.error,
     isPending:
       isCheckingAccess ||

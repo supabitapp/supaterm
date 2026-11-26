@@ -77,6 +77,7 @@ export function clientPresentationMetadata(input: {
 }): AuthClientPresentationMetadata {
   if (input.desktopBridge !== undefined) {
     return {
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- product name the server stores for this client
       label: "Supaterm Desktop",
       deviceType: "desktop",
       os: clientOsFromElectronPlatform(input.desktopBridge.getClientPlatform()),
@@ -85,6 +86,7 @@ export function clientPresentationMetadata(input: {
   }
 
   return {
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- product name the server stores for this client
     label: "Supaterm Web",
     deviceType: browserDeviceType(input.identity),
     os: browserClientOs(input.identity),

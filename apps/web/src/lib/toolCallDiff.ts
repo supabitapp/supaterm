@@ -1,4 +1,6 @@
 import type { OrchestrationV2TurnItem } from "@supaterm/contracts";
+import { msg } from "gt-react";
+import { m, type MessageResolver } from "../i18n/messages";
 import { getRenderablePatch, resolveFileDiffPath } from "./diffRendering";
 
 type FileChange = Extract<OrchestrationV2TurnItem, { type: "file_change" }>;
@@ -97,6 +99,7 @@ function recordedText(value: string | undefined) {
 export function toolCallDiff(
   item: Pick<FileChange, "diffStr" | "fileName" | "changes" | "oldStr" | "newStr">,
   workspaceRoot?: string,
+  resolve: MessageResolver = m,
 ) {
   const diff = recordedText(item.diffStr);
   const operation = item.changes?.[0]?.operation;
@@ -111,8 +114,8 @@ export function toolCallDiff(
     content: diff.text?.trim()
       ? []
       : [
-          { label: "Recorded content before", text: before.text },
-          { label: "Recorded content after", text: after.text },
+          { label: resolve(msg("Recorded content before")), text: before.text },
+          { label: resolve(msg("Recorded content after")), text: after.text },
         ].filter((entry): entry is { label: string; text: string } => entry.text !== undefined),
     truncated: diff.truncated || before.truncated || after.truncated,
   };

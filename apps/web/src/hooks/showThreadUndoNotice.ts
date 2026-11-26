@@ -11,7 +11,7 @@ import { announce, cancelAnnouncement } from "../lib/announce";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
-import { m } from "../i18n/messages";
+import { m, type MessageResolver } from "../i18n/messages";
 import { msg } from "gt-react";
 
 type UndoOptions = {
@@ -30,27 +30,33 @@ type UndoNotice = {
 
 export const useThreadUndoNotice = create<{ notice: UndoNotice | null }>(() => ({ notice: null }));
 
-const UNDONE_ACTION = {
-  Done: "mark done",
-  Snoozed: "snooze",
-  Unpinned: "unpin",
-  Archived: "archive",
-  Discarded: "discard",
+const SUMMARY = {
+  Done: msg("Marked {count, plural, one {{count} thread} other {{count} threads}} as Done"),
+  Snoozed: msg("Snoozed {count, plural, one {{count} thread} other {{count} threads}}"),
+  Unpinned: msg("Unpinned {count, plural, one {{count} thread} other {{count} threads}}"),
+  Archived: msg("Archived {count, plural, one {{count} thread} other {{count} threads}}"),
+  Discarded: msg("Discarded {count, plural, one {{count} draft} other {{count} drafts}}"),
 } satisfies Record<UndoOptions["action"], string>;
 
-function countLabel(action: UndoOptions["action"], count: number) {
-  const noun = action === "Discarded" ? "draft" : "thread";
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
+const UNDONE = {
+  Done: msg("Undid mark done of {count, plural, one {{count} thread} other {{count} threads}}"),
+  Snoozed: msg("Undid snooze of {count, plural, one {{count} thread} other {{count} threads}}"),
+  Unpinned: msg("Undid unpin of {count, plural, one {{count} thread} other {{count} threads}}"),
+  Archived: msg("Undid archive of {count, plural, one {{count} thread} other {{count} threads}}"),
+  Discarded: msg("Undid discard of {count, plural, one {{count} draft} other {{count} drafts}}"),
+} satisfies Record<UndoOptions["action"], string>;
 
 export function threadUndoNoticeSummary(notice: Pick<UndoNotice, "action" | "count">): string {
-  const counted = countLabel(notice.action, notice.count);
-  return notice.action === "Done" ? `Marked ${counted} as Done` : `${notice.action} ${counted}`;
+  return m(SUMMARY[notice.action], { count: notice.count });
 }
 
-export function threadUndoLabel(keybindings: Parameters<typeof shortcutLabelForCommand>[0]) {
+/** Components pass `useMessages()` so the label follows a language switch. */
+export function threadUndoLabel(
+  keybindings: Parameters<typeof shortcutLabelForCommand>[0],
+  resolve: MessageResolver = m,
+) {
   const shortcut = shortcutLabelForCommand(keybindings, "thread.undo");
-  return shortcut ? `${shortcut} to undo` : msg("Undo");
+  return shortcut ? resolve(msg("{shortcut} to undo", { shortcut })) : resolve(msg("Undo"));
 }
 
 let announcedSummary: string | null = null;
@@ -65,7 +71,7 @@ function setNotice(notice: UndoNotice | null) {
   announcedSummary = summary;
   if (summary) {
     const label = threadUndoLabel(appAtomRegistry.get(primaryServerKeybindingsAtom));
-    announce(`${summary}, ${label}`, "thread-undo-notice");
+    announce(m(msg("{summary}, {label}", { summary, label })), "thread-undo-notice");
   } else {
     cancelAnnouncement("thread-undo-notice");
   }
@@ -127,7 +133,7 @@ function refreshNotice() {
       );
       // Failures already raise a toast, so only what was actually restored is spoken.
       if (undone > 0) {
-        announce(`Undid ${UNDONE_ACTION[latest.action]} of ${countLabel(latest.action, undone)}`);
+        announce(m(UNDONE[latest.action], { count: undone }));
       }
     },
   });
