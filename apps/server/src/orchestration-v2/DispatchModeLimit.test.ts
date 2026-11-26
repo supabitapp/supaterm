@@ -7,6 +7,7 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
+  TurnItemId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -141,13 +142,17 @@ it.layer(layerTest)("DispatchModeLimit", (it) => {
   );
 });
 
+const otherInstanceId = ProviderInstanceId.make("codex_other");
 const layerPolicyDatabase = SqlitePersistence.layerMemory;
 const layerWithCeiling = Layer.mergeAll(
   layerPolicyDatabase,
   ProjectionStore.layer.pipe(Layer.provide(layerPolicyDatabase)),
   ProviderReplayHarness.layerWithRegistry(
     { name: "runtime-mode-ceiling" },
-    ProviderAdapterRegistry.layerFromAdapters([adapter]),
+    ProviderAdapterRegistry.layerFromAdapters([
+      adapter,
+      { ...adapter, instanceId: otherInstanceId },
+    ]),
     {
       databaseLayer: layerPolicyDatabase,
       runEffectWorker: false,
@@ -444,7 +449,107 @@ it.layer(layerWithCeiling)("runtime mode ceiling", (it) => {
       const started = (yield* orchestrator.getThreadRecords(threadId, ["runs"])).runs.find(
         (run) => run.id === waiting!.id,
       );
-      assert.notEqual(started?.status, "queued");
+      assert.equal(started?.status, "starting");
+    }),
+  );
+
+  it.effect("keeps a queue waiting for its provider's usage limit when the mode is lowered", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const sink = yield* EventSink.EventSinkV2;
+      const threadId = ThreadId.make("thread:ceiling-queue-limited");
+      yield* createThread(threadId);
+      yield* orchestrator.dispatch(sendMessage(threadId, "limited"));
+      yield* orchestrator.dispatch({
+        ...sendMessage(threadId, "limited-waiting"),
+        dispatchMode: { type: "queue_after_active" },
+      });
+      const [limited, waiting] = (yield* orchestrator.getThreadRecords(threadId, ["runs"])).runs;
+      const now = yield* DateTime.now;
+      yield* sink.write({
+        events: [
+          {
+            id: EventId.make("event:ceiling-queue-limited:error"),
+            type: "turn-item.updated",
+            threadId,
+            runId: limited!.id,
+            nodeId: limited!.rootNodeId!,
+            providerInstanceId: limited!.providerInstanceId,
+            occurredAt: now,
+            payload: {
+              id: TurnItemId.make("item:ceiling-queue-limited:error"),
+              type: "error",
+              threadId,
+              runId: limited!.id,
+              nodeId: limited!.rootNodeId!,
+              providerThreadId: limited!.providerThreadId,
+              providerTurnId: null,
+              nativeItemRef: null,
+              parentItemId: null,
+              ordinal: 1,
+              status: "failed",
+              title: "Usage limit",
+              startedAt: now,
+              completedAt: now,
+              updatedAt: now,
+              failure: {
+                class: "usage_limit",
+                message: "Usage limit reached",
+                code: "usage_limit",
+                retryable: null,
+                resetAt: DateTime.formatIso(DateTime.add(now, { hours: 1 })),
+              },
+            },
+          },
+          {
+            id: EventId.make("event:ceiling-queue-limited:failed"),
+            type: "run.updated",
+            threadId,
+            runId: limited!.id,
+            providerInstanceId: limited!.providerInstanceId,
+            occurredAt: now,
+            payload: { ...limited!, status: "failed", completedAt: now },
+          },
+        ],
+      });
+      yield* orchestrator.dispatch({
+        ...sendMessage(threadId, "other-provider"),
+        modelSelection: { instanceId: otherInstanceId, model: "gpt-5" },
+      });
+      const { thread, runs } = yield* orchestrator.getThreadRecords(threadId, ["runs"]);
+      const other = runs.find((run) => run.providerInstanceId === otherInstanceId);
+      assert.equal(other?.status, "starting");
+      yield* sink.write({
+        events: [
+          {
+            id: EventId.make("event:ceiling-queue-limited:other-completed"),
+            type: "run.updated",
+            threadId,
+            runId: other!.id,
+            providerInstanceId: other!.providerInstanceId,
+            occurredAt: now,
+            payload: { ...other!, status: "completed", completedAt: now },
+          },
+          {
+            id: EventId.make("event:ceiling-queue-limited:raise"),
+            type: "thread.runtime-mode-updated",
+            threadId,
+            occurredAt: now,
+            payload: { ...thread, runtimeMode: "full-access" },
+          },
+        ],
+      });
+
+      yield* orchestrator.dispatch({
+        type: "thread.runtime-mode.set",
+        commandId: CommandId.make("lower:ceiling-queue-limited"),
+        threadId,
+        runtimeMode: "approval-required",
+      });
+      const held = (yield* orchestrator.getThreadRecords(threadId, ["runs"])).runs.find(
+        (run) => run.id === waiting!.id,
+      );
+      assert.equal(held?.status, "queued");
     }),
   );
 });
