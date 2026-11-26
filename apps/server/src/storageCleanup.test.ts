@@ -868,13 +868,18 @@ describe("checkpoint ref cleanup", () => {
       Effect.gen(function* () {
         const { service, repo, addThread, listRefs } = yield* checkpointCleanupFixture();
         const git = yield* GitVcsDriver.GitVcsDriver;
-        const prefix = (yield* addThread("many-checkpoints", { deleted: true }))[0]!.slice(0, -1);
+        // Long legacy refs pass git's 1 MB default output with fewer loose ref files to write.
+        const [ref] = yield* addThread("many-checkpoints".padEnd(180, "-"), {
+          deleted: true,
+          legacyOnly: true,
+        });
+        const prefix = ref!.slice(0, -1);
         yield* git.execute({
           operation: "cleanup-test.seed-checkpoints",
           cwd: repo,
           args: ["update-ref", "--stdin"],
           stdin: Array.from(
-            { length: 12_283 },
+            { length: Math.ceil(1_000_000 / prefix.length) },
             (_, ordinal) => `update ${prefix}${ordinal} HEAD\n`,
           ).join(""),
         });
