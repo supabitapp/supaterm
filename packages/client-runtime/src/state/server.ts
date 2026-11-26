@@ -1318,6 +1318,20 @@ export function createServerEnvironmentAtoms<R, E>(
       ),
     );
   });
+  // Keyed like the recommendations; machines with pruning off open no storage subscription.
+  const databasePruneBackupFailures = Atom.family((environmentIdsKey: string) => {
+    const environmentIds = JSON.parse(environmentIdsKey) as EnvironmentId[];
+    return Atom.make((get) =>
+      environmentIds.flatMap((environmentId) => {
+        if (get(configValueAtom(environmentId))?.settings.pruneEventHistory !== true) return [];
+        const result = get(databaseStorage({ environmentId, input: {} }));
+        const failure = result._tag === "Success" ? result.value?.pruneBackupFailure : undefined;
+        return failure === undefined ? [] : [{ environmentId, failure }];
+      }),
+    ).pipe(
+      Atom.withLabel(`environment-data:server:database-prune-backup-failures:${environmentIdsKey}`),
+    );
+  });
   const welcome = (target: {
     readonly environmentId: EnvironmentId;
     readonly input: EnvironmentRpcInput<typeof WS_METHODS.subscribeServerLifecycle>;
@@ -1343,6 +1357,7 @@ export function createServerEnvironmentAtoms<R, E>(
     }),
     databaseStorage,
     databaseCompactionRecommendations,
+    databasePruneBackupFailures,
     reclaimDatabaseSpace: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:reclaim-database-space",
       tag: WS_METHODS.serverReclaimDatabaseSpace,

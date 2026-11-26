@@ -7626,6 +7626,8 @@
   "1d5947477385dc63": "подсказки следующего промпта",
   "0652c2c018325b9d": "Подсказки следующего промпта",
   "498db4746460cd8b": "потоковая передача ответов",
+  "124727ffb36717a9": "Nothing deleted on {environment}: the one-time backup needs {needed} of free disk space, and {free} is free.",
+  "4f2224c15816229d": "Nothing deleted on {environment}: the one-time backup failed. The server log has the details.",
   "e48e93f44d89ea86": "Обновления",
   "9c29903421f3be6a": "проверка обновлений провайдеров",
   "615928bec4a7836f": "Проверить версии провайдеров",

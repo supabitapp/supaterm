@@ -90,6 +90,9 @@ export type DatabaseCompactStep =
 /** Superseded events only, or every event the projections cover once it is a day old. */
 export type HistoryRemoval = "compact" | "prune";
 
+/** Rewrite the file every time, or only when removing history deleted events. */
+export type DatabaseRewrite = "always" | "when-deleted";
+
 const formatGiB = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
 
 /** Offline inspection and repair of a Supaterm state database, for `supaterm doctor`. */
@@ -112,6 +115,7 @@ export class DatabaseMaintenance extends Context.Service<
       databasePath: string,
       options?: {
         readonly history?: HistoryRemoval;
+        readonly vacuum?: DatabaseRewrite;
         readonly onStep?: (step: DatabaseCompactStep) => Effect.Effect<void>;
       },
     ) => Effect.Effect<
@@ -187,6 +191,7 @@ const make = Effect.gen(function* () {
       databasePath: string,
       options: {
         readonly history?: HistoryRemoval;
+        readonly vacuum?: DatabaseRewrite;
         readonly onStep?: (step: DatabaseCompactStep) => Effect.Effect<void>;
       } = {},
     ) {
@@ -230,13 +235,15 @@ const make = Effect.gen(function* () {
                 Effect.andThen(maintenance.compactEventStore()),
                 Effect.map((compacted) => ({ ...compacted, schedule: null })),
               );
-        yield* onStep("vacuum");
-        // VACUUM rebuilds the file, which is the only way to switch an existing
-        // database to incremental auto_vacuum; the server reclaims online after.
-        yield* sql`PRAGMA auto_vacuum = INCREMENTAL`;
-        yield* sql`VACUUM`;
-        yield* onStep("rebuild-search");
-        yield* rebuildMessageSearch(sql);
+        if (options.vacuum !== "when-deleted" || summary.deletedEventCount > 0) {
+          yield* onStep("vacuum");
+          // VACUUM rebuilds the file, which is the only way to switch an existing
+          // database to incremental auto_vacuum; the server reclaims online after.
+          yield* sql`PRAGMA auto_vacuum = INCREMENTAL`;
+          yield* sql`VACUUM`;
+          yield* onStep("rebuild-search");
+          yield* rebuildMessageSearch(sql);
+        }
         yield* onStep("checkpoint");
         yield* sql`PRAGMA wal_checkpoint(TRUNCATE)`;
         return summary;

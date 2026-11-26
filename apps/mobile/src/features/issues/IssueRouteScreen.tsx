@@ -453,7 +453,6 @@ function IssueEventRow({
         )}
       </Text>
       <Text className="text-2xs text-foreground-tertiary">{relativeTime(event.createdAt)}</Text>
-      <Text className="text-2xs text-foreground-tertiary">{relativeTime(event.createdAt)}</Text>
     </View>
   );
 }

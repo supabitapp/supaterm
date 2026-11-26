@@ -81,7 +81,11 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
   yield* Console.log(
     `Database: ${formatBytes(status.databaseBytes)}, ${formatBytes(status.reclaimableBytes)} reclaimable.`,
   );
-  const prune = options.pruneEvents === true ? yield* maintenance.previewPrune(databasePath) : null;
+  const preview =
+    options.pruneEvents === true ? yield* maintenance.previewPrune(databasePath) : null;
+  // A pass inside the retained day writes nothing, so there is nothing to offer yet.
+  const prune = preview?.schedule._tag === "Waiting" ? null : preview;
+  if (preview !== null && prune === null) yield* Console.log(describePrune(preview));
   if (status.incrementalVacuumEnabled && status.reclaimableBytes === 0 && prune === null) {
     yield* Console.log("Nothing to repair.");
     return;
@@ -106,7 +110,7 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
           {
             id: "prune" as const,
             title: "Remove event history older than a day",
-            description: `${describePrune(prune)}\n  Conversations are kept. A Supaterm version older than this one cannot use the database afterwards.\n  Also reclaims database space.`,
+            description: `${describePrune(prune)}\n  Conversations are kept. A Supaterm version older than this one cannot use the database afterwards.${prune.prunableEventCount > 0 ? "\n  Also reclaims database space." : ""}`,
             recommended: true,
           },
         ]),
@@ -159,9 +163,10 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
   // Report inside the pause: a repair that succeeded is worth knowing about
   // even when starting the service again fails afterwards.
   const history = selected.includes("prune") ? ("prune" as const) : ("compact" as const);
+  const vacuum = selected.includes("database") ? ("always" as const) : ("when-deleted" as const);
   yield* service.withStopped(
     lockServerHome(paths).pipe(
-      Effect.andThen(maintenance.compact(databasePath, { history, onStep: reportStep })),
+      Effect.andThen(maintenance.compact(databasePath, { history, vacuum, onStep: reportStep })),
       Effect.tap((result) =>
         Clock.monotonicTimeNanos.pipe(
           Effect.flatMap((now) =>

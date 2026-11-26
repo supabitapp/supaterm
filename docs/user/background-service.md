@@ -159,8 +159,8 @@ conversations, diffs and checkpoints are kept.
 - Before it deletes anything the first time, Supaterm copies the database to
   `statev2-before-pruning.sqlite` beside it, in the `userdata` folder of the
   data directory. The copy needs free disk space about the size of the data in
-  use; without it nothing is deleted, and the server log or `supaterm doctor`
-  says why. Delete the copy once you no longer need it.
+  use; without it nothing is deleted, and Settings > Maintenance and
+  `supaterm doctor` say why. Delete the copy once you no longer need it.
 - The first pass only records where history ends. A pass at least a day later
   removes what came before that point. With the setting on, passes run every
   six hours. `supaterm doctor --prune-events --dry-run` shows how many events a

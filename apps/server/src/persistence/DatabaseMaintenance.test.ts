@@ -266,6 +266,21 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         // Opening the database migrates it.
         yield* Effect.void.pipe(Effect.provide(Sqlite.layerFromPath(dbPath)));
         yield* appendVisits(1, 40);
+
+        const steps: string[] = [];
+        const onStep = (step: DatabaseMaintenance.DatabaseCompactStep) =>
+          Effect.sync(() => {
+            steps.push(step);
+          });
+        // The first pass only marks the log, so it has nothing to rewrite.
+        const marked = yield* maintenance.compact(dbPath, {
+          history: "prune",
+          vacuum: "when-deleted",
+          onStep,
+        });
+        assert.deepEqual(steps, ["prune-events", "checkpoint"]);
+        assert.equal(marked.pruneSchedule?._tag, "Unmarked");
+        assert.equal(marked.deletedEventCount, 0);
         yield* markOldHistory;
 
         const preview = yield* maintenance.previewPrune(dbPath);
@@ -275,11 +290,7 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         assert.equal(preview.backup?.path, backupPath);
         assert.isFalse(yield* fs.exists(backupPath));
 
-        const steps: string[] = [];
-        const onStep = (step: DatabaseMaintenance.DatabaseCompactStep) =>
-          Effect.sync(() => {
-            steps.push(step);
-          });
+        steps.length = 0;
         const pruned = yield* maintenance.compact(dbPath, { history: "prune", onStep });
         assert.deepEqual(steps, [
           "prune-events",
@@ -300,7 +311,7 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         yield* appendVisits(41, 50);
         yield* markOldHistory;
         steps.length = 0;
-        yield* maintenance.compact(dbPath, { history: "prune", onStep });
+        yield* maintenance.compact(dbPath, { history: "prune", vacuum: "when-deleted", onStep });
         assert.deepEqual(steps, ["prune-events", "vacuum", "rebuild-search", "checkpoint"]);
         assert.equal(yield* eventCount(dbPath), 1);
         assert.equal(yield* eventCount(backupPath), 40);

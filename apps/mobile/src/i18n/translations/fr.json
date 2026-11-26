@@ -3855,6 +3855,8 @@
   "5a9233d122811283": "Désinstallation…",
   "c624c54fa917163b": "Désinstaller",
   "bb5f59f398c95e2c": "Réessayer les environnements sélectionnés.",
+  "124727ffb36717a9": "Nothing deleted on {environment}: the one-time backup needs {needed} of free disk space, and {free} is free.",
+  "4f2224c15816229d": "Nothing deleted on {environment}: the one-time backup failed. The server log has the details.",
   "074bdabe78bea12d": "Prompt",
   "73ae69beb9b6d1bf": "Que doit faire l’agent à chaque fois ?",
   "3c6e7b02cb4c62de": "Prompt",
