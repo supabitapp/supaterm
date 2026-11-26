@@ -49,11 +49,15 @@ import { useOpenLink } from "~/browser/useOpenLink";
 import { ExpandedImageDialog } from "~/components/chat/ExpandedImageDialog";
 import type { ExpandedImagePreview } from "~/components/chat/ExpandedImagePreview";
 import { useHtmlRenderTheme } from "~/hooks/useHtmlRenderTheme";
+import { isStandaloneIssueLink } from "@supaterm/client-runtime/issue-links";
 import { useOpenIssueLink } from "~/lib/openIssueLink";
 import { useOpenChangeRequestLink } from "~/lib/openPullRequestLink";
 import { readLocalApi } from "~/localApi";
 import { cn } from "~/lib/utils";
 import { primaryServerKeybindingsAtom, serverEnvironment } from "~/state/server";
+import { useServerConfigs } from "~/state/entities";
+import { issueTrackerEnvironment } from "~/state/issueTrackers";
+import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 
 /**
  * The page reports the keys, and a page script can report any key it likes,
@@ -386,27 +390,39 @@ export function HtmlRenderDocument(props: {
   const openChangeRequestLink = useOpenChangeRequestLink(props.threadRef);
   const openIssueLink = useOpenIssueLink(props.threadRef);
   const openLink = useOpenLink(props.threadRef);
-  const open = useEffectEvent((url: string, modifiers: { metaKey: boolean; ctrlKey: boolean }) => {
-    if (modifiers.metaKey || modifiers.ctrlKey) {
-      void readLocalApi()
-        ?.shell.openExternal(url)
-        .catch((cause: unknown) => console.error(cause));
-      return;
-    }
-    const event = {
-      ...modifiers,
-      preventDefault: () => undefined,
-      stopPropagation: () => undefined,
-    };
-    if (
-      props.threadRef !== undefined &&
-      (openChangeRequestLink(event, url, undefined, props.threadRef.environmentId) ||
-        openIssueLink(event, url, props.threadRef.environmentId))
-    ) {
-      return;
-    }
-    void openLink(url, { event: modifiers }).catch((cause: unknown) => console.error(cause));
+  const serverConfigs = useServerConfigs();
+  const readTrackerConnections = useAtomQueryRunner(issueTrackerEnvironment.connections, {
+    reportFailure: false,
+    reportDefect: false,
   });
+  const open = useEffectEvent(
+    async (url: string, modifiers: { metaKey: boolean; ctrlKey: boolean }) => {
+      if (modifiers.metaKey || modifiers.ctrlKey) {
+        void readLocalApi()
+          ?.shell.openExternal(url)
+          .catch((cause: unknown) => console.error(cause));
+        return;
+      }
+      const event = {
+        ...modifiers,
+        preventDefault: () => undefined,
+        stopPropagation: () => undefined,
+      };
+      const environmentId = props.threadRef?.environmentId;
+      if (environmentId !== undefined) {
+        if (openChangeRequestLink(event, url, undefined, environmentId)) return;
+        // Only a standalone tracker's link needs the bindings, whose read probes the tracker.
+        const connections =
+          isStandaloneIssueLink(url) &&
+          serverConfigs.get(environmentId)?.environment.capabilities.issues === true
+            ? await readTrackerConnections({ environmentId, input: {} })
+            : null;
+        const trackers = connections?._tag === "Success" ? connections.value : undefined;
+        if (openIssueLink(event, url, environmentId, trackers)) return;
+      }
+      void openLink(url, { event: modifiers }).catch((cause: unknown) => console.error(cause));
+    },
+  );
   const { onFullscreenChange } = props;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports fullscreen to the parent while the image viewer is open, and clears it on unmount
   useEffect(() => {
@@ -435,7 +451,7 @@ export function HtmlRenderDocument(props: {
     if (document.activeElement !== frame || navigator.userActivation?.isActive === false) return;
     const linkRequest = readHtmlRenderLinkRequest(event.data);
     if (linkRequest !== undefined) {
-      open(linkRequest.url, linkRequest);
+      void open(linkRequest.url, linkRequest);
       frame.contentWindow?.postMessage(htmlRenderResult(linkRequest.id), "*");
       return;
     }
