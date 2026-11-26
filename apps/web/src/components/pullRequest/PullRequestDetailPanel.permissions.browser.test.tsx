@@ -5,6 +5,7 @@ import {
   ProjectId,
   SourceControlProviderKind,
   type PullRequestDetailView,
+  type PullRequestStack,
 } from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
@@ -17,7 +18,7 @@ const { command, permissions, reads, shown } = vi.hoisted(() => ({
   command: vi.fn(),
   permissions: { checkout: true, operate: true },
   reads: { diff: [] as unknown[] },
-  shown: { detail: null as PullRequestDetailView | null },
+  shown: { detail: null as PullRequestDetailView | null, stack: null as PullRequestStack | null },
 }));
 
 vi.mock(import("~/state/session"), async (original) => ({
@@ -49,13 +50,21 @@ vi.mock(import("./usePullRequestDetail"), async (original) => ({
 }));
 vi.mock(import("~/state/usePullRequestStack"), async (original) => ({
   ...(await original()),
-  usePullRequestStack: (() => ({
-    data: null,
-    isFresh: true,
-    isPending: false,
-    error: null,
-    refresh: vi.fn(),
-  })) as never,
+  usePullRequestStackGate: (({ detail }: { detail: PullRequestDetailView | null }) => {
+    const supportsStackActions =
+      detail?.capabilities.stacks === true && detail.capabilities.stackActions === true;
+    return {
+      stackQuery: {
+        data: shown.stack,
+        isFresh: true,
+        isPending: false,
+        error: null,
+        refresh: vi.fn(),
+      },
+      supportsStackActions,
+      canMergeSinglePullRequest: !supportsStackActions || shown.stack === null,
+    };
+  }) as never,
 }));
 vi.mock(import("~/state/pullRequests"), async (original) => {
   const actual = await original();
@@ -155,6 +164,7 @@ function setup() {
   permissions.operate = true;
   reads.diff = [];
   shown.detail = detail;
+  shown.stack = null;
   command.mockReset();
   useComposerDraftStore.setState({ draftsByThreadKey: {} });
 }
@@ -242,6 +252,41 @@ it("keeps a merge and a review on the head the reader was shown until they load 
   await merge();
   await vi.waitFor(() =>
     expect(sent("action")).toEqual(["shown-head", "shown-head", "pushed-head"]),
+  );
+});
+
+it("cancels an armed stack's auto-merge for the whole stack from the header", async () => {
+  setup();
+  command.mockResolvedValue({ _tag: "Success", value: undefined });
+  shown.detail = {
+    ...detail,
+    mergeability: "mergeable",
+    autoMergeEnabled: true,
+    capabilities: {
+      ...detail.capabilities,
+      stacks: true,
+      stackActions: true,
+      stackAutoMerge: true,
+      actions: ["disable-auto-merge"],
+    },
+    viewerPermissions: { ...detail.viewerPermissions, actions: ["disable-auto-merge"] },
+  };
+  shown.stack = {
+    id: "stack",
+    number: 7,
+    url: "https://github.com/owner/repo/stack/7",
+    base: "main",
+    layers: [{ number: 1, headBranch: "feature", headSha: "abc123", state: "open" }],
+  };
+  await using screen = await render(panel());
+  await expect.element(screen.getByRole("button", { name: /^Stack 7/ })).toBeVisible();
+  await screen.getByRole("button", { name: "Disable auto-merge" }).click();
+  await vi.waitFor(() =>
+    expect(command).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ action: "disable-auto-merge", stackNumber: 7 }),
+      }),
+    ),
   );
 });
 

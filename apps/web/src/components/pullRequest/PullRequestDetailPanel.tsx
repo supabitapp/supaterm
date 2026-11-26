@@ -871,6 +871,10 @@ export function PullRequestDetailPanel({
         ...reference,
         action,
         ...mergeHeadPin(action, shownHeadSha),
+        // A stack auto-merge request covers other layers, so cancelling it names the stack.
+        ...(action === "disable-auto-merge" && nativeStack !== null && stackAutoMerge
+          ? { stackNumber: nativeStack.number }
+          : {}),
         ...(method ? { mergeMethod: method } : {}),
         ...(updateMethod ? { updateMethod } : {}),
       },
