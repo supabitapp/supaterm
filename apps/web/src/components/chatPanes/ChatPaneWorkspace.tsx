@@ -29,6 +29,7 @@ import { LinkPullRequestDialogHost } from "../pullRequest/LinkPullRequestDialog"
 import { cn } from "~/lib/utils";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { trackChatPaneWorkspaceMount } from "../../chatPanes/actions";
+import { useGT } from "gt-react";
 
 function useNavigateToPaneTarget() {
   const navigate = useNavigate();
@@ -153,6 +154,7 @@ function PaneGrid({
   layout: PaneLayout;
   size: { width: number; height: number };
 }) {
+  const gt = useGT();
   const setTrackSizes = useChatPaneStore((state) => state.setTrackSizes);
   // Too small for every pane: show the focused one and keep the arrangement for later.
   const collapsed = isSplit(layout) && !paneLayoutFits(layout, size);
@@ -210,7 +212,7 @@ function PaneGrid({
                 column={line.index}
                 row={line.from}
                 rowSpan={line.span}
-                label="Resize chat panes"
+                label={gt("Resize chat panes")}
               />
             ) : (
               <ResizableGridline
@@ -219,7 +221,7 @@ function PaneGrid({
                 row={line.index}
                 column={line.from}
                 columnSpan={line.span}
-                label="Resize chat panes"
+                label={gt("Resize chat panes")}
               />
             ),
           )

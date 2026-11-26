@@ -4,6 +4,8 @@ import {
   endThreadContextDrag,
   moveThreadContextDrag,
 } from "../chat/threadContextDrag";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const PANE_DRAG_DISTANCE = 4;
 
@@ -14,7 +16,7 @@ const PANE_DRAG_DISTANCE = 4;
 export function startPaneDrag(event: PointerEvent, paneId: string, title: string) {
   if (!event.isPrimary || event.button !== 0) return null;
   const payload = { kind: "pane", paneId } as const;
-  const label = { title: title.trim() || "Thread", count: 1 };
+  const label = { title: title.trim() || m(msg("Thread")), count: 1 };
   return new SidebarPointerSensor({
     active: paneId,
     event,

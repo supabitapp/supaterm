@@ -15,6 +15,7 @@ import type { PanelLayoutControlsProps } from "../chat/PanelLayoutControls";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuShortcut, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { T, useGT } from "gt-react";
 
 export function ChatPaneActionsMenu({
   paneId,
@@ -33,6 +34,7 @@ export function ChatPaneActionsMenu({
   onToggleThreadPanel,
   onToggleRightPanel,
 }: PanelLayoutControlsProps & { readonly paneId: string; readonly paneClosable: boolean }) {
+  const gt = useGT();
   const splitRightShortcut = useShortcutLabel("pane.splitRight");
   const splitDownShortcut = useShortcutLabel("pane.splitDown");
   const closeShortcut = useShortcutLabel("pane.close", { context: { paneClosable } });
@@ -49,7 +51,7 @@ export function ChatPaneActionsMenu({
               <MenuTrigger
                 render={
                   <Button
-                    aria-label="Pane actions"
+                    aria-label={gt("Pane actions")}
                     data-right-panel-toggle
                     size="icon-sm"
                     variant="ghost"
@@ -66,29 +68,31 @@ export function ChatPaneActionsMenu({
               </MenuTrigger>
             }
           />
-          <TooltipPopup side="bottom">Pane actions</TooltipPopup>
+          <TooltipPopup side="bottom">
+            <T>Pane actions</T>
+          </TooltipPopup>
         </Tooltip>
         <MenuPopup align="end" side="bottom">
           <MenuItem onClick={() => openThreadPickerBeside("right")}>
             <ColumnsIcon />
-            Split right
+            <T>Split right</T>
             {splitRightShortcut ? <MenuShortcut>{splitRightShortcut}</MenuShortcut> : null}
           </MenuItem>
           <MenuItem onClick={() => openThreadPickerBeside("bottom")}>
             <RowsIcon />
-            Split down
+            <T>Split down</T>
             {splitDownShortcut ? <MenuShortcut>{splitDownShortcut}</MenuShortcut> : null}
           </MenuItem>
           <MenuItem onClick={() => useChatPaneStore.getState().close(paneId)}>
             <XIcon />
-            Close pane
+            <T>Close pane</T>
             {closeShortcut ? <MenuShortcut>{closeShortcut}</MenuShortcut> : null}
           </MenuItem>
           <MenuSeparator />
           {showThreadPanelControl ? (
             <MenuItem onClick={onToggleThreadPanel}>
               <SquareMenuIcon />
-              {threadPanelOpen ? "Hide thread details" : "Show thread details"}
+              {threadPanelOpen ? gt("Hide thread details") : gt("Show thread details")}
               {attention ? (
                 <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-warning" />
               ) : null}
@@ -99,14 +103,14 @@ export function ChatPaneActionsMenu({
           ) : null}
           <MenuItem disabled={!terminalAvailable} onClick={onToggleTerminal}>
             <SquareTerminalIcon />
-            {terminalOpen ? "Hide terminal" : "Show terminal"}
+            {terminalOpen ? gt("Hide terminal") : gt("Show terminal")}
             {terminalAvailable && terminalShortcutLabel ? (
               <MenuShortcut>{terminalShortcutLabel}</MenuShortcut>
             ) : null}
           </MenuItem>
           <MenuItem disabled={!rightPanelAvailable} onClick={onToggleRightPanel}>
             <PanelRightIcon />
-            {rightPanelOpen ? "Hide right panel" : "Show right panel"}
+            {rightPanelOpen ? gt("Hide right panel") : gt("Show right panel")}
             {rightPanelAvailable && rightPanelShortcutLabel ? (
               <MenuShortcut>{rightPanelShortcutLabel}</MenuShortcut>
             ) : null}
