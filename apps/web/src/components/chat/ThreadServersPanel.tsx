@@ -42,7 +42,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { THREAD_DETAILS_PANEL_ICON_CLASS } from "./threadDetailsPanelStyles";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const SERVER_PAGE_COUNT = 4;
 
@@ -214,8 +214,15 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                     <span className="truncate text-2xs font-normal leading-4 text-muted-foreground">
                       {[
                         // First, so the narrow panel truncates the less useful parts.
-                        forward ? `Forwarded to :${forward.localPort}` : null,
-                        server.terminal === null ? "Agent" : "Terminal",
+                        forward
+                          ? gt("Forwarded to :{port}", {
+                              $context: "a remote dev server reachable on this machine's port",
+                              port: forward.localPort,
+                            })
+                          : null,
+                        server.terminal === null
+                          ? gt("Agent", { $context: "who started a dev server" })
+                          : gt("Terminal", { $context: "who started a dev server" }),
                         server.processName,
                       ]
                         .filter(Boolean)
@@ -224,7 +231,9 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                   </span>
                 </TooltipTrigger>
                 <TooltipPopup side="left">
-                  Open in the browser panel. {externalClickLabel} for your browser.
+                  <T>
+                    Open in the browser panel. <Var>{externalClickLabel}</Var> for your browser.
+                  </T>
                 </TooltipPopup>
               </Tooltip>
               {actionCount > 0 ? (
@@ -267,9 +276,14 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                         )}
                       </TooltipTrigger>
                       <TooltipPopup side="left">
-                        {forward
-                          ? `Forwarded to localhost:${forward.localPort} on this machine. Click to stop.`
-                          : "Forward to this machine, for any app here"}
+                        {forward ? (
+                          <T>
+                            Forwarded to localhost:<Var>{forward.localPort}</Var> on this machine.
+                            Click to stop.
+                          </T>
+                        ) : (
+                          <T>Forward to this machine, for any app here</T>
+                        )}
                       </TooltipPopup>
                     </Tooltip>
                   ) : null}
@@ -321,7 +335,13 @@ function ThreadServersList(props: ThreadServersPanelProps) {
           ) : (
             <ChevronUpIcon aria-hidden className="size-4 shrink-0" />
           )}
-          {hiddenCount > 0 ? `Show ${Math.min(hiddenCount, SERVER_PAGE_COUNT)} more` : "Show less"}
+          {hiddenCount > 0 ? (
+            <T>
+              Show <Var>{Math.min(hiddenCount, SERVER_PAGE_COUNT)}</Var> more
+            </T>
+          ) : (
+            <T>Show less</T>
+          )}
         </ThreadDetailsControl>
       ) : null}
     </ThreadDetailsSection>

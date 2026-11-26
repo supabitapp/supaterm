@@ -1,3 +1,4 @@
+import { T } from "gt-react";
 import type { RunId, ThreadId } from "@supaterm/contracts";
 import { GitForkIcon } from "@supaterm/icons";
 import { useState } from "react";
@@ -28,7 +29,7 @@ export function ThreadDetailsForkControl(props: {
       }}
     >
       <GitForkIcon aria-hidden className={THREAD_DETAILS_PANEL_ICON_CLASS} />
-      <span className="min-w-0 truncate">{busy ? "Forking thread…" : "Fork thread"}</span>
+      <span className="min-w-0 truncate">{busy ? <T>Forking thread…</T> : <T>Fork thread</T>}</span>
       {shortcut ? (
         <span className="ms-auto shrink-0 opacity-0 transition-opacity duration-150 ease-out group-hover/fork-thread:opacity-100 group-focus-visible/fork-thread:opacity-100 motion-reduce:transition-none">
           <Kbd variant="plain" aria-hidden>

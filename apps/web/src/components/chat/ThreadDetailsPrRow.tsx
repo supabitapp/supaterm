@@ -96,7 +96,7 @@ import {
   THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
-import { useGT, T } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 // A null checks response is settled; polling cannot find checks.
 const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
@@ -164,6 +164,12 @@ export function ThreadDetailsPrRow({
   const terminology = sourceControlClients.get(
     detail?.provider ?? project?.repositoryIdentity?.provider,
   ).changeRequest;
+  const term =
+    terminology.singular === "merge request"
+      ? "mr"
+      : terminology.singular === "change request"
+        ? "cr"
+        : "pr";
   const open = reference !== null && (detail?.state ?? pr?.state) === "open";
   const refreshKey = `${environmentId}:${project?.id}:${reference?.host}:${reference?.repository}:${number}`;
   useLiveRefresh(
@@ -249,6 +255,8 @@ export function ThreadDetailsPrRow({
     projectDefaultMergeMethod,
     lastSelectedMergeMethod,
   );
+  const mergeMethodKey =
+    selectedMergeMethod === "fast-forward" ? "fastForward" : selectedMergeMethod;
   const selectMergeMethod = (method: PullRequestMergeMethod) => {
     setMergeMethodSelection({ key: refreshKey, method });
     setLastSelectedMergeMethod(method);
@@ -395,7 +403,9 @@ export function ThreadDetailsPrRow({
               <div className="flex min-w-0 items-start gap-2 text-destructive">
                 <TriangleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
                 <div className="min-w-0 flex-1 wrap-break-word">
-                  Merge conflicts with {detail.baseBranch}
+                  <T>
+                    Merge conflicts with <Var>{detail.baseBranch}</Var>
+                  </T>
                 </div>
               </div>
             ) : null}
@@ -427,7 +437,7 @@ export function ThreadDetailsPrRow({
           pending: handoff === "conflicts",
           destructive: true,
           suffix: null,
-          tooltip: "Draft a prompt in this thread for a subagent to resolve the conflicts",
+          tooltip: gt("Draft a prompt in this thread for a subagent to resolve the conflicts"),
           controlProps: { onClick: () => draftSubagentHandoff("conflicts") },
         }
       : rowAction === "ready"
@@ -437,7 +447,10 @@ export function ThreadDetailsPrRow({
             pending: pendingAction === "ready",
             destructive: false,
             suffix: null,
-            tooltip: `Mark this ${terminology.singular} as ready for review`,
+            tooltip: gt(
+              "Mark this {term, select, mr {merge request} cr {change request} other {pull request}} as ready for review",
+              { term },
+            ),
             controlProps: { onClick: () => void perform("ready") },
           }
         : rowAction === "fix"
@@ -450,7 +463,7 @@ export function ThreadDetailsPrRow({
                 handoff === "findings" ? (
                   <Spinner size="xs" aria-label={gt("Preparing fix")} />
                 ) : null,
-              tooltip: "Draft a prompt in this thread for a subagent to fix the failing checks",
+              tooltip: gt("Draft a prompt in this thread for a subagent to fix the failing checks"),
               controlProps: { onClick: () => draftSubagentHandoff("findings") },
             }
           : rowAction === "merge"
@@ -458,16 +471,29 @@ export function ThreadDetailsPrRow({
                 label: (
                   <InlineConfirmLabel
                     armed={confirm.armed === "merge"}
-                    idle="Merge"
-                    confirm="Confirm"
+                    idle={gt("Merge", { $context: "verb, merges a pull request" })}
+                    confirm={gt("Confirm", { $context: "verb, confirms the armed action" })}
                   />
                 ),
                 pendingLabel: gt("Merging..."),
                 pending: pendingAction === "merge",
                 destructive: false,
                 suffix: null,
-                tooltip: `Merge this ${terminology.singular} (${selectedMergeMethod})`,
-                armedTooltip: `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`,
+                tooltip: gt(
+                  "Merge this {term, select, mr {merge request} cr {change request} other {pull request}} ({method, select, merge {merge} squash {squash} rebase {rebase} fastForward {fast-forward} other {merge}})",
+                  {
+                    term,
+                    method: mergeMethodKey,
+                  },
+                ),
+                armedTooltip: gt(
+                  "Click again to merge #{number} into {base} ({method, select, merge {merge} squash {squash} rebase {rebase} fastForward {fast-forward} other {merge}})",
+                  {
+                    number,
+                    base: detail?.baseBranch,
+                    method: mergeMethodKey,
+                  },
+                ),
                 controlProps: pinnedConfirm(
                   "merge",
                   () => void perform("merge", selectedMergeMethod),
@@ -478,16 +504,25 @@ export function ThreadDetailsPrRow({
                   label: (
                     <InlineConfirmLabel
                       armed={confirm.armed === "enable-auto-merge"}
-                      idle="Auto-merge"
-                      confirm="Confirm"
+                      idle={gt("Auto-merge")}
+                      confirm={gt("Confirm", { $context: "verb, confirms the armed action" })}
                     />
                   ),
-                  pendingLabel: "Enabling...",
+                  pendingLabel: gt("Enabling..."),
                   pending: pendingAction === "enable-auto-merge",
                   destructive: false,
                   suffix: null,
-                  tooltip: `Merge into ${detail?.baseBranch} (${selectedMergeMethod}) once its checks pass`,
-                  armedTooltip: `Click again to enable auto-merge. The host may merge #${number} right away.`,
+                  tooltip: gt(
+                    "Merge into {base} ({method, select, merge {merge} squash {squash} rebase {rebase} fastForward {fast-forward} other {merge}}) once its checks pass",
+                    {
+                      base: detail?.baseBranch,
+                      method: mergeMethodKey,
+                    },
+                  ),
+                  armedTooltip: gt(
+                    "Click again to enable auto-merge. The host may merge #{number} right away.",
+                    { number },
+                  ),
                   controlProps: pinnedConfirm(
                     "enable-auto-merge",
                     () => void perform("enable-auto-merge", selectedMergeMethod),
@@ -529,7 +564,7 @@ export function ThreadDetailsPrRow({
                 size="sm"
                 part={detail === null ? "secondary" : "icon-segment"}
                 className="group/watch"
-                aria-label={`Stop watching #${number}`}
+                aria-label={gt("Stop watching #{number}", { number })}
                 onClick={onStopWatching}
               />
             }
@@ -564,7 +599,12 @@ export function ThreadDetailsPrRow({
                       variant="ghost"
                       size="sm"
                       part="secondary"
-                      aria-label={`More ${terminology.singular} actions`}
+                      aria-label={gt(
+                        "More {term, select, mr {merge request} cr {change request} other {pull request}} actions",
+                        {
+                          term,
+                        },
+                      )}
                     />
                   }
                 >
@@ -572,7 +612,12 @@ export function ThreadDetailsPrRow({
                 </MenuTrigger>
               }
             />
-            <TooltipPopup side="top">More {terminology.singular} actions</TooltipPopup>
+            <TooltipPopup side="top">
+              {gt(
+                "More {term, select, mr {merge request} cr {change request} other {pull request}} actions",
+                { term },
+              )}
+            </TooltipPopup>
           </Tooltip>
           <MenuPopup align="end" anchor={rowRef} className="w-(--anchor-width)">
             {rowAction === "fix" || rowAction === "resolve" ? (
@@ -582,7 +627,11 @@ export function ThreadDetailsPrRow({
                   onClick={() => startInNewThread(rowAction === "fix" ? "findings" : "conflicts")}
                 >
                   <SquarePenIcon className="size-3.5" />
-                  {rowAction === "fix" ? "Fix in a new thread" : "Resolve in a new thread"}
+                  {rowAction === "fix" ? (
+                    <T>Fix in a new thread</T>
+                  ) : (
+                    <T>Resolve in a new thread</T>
+                  )}
                 </MenuItem>
                 <MenuSeparator />
               </>
@@ -609,7 +658,14 @@ export function ThreadDetailsPrRow({
                   disabled={actionPending}
                 >
                   <PullRequestGlyph.closed className="size-3.5" />
-                  {confirm.armed === "close" ? "Confirm close" : `Close ${terminology.singular}`}
+                  {confirm.armed === "close" ? (
+                    <T>Confirm close</T>
+                  ) : (
+                    gt(
+                      "Close {term, select, mr {merge request} cr {change request} other {pull request}}",
+                      { term },
+                    )
+                  )}
                 </MenuItem>
               </>
             ) : canReopen ? (
@@ -617,7 +673,10 @@ export function ThreadDetailsPrRow({
                 <MenuSeparator />
                 <MenuItem disabled={actionPending} onClick={() => void perform("reopen")}>
                   <PullRequestGlyph.reopen className="size-3.5" />
-                  Reopen {terminology.singular}
+                  {gt(
+                    "Reopen {term, select, mr {merge request} cr {change request} other {pull request}}",
+                    { term },
+                  )}
                 </MenuItem>
               </>
             ) : null}

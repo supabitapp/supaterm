@@ -59,7 +59,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
   rightPanelOpen,
   rightPanelDeviceRunning = false,
   rightPanelShortcutLabel,
-  rightPanelUnavailableLabel = "Right panel is unavailable",
+  rightPanelUnavailableLabel,
   onToggleTerminal,
   onToggleThreadPanel,
   onToggleRightPanel,
@@ -84,9 +84,10 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
     </Toggle>
   );
   const rightPanelMarked = rightPanelDeviceRunning && !rightPanelOpen;
-  let rightPanelTooltip = "Toggle right panel";
-  if (!rightPanelAvailable) rightPanelTooltip = rightPanelUnavailableLabel;
-  else if (rightPanelMarked) rightPanelTooltip = "Toggle right panel · A device is running";
+  let rightPanelTooltip = gt("Toggle right panel");
+  if (!rightPanelAvailable)
+    rightPanelTooltip = rightPanelUnavailableLabel ?? gt("Right panel is unavailable");
+  else if (rightPanelMarked) rightPanelTooltip = gt("Toggle right panel · A device is running");
   const threadPanelControl = (
     <Tooltip>
       <TooltipTrigger render={<span className="flex shrink-0" data-thread-panel-toggle />}>
@@ -139,7 +140,7 @@ export const PanelLayoutControls = memo(function PanelLayoutControls({
               onPressedChange={onToggleRightPanel}
               aria-label={
                 rightPanelMarked
-                  ? "Toggle right panel, a device is running"
+                  ? gt("Toggle right panel, a device is running")
                   : gt("Toggle right panel")
               }
               data-right-panel-toggle
