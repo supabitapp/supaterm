@@ -560,6 +560,16 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["ask before delete stop process shell console history"],
   },
   {
+    id: "language",
+    title: msg("Language"),
+    to: "/settings/general",
+    searchTerms: [
+      msg(
+        "locale translation english deutsch german español spanish français french português portuguese brasil brazilian chinese 中文 japanese 日本語 korean 한국어 russian русский swedish svenska sprache idioma langue 语言 言語 언어 язык",
+      ),
+    ],
+  },
+  {
     id: "time-format",
     title: msg("Time format"),
     to: "/settings/general",
