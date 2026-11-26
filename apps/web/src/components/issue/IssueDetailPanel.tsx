@@ -721,7 +721,9 @@ export function IssueDetailPanel({
             <PullRequestMetaRow icon={<TagIcon className="size-3.5" />} label={gt("Labels")}>
               <span className="flex min-w-0 flex-wrap items-center gap-1">
                 {detail.labels.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
+                  <span className="text-muted-foreground">
+                    <T context="no labels">None</T>
+                  </span>
                 ) : (
                   detail.labels.map((label) => (
                     <PullRequestLabelChip
@@ -748,7 +750,9 @@ export function IssueDetailPanel({
             <PullRequestMetaRow icon={<UsersIcon className="size-3.5" />} label={gt("Assignees")}>
               <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                 {detail.assignees.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
+                  <span className="text-muted-foreground">
+                    <T context="no assignees">None</T>
+                  </span>
                 ) : (
                   detail.assignees.map((actor) => (
                     <PullRequestActorLabel key={actor.login} actor={actor} />

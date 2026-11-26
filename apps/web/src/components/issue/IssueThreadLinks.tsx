@@ -131,7 +131,9 @@ export function IssueThreadLinks({
               </Button>
             }
           />
-          <TooltipPopup>{linkedThreadsLabel}. Search in the command palette.</TooltipPopup>
+          <TooltipPopup>
+            {gt("{label}. Search in the command palette.", { label: linkedThreadsLabel })}
+          </TooltipPopup>
         </Tooltip>
       ) : null}
       {canOperate ? (

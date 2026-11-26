@@ -312,7 +312,7 @@ function AssigneeChoices(props: {
         <MenuRadioItem value="">
           <span className="flex min-w-0 items-center gap-2">
             <LayersIcon aria-hidden className="size-3.5" />
-            Anyone
+            <T context="no assignee filter">Anyone</T>
           </span>
         </MenuRadioItem>
         {visible.map((actor) => (

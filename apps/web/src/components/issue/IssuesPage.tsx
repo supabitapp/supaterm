@@ -101,7 +101,8 @@ import { useEnvironments, useIssuesSupported } from "~/state/environments";
 import { issueEnvironment, useIssueList } from "~/state/issues";
 import { useDebouncedValue } from "~/state/queries";
 import { primaryServerKeybindingsAtom } from "~/state/server";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 export interface IssuesSearch extends IssueListPreferences {
   readonly selectedEnvironmentId?: EnvironmentId | undefined;
@@ -114,13 +115,13 @@ export interface IssuesSearch extends IssueListPreferences {
 }
 
 const STATE_TABS = [
-  { value: "open", label: "Open", Icon: IssueGlyph.issue },
-  { value: "closed", label: "Closed", Icon: CircleCheckIcon },
-  { value: "all", label: "All", Icon: LayersIcon },
+  { value: "open", label: msg("Open", { $context: "issue state" }), Icon: IssueGlyph.issue },
+  { value: "closed", label: msg("Closed", { $context: "issue state" }), Icon: CircleCheckIcon },
+  { value: "all", label: msg("All", { $context: "issue filter" }), Icon: LayersIcon },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<IssueListState>>;
 
 const INVOLVEMENT_TABS = [
-  { value: "all", label: "Everyone", Icon: UsersIcon },
+  { value: "all", label: msg("Everyone", { $context: "issue filter" }), Icon: UsersIcon },
   { value: "assigned", label: msg("Assigned to me"), Icon: UserCheckIcon },
   { value: "authored", label: msg("Opened by me"), Icon: PenLineIcon },
   { value: "mentioned", label: msg("Mentioning me"), Icon: AtSignIcon },
@@ -128,7 +129,11 @@ const INVOLVEMENT_TABS = [
 
 const SORT_OPTIONS = [
   { value: "updated", label: msg("Recently updated"), Icon: ClockIcon },
-  { value: "created", label: "Newest", Icon: SortDescendingIcon },
+  {
+    value: "created",
+    label: msg("Newest", { $context: "sort order" }),
+    Icon: SortDescendingIcon,
+  },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<IssueListSort>>;
 
 const PAGE_SIZE = 50;
@@ -148,7 +153,18 @@ function getShortcutContext() {
   };
 }
 
-function hostOptionsFor(trackers: ReadonlyArray<IssueTrackerSummary>, chosen: string | undefined) {
+function resolveFilterOptions<Option extends { readonly label: string }>(
+  options: ReadonlyArray<Option>,
+  resolve: MessageResolver,
+): Option[] {
+  return options.map((option) => ({ ...option, label: resolve(option.label) }));
+}
+
+function hostOptionsFor(
+  trackers: ReadonlyArray<IssueTrackerSummary>,
+  chosen: string | undefined,
+  resolve: MessageResolver,
+) {
   const hosts = new Map<string, IssueTrackerSummary>();
   const ordered = [...trackers].sort((a, b) =>
     issueTrackerKey(a).localeCompare(issueTrackerKey(b)),
@@ -159,7 +175,7 @@ function hostOptionsFor(trackers: ReadonlyArray<IssueTrackerSummary>, chosen: st
       hosts.set(tracker.host, tracker);
   }
   return [
-    { value: "", label: "All", Icon: PlugIcon },
+    { value: "", label: resolve(msg("All", { $context: "issue filter" })), Icon: PlugIcon },
     // A remembered host no project is on any more stays listed, so the filter can be taken off.
     ...(chosen !== undefined && !hosts.has(chosen)
       ? [{ value: chosen, label: chosen, Icon: PlugIcon }]
@@ -178,6 +194,7 @@ function hostOptionsFor(trackers: ReadonlyArray<IssueTrackerSummary>, chosen: st
 
 export function IssuesPage() {
   const gt = useGT();
+  const resolve = useMessages();
   const navigate = useNavigate({ from: "/issues" });
   const search = useSearch({ from: "/_chat/issues" });
   const { environments } = useEnvironments();
@@ -310,6 +327,7 @@ export function IssuesPage() {
   const hostOptions = hostOptionsFor(
     [...held.values()].flatMap((page) => page.answer.trackers),
     search.host,
+    resolve,
   );
 
   const updateSearch = (patch: { [Key in keyof IssuesSearch]?: IssuesSearch[Key] | undefined }) => {
@@ -533,7 +551,11 @@ export function IssuesPage() {
     <div className="flex flex-col gap-6">
       {list.error ? (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning-surface px-3 py-2 text-xs">
-          <span>{list.error} Showing the issues that loaded.</span>
+          <span>
+            <T>
+              <Var>{list.error}</Var> Showing the issues that loaded.
+            </T>
+          </span>
           <Button size="xs" variant="outline" onClick={list.retry}>
             <T>Retry</T>
           </Button>
@@ -699,17 +721,17 @@ export function IssuesPage() {
                     triggerLabel={gt("Sort", { $context: "verb, button that sorts a list" })}
                     outlined
                     value={search.order ?? "updated"}
-                    options={SORT_OPTIONS}
+                    options={resolveFilterOptions(SORT_OPTIONS, resolve)}
                     onChange={(order) =>
                       updateSearch({ order: order === "created" ? "created" : undefined })
                     }
                   />
                   <IssueFiltersMenu
                     state={search.status}
-                    stateOptions={STATE_TABS}
+                    stateOptions={resolveFilterOptions(STATE_TABS, resolve)}
                     onState={(status) => updateSearch({ status })}
                     involvement={search.who}
-                    involvementOptions={INVOLVEMENT_TABS}
+                    involvementOptions={resolveFilterOptions(INVOLVEMENT_TABS, resolve)}
                     onInvolvement={(who) => updateSearch({ who })}
                     scopes={filterScopes}
                     labels={search.label ?? []}
