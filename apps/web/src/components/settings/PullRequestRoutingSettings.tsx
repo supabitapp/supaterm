@@ -15,10 +15,10 @@ import { toastManager } from "../ui/toast";
 import { EnvironmentRow, EnvironmentTransportLabel } from "./EnvironmentRow";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
 import { searchableSetting } from "./settingsSearch";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const options: ReadonlyArray<{ value: PullRequestRoutingPermission; label: string }> = [
-  { value: "off", label: "Off" },
+  { value: "off", label: msg("Off", { $context: "pull request routing permission" }) },
   { value: "read", label: msg("Read PRs") },
   { value: "read-write", label: msg("Read and act") },
 ];
@@ -46,6 +46,8 @@ export function PullRequestRoutingSettings({
   readonly environments: ReadonlyArray<EnvironmentPresentation>;
 }) {
   const gt = useGT();
+  const m = useMessages();
+  const items = options.map((option) => ({ ...option, label: m(option.label) }));
   const permissions = useAtomValue(environmentCatalog.pullRequestRoutingPermissionsValueAtom);
   const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
   const update = useAtomCommand(environmentCatalog.setPullRequestRoutingPermission);
@@ -64,7 +66,7 @@ export function PullRequestRoutingSettings({
             label: environment.label,
             permission: pullRequestRoutingPermissionFor(environment.entry, permissions),
           })),
-        ) ?? "Off"
+        ) ?? gt("Off", { $context: "pull request routing permission" })
       }
     >
       <p className="px-3 py-2.5 text-xs text-muted-foreground sm:px-4">
@@ -82,7 +84,7 @@ export function PullRequestRoutingSettings({
           subtitle={<EnvironmentTransportLabel environment={environment} />}
         >
           <Select
-            items={options}
+            items={items}
             value={pullRequestRoutingPermissionFor(environment.entry, permissions)}
             disabled={
               !catalog.isReady ||
@@ -114,7 +116,7 @@ export function PullRequestRoutingSettings({
               <SelectValue />
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
-              {options.map(({ value, label }) => (
+              {items.map(({ value, label }) => (
                 <SelectItem key={value} value={value}>
                   {label}
                 </SelectItem>

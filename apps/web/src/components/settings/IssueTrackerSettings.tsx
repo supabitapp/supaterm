@@ -318,7 +318,10 @@ function ProjectBindings({
     <>
       <SettingsRow
         title={gt("Projects")}
-        description={`Pick one or more ${tracker.displayName} ${tracker.scopeNoun}s for each project. Their issues list beside the repository's own, and agents file new issues in the first one unless asked for another.`}
+        description={gt(
+          "Pick one or more {tracker} {scope}s for each project. Their issues list beside the repository's own, and agents file new issues in the first one unless asked for another.",
+          { tracker: tracker.displayName, scope: tracker.scopeNoun },
+        )}
       />
       {projects.map((project) => {
         // A project bound to another tracker or account keeps that binding; this picker shows it unbound.

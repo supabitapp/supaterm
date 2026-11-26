@@ -204,7 +204,9 @@ export function SourceControlWritingSettingsSection() {
         resetAction={
           isSourceControlWritingStyleDirty ? (
             <SettingResetButton
-              label="commit and pull request writing"
+              label={gt("commit and pull request writing", {
+                $context: "setting name in a reset button label",
+              })}
               onClick={() =>
                 updateSettings({
                   sourceControlWritingStyle: {
@@ -326,7 +328,9 @@ export function SourceControlWritingSettingsSection() {
           templatesMixed ||
           style.followChangeRequestTemplates !== defaults.followChangeRequestTemplates ? (
             <SettingResetButton
-              label="pull request templates"
+              label={gt("pull request templates", {
+                $context: "setting name in a reset button label",
+              })}
               onClick={() =>
                 updateSettings({
                   sourceControlWritingStyle: {
@@ -357,7 +361,7 @@ export function SourceControlWritingSettingsSection() {
         serverScoped
         settingKeys={["sourceControlWriterModelSelection"]}
         {...searchableSetting("source-control-writer-model")}
-        description="Off uses the text generation model from Threads."
+        description={gt("Off uses the text generation model from Threads.")}
         control={
           !hasServerTargets ? (
             <span className="text-sm text-muted-foreground">
@@ -493,7 +497,9 @@ export function SourceControlWritingSettingsSection() {
             serverScoped
             settingKeys={["reviewGuideModelSelection"]}
             {...searchableSetting("review-guide-model")}
-            description="Model that reads a pull request to write its review guide. It reads the change itself over many steps, so a stronger model helps. Off uses a compatible source control writer or default model."
+            description={gt(
+              "Model that reads a pull request to write its review guide. It reads the change itself over many steps, so a stronger model helps. Off uses a compatible source control writer or default model.",
+            )}
             control={
               !hasServerTargets ? (
                 <span className="text-sm text-muted-foreground">
@@ -503,7 +509,7 @@ export function SourceControlWritingSettingsSection() {
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {!canEnableReviewGuideModel ? (
                     <span className="text-sm text-muted-foreground">
-                      Enable a provider that supports review guides.
+                      <T>Enable a provider that supports review guides.</T>
                     </span>
                   ) : null}
                   {(usesReviewGuideModel || mixedReviewGuideModel) && canEnableReviewGuideModel ? (
@@ -606,7 +612,9 @@ export function SourceControlWritingSettingsSection() {
             resetAction={
               mixedReviewGuideInstructions || settings.reviewGuideInstructions !== "" ? (
                 <SettingResetButton
-                  label="review guide instructions"
+                  label={gt("review guide instructions", {
+                    $context: "setting name in a reset button label",
+                  })}
                   onClick={() => updateSettings({ reviewGuideInstructions: "" })}
                 />
               ) : null
