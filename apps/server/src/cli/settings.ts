@@ -20,8 +20,8 @@ import { Argument, Command } from "effect/cli";
 
 import { baseDirFlag } from "./config.ts";
 import {
+  classifyManagedSetting,
   editSettingsObject,
-  managedSettingValue,
   readSettingsObject,
   resolveSettingsPaths,
   vetManagedSettingWrite,
@@ -204,22 +204,28 @@ const settingsGetCommand = Command.make("get", {
       const setting = yield* requireSettingName(flags.setting);
       const settingsPath = yield* resolveSettingsPath(flags.baseDir);
       const { settings: sparseSettings } = yield* readSettingsObject(settingsPath);
-      const stored = Object.hasOwn(sparseSettings, setting)
+      const policy = yield* readInstalledPolicy;
+      const isStored = Object.hasOwn(sparseSettings, setting);
+      const stored = isStored
         ? yield* decodeServerSettingsPatch({ [setting]: sparseSettings[setting] }).pipe(
-            Effect.option,
+            Effect.orElseSucceed(() => ({})),
           )
-        : Option.some({});
-      if (Option.isNone(stored)) {
-        yield* Console.log(yield* encodeValueJson(sparseSettings[setting]));
+        : {};
+      const managed = classifyManagedSetting(
+        policy,
+        setting,
+        applyServerSettingsPatch(policy.settings.defaults, stored),
+      );
+      if (managed._tag === "Unmanaged") {
+        yield* Console.log(
+          yield* encodeValueJson(
+            isStored ? sparseSettings[setting] : policy.settings.defaults[setting],
+          ),
+        );
         return;
       }
-      const { effective, managedBy } = managedSettingValue(
-        yield* readInstalledPolicy,
-        setting,
-        (settings) => applyServerSettingsPatch(settings, stored.value),
-      );
-      yield* Console.log(yield* encodeValueJson(effective));
-      if (managedBy !== undefined) yield* Console.error(`Managed by ${managedBy}.`);
+      yield* Console.log(yield* encodeValueJson(managed.effective));
+      yield* Console.error(`Managed by ${managed.organization}.`);
     }),
   ),
 );

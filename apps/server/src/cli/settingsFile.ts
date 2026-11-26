@@ -124,26 +124,39 @@ export const editSettingsObject = Effect.fnUntraced(function* (
 
 type InstalledPolicy = Effect.Success<typeof readInstalledPolicy>;
 
-/** The value the server applies for the top-level `setting` once `write` is in the settings file. */
-export const managedSettingValue = (
+export type ManagedSetting =
+  | { readonly _tag: "Unmanaged" }
+  | { readonly _tag: "Locked"; readonly organization: string; readonly effective: unknown }
+  | { readonly _tag: "Capped"; readonly organization: string; readonly effective: unknown };
+
+const overlaps = (path: string, setting: string) =>
+  path === setting || path.startsWith(`${setting}.`) || setting.startsWith(`${path}.`);
+
+/**
+ * How the installed policy treats the top-level `setting` when the server reads `requested`, the
+ * policy's defaults with the settings file applied. A lock on it, or on a path inside or around
+ * it, decides its value whatever is stored; `Capped` is a value the ceiling lowers on read.
+ */
+export const classifyManagedSetting = (
   policy: InstalledPolicy,
   setting: keyof ServerSettings,
-  write: (settings: ServerSettings) => ServerSettings,
-) => {
-  const requested = write(policy.settings.defaults);
+  requested: ServerSettings,
+): ManagedSetting => {
+  const organization = policy.document?.organization;
+  if (organization === undefined) return { _tag: "Unmanaged" };
   const effective = policy.settings.applyLocks(requested)[setting];
-  return {
-    effective,
-    managedBy: Equal.equals(requested[setting], effective)
-      ? undefined
-      : policy.document?.organization,
-  };
+  if (policy.settings.lockedPaths.some((path) => overlaps(path, setting))) {
+    return { _tag: "Locked", organization, effective };
+  }
+  return Equal.equals(requested[setting], effective)
+    ? { _tag: "Unmanaged" }
+    : { _tag: "Capped", organization, effective };
 };
 
 /**
- * How the installed policy treats `write` to the top-level `setting`. A locked value the
- * write already matches needs no write, so the user's own stored value outlives the policy; any
- * other value for a locked setting is refused. `Capped` is a value the policy lowers on read.
+ * Vets `write` to the top-level `setting`. A locked value the write already matches needs no
+ * write, so the user's own stored value outlives the policy; any other value for a locked
+ * setting is refused.
  */
 export const vetManagedSettingWrite = Effect.fnUntraced(function* (
   settingsPath: string,
@@ -151,18 +164,15 @@ export const vetManagedSettingWrite = Effect.fnUntraced(function* (
   write: (settings: ServerSettings) => ServerSettings,
 ) {
   const policy = yield* readInstalledPolicy;
-  const organization = policy.document?.organization;
-  if (organization === undefined) return { _tag: "Unmanaged" } as const;
-  const { effective, managedBy } = managedSettingValue(policy, setting, write);
-  if (policy.settings.lockedPaths.includes(setting)) {
-    if (managedBy === undefined) return { _tag: "Locked", organization } as const;
+  const requested = write(policy.settings.defaults);
+  const managed = classifyManagedSetting(policy, setting, requested);
+  if (managed._tag === "Locked" && !Equal.equals(requested[setting], managed.effective)) {
     return yield* new ServerSettingsError({
       settingsPath,
       operation: "write-managed-setting",
       managedSetting: setting,
-      managedBy,
+      managedBy: managed.organization,
     });
   }
-  if (managedBy === undefined) return { _tag: "Unmanaged" } as const;
-  return { _tag: "Capped", organization: managedBy, effective } as const;
+  return managed;
 });

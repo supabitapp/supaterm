@@ -98,6 +98,14 @@ describe("supaterm settings", () => {
       );
       assert.equal(defaultValue, "true");
 
+      const settingsPath = settingsPathFor(baseDir);
+      NodeFS.mkdirSync(NodePath.dirname(settingsPath), { recursive: true });
+      NodeFS.writeFileSync(settingsPath, JSON.stringify({ branchNamePrefix: "  team  " }));
+      const storedValue = yield* captureStdout(
+        runCli(["settings", "get", "branchNamePrefix", "--base-dir", baseDir]),
+      );
+      assert.equal(storedValue, '"  team  "');
+
       yield* runCli([
         "settings",
         "set",
@@ -172,10 +180,21 @@ describe("supaterm settings", () => {
         publicRelayUrl: "wss://old.example",
       });
 
-      const effective = yield* captureStdout(
-        runCli(["settings", "get", "publicRelayUrl", "--base-dir", baseDir]).pipe(underPolicy),
-      );
-      assert.equal(effective, '"wss://relay.example.com"');
+      const get = (stored: unknown) =>
+        Effect.gen(function* () {
+          NodeFS.writeFileSync(settingsPath, JSON.stringify({ publicRelayUrl: stored }));
+          const earlierNotices = (yield* TestConsole.errorLines).length;
+          const value = yield* captureStdout(
+            runCli(["settings", "get", "publicRelayUrl", "--base-dir", baseDir]).pipe(underPolicy),
+          );
+          return { value, notices: (yield* TestConsole.errorLines).slice(earlierNotices) };
+        });
+      for (const stored of ["wss://old.example", "wss://relay.example.com", 42]) {
+        expect(yield* get(stored)).toEqual({
+          value: '"wss://relay.example.com"',
+          notices: ["Managed by Example Corp."],
+        });
+      }
     }),
   );
 
