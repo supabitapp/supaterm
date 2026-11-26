@@ -1,3 +1,4 @@
+import { T } from "gt-react";
 import { ChevronDownIcon } from "@supaterm/icons";
 import { useLayoutEffect, useRef } from "react";
 
@@ -73,7 +74,7 @@ export function ScrollToEndPill({
         variant="glass"
       >
         <ChevronDownIcon className="size-3.5" />
-        Scroll to end
+        <T>Scroll to end</T>
         {summary === null ? null : (
           <span className="text-muted-foreground">
             <span aria-hidden>· </span>

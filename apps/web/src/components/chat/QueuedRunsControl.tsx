@@ -216,7 +216,10 @@ export function QueuedRunsControl({
 
   return (
     <section
-      aria-label={`${items.length} queued message${items.length === 1 ? "" : "s"}`}
+      aria-label={gt(
+        "{count, plural, one {{count} queued message} other {{count} queued messages}}",
+        { count: items.length },
+      )}
       data-thread-queue="true"
       // Anchors the sr-only live region; unanchored, it escapes the timeline scroller and makes the chat column scroll.
       className="relative mx-auto flex w-full max-w-(--chat-content-max-width) flex-col gap-2 pb-4"
@@ -337,9 +340,11 @@ export function QueuedRunsControl({
                       disabled={busyRunId !== null}
                       icon={<XIcon className="size-3.5" />}
                       label={gt("Remove queued message")}
-                      confirmLabel="Confirm remove"
-                      tooltip="Remove from queue"
-                      confirmTooltip="Click again to remove from the queue and discard the message"
+                      confirmLabel={gt("Confirm remove")}
+                      tooltip={gt("Remove from queue")}
+                      confirmTooltip={gt(
+                        "Click again to remove from the queue and discard the message",
+                      )}
                       onConfirm={() => void remove(item.runId)}
                     />
                   </>
@@ -359,7 +364,12 @@ export function QueuedRunsControl({
             onPointerDown={(event) => event.preventDefault()}
             onClick={() => setShowAll((value) => !value)}
           >
-            {showAll ? gt("Show fewer") : `Show all ${items.length} queued`}
+            {showAll
+              ? gt("Show fewer")
+              : gt(
+                  "{count, plural, one {Show all {count} queued} other {Show all {count} queued}}",
+                  { count: items.length },
+                )}
             <ChevronDownIcon
               aria-hidden
               className={cn(

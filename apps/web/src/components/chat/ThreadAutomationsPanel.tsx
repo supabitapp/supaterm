@@ -33,7 +33,8 @@ import {
   THREAD_DETAILS_PANEL_ROW_CONTENT_CLASS,
   THREAD_DETAILS_PANEL_ROW_HEIGHT_CLASS,
 } from "./threadDetailsPanelStyles";
-import { T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
+import type { MessageResolver } from "../../i18n/messages";
 
 const STATUS_DOT_CLASS: Record<ScheduledTask["lastRunStatus"], string> = {
   never: "bg-muted-foreground/40",
@@ -44,7 +45,9 @@ const STATUS_DOT_CLASS: Record<ScheduledTask["lastRunStatus"], string> = {
 
 /** The automation icon with a last-run status dot, labelled for hover and screen readers. */
 function AutomationStatusIcon({ task, now }: { task: ScheduledTask; now: number }) {
-  const label = lastRunLabel(task, now) ?? "Not run yet";
+  const gt = useGT();
+  const m = useMessages();
+  const label = lastRunLabel(task, now, m) ?? gt("Not run yet");
   return (
     <Tooltip>
       <TooltipTrigger
@@ -72,11 +75,12 @@ function taskScheduleLine(
   now: number,
   timestampFormat: TimestampFormat,
   timeZone: string | undefined,
+  resolve: MessageResolver,
 ) {
-  const schedule = scheduleLabel(task.schedule, timestampFormat, timeZone, task.nextRunAt);
-  if (!task.enabled) return `${schedule} · paused`;
+  const schedule = scheduleLabel(task.schedule, timestampFormat, timeZone, task.nextRunAt, resolve);
+  if (!task.enabled) return resolve(msg("{schedule} · paused", { schedule }));
   if (task.nextRunAt === null) return schedule;
-  return `${schedule} · ${nextRunLabel(task, now)}`;
+  return `${schedule} · ${nextRunLabel(task, now, resolve)}`;
 }
 
 export function ThreadAutomationsPanel(props: {
@@ -84,6 +88,7 @@ export function ThreadAutomationsPanel(props: {
   readonly threadId: ThreadId;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const canOperate = useAtomValue(
     serverEnvironment.runScheduledTaskNow.permissionAtom(props.environmentId),
   );
@@ -166,14 +171,16 @@ export function ThreadAutomationsPanel(props: {
                 size="icon-xs"
                 variant="ghost"
                 part="icon"
-                aria-label="Manage automations"
+                aria-label={gt("Manage automations")}
                 onClick={() => void navigate({ to: "/automations" })}
               >
                 <SlidersHorizontalIcon className="size-3.5" />
               </ThreadDetailsControl>
             }
           />
-          <TooltipPopup>Manage automations</TooltipPopup>
+          <TooltipPopup>
+            <T>Manage automations</T>
+          </TooltipPopup>
         </Tooltip>
       }
     >
@@ -195,13 +202,13 @@ export function ThreadAutomationsPanel(props: {
                   {task.title}
                 </span>
                 <p className="truncate text-2xs text-muted-foreground">
-                  {taskScheduleLine(task, now, timestampFormat, tasksQuery.data?.timeZone)}
+                  {taskScheduleLine(task, now, timestampFormat, tasksQuery.data?.timeZone, m)}
                 </p>
               </TooltipTrigger>
               <TooltipPopup side="left">
                 <p className="font-medium">{task.title}</p>
                 <p className="text-muted-foreground">
-                  {taskScheduleLine(task, now, timestampFormat, tasksQuery.data?.timeZone)}
+                  {taskScheduleLine(task, now, timestampFormat, tasksQuery.data?.timeZone, m)}
                 </p>
               </TooltipPopup>
             </Tooltip>
@@ -265,7 +272,9 @@ export function ThreadAutomationsPanel(props: {
       {/* Kept last: the details card treats a section whose last child is empty as empty. */}
       {tasksQuery.error !== null ? (
         <p className="px-2.5 py-1.5 text-2xs text-destructive">
-          Could not load automations: {tasksQuery.error}
+          <T>
+            Could not load automations: <Var>{tasksQuery.error}</Var>
+          </T>
         </p>
       ) : null}
     </ThreadDetailsSection>

@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import { useAtomValue } from "@effect/atom-react";
 import { voiceInputSessionActive } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
@@ -38,6 +39,7 @@ export function TextFieldVoiceInput(props: {
   readonly onBusyChange: (busy: boolean) => void;
 }) {
   const { fieldRef } = props;
+  const gt = useGT();
   const ownerKey = useId();
   const navigate = useNavigate();
   const languageSetting = useClientSettings((settings) => settings.voiceLanguage);
@@ -116,11 +118,15 @@ export function TextFieldVoiceInput(props: {
     return (
       <div
         role="group"
-        aria-label="Voice input"
+        aria-label={gt("Voice input")}
         className="flex h-7 shrink-0 items-center gap-2 rounded-full bg-foreground/6 ps-0.5 pe-0.5 text-foreground text-xs"
       >
         <VoicePillButton
-          label={phase === "recording" ? "Discard" : "Cancel"}
+          label={
+            phase === "recording"
+              ? gt("Discard", { $context: "verb, discards the voice recording" })
+              : gt("Cancel", { $context: "verb, stops voice input" })
+          }
           shortcut="Esc"
           onClick={voice.cancel}
         >
@@ -129,7 +135,7 @@ export function TextFieldVoiceInput(props: {
         <VoiceElapsed recorder={voice.recorder} />
         <VoiceLevelMeter recorder={voice.recorder} />
         <VoicePillButton
-          label="Stop and insert"
+          label={gt("Stop and insert")}
           shortcut={shortcutLabel}
           disabled={phase !== "recording"}
           onClick={voice.stop}
@@ -143,15 +149,17 @@ export function TextFieldVoiceInput(props: {
     return (
       <span aria-live="polite" className="flex items-center gap-2 text-muted-foreground text-xs">
         <Spinner size="sm" />
-        Transcribing…
+        <T>Transcribing…</T>
       </span>
     );
   }
 
   const unavailable = availability.unavailableReason !== null || !availability.canReview;
-  const label = unavailable ? "Voice input unavailable" : "Voice input";
+  const label = unavailable ? gt("Voice input unavailable") : gt("Voice input");
   const detail =
-    state.error ?? availability.unavailableReason ?? `Transcribed with ${availability.label}`;
+    state.error ??
+    availability.unavailableReason ??
+    gt("Transcribed with {model}", { model: availability.label });
   return (
     <span className="flex min-w-0 items-center gap-1.5">
       <Tooltip>

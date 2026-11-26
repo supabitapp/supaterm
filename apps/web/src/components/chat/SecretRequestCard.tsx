@@ -45,7 +45,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { WorkLogRow } from "./WorkLog";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 export function SecretRequestCard(props: {
   readonly environmentId: EnvironmentId;
@@ -223,7 +223,9 @@ function PendingSecretRequestForm(props: {
             size="sm"
             render={<a href={link.href} target="_blank" rel="noopener noreferrer" />}
           >
-            Open {link.host}
+            <T>
+              Open <Var>{link.host}</Var>
+            </T>
             <ExternalLinkIcon aria-hidden />
           </Button>
           {/* A link found in the reason is already shown there. */}
@@ -270,7 +272,7 @@ function PendingSecretRequestForm(props: {
           </div>
         )}
         <Button type="submit" disabled={locked || incomplete}>
-          Send
+          <T>Send</T>
         </Button>
       </div>
       {error !== null ? (

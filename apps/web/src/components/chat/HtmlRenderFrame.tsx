@@ -19,7 +19,7 @@ import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { HtmlRenderDialog } from "./HtmlRenderDialog";
 import { observeResize } from "~/lib/observeResize";
-import { useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const MIN_URL_LIFE_MS = 5 * 60_000;
 const MAX_MEASURED_CONTENT_HEIGHTS = 200;
@@ -117,7 +117,7 @@ export function HtmlRenderFrame(props: {
               <TooltipTrigger
                 render={
                   <Button
-                    aria-label="Open in panel"
+                    aria-label={gt("Open in panel")}
                     size="icon-xs"
                     variant="glass"
                     onClick={() =>
@@ -136,13 +136,15 @@ export function HtmlRenderFrame(props: {
               >
                 <PanelRightIcon className="size-3.5" />
               </TooltipTrigger>
-              <TooltipPopup side="bottom">Open in panel</TooltipPopup>
+              <TooltipPopup side="bottom">
+                <T>Open in panel</T>
+              </TooltipPopup>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger
                 render={
                   <Button
-                    aria-label="Open full screen"
+                    aria-label={gt("Open full screen")}
                     size="icon-xs"
                     variant="glass"
                     onClick={async () => {
@@ -163,7 +165,9 @@ export function HtmlRenderFrame(props: {
               >
                 <ExpandIcon className="size-3.5" />
               </TooltipTrigger>
-              <TooltipPopup side="bottom">Open full screen</TooltipPopup>
+              <TooltipPopup side="bottom">
+                <T>Open full screen</T>
+              </TooltipPopup>
             </Tooltip>
           </div>
           {expandedSrc !== null ? (
@@ -182,7 +186,9 @@ export function HtmlRenderFrame(props: {
         </>
       ) : failed ? (
         <p className="flex size-full select-none items-center justify-center text-muted-foreground text-xs">
-          Unable to load {title}
+          <T>
+            Unable to load <Var>{title}</Var>
+          </T>
         </p>
       ) : null}
     </div>

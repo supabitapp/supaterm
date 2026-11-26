@@ -1,3 +1,4 @@
+import { T, Var } from "gt-react";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type { ComponentProps } from "react";
@@ -155,7 +156,13 @@ export function ThreadDetailsMoreButton({
       className="w-full active:scale-100"
     >
       <Icon aria-hidden className="size-3.5 shrink-0" />
-      {expanded ? "Show less" : `Show ${remaining} more`}
+      {expanded ? (
+        <T>Show less</T>
+      ) : (
+        <T>
+          Show <Var>{remaining}</Var> more
+        </T>
+      )}
     </ThreadDetailsControl>
   );
 }

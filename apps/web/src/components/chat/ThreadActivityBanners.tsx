@@ -46,8 +46,8 @@ import {
 } from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import type { ThreadNowItem } from "./ThreadNow";
-import { T, msg } from "gt-react";
-import { m } from "~/i18n/messages";
+import { msg, T, Var } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 export function extensionStatusBannerItem(
   statuses: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]>,
@@ -160,10 +160,14 @@ export function runStopNowItem(input: {
     ) : (
       <CircleStopIcon />
     ),
-    title: unresponsive ? "Agent not responding to Stop" : "Stopping",
-    description: unresponsive
-      ? "It may be short on memory. Force stop kills its processes."
-      : undefined,
+    title: unresponsive ? (
+      <T>Agent not responding to Stop</T>
+    ) : (
+      <T context="run status">Stopping</T>
+    ),
+    description: unresponsive ? (
+      <T>It may be short on memory. Force stop kills its processes.</T>
+    ) : undefined,
     actions: (
       <>
         <span
@@ -184,19 +188,22 @@ export function runStopNowItem(input: {
 }
 
 /** Background commands and subagents, for the end of the timeline. */
-export function backgroundWorkNowItem(input: {
-  readonly environmentId: EnvironmentId;
-  readonly threadId: ThreadId;
-  readonly projectId: ProjectId;
-  readonly pullRequests: ReadonlyArray<ThreadPullRequestLink>;
-  readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
-  readonly turnItems: ThreadStructure["turnItems"];
-  readonly outputHandle: BackgroundTaskOutputHandle;
-  readonly stopDisabled: boolean;
-  readonly stopping: boolean;
-  readonly onStop: () => Promise<void>;
-  readonly onOpenThread: (threadId: ThreadId) => void;
-}): ThreadNowItem | null {
+export function backgroundWorkNowItem(
+  input: {
+    readonly environmentId: EnvironmentId;
+    readonly threadId: ThreadId;
+    readonly projectId: ProjectId;
+    readonly pullRequests: ReadonlyArray<ThreadPullRequestLink>;
+    readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
+    readonly turnItems: ThreadStructure["turnItems"];
+    readonly outputHandle: BackgroundTaskOutputHandle;
+    readonly stopDisabled: boolean;
+    readonly stopping: boolean;
+    readonly onStop: () => Promise<void>;
+    readonly onOpenThread: (threadId: ThreadId) => void;
+  },
+  resolve: MessageResolver = m,
+): ThreadNowItem | null {
   const { onOpenThread } = input;
   const presentation = presentPendingBackgroundWork(input.tasks);
   if (presentation === null) return null;
@@ -275,7 +282,7 @@ export function backgroundWorkNowItem(input: {
               childThreadId !== undefined ? (
                 <InlineButton
                   tone="muted"
-                  aria-label={`Open subagent ${item.label}`}
+                  aria-label={resolve(msg("Open subagent {label}", { label: item.label }))}
                   onClick={() => onOpenThread(childThreadId)}
                 >
                   {item.label}
@@ -320,11 +327,11 @@ export function backgroundWorkNowItem(input: {
         )}
         {onlyChildThreadId === undefined ? null : (
           <InlineButton tone="muted" onClick={() => onOpenThread(onlyChildThreadId)}>
-            Open
+            <T context="verb, opens the subagent thread">Open</T>
           </InlineButton>
         )}
         <InlineButton disabled={input.stopDisabled} onClick={() => void input.onStop()}>
-          {input.stopping ? "Stopping..." : "Stop"}
+          {input.stopping ? <T>Stopping...</T> : <T context="verb, stops background work">Stop</T>}
         </InlineButton>
       </>
     ),
@@ -332,37 +339,47 @@ export function backgroundWorkNowItem(input: {
 }
 
 /** The local checkout moved off the branch this thread last ran on. */
-export function branchMismatchBannerItem(input: {
-  readonly mismatchKey: string;
-  readonly mismatch: { readonly threadBranch: string; readonly currentBranch: string };
-  readonly restoreDisabled: boolean;
-  readonly restoring: boolean;
-  /** Uncommitted changes make restoring a two-click confirm. */
-  readonly hasWorkingTreeChanges: boolean;
-  readonly onRestore: () => void;
-  readonly onDismiss: () => void;
-}): ComposerBannerStackItem {
+export function branchMismatchBannerItem(
+  input: {
+    readonly mismatchKey: string;
+    readonly mismatch: { readonly threadBranch: string; readonly currentBranch: string };
+    readonly restoreDisabled: boolean;
+    readonly restoring: boolean;
+    /** Uncommitted changes make restoring a two-click confirm. */
+    readonly hasWorkingTreeChanges: boolean;
+    readonly onRestore: () => void;
+    readonly onDismiss: () => void;
+  },
+  resolve: MessageResolver = m,
+): ComposerBannerStackItem {
   const { mismatch } = input;
+  const branchTooltip = (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <code className="min-w-0 truncate font-medium text-foreground">
+            {mismatch.threadBranch}
+          </code>
+        }
+      />
+      <TooltipPopup side="top">
+        <T>
+          This thread last ran on <Var>{mismatch.threadBranch}</Var>. Sending will continue on{" "}
+          <Var>{mismatch.currentBranch}</Var>.
+        </T>
+      </TooltipPopup>
+    </Tooltip>
+  );
   return {
     id: `branch-mismatch:${input.mismatchKey}`,
     variant: "info",
     icon: <GitBranchIcon />,
     title: (
       <span className="flex min-w-0 items-baseline gap-1.5">
-        <span className="shrink-0 font-normal text-muted-foreground">Branch changed from</span>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <code className="min-w-0 truncate font-medium text-foreground">
-                {mismatch.threadBranch}
-              </code>
-            }
-          />
-          <TooltipPopup side="top">
-            This thread last ran on {mismatch.threadBranch}. Sending will continue on{" "}
-            {mismatch.currentBranch}.
-          </TooltipPopup>
-        </Tooltip>
+        <T>
+          <span className="shrink-0 font-normal text-muted-foreground">Branch changed from</span>
+          <Var>{branchTooltip}</Var>
+        </T>
       </span>
     ),
     actions: (
@@ -371,18 +388,29 @@ export function branchMismatchBannerItem(input: {
         variant="ghost"
         disabled={input.restoreDisabled}
         required={input.hasWorkingTreeChanges}
-        label={input.restoring ? "Restoring..." : "Restore branch"}
-        confirmLabel="Confirm restore"
+        label={input.restoring ? resolve(msg("Restoring...")) : resolve(msg("Restore branch"))}
+        confirmLabel={resolve(msg("Confirm restore"))}
         tooltip={
-          input.hasWorkingTreeChanges
-            ? `Switch back to ${mismatch.threadBranch}. You have uncommitted changes.`
-            : `Switch back to ${mismatch.threadBranch}`
+          input.hasWorkingTreeChanges ? (
+            <T>
+              Switch back to <Var>{mismatch.threadBranch}</Var>. You have uncommitted changes.
+            </T>
+          ) : (
+            <T>
+              Switch back to <Var>{mismatch.threadBranch}</Var>
+            </T>
+          )
         }
-        confirmTooltip={`Click again to switch to ${mismatch.threadBranch}. Your uncommitted changes will carry over, or block the switch if they conflict.`}
+        confirmTooltip={
+          <T>
+            Click again to switch to <Var>{mismatch.threadBranch}</Var>. Your uncommitted changes
+            will carry over, or block the switch if they conflict.
+          </T>
+        }
         onConfirm={input.onRestore}
       />
     ),
-    dismissLabel: msg("Dismiss branch change notice"),
+    dismissLabel: resolve(msg("Dismiss branch change notice")),
     onDismiss: input.onDismiss,
   };
 }

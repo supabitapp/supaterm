@@ -1332,7 +1332,10 @@ function deriveTurnFolds(input: {
         createdAt: steer.createdAt,
         hiddenEntryIds: segmentHiddenIds(entries),
         entryIds: new Set(entries.map((entry) => entry.id)),
-        label: segmentMs !== null ? `Continued for ${formatDuration(segmentMs)}` : msg("Continued"),
+        label:
+          segmentMs !== null
+            ? m(msg("Continued for {duration}", { duration: formatDuration(segmentMs) }))
+            : m(msg("Continued")),
       });
     }
   }
@@ -2054,7 +2057,9 @@ export function deriveMessagesTimelineRows(
       nextRows.push({
         kind: "context-compaction",
         id: timelineEntry.id,
-        ...(resumeAge ? { title: `Context compacted after ${resumeAge} idle` } : {}),
+        ...(resumeAge
+          ? { title: m(msg("Context compacted after {age} idle", { age: resumeAge })) }
+          : {}),
         ...(failed ? { failed: true } : {}),
         ...(failure ? { failure } : {}),
         createdAt: timelineEntry.createdAt,

@@ -49,7 +49,7 @@ import { subscribeThreadRename } from "./threadRenameActionBus";
 import { PinnedMessagesMenu } from "./PinnedMessages";
 import { useClientSettings } from "../../hooks/useSettings";
 import { isImeComposing } from "~/lib/imeComposition";
-import { useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 interface ChatHeaderProps {
   activeThreadEnvironmentId: EnvironmentId;
@@ -313,7 +313,9 @@ export const ChatHeader = memo(function ChatHeader({
                   />
                 </TooltipTrigger>
                 <TooltipPopup side="top" shortcut={newThreadShortcut}>
-                  New thread in {activeProjectName}
+                  <T>
+                    New thread in <Var>{activeProjectName}</Var>
+                  </T>
                 </TooltipPopup>
               </Tooltip>
             </WorkspaceBreadcrumbItem>
@@ -424,10 +426,15 @@ export const ChatHeader = memo(function ChatHeader({
           {renamingTitle === null && activeThreadLinkOrigin ? (
             <Tooltip>
               <TooltipTrigger render={<Badge variant="info" size="sm" />}>
-                From {activeThreadLinkOrigin}
+                <T>
+                  From <Var>{activeThreadLinkOrigin}</Var>
+                </T>
               </TooltipTrigger>
               <TooltipPopup side="top">
-                Started by an agent on {activeThreadLinkOrigin} through a linked environment.
+                <T>
+                  Started by an agent on <Var>{activeThreadLinkOrigin}</Var> through a linked
+                  environment.
+                </T>
               </TooltipPopup>
             </Tooltip>
           ) : null}

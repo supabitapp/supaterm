@@ -1,3 +1,4 @@
+import { msg, T, useGT, useMessages } from "gt-react";
 import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
@@ -29,12 +30,16 @@ import { formatVoiceDuration } from "../../voice/formatVoiceDuration";
 import { useThreadOutboxVisibility } from "./useThreadOutboxVisibility";
 
 const STATUS_HEADERS = {
-  failed: { icon: <CircleAlertIcon className="text-error" />, label: "Not sent", variant: "error" },
-  editing: { icon: <PencilIcon />, label: "Paused while editing", variant: "default" },
-  offline: { icon: <Clock3Icon />, label: "Sends once connected", variant: "default" },
-  sending: { icon: <Spinner />, label: "Sending…", variant: "default" },
-  retrying: { icon: <RotateCwIcon />, label: "Retrying shortly", variant: "default" },
-  waiting: { icon: <Clock3Icon />, label: "Waiting to send", variant: "default" },
+  failed: {
+    icon: <CircleAlertIcon className="text-error" />,
+    label: msg("Not sent"),
+    variant: "error",
+  },
+  editing: { icon: <PencilIcon />, label: msg("Paused while editing"), variant: "default" },
+  offline: { icon: <Clock3Icon />, label: msg("Sends once connected"), variant: "default" },
+  sending: { icon: <Spinner />, label: msg("Sending…"), variant: "default" },
+  retrying: { icon: <RotateCwIcon />, label: msg("Retrying shortly"), variant: "default" },
+  waiting: { icon: <Clock3Icon />, label: msg("Waiting to send"), variant: "default" },
 } satisfies Record<
   ThreadOutboxStatus,
   { icon: ReactNode; label: string; variant: ComposerBannerVariant }
@@ -55,6 +60,8 @@ export function ThreadOutboxControl({
   readonly onEditMessage: (entry: PendingThreadTurn) => Promise<void>;
   readonly onCancelEdit: () => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const entries = useThreadOutbox();
   const scope = scopedThreadKey(scopeThreadRef(props.environmentId, props.threadId));
   const pending = entries.filter((entry) => entry.scope === scope && entry.status !== "delivered");
@@ -82,7 +89,9 @@ export function ThreadOutboxControl({
     const result = await settlePromise(action);
     if (result._tag === "Failure") {
       const cause = squashAtomCommandFailure(result);
-      setError(cause instanceof Error ? cause.message : "Could not update the pending message.");
+      setError(
+        cause instanceof Error ? cause.message : gt("Could not update the pending message."),
+      );
     }
     setBusy(false);
   }
@@ -108,7 +117,7 @@ export function ThreadOutboxControl({
         <ComposerBanner.Row>
           <ComposerBanner.Icon>{header.icon}</ComposerBanner.Icon>
           <ComposerBanner.Content role="status" className="text-muted-foreground">
-            {header.label}
+            {m(header.label)}
           </ComposerBanner.Content>
           {pending.length > 1 ? (
             <ComposerBanner.Actions>
@@ -133,13 +142,19 @@ export function ThreadOutboxControl({
                   <ComposerBanner.Content className="text-foreground/80">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">
-                        {isEditing ? <span className="sr-only">Editing: </span> : null}
+                        {isEditing ? (
+                          <span className="sr-only">
+                            <T>Editing:</T>{" "}
+                          </span>
+                        ) : null}
                         {entry.payload.voice
-                          ? `Voice message · ${formatVoiceDuration(entry.payload.voice.durationMs)}`
+                          ? gt("Voice message · {duration}", {
+                              duration: formatVoiceDuration(entry.payload.voice.durationMs),
+                            })
                           : replaceComposerContextReferences(
                               entry.payload.input.message.text,
                               (reference) => reference.label,
-                            ) || "Attachment"}
+                            ) || gt("Attachment")}
                       </span>
                       {deliveryError ? (
                         <span className="block text-muted-foreground">{deliveryError}</span>
@@ -171,24 +186,24 @@ export function ThreadOutboxControl({
                           });
                         }}
                       >
-                        Retry
+                        <T context="verb, sends the message again">Retry</T>
                       </Button>
                     ) : null}
                     {isEditing ? (
                       <Button
                         size="xs"
                         variant="ghost"
-                        aria-label="Cancel editing pending message"
+                        aria-label={gt("Cancel editing pending message")}
                         disabled={busy}
                         onClick={() => props.onCancelEdit()}
                       >
-                        Cancel
+                        <T>Cancel</T>
                       </Button>
                     ) : entry.payload.voice ? null : (
                       <Button
                         size="icon-xs"
                         variant="ghost-muted"
-                        aria-label="Edit pending message"
+                        aria-label={gt("Edit pending message")}
                         disabled={busy || !canEditEntry(entry) || props.editingMessageId !== null}
                         onClick={() => {
                           void act(() => props.onEditMessage(entry));
@@ -201,7 +216,7 @@ export function ThreadOutboxControl({
                       <Button
                         size="icon-xs"
                         variant="ghost-muted"
-                        aria-label="Cancel pending message"
+                        aria-label={gt("Cancel pending message")}
                         disabled={busy || !canChange}
                         onClick={() => {
                           void act(async () => {

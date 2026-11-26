@@ -323,7 +323,7 @@ import { usePanelAnimationSettings } from "../../panelAnimations";
 import { readEnvironmentScope, readPreparedConnection } from "../../state/session";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 import { isQueuedFileAttachment, isQueuedImageAttachment } from "./queuedMessageEdit";
-import { useGT, msg } from "gt-react";
+import { useGT, msg, useMessages } from "gt-react";
 
 /** Reads and disarms a paste-as-text deadline: the shortcut applies to one paste only. */
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
@@ -559,6 +559,7 @@ const NO_PROVIDER_SLASH_COMMANDS: ServerProvider["slashCommands"] = [];
 
 export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps) {
   const gt = useGT();
+  const m = useMessages();
   const backgroundThread = use(BackgroundThreadContext);
   const {
     composerDraftTarget,
@@ -2934,7 +2935,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       getModelDisabledReason={getModelDisabledReason}
     />
   );
-  const voiceBannerItem = composerVoiceBannerItem(voice);
+  const voiceBannerItem = composerVoiceBannerItem(voice, m);
   const bannerStackItems = voiceBannerItem ? [voiceBannerItem, ...bannerItems] : bannerItems;
 
   const insertComposerText = (
@@ -3081,7 +3082,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       if (path === null) {
         toastManager.add({
           type: "error",
-          title: `Couldn't get the path of "${folder.name}"`,
+          title: gt('Couldn\'t get the path of "{name}"', { name: folder.name }),
           description: gt("Type the folder path with @ instead."),
         });
         continue;
@@ -3255,7 +3256,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           if (activeThreadId) {
             setThreadError(
               activeThreadId,
-              `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`,
+              gt(
+                "{count, plural, one {You can attach up to {count} files per message.} other {You can attach up to {count} files per message.}}",
+                {
+                  count: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+                },
+              ),
             );
           }
         },
@@ -3894,9 +3900,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             )}
                             onPointerDown={(event) => event.preventDefault()}
                             onClick={expandMobileComposerStable}
-                            aria-label="Write custom answer"
+                            aria-label={gt("Write custom answer")}
                           >
-                            {activePendingProgress?.customAnswer || "Write custom answer"}
+                            {activePendingProgress?.customAnswer || gt("Write custom answer")}
                           </button>
                         ) : null}
                         {activePendingProgress?.activeQuestion?.multiSelect ? (
@@ -4230,7 +4236,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                                 ? gt("Enable a provider in Settings to send a message")
                                 : phase === "disconnected"
                                   ? DISCONNECTED_COMPOSER_PLACEHOLDER
-                                  : "Ask anything, @tag files/folders, $use skills, or / for commands"
+                                  : gt(
+                                      "Ask anything, @tag files/folders, $use skills, or / for commands",
+                                    )
                     }
                     disabled={
                       projectSelectionRequired ||

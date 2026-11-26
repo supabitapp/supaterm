@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import type { DraftId } from "~/composerDraftStore";
 import {
   useComposerDraftStore,
@@ -100,6 +101,7 @@ export function DraftProjectPicker({
   activeProjectTitle,
   isSendInFlight,
 }: DraftProjectPickerProps) {
+  const gt = useGT();
   const {
     projects,
     environments,
@@ -224,13 +226,15 @@ export function DraftProjectPicker({
   };
 
   const noProjectItem =
-    scratchWorkspaceRoot === null ? undefined : { value: NO_PROJECT_VALUE, label: "No project" };
+    scratchWorkspaceRoot === null
+      ? undefined
+      : { value: NO_PROJECT_VALUE, label: gt("No project") };
   // Pinning from a row keeps rows in place while the picker is open.
   const pickerItems = useOrderWhileOpen(
     [
       ...(noProjectItem ? [noProjectItem] : []),
       ...menuEntries.map(({ group }) => ({ value: group.projectKey, label: group.displayName })),
-      { value: "add-project", label: "Add project" },
+      { value: "add-project", label: gt("Add project") },
     ],
     (item) => item.value,
     projectMenuOpen,
@@ -294,7 +298,9 @@ export function DraftProjectPicker({
       composerRef?.current?.focusAtEnd();
     },
   });
-  const triggerLabel = isScratchDraft ? "No project" : (activeProjectTitle ?? "Choose a project");
+  const triggerLabel = isScratchDraft
+    ? gt("No project")
+    : (activeProjectTitle ?? gt("Choose a project"));
 
   if (!canChooseProject) {
     return (
@@ -305,7 +311,7 @@ export function DraftProjectPicker({
         onClick={openAddProject}
       >
         <FolderPlusIcon className="size-3 shrink-0" />
-        <ComposerContextLabel>{activeProjectTitle ?? "Add project"}</ComposerContextLabel>
+        <ComposerContextLabel>{activeProjectTitle ?? gt("Add project")}</ComposerContextLabel>
       </ComposerControl>
     );
   }
@@ -342,7 +348,7 @@ export function DraftProjectPicker({
             render={
               <ComboboxTrigger
                 render={<ComposerControl size="xs" />}
-                aria-label={`Project: ${triggerLabel}`}
+                aria-label={gt("Project: {project}", { project: triggerLabel })}
                 data-draft-project-trigger=""
                 className="min-w-0 max-w-full active:scale-100"
               />
@@ -360,13 +366,15 @@ export function DraftProjectPicker({
             </ComposerContextLabel>
             <ChevronDownIcon className="size-3 shrink-0 opacity-50" />
           </TooltipTrigger>
-          <TooltipPopup shortcut={projectPickerShortcut}>Select project</TooltipPopup>
+          <TooltipPopup shortcut={projectPickerShortcut}>
+            <T>Select project</T>
+          </TooltipPopup>
         </Tooltip>
         <ComboboxPopup side="top" align="start" {...composerMenuProps}>
           <ComboboxSearchInput
             autoFocus
-            aria-label="Search projects"
-            placeholder="Search projects..."
+            aria-label={gt("Search projects")}
+            placeholder={gt("Search projects...")}
             value={projectQuery}
             onChange={(event) => setProjectQuery(event.target.value)}
             onKeyDown={(event) => {
@@ -384,7 +392,9 @@ export function DraftProjectPicker({
               toggleProjectGroupPin(group);
             }}
           />
-          <ComboboxEmpty>No projects found.</ComboboxEmpty>
+          <ComboboxEmpty>
+            <T>No projects found.</T>
+          </ComboboxEmpty>
           <ComboboxList>
             {(item: (typeof pickerItems)[number]) => {
               const entry = projectEntryByKey.get(item.value);

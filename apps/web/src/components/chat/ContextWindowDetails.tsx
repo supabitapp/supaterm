@@ -1,3 +1,4 @@
+import { T, useGT, useMessages } from "gt-react";
 import { ShrinkIcon } from "@supaterm/icons";
 
 import {
@@ -20,6 +21,8 @@ export function ContextWindowDetails(props: {
   compactDisabledReason?: string | null | undefined;
 }) {
   const { usage, modelDisplayName, onCompact, compactDisabled, compactDisabledReason } = props;
+  const gt = useGT();
+  const m = useMessages();
   const usedPercentage = formatContextWindowPercentage(usage.usedPercentage);
   const normalizedPercentage = Math.max(0, Math.min(100, usage.usedPercentage ?? 0));
   const totalProcessedTokens = usage.totalProcessedTokens ?? null;
@@ -29,7 +32,9 @@ export function ContextWindowDetails(props: {
   return (
     <div className="flex flex-col gap-2 p-(--floating-content-inset)">
       <div className="flex items-center justify-between gap-3">
-        <div className="font-medium text-muted-foreground text-xs">Context Window</div>
+        <div className="font-medium text-muted-foreground text-xs">
+          <T>Context Window</T>
+        </div>
         {usage.maxTokens !== null && usedPercentage ? (
           <div className="text-secondary-label text-2xs tabular-nums">
             <span>{usedPercentage}</span>
@@ -52,7 +57,7 @@ export function ContextWindowDetails(props: {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(normalizedPercentage)}
-          aria-label="Context window usage"
+          aria-label={gt("Context window usage")}
         >
           <div
             className="h-full rounded-full transition-[translate,background-color] duration-500 ease-out motion-reduce:transition-none"
@@ -65,7 +70,9 @@ export function ContextWindowDetails(props: {
       ) : null}
       {showTotalProcessed ? (
         <div className="flex items-center justify-between gap-3 text-2xs leading-4">
-          <span className="text-secondary-label">Total processed</span>
+          <span className="text-secondary-label">
+            <T>Total processed</T>
+          </span>
           <span className="font-medium tabular-nums text-secondary-label">
             {formatContextWindowTokens(totalProcessedTokens)}
           </span>
@@ -73,7 +80,9 @@ export function ContextWindowDetails(props: {
       ) : null}
       {usage.cost != null ? (
         <div className="flex items-center justify-between gap-3 text-2xs leading-4">
-          <span className="text-secondary-label">Cost</span>
+          <span className="text-secondary-label">
+            <T context="money spent on model usage">Cost</T>
+          </span>
           <span className="font-medium tabular-nums text-secondary-label">
             {formatContextWindowCost(usage.cost)}
           </span>
@@ -81,7 +90,7 @@ export function ContextWindowDetails(props: {
       ) : null}
       {usage.compactsAutomatically ? (
         <div className="mt-1 text-pretty text-secondary-label text-2xs font-medium">
-          {formatContextWindowCompactionMessage(modelDisplayName, usage.autoCompactThreshold)}
+          {formatContextWindowCompactionMessage(modelDisplayName, usage.autoCompactThreshold, m)}
         </div>
       ) : null}
       {onCompact ? (
@@ -94,7 +103,7 @@ export function ContextWindowDetails(props: {
             onClick={onCompact}
           >
             <ShrinkIcon aria-hidden="true" />
-            Compact context
+            <T>Compact context</T>
           </Button>
           {compactDisabled && compactDisabledReason ? (
             <div className="text-pretty text-secondary-label text-2xs">{compactDisabledReason}</div>

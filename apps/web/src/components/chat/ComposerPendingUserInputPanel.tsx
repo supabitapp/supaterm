@@ -278,8 +278,8 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
                 render={<span role="button" tabIndex={canGoBack ? 0 : -1} />}
                 size="icon-xs"
                 variant="ghost"
-                aria-label="Previous question"
-                title="Previous question"
+                aria-label={gt("Previous question")}
+                title={gt("Previous question")}
                 aria-disabled={!canGoBack}
                 onClick={goBack}
                 onKeyDown={(event) => {

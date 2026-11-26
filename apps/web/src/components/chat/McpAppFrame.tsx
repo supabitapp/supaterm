@@ -37,7 +37,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { observeResize } from "~/lib/observeResize";
 import { attachMcpAppDocumentLink } from "./mcpAppDocumentLink";
 import { useNativeTitlebarHeight } from "~/lib/windowControlsOverlay";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const fullscreenSupported =
   typeof HTMLElement !== "undefined" && "popover" in HTMLElement.prototype;
@@ -358,7 +358,11 @@ export function McpAppFrame(props: {
   if (closed) {
     return (
       <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-muted-foreground text-xs">
-        <span>The {app.server} app was closed</span>
+        <span>
+          <T>
+            The <Var>{app.server}</Var> app was closed
+          </T>
+        </span>
         <Button
           size="xs"
           variant="ghost"
@@ -411,7 +415,9 @@ export function McpAppFrame(props: {
         ) : null}
         {navigatedAway ? (
           <p className="flex size-full items-center justify-center text-muted-foreground text-xs">
-            The {app.server} app left its page and was stopped
+            <T>
+              The <Var>{app.server}</Var> app left its page and was stopped
+            </T>
           </p>
         ) : src !== null ? (
           <iframe
@@ -427,7 +433,9 @@ export function McpAppFrame(props: {
           />
         ) : asset._tag === "Failure" ? (
           <p className="flex size-full items-center justify-center text-muted-foreground text-xs">
-            Unable to load the {app.server} app
+            <T>
+              Unable to load the <Var>{app.server}</Var> app
+            </T>
           </p>
         ) : null}
       </div>

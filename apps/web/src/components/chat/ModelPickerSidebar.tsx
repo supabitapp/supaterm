@@ -11,19 +11,36 @@ import {
   type ProviderInstanceEntry,
 } from "../../providerInstances";
 import { msg, T, useMessages } from "gt-react";
+import type { MessageResolver } from "../../i18n/messages";
 
-function describeUnavailableInstance(entry: ProviderInstanceEntry): string {
+function describeUnavailableInstance(
+  entry: ProviderInstanceEntry,
+  resolve: MessageResolver,
+): string {
   const label = entry.displayName;
   if (!entry.enabled || entry.status === "disabled") {
-    return `${label}: Disabled in settings.`;
+    return resolve(msg("{label}: Disabled in settings.", { label }));
   }
   if (entry.status === "ready" && entry.isAvailable) {
     return label;
   }
-  const kind =
-    entry.status === "error" ? "Unavailable" : entry.status === "warning" ? "Limited" : "Not ready";
-  const msg = entry.snapshot.message?.trim();
-  return msg ? `${label}: ${kind}. ${msg}` : `${label}: ${kind}.`;
+  const message = entry.snapshot.message?.trim();
+  if (message) {
+    return resolve(
+      entry.status === "error"
+        ? msg("{label}: Unavailable. {message}", { label, message })
+        : entry.status === "warning"
+          ? msg("{label}: Limited. {message}", { label, message })
+          : msg("{label}: Not ready. {message}", { label, message }),
+    );
+  }
+  return resolve(
+    entry.status === "error"
+      ? msg("{label}: Unavailable.", { label })
+      : entry.status === "warning"
+        ? msg("{label}: Limited.", { label })
+        : msg("{label}: Not ready.", { label }),
+  );
 }
 
 const SELECTED_INDICATOR_CLASS =
@@ -110,7 +127,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                         )}
                         onClick={() => handleSelect("favorites")}
                         type="button"
-                        aria-label="Favorites"
+                        aria-label={m(msg("Favorites"))}
                         aria-pressed={props.selectedInstanceId === "favorites"}
                       >
                         <StarIcon weight="fill" className="size-5 shrink-0" aria-hidden />
@@ -142,7 +159,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
             const showInstanceBadge = shouldShowInstanceBadge(entry, props.instanceEntries);
 
             const tooltip = isUnavailable
-              ? describeUnavailableInstance(entry)
+              ? describeUnavailableInstance(entry, m)
               : isContextDisabled
                 ? (props.getDisabledInstanceTooltip?.(entry) ?? entry.displayName)
                 : entry.displayName;
