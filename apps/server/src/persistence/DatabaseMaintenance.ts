@@ -276,17 +276,7 @@ const make = Effect.gen(function* () {
       return yield* Effect.gen(function* () {
         const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
         const preview = yield* maintenance.previewEventStorePrune;
-        const backupPath = preview.backupNeeded
-          ? yield* unusedPruneBackupPath(fs, path, databasePath)
-          : null;
-        const backup =
-          backupPath === null
-            ? null
-            : {
-                path: backupPath,
-                neededBytes: backupBytesNeeded(yield* readStorage),
-                freeBytes: yield* freeBytes(path.dirname(backupPath)),
-              };
+        const backup = preview.backupNeeded ? yield* planPruneBackup(fs, path, databasePath) : null;
         return {
           schedule: preview.schedule,
           prunableEventCount: preview.prunableEventCount,
@@ -324,21 +314,21 @@ export const pruneBackupPath = (path: Path.Path, databasePath: string, copy = 1)
 };
 
 /** An earlier database at this path may have left its copy, which a new one must not replace. */
-const unusedPruneBackupPath = Effect.fnUntraced(function* (
+const planPruneBackup = Effect.fnUntraced(function* (
   fs: FileSystem.FileSystem,
   path: Path.Path,
   databasePath: string,
 ) {
-  for (let copy = 1; ; copy++) {
-    const candidate = pruneBackupPath(path, databasePath, copy);
-    if (!(yield* fs.exists(candidate))) return candidate;
-  }
+  let copy = 1;
+  while (yield* fs.exists(pruneBackupPath(path, databasePath, copy))) copy++;
+  const target = pruneBackupPath(path, databasePath, copy);
+  const storage = yield* readStorage;
+  return {
+    path: target,
+    neededBytes: Math.ceil((storage.databaseBytes - storage.reclaimableBytes) * 1.1),
+    freeBytes: yield* freeBytes(path.dirname(target)),
+  };
 });
-
-const backupBytesNeeded = (storage: {
-  readonly databaseBytes: number;
-  readonly reclaimableBytes: number;
-}) => Math.ceil((storage.databaseBytes - storage.reclaimableBytes) * 1.1);
 
 /**
  * Copies the database beside itself with VACUUM INTO on the reader, then syncs and renames the
@@ -350,18 +340,11 @@ export const backUpBeforePruning = Effect.fn("DatabaseMaintenance.backUpBeforePr
   const sql = yield* SqlClient.SqlClient;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const target = yield* unusedPruneBackupPath(fs, path, databasePath);
-  const partial = `${target}.partial`;
-  const neededBytes = backupBytesNeeded(yield* readStorage);
-  const available = yield* freeBytes(path.dirname(target));
+  const backup = yield* planPruneBackup(fs, path, databasePath);
   // The copy shares a disk with the live database; filling it would fail the server's writes.
-  if (available < neededBytes) {
-    return yield* new DatabaseBackupSpaceError({
-      path: target,
-      neededBytes,
-      freeBytes: available,
-    });
-  }
+  if (backup.freeBytes < backup.neededBytes) return yield* new DatabaseBackupSpaceError(backup);
+  const target = backup.path;
+  const partial = `${target}.partial`;
   yield* fs.remove(partial, { force: true });
   yield* Effect.gen(function* () {
     yield* sql`VACUUM INTO ${partial}`.pipe(NodeSqliteClient.readOnly);

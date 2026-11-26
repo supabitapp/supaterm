@@ -410,19 +410,18 @@ export const layer: Layer.Layer<ProjectionMaintenanceV2, never, SqlClient.SqlCli
       const bounds = yield* sql<{ readonly sequence: number }>`
         SELECT COALESCE((SELECT MAX(sequence) FROM orchestration_events), 0) AS sequence
       `.pipe(NodeSqliteClient.readOnly);
-      const dueAt = (marked: MetadataRow) =>
-        DateTime.add(DateTime.makeUnsafe(marked.updated_at), {
+      let schedule: EventLogPruneSchedule = { _tag: "Unmarked" };
+      if (mark !== undefined) {
+        const dueAt = DateTime.add(DateTime.makeUnsafe(mark.updated_at), {
           milliseconds: Duration.toMillis(RETAINED_EVENT_HISTORY),
         });
-      const schedule: EventLogPruneSchedule =
-        mark === undefined
-          ? { _tag: "Unmarked" }
-          : DateTime.isLessThan(now, dueAt(mark))
-            ? { _tag: "Waiting", dueAt: dueAt(mark) }
-            : {
-                _tag: "Due",
-                throughSequence: Math.max(Math.min(mark.last_sequence, projected), prunedThrough),
-              };
+        schedule = DateTime.isLessThan(now, dueAt)
+          ? { _tag: "Waiting", dueAt }
+          : {
+              _tag: "Due",
+              throughSequence: Math.max(Math.min(mark.last_sequence, projected), prunedThrough),
+            };
+      }
       return {
         now,
         head: bounds[0]?.sequence ?? 0,
