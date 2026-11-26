@@ -40,6 +40,8 @@ import { canonicalRelayAddress } from "@supaterm/shared/relay/protocol";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as ManagedLimits from "../policy/managedLimits.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as RelayCompanion from "../relay/RelayCompanion.ts";
 
 const PeerHttpApi = HttpApi.make(EnvironmentHttpApi.identifier)
@@ -261,6 +263,17 @@ const make = Effect.gen(function* () {
   const environment = yield* ServerEnvironment.ServerEnvironment;
   const isOwnLoopback = yield* LoopbackHost;
   const relay = yield* RelayCompanion.RelayCompanion;
+  const managedPolicy = yield* ManagedPolicy.ManagedPolicy;
+  // Existing links through the relay stay stored; they are unreachable while the policy holds.
+  const relayRefused = ManagedLimits.allowsRelay(managedPolicy)
+    ? undefined
+    : new PeerLinkError({
+        reason: "unreachable",
+        message: ManagedLimits.refuseRelay(
+          managedPolicy,
+          "so this environment cannot reach linked environments through it",
+        ).message,
+      });
 
   /** A fresh name for one link's token; the row records it. */
   const newSecretName = random.randomBytes(16).pipe(
@@ -280,18 +293,19 @@ const make = Effect.gen(function* () {
     );
 
   /** Where requests to `address` go: itself, or this server's tunnel to a relay address. */
-  const reach = (address: string, relayUrl: string | undefined) =>
-    isRelayAddress(address)
-      ? relay.open(address, RELAY_LEASE_OWNER, relayUrl).pipe(
-          Effect.mapError(
-            () =>
-              new PeerLinkError({
-                reason: "unreachable",
-                message: `${address} did not answer through the relay.`,
-              }),
-          ),
-        )
-      : Effect.succeed(address);
+  const reach = (address: string, relayUrl: string | undefined) => {
+    if (!isRelayAddress(address)) return Effect.succeed(address);
+    if (relayRefused !== undefined) return Effect.fail(relayRefused);
+    return relay.open(address, RELAY_LEASE_OWNER, relayUrl).pipe(
+      Effect.mapError(
+        () =>
+          new PeerLinkError({
+            reason: "unreachable",
+            message: `${address} did not answer through the relay.`,
+          }),
+      ),
+    );
+  };
 
   /** The environment answering at `address`, or why nothing there answers as Supaterm. */
   const probe = (address: string, relayUrl: string | undefined) => {
@@ -668,6 +682,9 @@ const make = Effect.gen(function* () {
 
   const link: PeerLinks["Service"]["link"] = Effect.fn("PeerLinks.link")(function* (input) {
     const urls = [input.url, ...(input.alternateUrls ?? [])];
+    if (relayRefused !== undefined && (input.relayUrl !== undefined || urls.some(isRelayAddress))) {
+      return yield* relayRefused;
+    }
     // A tunnel opened for an address that never became a link has no one to close it.
     return yield* linkAt(input, urls).pipe(
       Effect.ensuring(releaseUnlinked(urls.flatMap((url) => relayAddressOf(url) ?? []))),

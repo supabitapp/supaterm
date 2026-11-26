@@ -38,6 +38,7 @@ function provider(name: string, overrides: Partial<ServerProvider> = {}): Server
 
 const nameOf = (entry: ServerProvider) => entry.displayName ?? entry.driver;
 const names = (entries: ReadonlyArray<ServerProvider>) => entries.map(nameOf);
+const allowAll = () => true;
 
 describe("groupWelcomeAgents", () => {
   it("lists agents on the computer by state, then name, and everything else by name", () => {
@@ -52,6 +53,7 @@ describe("groupWelcomeAgents", () => {
       ],
       undefined,
       nameOf,
+      allowAll,
     );
 
     expect(names(groups.found)).toEqual(["Claude", "Codex", "Zeta"]);
@@ -104,6 +106,7 @@ describe("groupWelcomeAgents", () => {
       ],
       settings,
       nameOf,
+      allowAll,
     );
 
     expect(names(groups.found)).toEqual(["Broken", "Codex", "Registry"]);
@@ -112,8 +115,20 @@ describe("groupWelcomeAgents", () => {
     expect(groups.checking).toBe(false);
   });
 
+  it("leaves out agents the computer's policy does not allow, ready or not", () => {
+    const groups = groupWelcomeAgents(
+      [provider("Codex"), provider("Blocked")],
+      undefined,
+      nameOf,
+      (entry) => entry.driver !== "blocked",
+    );
+
+    expect(names(groups.found)).toEqual(["Codex"]);
+    expect(groups.readyCount).toBe(1);
+  });
+
   it("reports checking before the computer has sent its providers", () => {
-    expect(groupWelcomeAgents(undefined, undefined, nameOf)).toEqual({
+    expect(groupWelcomeAgents(undefined, undefined, nameOf, allowAll)).toEqual({
       checking: true,
       readyCount: 0,
       found: [],

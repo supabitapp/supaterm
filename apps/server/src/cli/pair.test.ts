@@ -634,6 +634,52 @@ describe("supaterm pair", () => {
 
   // Without the capability `tailscale serve` blocks on an enablement URL, so
   // pairing must stop at status instead of spawning it.
+  it.effect("refuses --tailscale before turning on Serve when the policy keeps clients local", () =>
+    withDescriptorServer((origin) =>
+      Effect.gen(function* () {
+        const baseDir = NodeFS.mkdtempSync(
+          NodePath.join(NodeOS.tmpdir(), "supaterm-pair-policy-test-"),
+        );
+        const policyPath = NodePath.join(baseDir, "policy.json");
+        NodeFS.writeFileSync(
+          policyPath,
+          JSON.stringify({
+            schemaVersion: 1,
+            organization: "Example Corp",
+            limits: { clients: ["desktop", "local-browser"] },
+          }),
+        );
+        yield* persistServerRuntimeState({
+          path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
+          state: yield* makePersistedServerRuntimeState({
+            config: { host: "127.0.0.1", devUrl: undefined },
+            port: Number(new URL(origin).port),
+          }),
+        });
+
+        const error = yield* provideCliTestLayers(
+          runCli(["pair", "--base-dir", baseDir, "--tailscale"]).pipe(
+            Effect.provideService(
+              ChildProcessSpawner.ChildProcessSpawner,
+              ChildProcessSpawner.make(() => Effect.die("tailscale must not run")),
+            ),
+            Effect.provide(
+              ConfigProvider.layer(
+                ConfigProvider.fromEnv({ env: { SUPATERM_DEV_MANAGED_POLICY_PATH: policyPath } }),
+              ),
+            ),
+            Effect.flip,
+          ),
+        );
+
+        assert.include(
+          String(error),
+          "Example Corp's policy does not allow remote clients, so Tailscale Serve cannot be turned on.",
+        );
+      }),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
+  );
+
   it.effect("explains a tailnet without HTTPS serve instead of running tailscale serve", () =>
     withDescriptorServer((origin) =>
       Effect.gen(function* () {

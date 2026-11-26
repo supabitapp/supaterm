@@ -15,6 +15,7 @@ import { buildRemoteNodeEnvScript } from "@supaterm/ssh/tunnel";
 import { satisfiesSemverRange } from "@supaterm/shared/semver";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
+import * as DesktopManagedPolicy from "../app/DesktopManagedPolicy.ts";
 import { parseWslDistroList, type WslDistro } from "./wslPathParsing.ts";
 
 const PROCESS_TERMINATE_GRACE = Duration.seconds(1);
@@ -93,6 +94,8 @@ export class DesktopWslEnvironment extends Context.Service<
   DesktopWslEnvironment,
   {
     readonly isAvailable: Effect.Effect<boolean>;
+    /** Why a managed policy keeps an installed WSL off. */
+    readonly managedPolicyReason: Effect.Effect<Option.Option<string>>;
     // UX-only best effort; health checks need probeDistros to distinguish failures from an empty installation.
     readonly listDistros: Effect.Effect<readonly WslDistro[]>;
     readonly probeDistros: Effect.Effect<readonly WslDistro[], DesktopWslDistroListError>;
@@ -1120,16 +1123,44 @@ const getUserHomeImpl = (
     Effect.orElseSucceed(() => Option.none<string>()),
   );
 
-const makeIsAvailable = Effect.fn("DesktopWslEnvironment.makeIsAvailable")(function* (
-  platform: NodeJS.Platform,
-  windir: string,
-): Effect.fn.Return<boolean, never, FileSystem.FileSystem | Path.Path> {
-  if (platform !== "win32") return false;
-  const path = yield* Path.Path;
-  const fileSystem = yield* FileSystem.FileSystem;
-  const wslExePath = path.join(windir, "System32", "wsl.exe");
-  return yield* fileSystem.exists(wslExePath).pipe(Effect.orElseSucceed(() => false));
-});
+export type WslAvailability =
+  | { readonly _tag: "Available" }
+  | { readonly _tag: "Missing" }
+  | { readonly _tag: "Managed"; readonly reason: string };
+
+export const resolveAvailability = Effect.fn("DesktopWslEnvironment.resolveAvailability")(
+  function* (
+    platform: NodeJS.Platform,
+    windir: string,
+  ): Effect.fn.Return<
+    WslAvailability,
+    never,
+    FileSystem.FileSystem | Path.Path | DesktopManagedPolicy.DesktopManagedPolicy
+  > {
+    if (platform !== "win32") return { _tag: "Missing" };
+    const path = yield* Path.Path;
+    const fileSystem = yield* FileSystem.FileSystem;
+    const wslExePath = path.join(windir, "System32", "wsl.exe");
+    if (!(yield* fileSystem.exists(wslExePath).pipe(Effect.orElseSucceed(() => false)))) {
+      return { _tag: "Missing" };
+    }
+    // A server in WSL reads Linux's policy, never this machine's, so a managed machine runs none.
+    return yield* (yield* DesktopManagedPolicy.DesktopManagedPolicy).read.pipe(
+      Effect.map((found): WslAvailability =>
+        found === undefined
+          ? { _tag: "Available" }
+          : {
+              _tag: "Managed",
+              reason: `${found.document.organization} manages Supaterm on this machine, so the WSL backend is off.`,
+            },
+      ),
+      Effect.orElseSucceed((): WslAvailability => ({
+        _tag: "Managed",
+        reason: "The WSL backend is off because Supaterm cannot use this machine's managed policy.",
+      })),
+    );
+  },
+);
 
 export interface DesktopWslEnvironmentTestStub {
   readonly isAvailable?: boolean;
@@ -1163,6 +1194,7 @@ export const layerTest = (stub: DesktopWslEnvironmentTestStub = {}) => {
     DesktopWslEnvironment,
     DesktopWslEnvironment.of({
       isAvailable: Effect.succeed(stub.isAvailable ?? false),
+      managedPolicyReason: Effect.succeedNone,
       listDistros: probeDistros.pipe(Effect.orElseSucceed(() => [])),
       probeDistros,
       preWarm: Effect.fn("DesktopWslEnvironment.preWarm")(function () {
@@ -1232,12 +1264,16 @@ export const layer = Layer.effect(
       effect.pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
 
     // Cache availability so synchronous IPC bootstrap can read it without yielding to filesystem I/O.
-    const wslAvailable = yield* makeIsAvailable(environment.platform, windir).pipe(
+    const availability = yield* resolveAvailability(environment.platform, windir).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, environment.path),
+      Effect.provideService(
+        DesktopManagedPolicy.DesktopManagedPolicy,
+        yield* DesktopManagedPolicy.DesktopManagedPolicy,
+      ),
       Effect.withSpan("desktop.wsl.isAvailable"),
     );
-    const isAvailable = Effect.succeed(wslAvailable);
+    const isAvailable = Effect.succeed(availability._tag === "Available");
 
     const windowsToWslPath = (distro: string | null, windowsPath: string) =>
       provideSpawner(windowsToWslPathImpl(distro, windowsPath)).pipe(
@@ -1263,6 +1299,9 @@ export const layer = Layer.effect(
 
     return DesktopWslEnvironment.of({
       isAvailable,
+      managedPolicyReason: Effect.succeed(
+        availability._tag === "Managed" ? Option.some(availability.reason) : Option.none(),
+      ),
       listDistros: probeDistros.pipe(
         Effect.orElseSucceed(() => []),
         Effect.withSpan("desktop.wsl.listDistros"),

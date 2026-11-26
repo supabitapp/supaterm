@@ -63,12 +63,22 @@ export function withRelayAdvertisement<
 export class RelayPreparationError extends Schema.TaggedError<RelayPreparationError>()(
   "RelayPreparationError",
   {
-    reason: Schema.Literals(["off", "invalid-url", "superseded", "timeout", "unavailable"]),
+    reason: Schema.Literals([
+      "off",
+      "invalid-url",
+      "superseded",
+      "timeout",
+      "unavailable",
+      "managed-policy",
+    ]),
     cause: Schema.optionalKey(Schema.Defect()),
+    /** For `managed-policy`: the policy's own explanation, naming its organization. */
+    detail: Schema.optionalKey(Schema.String),
   },
   { httpApiStatus: 503 },
 ) {
   override get message(): string {
+    if (this.detail !== undefined) return this.detail;
     switch (this.reason) {
       case "off":
         return "Enable Encrypted Relay before creating a relay pairing link.";
@@ -80,6 +90,8 @@ export class RelayPreparationError extends Schema.TaggedError<RelayPreparationEr
         return "The relay did not connect in time. Try creating the link again.";
       case "unavailable":
         return "The relay could not be prepared. Try creating the link again.";
+      case "managed-policy":
+        return "Your organization's policy does not allow the Encrypted Relay.";
     }
   }
 }

@@ -16,6 +16,7 @@ import {
   MCP_PEER_LINK_SOFTWARE_ID,
   parseMcpApprovalCode,
   mcpClientScopes,
+  type RuntimeMode,
 } from "@supaterm/contracts";
 import { encodeOAuthScope } from "@supaterm/shared/oauthScope";
 import * as Clock from "effect/Clock";
@@ -31,6 +32,7 @@ import * as Schema from "effect/Schema";
 import { HttpServerRequest } from "effect/http";
 
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import type * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import * as PayloadSigner from "./PayloadSigner.ts";
@@ -220,6 +222,10 @@ export class McpOAuth extends Context.Service<
       readonly decision: ApprovalDecision;
     }) => Effect.Effect<string, EnvironmentAuth.ServerAuthMcpApprovalCodeError | McpOAuthPageError>;
     readonly deny: (authorization: AuthorizationRequest) => string;
+    /** A managed policy's runtime-mode ceiling, shown on the approval page. */
+    readonly runtimeModeCeiling:
+      | { readonly organization: string; readonly maxRuntimeMode: RuntimeMode }
+      | undefined;
     readonly exchangeCode: (input: {
       readonly request: HttpServerRequest.HttpServerRequest;
       readonly urls: McpOAuthUrls;
@@ -562,7 +568,13 @@ const make = Effect.gen(function* () {
     },
   );
 
+  const { managedPolicy } = yield* ServerSettings.ServerSettingsService;
+  const maxRuntimeMode = managedPolicy?.limits?.maxRuntimeMode;
   return McpOAuth.of({
+    runtimeModeCeiling:
+      managedPolicy === undefined || maxRuntimeMode === undefined
+        ? undefined
+        : { organization: managedPolicy.organization, maxRuntimeMode },
     register,
     validateAuthorization,
     approvingBrowserSession,

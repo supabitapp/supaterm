@@ -3,7 +3,12 @@
  * server acts on them with no client attached. Clients write these keys to every
  * sync target and warn when one still differs, so they never vary per machine.
  */
-import type { ServerSettings, ServerSettingsPatch } from "@supaterm/contracts";
+import {
+  isManagedSettingPath,
+  type ManagedPolicySummary,
+  type ServerSettings,
+  type ServerSettingsPatch,
+} from "@supaterm/contracts";
 import { isModelSelectionProviderEnabled } from "@supaterm/shared/serverSettings";
 import * as Struct from "effect/Struct";
 
@@ -48,7 +53,14 @@ export function filterSharedServerPatch(
   settings?: ServerSettings,
   sourceSettings = settings,
   targetIsSource = false,
+  targetPolicy?: ManagedPolicySummary,
 ): ServerSettingsPatch {
+  // Another machine's locked value is its administrator's; syncing to it would only be refused.
+  if (!targetIsSource && targetPolicy !== undefined) {
+    patch = Object.fromEntries(
+      Object.entries(patch).filter(([key]) => !isManagedSettingPath(targetPolicy, key)),
+    ) as ServerSettingsPatch;
+  }
   const instanceId =
     patch.textGenerationModelSelection?.instanceId ??
     sourceSettings?.textGenerationModelSelection.instanceId;

@@ -7,6 +7,7 @@ import {
   type ServerSettings,
   type ServerSettingsPatch,
 } from "@supaterm/contracts";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   clearProjectSettingsOverrides,
   projectSettingsOverridesForWrite,
@@ -20,6 +21,16 @@ export interface ScopedMobileSettingsTarget {
   readonly projectId: ProjectId | null;
   readonly settings: ServerSettings;
   readonly sources: ReturnType<typeof resolveProjectSettings>["sources"];
+}
+
+export function managedSettingReason(
+  targets: readonly ScopedMobileSettingsTarget[],
+  ...paths: readonly string[]
+): string | undefined {
+  return managedSettingDenial(
+    targets.map((target) => target.environment.serverConfig.managedPolicy),
+    paths,
+  );
 }
 
 export function resolveMobileSettingsTargets(

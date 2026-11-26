@@ -39,6 +39,7 @@ import {
   type UsagePriceDraft,
   type UsagePriceField,
 } from "./usagePriceTable";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   writeUsagePrices,
   type UsagePriceTarget,
@@ -74,7 +75,10 @@ const priceTargetsAtom = Atom.make((get): readonly UsagePriceTarget[] =>
               ? "Checking permissions…"
               : access === "denied"
                 ? "Read-only access"
-                : null,
+                : (managedSettingDenial(
+                    [environment.serverConfig?.managedPolicy],
+                    ["usagePriceOverrides", "usageModelAliases"],
+                  ) ?? null),
     };
   }),
 );

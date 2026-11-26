@@ -49,12 +49,14 @@ export function groupWelcomeAgents(
   providers: ReadonlyArray<ServerProvider> | null | undefined,
   settings: ComputerSettings | null | undefined,
   nameOf: (provider: ServerProvider) => string,
+  isAllowed: (provider: ServerProvider) => boolean,
 ) {
   const found: Array<{ readonly provider: ServerProvider; readonly state: FoundState }> = [];
   const available: ServerProvider[] = [];
   let checking = providers == null;
   let readyCount = 0;
   for (const provider of providers ?? []) {
+    if (!isAllowed(provider)) continue;
     const state = welcomeAgentState(provider, settings);
     if (state === "ready") readyCount += 1;
     if (state === "checking") checking = true;

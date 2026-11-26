@@ -17,6 +17,7 @@ import {
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
+  managedRuntimeModeDenial,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   TranscriptionError,
   type EnvironmentId,
@@ -1021,6 +1022,17 @@ export function createThreadOutboxDelivery(): {
       }
       return yield* restoreQueuedMessage(queuedMessage, `${title}. ${detail}`);
     }
+    // The server would refuse this mode in settings sync, which retries forever; stop first.
+    const runtimeModeDenial = managedRuntimeModeDenial(
+      serverConfig.managedPolicy,
+      settings.runtimeMode,
+    );
+    if (runtimeModeDenial !== undefined) {
+      if (queuedMessage.voice) {
+        return yield* holdQueuedMessage(queuedMessage, runtimeModeDenial);
+      }
+      return yield* restoreQueuedMessage(queuedMessage, runtimeModeDenial);
+    }
 
     if (settings.runtimeMode !== thread.runtimeMode) {
       if (!hasAccess()) return;
@@ -1227,6 +1239,13 @@ export function createThreadOutboxDelivery(): {
         creation.projectId,
       );
       return yield* restoreQueuedMessage(queuedMessage, `${title}. ${detail}`);
+    }
+    const runtimeModeDenial = managedRuntimeModeDenial(
+      serverConfig.managedPolicy,
+      settings.runtimeMode,
+    );
+    if (runtimeModeDenial !== undefined) {
+      return yield* restoreQueuedMessage(queuedMessage, runtimeModeDenial);
     }
     // Waiting on the shared upload is the one part of a send that may be cut short.
     const preparedExit = yield* Effect.exit(

@@ -1,11 +1,14 @@
-import type {
-  EnvironmentId,
-  RelayHostStatus,
-  ServerSettings,
-  ServerSettingsPatch,
+import {
+  type EnvironmentId,
+  managedCapabilityDenial,
+  type ManagedPolicySummary,
+  type RelayHostStatus,
+  type ServerSettings,
+  type ServerSettingsPatch,
 } from "@supaterm/contracts";
 import { relayName } from "@supaterm/shared/relay/name";
 
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { useEnvironmentQuery } from "~/state/query";
 import { serverEnvironment } from "~/state/server";
 import { Switch } from "../ui/switch";
@@ -40,25 +43,41 @@ export function usePublicRelayStatus(environmentId: EnvironmentId | null): Relay
   );
 }
 
+/** Whether the relay serves: the setting is on and no policy switches it off. */
+export function isPublicRelayActive(
+  settings: Pick<ServerSettings, "publicRelayEnabled"> | undefined,
+  policy: ManagedPolicySummary | undefined,
+): boolean {
+  return (
+    (settings?.publicRelayEnabled ?? false) &&
+    managedCapabilityDenial(policy, "relay") === undefined
+  );
+}
+
 export function PublicRelaySettings({
   status,
   settings,
+  policy,
   disabled,
   update,
 }: {
   readonly status: RelayHostStatus | null;
   readonly settings: Pick<ServerSettings, "publicRelayEnabled"> | undefined;
+  readonly policy: ManagedPolicySummary | undefined;
   readonly disabled: boolean;
   readonly update: (patch: ServerSettingsPatch) => void;
 }) {
-  const enabled = settings?.publicRelayEnabled ?? false;
+  const relayDenial = managedCapabilityDenial(policy, "relay");
+  const enabled = isPublicRelayActive(settings, policy);
   return (
     <SettingsRow
       title={searchableSetting("public-relay").title}
       description={
+        relayDenial ??
         (enabled && status ? statusDescription(status) : null) ??
         "Connect your other devices from anywhere with end-to-end encryption. Turn it on, then use Add device below."
       }
+      managed={relayDenial ?? managedSettingDenial([policy], ["publicRelayEnabled"])}
       control={
         <Switch
           aria-label="Enable Encrypted Relay"

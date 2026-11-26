@@ -6,7 +6,9 @@ import { useEnvironmentSettings } from "../../hooks/useSettings";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { InlineConfirmButton } from "../InlineConfirm";
-import { ProviderSettingsForm } from "./ProviderSettingsForm";
+import { ProviderSettingsForm, deriveProviderSettingsFields } from "./ProviderSettingsForm";
+import { useManagedPolicy } from "../../state/managedPolicy";
+import { managedByMessage, managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { useEnvironmentScope } from "../../state/session";
 
 export function SourceControlHostSettings({
@@ -31,6 +33,20 @@ export function SourceControlHostSettings({
   const canWriteSettings = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
   const formDefinition = { settingsSchema: definition.settings };
   const hasSaved = Object.values(saved ?? {}).some((value) => value !== "");
+  const policy = useManagedPolicy(environmentId);
+  const lockedKeys = new Set(
+    deriveProviderSettingsFields(formDefinition, saved ?? {})
+      .map((field) => field.key)
+      .filter(
+        (key) =>
+          managedSettingDenial([policy], [`sourceControlHosts.${definition.kind}.${key}`]) !==
+          undefined,
+      ),
+  );
+  const managed =
+    policy !== undefined && lockedKeys.size > 0
+      ? { keys: lockedKeys, reason: managedByMessage(policy.organization) }
+      : undefined;
 
   const save = async (fields: Record<string, unknown>) => {
     setSaving(true);
@@ -55,6 +71,7 @@ export function SourceControlHostSettings({
         value={saved ?? {}}
         idPrefix={`source-control-${definition.kind}-${environmentId}`}
         variant="settings"
+        managed={managed}
         onChange={(next) => {
           const fields = next ?? {};
           const changed = Object.fromEntries(
@@ -69,7 +86,7 @@ export function SourceControlHostSettings({
           <InlineConfirmButton
             size="xs"
             variant="outline"
-            disabled={saving}
+            disabled={saving || managed !== undefined}
             label="Remove"
             confirmLabel="Confirm remove"
             tooltip={`Remove the saved ${definition.label} settings`}

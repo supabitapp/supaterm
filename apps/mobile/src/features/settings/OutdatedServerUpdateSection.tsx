@@ -24,9 +24,11 @@ import {
 export function OutdatedServerUpdateSection({
   environmentId,
   label,
+  updatesDenial,
 }: {
   readonly environmentId: EnvironmentId;
   readonly label: string;
+  readonly updatesDenial: string | undefined;
 }) {
   const describe = useAtomCommand(describeOutdatedServer, { reportFailure: false });
   const update = useAtomCommand(updateOutdatedServer, { reportFailure: false });
@@ -91,20 +93,25 @@ export function OutdatedServerUpdateSection({
                 : "No newer version is available yet."
               : "This app needs a newer version of Supaterm on this machine."}
         </Text>
+        {updatesDenial ? (
+          <Text className="text-sm text-foreground-muted">{updatesDenial}</Text>
+        ) : null}
         {error || state.status === "failed" ? (
           <Text selectable accessibilityRole="alert" className="text-sm text-danger-foreground">
             {error ?? (state.status === "failed" ? state.message : null)}
           </Text>
         ) : null}
       </View>
-      <SettingsActionRow
-        icon="arrow.clockwise"
-        label="Check for updates"
-        disabled={busy}
-        loading={checking}
-        onPress={check}
-      />
-      {release?.targetVersion ? (
+      {updatesDenial ? null : (
+        <SettingsActionRow
+          icon="arrow.clockwise"
+          label="Check for updates"
+          disabled={busy}
+          loading={checking}
+          onPress={check}
+        />
+      )}
+      {release?.targetVersion && !updatesDenial ? (
         <SettingsActionRow
           icon="arrow.up.circle"
           label={state.status === "failed" ? "Retry update" : `Update to ${release.targetVersion}`}

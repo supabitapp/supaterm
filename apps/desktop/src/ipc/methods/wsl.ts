@@ -32,6 +32,10 @@ const readWslState: Effect.Effect<
     wslOnly: settings.wslOnly,
     distros,
     preflightError: settings.wslOnly ? null : Option.getOrNull(preflightError),
+    ...Option.match(yield* wslEnvironment.managedPolicyReason, {
+      onNone: () => ({}),
+      onSome: (managedPolicyReason) => ({ managedPolicyReason }),
+    }),
   };
 });
 

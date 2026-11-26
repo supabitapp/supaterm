@@ -1,7 +1,7 @@
-import { AuthStandardClientScopes } from "@supaterm/contracts";
+import { AuthStandardClientScopes, type ManagedPolicyDocument } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
-import { expect, it } from "@effect/vitest";
+import { assert, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
@@ -11,6 +11,8 @@ import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
 import * as SessionStore from "./SessionStore.ts";
+import * as PairingGrantStore from "./PairingGrantStore.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 
 const layerServerConfig = (
   overrides?: Partial<Pick<ServerConfig.ServerConfig["Service"], "desktopBootstrapToken">>,
@@ -34,17 +36,99 @@ const layerServerConfig = (
 
 const layerEnvironmentAuth = (
   overrides?: Partial<Pick<ServerConfig.ServerConfig["Service"], "desktopBootstrapToken">>,
+  policy?: ManagedPolicyDocument,
 ) =>
   EnvironmentAuth.layer.pipe(
+    Layer.provide(ManagedPolicy.layerTest(policy)),
     Layer.provideMerge(ServerSecretStore.layer),
     Layer.provideMerge(SqlitePersistence.layerMemory),
     Layer.provide(ServerEnvironment.layerIdentity),
     Layer.provide(layerServerConfig(overrides)),
   );
 
+/** Starts auth again on the same stores, as a restart under `policy` does. */
+const restartUnder = (policy: ManagedPolicyDocument) =>
+  EnvironmentAuth.make.pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        ManagedPolicy.layerTest(policy),
+        ServerEnvironment.layerIdentity.pipe(Layer.provideMerge(layerServerConfig())),
+      ),
+    ),
+  );
+
+const desktopAndLocalOnly: ManagedPolicyDocument = {
+  schemaVersion: 1,
+  organization: "Example Corp",
+  limits: { clients: ["desktop", "local-browser"] },
+};
+
 it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
   "EnvironmentAuth administrative operations",
   (it) => {
+    it.effect("refuses pairing links when the policy does not allow remote clients", () =>
+      Effect.gen(function* () {
+        const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
+
+        const error = yield* environmentAuth.issuePairingCredential().pipe(Effect.flip);
+        const startup = yield* environmentAuth.issueStartupPairingCredential();
+
+        assert.equal(
+          error.message,
+          "Example Corp's policy does not allow remote clients, so this server cannot create pairing links.",
+        );
+        assert.isAbove(startup.credential.length, 0);
+      }).pipe(Effect.provide(layerEnvironmentAuth(undefined, desktopAndLocalOnly))),
+    );
+
+    it.effect("revokes link-paired clients on startup under a policy without remote clients", () =>
+      Effect.gen(function* () {
+        const sessions = yield* SessionStore.SessionStore;
+        const pairingLinks = yield* PairingGrantStore.PairingGrantStore;
+        const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
+        const phone = yield* sessions.issue({ subject: "one-time-token" });
+        const bot = yield* sessions.issue({ subject: "cli-issued-session" });
+        const startup = (ipAddress: string) =>
+          sessions.issue({
+            subject: EnvironmentAuth.INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT,
+            client: { deviceType: "unknown", ipAddress },
+          });
+        const startupPhone = yield* startup("192.168.1.20");
+        const startupBrowser = yield* startup("127.0.0.1");
+        yield* environmentAuth.createPairingLink({ subject: "one-time-token" });
+        yield* environmentAuth.issuePairingCredential({ access: "approval-required" });
+        yield* environmentAuth.issuePairingCredential({
+          access: "full-access",
+          purpose: "peer-link",
+        });
+
+        yield* restartUnder(desktopAndLocalOnly);
+
+        const remaining = (yield* sessions.listActive()).map((session) => session.sessionId);
+        assert.notInclude(remaining, phone.sessionId);
+        assert.notInclude(remaining, startupPhone.sessionId);
+        assert.include(remaining, startupBrowser.sessionId);
+        assert.include(remaining, bot.sessionId);
+        assert.lengthOf(yield* pairingLinks.listActive(), 0);
+      }).pipe(Effect.provide(layerEnvironmentAuth())),
+    );
+
+    it.effect("keeps paired clients when the policy only turns the relay off", () =>
+      Effect.gen(function* () {
+        const sessions = yield* SessionStore.SessionStore;
+        const phone = yield* sessions.issue({ subject: "one-time-token" });
+
+        yield* restartUnder({
+          schemaVersion: 1,
+          organization: "Example Corp",
+          limits: { relay: false },
+        });
+
+        const remaining = (yield* sessions.listActive()).map((session) => session.sessionId);
+        assert.include(remaining, phone.sessionId);
+      }).pipe(Effect.provide(layerEnvironmentAuth())),
+    );
+
     it.effect("creates, lists, and revokes client pairing links", () =>
       Effect.gen(function* () {
         const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;

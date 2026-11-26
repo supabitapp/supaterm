@@ -271,6 +271,36 @@ describe("supaterm theme", () => {
     }),
   );
 
+  it.effect("leaves a theme the policy locks and refuses another one", () =>
+    Effect.gen(function* () {
+      const baseDir = makeBaseDir();
+      writeSettings(baseDir, { defaultTheme: "nord" });
+      const policyPath = NodePath.join(baseDir, "policy.json");
+      NodeFS.writeFileSync(
+        policyPath,
+        JSON.stringify({
+          schemaVersion: 1,
+          organization: "Example Corp",
+          settings: { defaultTheme: { value: "dracula", locked: true } },
+        }),
+      );
+      const underPolicy = Effect.provide(
+        ConfigProvider.layer(
+          ConfigProvider.fromEnv({ env: { SUPATERM_DEV_MANAGED_POLICY_PATH: policyPath } }),
+        ),
+      );
+
+      yield* runCli(["theme", "set", "dracula", "--base-dir", baseDir]).pipe(underPolicy);
+      assert.equal(readSettings(baseDir).defaultTheme, "nord");
+
+      const refused = yield* Effect.flip(
+        runCli(["theme", "clear", "--base-dir", baseDir]).pipe(underPolicy),
+      );
+      assert.include(String(refused), "defaultTheme is managed by Example Corp");
+      assert.equal(readSettings(baseDir).defaultTheme, "nord");
+    }),
+  );
+
   it.effect("records a set generation and clears it with the theme", () =>
     Effect.gen(function* () {
       const baseDir = makeBaseDir();

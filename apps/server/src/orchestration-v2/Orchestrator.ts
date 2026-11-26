@@ -73,6 +73,8 @@ import {
   ProviderInstanceId,
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
   ProviderInteractionMode,
+  isRuntimeModeAbove,
+  managedRuntimeModeCeilingMessage,
   resolveProviderInstanceEnabled,
   resolveProjectProviderInstanceEnabled,
   type ProviderSessionId,
@@ -159,7 +161,14 @@ import { withCommandMetrics } from "../observability/Metrics.ts";
 import type { OrchestrationEffectRequestV2, PendingOrchestrationEffectV2 } from "./EffectOutbox.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
-import { DispatchModeLimit, exceededDispatchModeLimit } from "./DispatchModeLimit.ts";
+import {
+  DispatchModeLimit,
+  exceededDispatchModeLimit,
+  narrowToCeiling,
+  type RuntimeModeCeiling,
+  runtimeModeCeilingRefusal,
+  threadsStartingWork,
+} from "./DispatchModeLimit.ts";
 import {
   applyToProjection,
   emptyProjection,
@@ -190,7 +199,7 @@ import {
   pinnedMessageOf,
   withPinnedMessage,
 } from "@supaterm/shared/pinnedMessages";
-import { RuntimePolicyV2 } from "./RuntimePolicy.ts";
+import { isRuntimePolicyAboveCeilingError, RuntimePolicyV2 } from "./RuntimePolicy.ts";
 import {
   endOrphanedNativeSubagent,
   endRunlessRootTurns,
@@ -304,6 +313,32 @@ export class OrchestratorThreadAboveModeLimitError extends Schema.TaggedError<Or
   }
 }
 
+const isOrchestratorDispatchError = Schema.is(OrchestratorDispatchError);
+
+/** The ceiling refusal under however many dispatch errors wrapped it on the way out. */
+function runtimePolicyCeilingCause(error: unknown) {
+  let current = error;
+  while (isOrchestratorDispatchError(current)) current = current.cause;
+  return isRuntimePolicyAboveCeilingError(current) ? current : undefined;
+}
+
+export class OrchestratorRuntimeModeAboveCeilingError extends Schema.TaggedError<OrchestratorRuntimeModeAboveCeilingError>()(
+  "OrchestratorRuntimeModeAboveCeilingError",
+  {
+    commandId: CommandId,
+    threadId: ThreadId,
+    refused: Schema.Literals(["mode", "turn"]),
+    runtimeMode: RuntimeMode,
+    maxRuntimeMode: RuntimeMode,
+    organization: Schema.String,
+  },
+) {
+  override get message(): string {
+    const limit = managedRuntimeModeCeilingMessage(this.organization, this.maxRuntimeMode);
+    return this.refused === "turn" ? `${limit} Switch this thread's mode to continue.` : limit;
+  }
+}
+
 export class OrchestratorProviderSelectionBusyError extends Schema.TaggedError<OrchestratorProviderSelectionBusyError>()(
   "OrchestratorProviderSelectionBusyError",
   { commandId: CommandId, threadId: ThreadId },
@@ -351,6 +386,7 @@ export const OrchestratorV2Error = Schema.Union([
   OrchestratorCommandIdConflictError,
   OrchestratorSubagentThreadReadOnlyError,
   OrchestratorThreadAboveModeLimitError,
+  OrchestratorRuntimeModeAboveCeilingError,
   OrchestratorProviderSelectionBusyError,
 ]);
 export type OrchestratorV2Error = typeof OrchestratorV2Error.Type;
@@ -1614,6 +1650,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   const threadForkService = yield* ThreadForkServiceV2;
   const threadDispatch = yield* ThreadCommandExecutor.ThreadCommandExecutor;
   const messageIntake = yield* KeyedLock.make<ThreadId>();
+  // Read once: the policy is fixed for the server's life, and dispatch takes it as an input.
+  const { managedPolicy } = serverSettings;
+  const runtimeModeCeiling: RuntimeModeCeiling | undefined =
+    managedPolicy?.limits?.maxRuntimeMode === undefined
+      ? undefined
+      : {
+          organization: managedPolicy.organization,
+          maxRuntimeMode: managedPolicy.limits.maxRuntimeMode,
+        };
 
   /** The driver when this provider runs `/goal` natively, else undefined. */
   const goalDriverFor = Effect.fn("Orchestrator.goalDriverFor")(function* (
@@ -2496,6 +2541,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           options?.userStarted === true ? undefined : yield* DateTime.now,
         )
       ) {
+        return;
+      }
+      // Waits without a hold: lowering the thread's mode starts the queue again.
+      if (isRuntimeModeAbove(projection.thread.runtimeMode, runtimeModeCeiling?.maxRuntimeMode)) {
         return;
       }
       // A message queued behind a worktree that was cancelled or never created
@@ -5748,7 +5797,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         readonly interactionMode: ProviderInteractionMode;
       },
     ) {
-      const limit = yield* DispatchModeLimit;
+      const limit = narrowToCeiling(yield* DispatchModeLimit, runtimeModeCeiling);
       const exceeded = limit === undefined ? undefined : exceededDispatchModeLimit(limit, modes);
       if (limit === undefined || exceeded === undefined) return;
       const refusal = {
@@ -5764,6 +5813,31 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       });
     },
   );
+
+  const refuseAboveRuntimeModeCeiling = Effect.fn(
+    "orchestrationV2.dispatch.refuseAboveRuntimeModeCeiling",
+  )(function* (
+    command: OrchestrationV2ServerCommand,
+    events: ReadonlyArray<OrchestrationV2DomainEvent>,
+  ) {
+    if (runtimeModeCeiling === undefined) return;
+    const runtimeModes = new Map<ThreadId, RuntimeMode>();
+    for (const threadId of threadsStartingWork(events)) {
+      const thread = yield* findThread(threadId);
+      if (thread !== null) runtimeModes.set(threadId, thread.runtimeMode);
+    }
+    const refusal = runtimeModeCeilingRefusal(
+      runtimeModeCeiling.maxRuntimeMode,
+      events,
+      runtimeModes,
+    );
+    if (refusal === undefined) return;
+    return yield* new OrchestratorRuntimeModeAboveCeilingError({
+      commandId: command.commandId,
+      ...refusal,
+      ...runtimeModeCeiling,
+    });
+  });
 
   const dispatchThreadFork = Effect.fn("orchestrationV2.dispatch.threadFork")(function* (
     command: Extract<OrchestrationV2Command, { readonly type: "thread.fork" }>,
@@ -5886,13 +5960,20 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         createdAt: now,
       })
       .pipe(mapDispatchError(command));
+    // Clients open a side chat of a thread above the ceiling at the ceiling; plain forks are refused.
+    const runtimeMode =
+      command.sideChat === true &&
+      runtimeModeCeiling !== undefined &&
+      isRuntimeModeAbove(targetThread.runtimeMode, runtimeModeCeiling.maxRuntimeMode)
+        ? runtimeModeCeiling.maxRuntimeMode
+        : targetThread.runtimeMode;
 
     yield* emitEvent({
       type: "thread.created",
       threadId: command.targetThreadId,
       providerInstanceId: targetThread.providerInstanceId,
       occurredAt: now,
-      payload: targetThread,
+      payload: { ...targetThread, runtimeMode },
     });
     yield* emitEvent({
       type: "context-transfer.created",
@@ -16074,6 +16155,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     }
 
     const plan = yield* dispatchOnce(command, sideChatIds).pipe(
+      Effect.tap((planned) => refuseAboveRuntimeModeCeiling(command, planned.events)),
       Effect.filterOrFail(
         (planned) =>
           planned.events.length > 0 ||
@@ -16096,7 +16178,26 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       ),
       Effect.catch((cause) =>
         Effect.gen(function* () {
-          if (cause._tag === "OrchestratorThreadAboveModeLimitError") return yield* cause;
+          // Refusals depend on modes the user can change; a recorded rejection would block the retry.
+          if (
+            cause._tag === "OrchestratorThreadAboveModeLimitError" ||
+            cause._tag === "OrchestratorRuntimeModeAboveCeilingError"
+          ) {
+            return yield* cause;
+          }
+          // Resolving a turn's policy refuses the same way, from inside the decision.
+          const ceiling = runtimePolicyCeilingCause(cause);
+          if (ceiling !== undefined) {
+            const { threadId, runtimeMode, maxRuntimeMode, organization } = ceiling;
+            return yield* new OrchestratorRuntimeModeAboveCeilingError({
+              commandId: command.commandId,
+              threadId,
+              refused: "turn",
+              runtimeMode,
+              maxRuntimeMode,
+              organization,
+            });
+          }
           const rejectedAt = yield* DateTime.now;
           const receipt = yield* eventSink
             .commitRejectedCommand({
@@ -16231,10 +16332,14 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         commandThreadId: commandThreadId(command),
       });
     }
-    if (command.type === "queue.resume" || command.type === "queued-run.start") {
+    if (
+      command.type === "queue.resume" ||
+      command.type === "queued-run.start" ||
+      (command.type === "thread.runtime-mode.set" && runtimeModeCeiling !== undefined)
+    ) {
       yield* mapDispatchError(command)(
         startNextQueuedRun(command.threadId, {
-          userStarted: true,
+          userStarted: command.type !== "thread.runtime-mode.set",
           ...(command.type === "queued-run.start" ? { queuedRunId: command.runId } : {}),
         }),
       );

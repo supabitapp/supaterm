@@ -297,6 +297,8 @@ export interface DesktopUpdateState {
   notAppliedVersion?: string;
   /** The check failed only because this build's track differs from the saved `channel`. */
   trackMismatch?: { readonly buildChannel: DesktopUpdateChannel };
+  /** Off only because a managed policy rules out this channel; switching channels turns it on. */
+  channelBlockedByPolicy?: true;
 }
 
 export interface DesktopUpdateReleaseNote {
@@ -339,6 +341,7 @@ export const DesktopUpdateStateSchema = Schema.Struct({
   canRetry: Schema.Boolean,
   notAppliedVersion: Schema.optionalKey(Schema.String),
   trackMismatch: Schema.optionalKey(Schema.Struct({ buildChannel: DesktopUpdateChannelSchema })),
+  channelBlockedByPolicy: Schema.optionalKey(Schema.Literal(true)),
 });
 
 export const DesktopCliCommandStateSchema = Schema.Struct({
@@ -562,6 +565,8 @@ export interface DesktopWslState {
   distros: readonly DesktopWslDistro[];
   // Always null in wsl-only mode, which falls back to Windows with a dialog.
   preflightError: string | null;
+  /** Why a managed policy keeps an installed WSL off. */
+  managedPolicyReason?: string;
 }
 
 export const DesktopWslStateSchema = Schema.Struct({
@@ -571,6 +576,7 @@ export const DesktopWslStateSchema = Schema.Struct({
   wslOnly: Schema.Boolean,
   distros: Schema.Array(DesktopWslDistroSchema),
   preflightError: Schema.NullOr(Schema.String),
+  managedPolicyReason: Schema.optionalKey(Schema.String),
 });
 
 export type DesktopPreviewNavStatus =

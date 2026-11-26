@@ -28,7 +28,12 @@ import {
 import { expandHomePath } from "../os-jank.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { baseDirFlag } from "./config.ts";
-import { editSettingsObject, readSettingsObject, resolveSettingsPaths } from "./settingsFile.ts";
+import {
+  editSettingsObject,
+  readSettingsObject,
+  resolveSettingsPaths,
+  vetManagedSettingWrite,
+} from "./settingsFile.ts";
 
 const decodeThemeFileJsonExit = Schema.decodeUnknownExit(
   Schema.fromJsonString(EnvironmentThemeFile),
@@ -156,6 +161,16 @@ const writeDefaultTheme = Effect.fnUntraced(function* (input: {
   readonly settingsPath: string;
   readonly themeId: string;
 }) {
+  const managed = yield* vetManagedSettingWrite(input.settingsPath, "defaultTheme", (settings) => ({
+    ...settings,
+    defaultTheme: input.themeId,
+  }));
+  if (managed._tag === "Locked") {
+    yield* Console.log(
+      `The environment theme is managed by ${managed.organization} and already set; nothing to change.\n`,
+    );
+    return false;
+  }
   const setAt = DateTime.formatIso(yield* DateTime.now);
   yield* editSettingsObject(input.settingsPath, (settings) => {
     if (input.themeId.length > 0) {
@@ -164,6 +179,7 @@ const writeDefaultTheme = Effect.fnUntraced(function* (input: {
     const { defaultTheme: _theme, defaultThemeSetAt: _setAt, ...rest } = settings;
     return rest;
   });
+  return true;
 });
 
 const publishThemeFile = Effect.fn(function* (input: {
@@ -400,10 +416,11 @@ const themeSetCommand = Command.make("set", {
         return yield* new ThemeIdInvalidError({ themeId: target });
       }
 
-      yield* writeDefaultTheme({ settingsPath: paths.settingsPath, themeId }).pipe(
+      const written = yield* writeDefaultTheme({ settingsPath: paths.settingsPath, themeId }).pipe(
         Effect.onError(() => revertPublish),
       );
       yield* cleanupPublish;
+      if (!written) return;
       yield* Console.log(
         targetIsFile
           ? `Published ${target} as "${themeId}" and set it as the environment theme.\n`
@@ -418,8 +435,9 @@ const themeClearCommand = Command.make("clear", { baseDir: baseDirFlag }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const paths = yield* resolveThemePaths(flags.baseDir);
-      yield* writeDefaultTheme({ settingsPath: paths.settingsPath, themeId: "" });
-      yield* Console.log(`Environment theme cleared in ${paths.settingsPath}.\n`);
+      if (yield* writeDefaultTheme({ settingsPath: paths.settingsPath, themeId: "" })) {
+        yield* Console.log(`Environment theme cleared in ${paths.settingsPath}.\n`);
+      }
     }),
   ),
 );

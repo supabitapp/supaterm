@@ -6,6 +6,7 @@ import {
   AuthSessionId,
   AuthTerminalOperateScope,
   DEFAULT_SERVER_SETTINGS,
+  type ManagedPolicySummary,
   type ServerSettings,
 } from "@supaterm/contracts";
 import * as NodeNet from "node:net";
@@ -49,6 +50,7 @@ const listen = (onConnection: (socket: NodeNet.Socket) => void) =>
 /** Settings the route reads; `set` publishes a change as the real service does. */
 const makeSettings = Effect.fn(function* (
   enablePreviewTunnel = true,
+  managedPolicy?: ManagedPolicySummary,
   /** Applied right after the first read, as a change landing while a tunnel dials. */
   afterFirstRead?: Partial<ServerSettings>,
 ) {
@@ -65,6 +67,7 @@ const makeSettings = Effect.fn(function* (
   return {
     set,
     layer: Layer.mock(ServerSettingsService, {
+      managedPolicy,
       getSettings: Ref.get(current).pipe(
         Effect.tap(() => {
           const change = pendingChange;
@@ -225,14 +228,25 @@ it.effect("closes an open tunnel when its session is revoked", () =>
   }),
 );
 
-it.effect("refuses every tunnel with 403 when the setting turns it off", () =>
+it.effect.each([
+  { case: "the setting", enabled: false, policy: undefined },
+  {
+    case: "a policy, whatever the setting",
+    enabled: true,
+    policy: {
+      organization: "Example Corp",
+      lockedSettings: [],
+      limits: { previewTunnel: false },
+    } satisfies ManagedPolicySummary,
+  },
+])("refuses every tunnel with 403 when $case turns it off", ({ enabled, policy }) =>
   Effect.gen(function* () {
     let dialled = 0;
     const listed = yield* listen((socket) => {
       dialled++;
       socket.destroy();
     });
-    const settings = yield* makeSettings(false);
+    const settings = yield* makeSettings(enabled, policy);
     const tunnel = yield* serveTunnel(Effect.never, settings.layer);
     const client = yield* openTunnel(`${tunnel.origin}/api/preview/tunnel?port=${listed.port}`);
     const status = yield* Effect.promise(
@@ -270,7 +284,7 @@ it.effect("closes an open tunnel when the setting turns it off", () =>
 
 it.effect("closes a tunnel the setting turns off while it is still dialling", () =>
   Effect.gen(function* () {
-    const settings = yield* makeSettings(true, { enablePreviewTunnel: false });
+    const settings = yield* makeSettings(true, undefined, { enablePreviewTunnel: false });
     const upstreamClosed = Promise.withResolvers<void>();
     const upstream = yield* listen((socket) => socket.on("close", () => upstreamClosed.resolve()));
     const tunnel = yield* serveTunnel(Effect.never, settings.layer);
