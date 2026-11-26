@@ -13,6 +13,7 @@ import { SidebarSnoozeButton } from "../components/sidebar/SidebarSnoozeButton";
 import { SidebarThreadUndoNotice } from "../components/sidebar/SidebarThreadUndoNotice";
 import { useThreadUndoNotice } from "../hooks/showThreadUndoNotice";
 import { primaryServerKeybindingsAtom } from "../state/server";
+import { formatRelativeTimeLabel } from "../timestampFormat";
 import { formatWorkingDurationLabel } from "@supaterm/client-runtime/state/thread-timing";
 import { m, setActiveLocale } from "./messages";
 import de from "./translations/de.json";
@@ -52,6 +53,28 @@ describe("German catalog", () => {
     expect(m(msg("Balanced"))).toBe("Ausgewogen");
     expect(m(msg("Uncommitted"))).toBe("Lokal");
     expect(formatWorkingDurationLabel(125_000, m)).toBe("2 Min.");
+  });
+
+  it("ends the cleanup last-run line with one period after an abbreviated time", async () => {
+    using _locale = await inGerman();
+    const when = formatRelativeTimeLabel(
+      "2026-11-26T11:55:00Z",
+      Date.parse("2026-11-26T12:00:00Z"),
+      m,
+    );
+    expect(m(msg("Last run {when}. {bytes} recovered.", { when, bytes: "0 B" }))).toBe(
+      "Letzte Ausführung vor 5 Min., 0 B freigegeben.",
+    );
+    expect(
+      m(
+        msg(
+          "{count, plural, one {Last run {when}. {bytes} recovered. {count} item couldn't be removed.} other {Last run {when}. {bytes} recovered. {count} items couldn't be removed.}}",
+          { count: 2, when, bytes: "0 B" },
+        ),
+      ),
+    ).toBe(
+      "Letzte Ausführung vor 5 Min., 0 B freigegeben. 2 Elemente konnten nicht entfernt werden.",
+    );
   });
 
   it("summarizes pull request checks", async () => {

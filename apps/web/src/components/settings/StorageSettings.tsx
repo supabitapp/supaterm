@@ -389,6 +389,7 @@ const storageCleanupPermissionsAtom = environmentAtomList(
 function CleanupSection() {
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
+  const messages = useMessages();
   const nowMinute = useNowMinute();
   const nowMs = Date.parse(`${nowMinute}:00.000Z`);
   const { connectedEnvironments } = useSettingsScope();
@@ -446,12 +447,12 @@ function CleanupSection() {
               "{count, plural, one {Last run {when}. {bytes} recovered. {count} item couldn't be removed.} other {Last run {when}. {bytes} recovered. {count} items couldn't be removed.}}",
               {
                 count: report.counts.failed,
-                when: formatRelativeTimeLabel(report.finishedAt, nowMs),
+                when: formatRelativeTimeLabel(report.finishedAt, nowMs, messages),
                 bytes: formatBytes(report.bytesFreed),
               },
             )
           : gt("Last run {when}. {bytes} recovered.", {
-              when: formatRelativeTimeLabel(report.finishedAt, nowMs),
+              when: formatRelativeTimeLabel(report.finishedAt, nowMs, messages),
               bytes: formatBytes(report.bytesFreed),
             })
         : query?.failed
@@ -530,6 +531,7 @@ function CleanupSection() {
           summary={lastRunSummary(
             summaries.filter(({ report }) => report !== null),
             connectedEnvironments.length,
+            messages,
           )}
         >
           {summaries.map(
