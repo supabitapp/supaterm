@@ -8,6 +8,7 @@ import {
   AuthAccessReadScope,
   ServerSettingsPatch,
   ProviderInstanceMutation,
+  changesProjectScripts,
   requiredScopesForServerSettingsPatch,
   type SavedProjectScripts,
   requiredScopesForProjectMutation,
@@ -348,6 +349,14 @@ const requiredScopesForRpcCall = (
     ? [...scopes, AuthProvidersManageScope]
     : scopes;
 };
+
+/** The socket checks a stale snapshot, so the write repeats this under its lock. */
+export const authorizeProjectScripts =
+  (scopes: ReadonlyArray<AuthEnvironmentScope>, patch: ServerSettingsPatch) =>
+  (saved: SavedProjectScripts) =>
+    scopes.includes(AuthOrchestrationOperateScope) || !changesProjectScripts(patch, saved)
+      ? Effect.void
+      : Effect.fail(rpcAuthorizationError(AuthOrchestrationOperateScope));
 
 /** Without `readSaved`, any project script a settings patch carries needs `orchestration:operate`. */
 export const layer = <E = never>(

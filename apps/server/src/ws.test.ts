@@ -1271,38 +1271,48 @@ const settingsUpdateRpcs = WsRpcGroup.omit(
   ),
 );
 
+const settingsUpdateClient = Effect.fnUntraced(function* (
+  scopes: ReadonlyArray<AuthEnvironmentScope>,
+  readSaved?: Parameters<typeof RpcAuthorization.layer>[1],
+) {
+  const services = Layer.mergeAll(
+    layerUnusedConfigRpcServices,
+    Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+    Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+    Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
+    Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+    Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
+    Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
+    Layer.mock(ServerEnvironment.ServerEnvironment)({}),
+    Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
+  );
+  return yield* RpcTest.makeClient(settingsUpdateRpcs).pipe(
+    Effect.provide(
+      layerWsRpc(
+        {
+          sessionId: AuthSessionId.make("settings-test"),
+          subject: "settings-test",
+          method: "browser-session-cookie",
+          scopes: [...scopes],
+        },
+        yield* ServerBrowser.ServerBrowser,
+        () => Effect.void,
+        { secretReferences: true },
+      ).pipe(Layer.provide(services), Layer.merge(RpcAuthorization.layer(scopes, readSaved))),
+    ),
+  );
+});
+
+const layerSettingsUpdate = Layer.mergeAll(
+  Layer.fresh(layerConfigSources),
+  Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
+  Layer.mock(ServerBrowser.ServerBrowser)({}),
+);
+
 it.effect("a client's settings update never turns the legacy Linked environments switch off", () =>
   Effect.gen(function* () {
     const settings = yield* ServerSettings.ServerSettingsService;
-    const services = Layer.mergeAll(
-      layerUnusedConfigRpcServices,
-      Layer.mock(ExternalLauncher.ExternalLauncher)({}),
-      Layer.mock(ProviderRegistry.ProviderRegistry)({}),
-      Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
-      Layer.mock(DirectEndpoints.DirectEndpoints)({}),
-      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
-      Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
-      Layer.mock(ServerEnvironment.ServerEnvironment)({}),
-      Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
-    );
-    const client = yield* RpcTest.makeClient(settingsUpdateRpcs).pipe(
-      Effect.provide(
-        layerWsRpc(
-          {
-            sessionId: AuthSessionId.make("settings-test"),
-            subject: "settings-test",
-            method: "browser-session-cookie",
-            scopes: [],
-          },
-          yield* ServerBrowser.ServerBrowser,
-          () => Effect.void,
-          { secretReferences: true },
-        ).pipe(
-          Layer.provide(services),
-          Layer.merge(RpcAuthorization.layer([AuthSettingsWriteScope])),
-        ),
-      ),
-    );
+    const client = yield* settingsUpdateClient([AuthSettingsWriteScope]);
 
     const updated = yield* client[WS_METHODS.serverUpdateSettings]({
       patch: { linkedEnvironmentsEnabled: false, defaultAutoPull: true },
@@ -1310,15 +1320,42 @@ it.effect("a client's settings update never turns the legacy Linked environments
     assert.isTrue(updated.defaultAutoPull);
     assert.isTrue(updated.linkedEnvironmentsEnabled);
     assert.isTrue((yield* settings.getSettings).linkedEnvironmentsEnabled);
-  }).pipe(
-    Effect.provide(
-      Layer.mergeAll(
-        Layer.fresh(layerConfigSources),
-        Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
-        Layer.mock(ServerBrowser.ServerBrowser)({}),
-      ),
-    ),
-  ),
+  }).pipe(Effect.provide(layerSettingsUpdate)),
+);
+
+it.effect("a settings-only write cannot restore a project script removed after its check", () =>
+  Effect.gen(function* () {
+    const settings = yield* ServerSettings.ServerSettingsService;
+    const projectId = ProjectId.make("project-1");
+    const scripts = [
+      {
+        id: "setup",
+        name: "Setup",
+        command: "pnpm install",
+        icon: "play" as const,
+        runOnWorktreeCreate: true,
+      },
+    ];
+    const checked = yield* settings.updateSettings({
+      projectSettingsOverrides: { [projectId]: { defaultProjectScripts: scripts } },
+    });
+    yield* settings.updateSettings({
+      projectSettingsOverrides: { [projectId]: { defaultProjectScripts: [] } },
+    });
+    const client = yield* settingsUpdateClient([AuthSettingsWriteScope], Effect.succeed(checked));
+
+    const error = yield* client[WS_METHODS.serverUpdateSettings]({
+      patch: {
+        projectSettingsOverrides: {
+          [projectId]: { defaultProjectScripts: scripts, defaultAutoPull: true },
+        },
+      },
+    }).pipe(Effect.flip);
+    assert.include(error, { requiredScope: AuthOrchestrationOperateScope });
+    const saved = (yield* settings.getSettings).projectSettingsOverrides[projectId];
+    assert.deepEqual(saved?.defaultProjectScripts, []);
+    assert.isUndefined(saved?.defaultAutoPull);
+  }).pipe(Effect.provide(layerSettingsUpdate)),
 );
 
 it.effect("access changes made while the snapshot loads reach the client after it", () =>

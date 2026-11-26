@@ -655,6 +655,34 @@ describe("settings mutation authorization", () => {
         ).toMatchObject({ requiredScope: AuthOrchestrationOperateScope });
       }
       expect(saved.handled()).toBe(patches.length);
+
+      // Dropping a project's empty override brings the environment's scripts back for it.
+      const inherited = yield* update(
+        [AuthSettingsWriteScope, AuthProvidersManageScope],
+        Effect.succeed({
+          ...DEFAULT_SERVER_SETTINGS,
+          defaultProjectScripts: scripts,
+          projectSettingsOverrides: { [projectId]: { defaultProjectScripts: [] } },
+        }),
+      );
+      for (const patch of [
+        { projectSettingsOverrides: { [projectId]: null } },
+        { projectSettingsOverrides: { [projectId]: { defaultAutoPull: true } } },
+        { projectSettingsOverrideRemovals: { [projectId]: ["defaultProjectScripts" as const] } },
+      ]) {
+        expect(
+          yield* inherited.client[WS_METHODS.serverUpdateSettings]({ patch }).pipe(Effect.flip),
+        ).toMatchObject({ requiredScope: AuthOrchestrationOperateScope });
+      }
+      yield* inherited.client[WS_METHODS.serverUpdateSettings]({
+        patch: {
+          projectSettingsOverrides: {
+            [projectId]: { defaultProjectScripts: [], defaultAutoPull: true },
+          },
+          projectSettingsOverrideRemovals: { [projectId]: ["responseStreamingMode"] },
+        },
+      });
+      expect(inherited.handled()).toBe(1);
     }),
   );
 
