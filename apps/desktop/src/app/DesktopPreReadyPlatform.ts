@@ -3,15 +3,16 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as Config from "effect/Config";
-import * as Option from "effect/Option";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 
 import * as Electron from "electron";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as DesktopEarlyElectronStartup from "./DesktopEarlyElectronStartup.ts";
+import { trimmedString } from "./DesktopConfig.ts";
 import { resolveDesktopAppBranding } from "./DesktopEnvironment.ts";
 import {
   renderUrlHandlerDesktopEntry,
@@ -56,10 +57,18 @@ export class DesktopPreReadyElectronOptions extends Context.Service<
   }
 >()("@supaterm/desktop/app/DesktopPreReadyPlatform/DesktopPreReadyElectronOptions") {}
 
+const LinuxDesktopEntryConfig = Config.all({
+  xdgDataHome: trimmedString("XDG_DATA_HOME"),
+  launcherPath: trimmedString("SUPATERM_DESKTOP_LAUNCHER_PATH"),
+  appImagePath: trimmedString("APPIMAGE"),
+  appImageSilentInstall: trimmedString("APPIMAGE_SILENT_INSTALL"),
+});
+
 /** @public */
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   const homeDirectory = yield* HostProcess.HomeDirectory;
+  const linuxDesktopEntryConfig = yield* LinuxDesktopEntryConfig;
   return yield* Effect.sync((): DesktopPreReadyElectronOptions["Service"] => {
     const linuxPasswordStoreCommandLine =
       platform === "linux"
@@ -84,8 +93,9 @@ export const make = Effect.gen(function* () {
       // have removed the executable referenced by the previous launch's entry.
       try {
         const applicationsDir = NodePath.posix.join(
-          process.env.XDG_DATA_HOME?.trim() ||
+          Option.getOrElse(linuxDesktopEntryConfig.xdgDataHome, () =>
             NodePath.posix.join(homeDirectory, ".local", "share"),
+          ),
           "applications",
         );
         NodeFS.mkdirSync(applicationsDir, { recursive: true });
@@ -113,12 +123,12 @@ export const make = Effect.gen(function* () {
           } catch {}
         }
         const desktopEntryPath = NodePath.posix.join(applicationsDir, linux.linuxDesktopEntryName);
-        const appImagePath = process.env.APPIMAGE?.trim();
+        const appImagePath = Option.getOrUndefined(linuxDesktopEntryConfig.appImagePath);
         if (
           appImagePath &&
-          !process.env.SUPATERM_DESKTOP_LAUNCHER_PATH?.trim() &&
+          Option.isNone(linuxDesktopEntryConfig.launcherPath) &&
           // electron-updater sets this on the AppImage it relaunches after installing an update.
-          process.env.APPIMAGE_SILENT_INSTALL?.trim() === "true"
+          Option.getOrUndefined(linuxDesktopEntryConfig.appImageSilentInstall) === "true"
         ) {
           try {
             const replacedPath = replacedVersionedAppImagePath({
@@ -139,9 +149,12 @@ export const make = Effect.gen(function* () {
               appVersion: Electron.app.getVersion(),
             }).displayName,
             execTarget:
-              process.env.SUPATERM_DESKTOP_LAUNCHER_PATH?.trim() ||
-              process.env.APPIMAGE?.trim() ||
-              process.execPath,
+              Option.getOrUndefined(
+                Option.orElse(
+                  linuxDesktopEntryConfig.launcherPath,
+                  () => linuxDesktopEntryConfig.appImagePath,
+                ),
+              ) ?? process.execPath,
             scheme: ElectronProtocol.getDesktopScheme(linux.isDevelopment),
             ...(iconPath === undefined ? {} : { iconPath }),
           }),

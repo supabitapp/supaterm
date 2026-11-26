@@ -3,21 +3,24 @@ import {
   type AuthMcpApprovalDetails,
   type AuthMcpClientAccess,
   isRuntimeModeAbove,
-  managedRuntimeModeCeilingMessage,
   parseMcpApprovalCode,
 } from "@supaterm/contracts";
+import { managedRuntimeModeCeilingMessage } from "@supaterm/client-runtime/contract-labels";
+
+import { m, type MessageResolver } from "~/i18n/messages";
 
 /** Why a managed policy keeps `access` from being granted, or undefined when it may be. */
 export function accessCeilingReason(
   details: Pick<AuthMcpApprovalDetails, "runtimeModeCeiling">,
   access: AuthMcpClientAccess,
+  resolve: MessageResolver = m,
 ): string | undefined {
   const ceiling = details.runtimeModeCeiling;
   return ceiling === undefined ||
     access === "read-only" ||
     !isRuntimeModeAbove(access, ceiling.maxRuntimeMode)
     ? undefined
-    : managedRuntimeModeCeilingMessage(ceiling.organization, ceiling.maxRuntimeMode);
+    : managedRuntimeModeCeilingMessage(ceiling.organization, ceiling.maxRuntimeMode, resolve);
 }
 
 /**

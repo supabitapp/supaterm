@@ -41,6 +41,7 @@ import type { PullRequestCompletionScope } from "../PullRequestMarkdownTextarea"
 import { excerptLoader } from "./GuideExcerpt.logic";
 import { GuideNoteMarker } from "./GuideNotes";
 import { GuideProse } from "./GuideProse";
+import { T, useGT, Var } from "gt-react";
 
 const EXCERPT_UNSAFE_CSS = `${DIFF_VIEW_UNSAFE_CSS}
 [data-code]::-webkit-scrollbar-thumb {
@@ -146,16 +147,22 @@ export function GuideExcerpt({
         />
       ) : loading ? (
         <p className="rounded-lg border border-border/60 px-3 py-2 text-xs text-muted-foreground">
-          Loading {excerpt.path}...
+          <T>
+            Loading <Var>{excerpt.path}</Var>...
+          </T>
         </p>
       ) : (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2 text-xs text-muted-foreground">
           <span className="min-w-0 truncate">
-            <span className="font-mono text-foreground">{excerpt.path}</span> lines {excerpt.start}-
-            {excerpt.end} are not in the loaded diff.
+            <T>
+              <span className="font-mono text-foreground">
+                <Var>{excerpt.path}</Var>
+              </span>{" "}
+              lines <Var>{excerpt.start}</Var>-<Var>{excerpt.end}</Var> are not in the loaded diff.
+            </T>
           </span>
           <Button size="xs" variant="outline" onClick={() => onOpenFile(excerpt.path)}>
-            Open in Code
+            <T>Open in Code</T>
           </Button>
         </div>
       )}
@@ -184,6 +191,7 @@ function ExcerptDiff({
   commenting: ExcerptCommenting | null;
   onOpenFile: (path: string) => void;
 }) {
+  const gt = useGT();
   const resolvedTheme = useRenderedAppearance();
   const loadExcerptFiles = excerptLoader(excerpt, file, slice.rows, loadDiffFiles);
 
@@ -296,13 +304,26 @@ function ExcerptDiff({
         renderHeaderMetadata={() => (
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="tabular-nums">
-              {excerpt.side === "old" ? "removed code, " : ""}showing {slice.shown} of {slice.total}{" "}
-              diff lines
+              {excerpt.side === "old"
+                ? gt(
+                    "{total, plural, one {removed code, showing {shown} of {total} diff lines} other {removed code, showing {shown} of {total} diff lines}}",
+                    {
+                      shown: slice.shown,
+                      total: slice.total,
+                    },
+                  )
+                : gt(
+                    "{total, plural, one {showing {shown} of {total} diff lines} other {showing {shown} of {total} diff lines}}",
+                    {
+                      shown: slice.shown,
+                      total: slice.total,
+                    },
+                  )}
             </span>
             <Button
               size="icon-xs"
               variant="ghost-muted"
-              aria-label={`Open ${excerpt.path} in Code`}
+              aria-label={gt("Open {path} in Code", { path: excerpt.path })}
               onClick={() => onOpenFile(excerpt.path)}
             >
               <ArrowUpRightIcon aria-hidden />
@@ -342,12 +363,14 @@ export function GuideCommentDraft({
   commenting: ExcerptCommenting;
   onClose: () => void;
 }) {
+  const gt = useGT();
   const onAskAgent = commenting.onAskAgent;
   const askAgent = (request: string) => {
     if (onAskAgent === null) return;
     const comment = buildDiffReviewComment({
       id: `pull-request-guide:${diffReviewSelectionId(path, draft.range)}`,
       sectionId: `pull-request-guide:${path}`,
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- context title sent to the agent
       sectionTitle: "Review guide",
       filePath: path,
       fileDiff: file,
@@ -364,12 +387,14 @@ export function GuideCommentDraft({
       rangeLabel={`${path}:${getReviewPositionAnchor(draft.position).line}`}
       text=""
       completionScope={commenting.canComment ? commenting.completionScope : null}
-      placeholder={commenting.canComment ? "Add a comment…" : "Ask the agent about these lines…"}
-      submitLabel={commenting.canComment ? "Add to review" : "Ask agent"}
+      placeholder={
+        commenting.canComment ? gt("Add a comment…") : gt("Ask the agent about these lines…")
+      }
+      submitLabel={commenting.canComment ? gt("Add to review") : gt("Ask agent")}
       {...(commenting.canComment && onAskAgent !== null
         ? {
             secondaryAction: {
-              label: "Ask agent",
+              label: gt("Ask agent"),
               onAction: (text: string) => askAgent(text),
             },
           }

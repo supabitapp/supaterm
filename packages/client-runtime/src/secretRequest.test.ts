@@ -1,4 +1,6 @@
 import {
+  SecretProviderId,
+  SecretProviderKind,
   SecretRequestAnswerInput,
   SecretRequestError,
   ThreadId,
@@ -13,6 +15,7 @@ import {
   secretRequestInputs,
   secretRequestFailureMessage,
   secretRequestLink,
+  secretRequestSources,
 } from "./secretRequest.ts";
 
 const decodeAnswer = Schema.decodeUnknownSync(SecretRequestAnswerInput);
@@ -146,5 +149,60 @@ describe("secretRequestFailureMessage", () => {
       "Could not answer the request. Try again.",
     );
     expect(secretRequestFailureMessage(undefined)).toBe("Could not answer the request. Try again.");
+  });
+});
+
+describe("secretRequestSources", () => {
+  const onePassword = SecretProviderId.make("1password");
+  const providers = {
+    [onePassword]: {
+      kind: SecretProviderKind.make("one_password"),
+      label: "1Password",
+      config: { account: "my" },
+    },
+    [SecretProviderId.make("later")]: {
+      kind: SecretProviderKind.make("from_a_newer_build"),
+      label: "Later",
+      config: {},
+    },
+  };
+
+  it("offers configured providers only when the server accepts reference answers", () => {
+    expect(secretRequestSources({ secretRequestReferences: true }, providers)).toMatchObject([
+      { id: onePassword, label: "1Password" },
+    ]);
+    expect(secretRequestSources({}, providers)).toEqual([]);
+    expect(secretRequestSources({ secretRequestReferences: true }, {})).toEqual([]);
+  });
+
+  it("answers with a reference only in the provider's syntax", () => {
+    const [source] = secretRequestSources({ secretRequestReferences: true }, providers);
+    if (source === undefined) throw new Error("expected a source");
+    const item = {
+      id: TurnItemId.make("item-1"),
+      threadId: ThreadId.make("thread-1"),
+      label: "Deploy token",
+    };
+    expect(
+      secretRequestAnswerInput(item, {
+        type: "reference",
+        source,
+        reference: " op://vault/item/field ",
+      })?.answer,
+    ).toEqual({
+      type: "reference",
+      reference: { provider: onePassword, reference: "op://vault/item/field" },
+    });
+    expect(
+      secretRequestAnswerInput(item, { type: "reference", source, reference: "vault/item" }),
+    ).toBeNull();
+    // A reference answers one value, never a card with fields.
+    const fields = [{ name: "password", label: "Password" }];
+    expect(
+      secretRequestAnswerInput(
+        { ...item, fields },
+        { type: "reference", source, reference: "op://vault/item/field" },
+      ),
+    ).toBeNull();
   });
 });

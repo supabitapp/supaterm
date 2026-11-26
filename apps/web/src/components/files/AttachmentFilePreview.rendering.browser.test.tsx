@@ -423,9 +423,9 @@ it.each([
     const bytes = await zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
     const { prepareOffice } = await import("./officeArchive");
     if (row > 250000) {
-      await expect(prepareOffice(bytes, "xlsx")).rejects.toThrow(
-        "This workbook exceeds the preview limit",
-      );
+      await expect(prepareOffice(bytes, "xlsx")).rejects.toMatchObject({
+        code: "workbook-too-many-rows",
+      });
       return;
     }
     const prepared = await prepareOffice(bytes, "xlsx");
@@ -552,7 +552,7 @@ it("toggles a Mermaid attachment between diagram and source through the lazy pre
     expect(image?.alt).toBe("Mermaid diagram");
     expect(image?.naturalWidth).toBeGreaterThan(0);
   });
-  await page.getByRole("button", { name: "Back, close image preview" }).click();
+  await page.getByRole("button", { name: "Close image preview" }).click();
   await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
   await screen.getByRole("button", { name: "Show Mermaid source" }).click();
   await vi.waitFor(() => expect(screen.container.querySelector("pre")?.textContent).toBe(text));
@@ -801,7 +801,9 @@ it("mounts a bounded set of saved notebook outputs as the reader scrolls", async
   );
   expect(screen.container.querySelectorAll("iframe").length).toBeLessThanOrEqual(16);
   const first = screen.container.querySelector("iframe")!;
+  const firstOutput = first.parentElement!;
   expect(first.srcdoc).toContain("saved 0-0");
+  await vi.waitFor(() => expect(first.clientHeight).toBeGreaterThan(0));
   const viewport = screen.container.querySelector<HTMLElement>(".scrollbar-gutter-both")!;
   await act(() => {
     viewport.scrollTop = viewport.scrollHeight;
@@ -815,12 +817,27 @@ it("mounts a bounded set of saved notebook outputs as the reader scrolls", async
     expect(first.isConnected).toBe(false);
   });
   expect(screen.container.querySelectorAll("iframe").length).toBeLessThanOrEqual(16);
+  const reservedHeight = firstOutput.getBoundingClientRect().height;
+  using cleanup = new DisposableStack();
+  const pending = new AbortController();
+  cleanup.defer(() => pending.abort());
+  // Hold the remounted frame in its loading state until it scrolls away again.
+  firstOutput.addEventListener("load", (event) => event.stopPropagation(), {
+    capture: true,
+    signal: pending.signal,
+  });
   await act(() => {
     viewport.scrollTop = 0;
   });
-  await vi.waitFor(() =>
-    expect(screen.container.querySelector("iframe")?.srcdoc).toContain("saved 0-0"),
-  );
+  await vi.waitFor(() => {
+    expect(firstOutput.querySelector("iframe")?.srcdoc).toContain("saved 0-0");
+    expect(firstOutput.getBoundingClientRect().height).toBe(reservedHeight);
+  });
+  await act(() => {
+    viewport.scrollTop = viewport.scrollHeight;
+  });
+  await vi.waitFor(() => expect(firstOutput.querySelector("iframe")).toBeNull());
+  expect(firstOutput.getBoundingClientRect().height).toBe(reservedHeight);
 });
 
 it.each([
@@ -1100,11 +1117,13 @@ it.each([
 
 describe("binary workspace file", () => {
   it("offers a download instead of reading a text-named binary as text", async () => {
-    refresh.mockReset().mockResolvedValue("data:application/octet-stream,a%00b");
-    using _fetch = stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(new Uint8Array([0x61, 0x00, 0x62]))),
+    const fileUrl = "data:application/octet-stream,a%00b";
+    refresh.mockReset().mockResolvedValue(fileUrl);
+    const read = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(new Uint8Array([0x61, 0x00, 0x62])),
     );
+    using _fetch = stubGlobal("fetch", read);
     await using screen = await render(
       <AttachmentFilePreview
         name="export.csv"
@@ -1134,6 +1153,10 @@ describe("binary workspace file", () => {
     expect(container.textContent).toContain("No preview for this file");
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Show table"]')).toBeNull();
-    expect(fetch).not.toHaveBeenCalled();
+    // Importing the theme starts the connection runtime, which polls for the primary environment.
+    const requested = read.mock.calls.map(([input]) =>
+      input instanceof Request ? input.url : String(input),
+    );
+    expect(requested).not.toContain(fileUrl);
   });
 });

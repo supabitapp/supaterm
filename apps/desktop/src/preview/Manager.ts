@@ -88,6 +88,8 @@ import {
 import { isPreviewAnnotationPayload } from "./PickedElementPayload.ts";
 import { captureFavicon, safeHttpOrigin, selectFaviconCandidates } from "./FaviconCapture.ts";
 import { DEFAULT_RECORDING_INPUT_OPTIONS, type RecordingInputOptions } from "./RecordingInput.ts";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
 export type PreviewNavStatus =
   | { kind: "Idle" }
@@ -477,12 +479,7 @@ const IN_PLACE_DENIED_PROTOCOLS = new Set([
   "view-source:",
 ]);
 
-/**
- * A popup is not a webview attach, so the `will-attach-webview` hardening in `DesktopWindow`
- * never sees it, and an unoverridden child would inherit the guest's relaxed posture: the
- * picker preload needs `contextIsolation: false` to share `globalThis` with the previewed page,
- * and no OAuth provider should get that.
- */
+/** Popups bypass will-attach-webview hardening, so they are isolated and sandboxed here. */
 const POPUP_WINDOW_OPTIONS = {
   webPreferences: {
     contextIsolation: true,
@@ -1682,9 +1679,17 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
             );
             return { action: "deny" };
           }
+          const { postBody } = details;
           runFork(
             attemptPromise({ operation: "openPreviewWindow", tabId, webContentsId: wc.id }, () =>
-              wc.loadURL(details.url),
+              postBody
+                ? wc.loadURL(details.url, {
+                    postData: postBody.data,
+                    extraHeaders: postBody.boundary
+                      ? `content-type: ${postBody.contentType}; boundary=${postBody.boundary}`
+                      : `content-type: ${postBody.contentType}`,
+                  })
+                : wc.loadURL(details.url),
             ).pipe(Effect.ignore),
           );
           return { action: "deny" };
@@ -2542,6 +2547,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
           webContents: wc,
           debugger: control.debugger,
           cookiesCleared: () => runPromise(browserSession.cookiesCleared(wc.session)),
+          annotating: () => Ref.getUnsafe(pickSessionsRef).has(tabId),
         });
         // CDP cannot recover a failure that happened before it attached.
         const { navStatus } = afterAttach;
@@ -3141,7 +3147,10 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
               height: PICTURE_IN_PICTURE_INITIAL_HEIGHT,
               minWidth: PICTURE_IN_PICTURE_MIN_WIDTH,
               minHeight: PICTURE_IN_PICTURE_MIN_HEIGHT,
-              title: title.length > 0 ? `Preview · ${title}` : "Browser preview",
+              title:
+                title.length > 0
+                  ? m(msg("Preview · {title}"), { title })
+                  : m(msg("Browser preview")),
               show: false,
               alwaysOnTop: true,
               autoHideMenuBar: true,

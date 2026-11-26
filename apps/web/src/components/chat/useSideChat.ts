@@ -41,6 +41,8 @@ import {
   releaseSentComposerDraft,
 } from "../../state/threadOutboxEditing";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
+import { useMessages } from "gt-react";
+import { m } from "../../i18n/messages";
 
 const NOT_PENDING_ATOM = Atom.make(false).pipe(Atom.withLabel("side-chat:worktree-not-pending"));
 
@@ -51,6 +53,7 @@ export function useSideChatBlockedReason(input: {
   readonly thread: Pick<EnvironmentThreadShell, "id" | "lineage" | "deletedAt"> | null;
   readonly sideChatDraft?: boolean;
 }): string | null {
+  const messages = useMessages();
   const { environmentId, thread } = input;
   const serverConfig = useServerConfigs().get(environmentId ?? ("" as EnvironmentId)) ?? null;
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
@@ -59,20 +62,23 @@ export function useSideChatBlockedReason(input: {
       ? environmentThreadDetails.worktreePendingAtom(scopeThreadRef(environmentId, thread.id))
       : NOT_PENDING_ATOM,
   );
-  return sideChatStartBlockedReason({
-    parent:
-      thread === null
-        ? { kind: "draft", sideChat: input.sideChatDraft === true }
-        : {
-            kind: "thread",
-            lineage: thread.lineage,
-            deletedAt: thread.deletedAt,
-            worktreePending,
-          },
-    canOperate,
-    supported:
-      serverConfig === null ? null : serverConfig.environment.capabilities.sideChats === true,
-  });
+  return sideChatStartBlockedReason(
+    {
+      parent:
+        thread === null
+          ? { kind: "draft", sideChat: input.sideChatDraft === true }
+          : {
+              kind: "thread",
+              lineage: thread.lineage,
+              deletedAt: thread.deletedAt,
+              worktreePending,
+            },
+      canOperate,
+      supported:
+        serverConfig === null ? null : serverConfig.environment.capabilities.sideChats === true,
+    },
+    messages,
+  );
 }
 
 /** Sends a side chat draft's first message; see `sendSideChatFirstMessage`. */
@@ -84,6 +90,7 @@ export async function sendSideChatDraftMessage<A>(input: {
 }) {
   const { draftId, ...send } = input;
   const result = await sendSideChatFirstMessage({
+    resolve: m,
     registry: appAtomRegistry,
     forkSideChat: threadEnvironment.forkSideChat,
     readThread: readThreadShell,
@@ -135,6 +142,7 @@ export function useSideChat(input: {
   };
   readonly onError: (message: string) => void;
 }) {
+  const messages = useMessages();
   const openPaneThread = usePaneThreadNavigation();
 
   const openDraft = (prompt = "", from?: ComposerThreadTarget) => {
@@ -202,7 +210,8 @@ export function useSideChat(input: {
               ...(content?.context ? { context: content.context } : {}),
             },
             modelSelection,
-            titleSeed: content?.titleSeed ?? deriveThreadTitleSeed({ text, attachments: [] }),
+            titleSeed:
+              content?.titleSeed ?? deriveThreadTitleSeed({ text, attachments: [] }, messages),
             runtimeMode,
             interactionMode: modes.interactionMode,
             dispatchMode: "auto",

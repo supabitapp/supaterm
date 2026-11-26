@@ -74,11 +74,11 @@ export async function readVoiceRecording(
   }
   const check = checkVoiceRecordingWav(header, sizeBytes);
   if (!check.ok) {
-    throw new VoiceUploadError(
-      check.reason,
-      new TranscriptionError({ reason: check.reason }).message,
-      false,
-    );
+    throw new VoiceUploadError({
+      reason: check.reason,
+      message: new TranscriptionError({ reason: check.reason }).message,
+      retryable: false,
+    });
   }
   return { durationMs: check.durationMs, sizeBytes: check.sizeBytes };
 }

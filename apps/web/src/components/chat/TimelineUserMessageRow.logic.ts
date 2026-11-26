@@ -1,9 +1,14 @@
 import type { ChatFileAttachment, ChatImageAttachment } from "../../types";
 import type { KnownComposerContextRecord, ComposerContextRecord } from "@supaterm/contracts";
 import { asKnownContextRecord } from "~/lib/composerContextRecords";
+import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
-export function userMessageFileLabel(file: Pick<ChatFileAttachment, "name" | "source">) {
-  return file.source?._tag === "pasted-text" ? "Pasted text" : file.name;
+export function userMessageFileLabel(
+  file: Pick<ChatFileAttachment, "name" | "source">,
+  resolve: MessageResolver = m,
+) {
+  return file.source?._tag === "pasted-text" ? resolve(msg("Pasted text")) : file.name;
 }
 
 export function resolvePreviewAnnotationImage(input: {

@@ -1,6 +1,5 @@
-import { MinusIcon, PlusIcon } from "@supaterm/icons";
 import { pipe } from "effect/Function";
-import { ThreadDetailsControl } from "./ThreadDetailsControl";
+import { ThreadDetailsMoreButton } from "./ThreadDetailsControl";
 import type {
   EnvironmentId,
   ScopedThreadRef,
@@ -14,7 +13,6 @@ import {
   threadPullRequestKeyOf,
   visibleThreadPullRequests,
 } from "@supaterm/client-runtime/thread-pull-requests";
-
 import { useState, type ComponentProps, type MouseEvent as ReactMouseEvent } from "react";
 
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
@@ -37,6 +35,7 @@ import {
 } from "../ThreadStatusIndicators";
 
 import { ThreadDetailsPrRow } from "./ThreadDetailsPrRow";
+import { useMessages } from "gt-react";
 
 function ThreadDetailsPrLinkRow({
   environmentId,
@@ -53,6 +52,7 @@ function ThreadDetailsPrLinkRow({
   onActed?: (() => void) | undefined;
   onStopWatching?: (() => void) | undefined;
 }) {
+  const m = useMessages();
   const projects = useProjects();
   const parsed = sourceControlClients.parseChangeRequestUrl(link.url)?.link;
   const project =
@@ -70,7 +70,7 @@ function ThreadDetailsPrLinkRow({
       pr={pr}
       number={link.number}
       reference={link}
-      status={prStatusIndicator(pr, linked?.sourceControlProvider)}
+      status={prStatusIndicator(pr, linked?.sourceControlProvider, m)}
       project={project}
       title={link.snapshot?.title ?? null}
       composerTarget={composerTarget}
@@ -118,7 +118,6 @@ function ThreadDetailsPrRows({
           .filter((link) => threadPullRequestKeyOf(link) !== threadPullRequestKeyOf(currentLink));
   if (rest.length === 0) return currentRow;
 
-  const Icon = expanded ? MinusIcon : PlusIcon;
   return (
     <>
       {currentRow}
@@ -139,17 +138,11 @@ function ThreadDetailsPrRows({
           </div>
         </CollapsiblePanel>
       </Collapsible>
-      <ThreadDetailsControl
-        variant="ghost"
-        size="sm"
-        onClick={() => setExpanded(!expanded)}
-        part="row"
-        tone="muted"
-        className="w-full active:scale-100"
-      >
-        <Icon aria-hidden className="size-3.5 shrink-0" />
-        {expanded ? "Show less" : `Show ${rest.length} more`}
-      </ThreadDetailsControl>
+      <ThreadDetailsMoreButton
+        expanded={expanded}
+        remaining={rest.length}
+        onToggle={() => setExpanded(!expanded)}
+      />
     </>
   );
 }

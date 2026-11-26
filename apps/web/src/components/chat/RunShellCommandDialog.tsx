@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import { useRef, type ReactNode } from "react";
 
 import {
@@ -24,6 +25,7 @@ export function RunShellCommandDialog({
   onRun: (command: string) => void;
   children: ReactNode;
 }) {
+  const gt = useGT();
   const runButtonRef = useRef<HTMLButtonElement>(null);
   const ranRef = useRef(false);
 
@@ -32,9 +34,14 @@ export function RunShellCommandDialog({
       {/* Running focuses the thread terminal; returning focus to the trigger would steal it back. */}
       <AlertDialogPopup initialFocus={runButtonRef} finalFocus={() => !ranRef.current}>
         <AlertDialogHeader>
-          <AlertDialogTitle>Run {lineCount} lines in terminal?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {gt(
+              "{count, plural, one {Run {count} lines in terminal?} other {Run {count} lines in terminal?}}",
+              { count: lineCount },
+            )}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            Review the script before running it in this thread's terminal.
+            <T>Review the script before running it in this thread's terminal.</T>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="px-6 pb-6">
@@ -43,7 +50,9 @@ export function RunShellCommandDialog({
           </div>
         </div>
         <AlertDialogFooter>
-          <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+          <AlertDialogClose render={<Button variant="outline" />}>
+            <T>Cancel</T>
+          </AlertDialogClose>
           <Button
             ref={runButtonRef}
             onClick={() => {
@@ -52,7 +61,7 @@ export function RunShellCommandDialog({
               onRun(command);
             }}
           >
-            Run
+            <T context="verb, runs the script in the terminal">Run</T>
           </Button>
         </AlertDialogFooter>
       </AlertDialogPopup>

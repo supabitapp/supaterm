@@ -6,6 +6,7 @@ import {
   ExternalLauncherBrowserSpawnError,
   ExternalLauncherCommandNotFoundError,
   ExternalLauncherEditorSpawnError,
+  ExternalLauncherRevealTargetMissingError,
   ExternalLauncherUnknownEditorError,
   ExternalLauncherUnsupportedEditorError,
   ExternalLauncherUnsupportedTargetError,
@@ -15,11 +16,7 @@ import {
 } from "@supaterm/contracts";
 import { resolveEditorCommand } from "@supaterm/shared/editor";
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import {
-  isCommandAvailable,
-  resolveSpawnCommand,
-  withPathDirectoryListings,
-} from "@supaterm/shared/shell";
+import { isCommandAvailable, resolveSpawnCommand } from "@supaterm/shared/shell";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -40,6 +37,7 @@ export {
   ExternalLauncherBrowserSpawnError,
   ExternalLauncherCommandNotFoundError,
   ExternalLauncherEditorSpawnError,
+  ExternalLauncherRevealTargetMissingError,
   ExternalLauncherUnknownEditorError,
   ExternalLauncherUnsupportedEditorError,
   ExternalLauncherUnsupportedTargetError,
@@ -51,12 +49,14 @@ interface EditorLaunch {
   readonly command: string;
   readonly args: ReadonlyArray<string>;
   readonly detached?: boolean;
+  readonly waitForExit?: boolean;
 }
 
 interface ProcessLaunch {
   readonly command: string;
   readonly args: ReadonlyArray<string>;
   readonly options: ChildProcess.CommandOptions;
+  readonly waitForExit?: boolean;
 }
 
 interface TargetPathAndPosition {
@@ -519,7 +519,7 @@ const readEditorEnv = Effect.fn("externalLauncher.readEditorEnv")(function* () {
 const resolveAvailableEditors = Effect.fn("externalLauncher.resolveAvailableEditors")(function* () {
   const platform = yield* HostProcess.Platform;
   const env = yield* readEditorEnv();
-  return yield* buildAvailableEditors(platform, env).pipe(withPathDirectoryListings);
+  return yield* buildAvailableEditors(platform, env);
 });
 
 const resolveFileManagerRevealKind = Effect.fn("externalLauncher.resolveFileManagerRevealKind")(
@@ -614,6 +614,25 @@ const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   }
 
   if (input.reveal === true) {
+    // Explorer answers /select of a missing path by opening its default folder, not the parent.
+    const exists = yield* (yield* FileSystem.FileSystem)
+      .exists(target)
+      .pipe(Effect.orElseSucceed(() => true));
+    if (!exists) {
+      const missing = new ExternalLauncherRevealTargetMissingError({
+        editor: editorDef.id,
+        target,
+      });
+      return yield* input.acceptRevealTargetMissing === true
+        ? missing
+        : new ExternalLauncherEditorSpawnError({
+            editor: editorDef.id,
+            target,
+            command,
+            args: [],
+            cause: missing,
+          });
+    }
     return yield* resolveFileManagerRevealLaunch(target, platform, env, command);
   }
 
@@ -678,7 +697,14 @@ const resolveFileManagerRevealLaunch = Effect.fn("resolveFileManagerRevealLaunch
   FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 > {
   if (platform === "darwin") {
-    return { editor: "file-manager", target, command: "open", args: ["-R", target] };
+    // `open -R` reports targets Finder cannot reveal only through its exit status.
+    return {
+      editor: "file-manager",
+      target,
+      command: "open",
+      args: ["-R", target],
+      waitForExit: true,
+    };
   }
 
   if (platform === "win32") {
@@ -896,7 +922,7 @@ const readGraphicalSessionEnv = Effect.fn("externalLauncher.readGraphicalSession
   Effect.orElseSucceed((): NodeJS.ProcessEnv => ({})),
 );
 
-const launchAndUnref = Effect.fn("externalLauncher.launchAndUnref")(function* (
+const launchProcess = Effect.fn("externalLauncher.launchProcess")(function* (
   launch: ProcessLaunch,
   onError: (cause: unknown) => ExternalLauncherError,
 ): Effect.fn.Return<void, ExternalLauncherError, ChildProcessSpawner.ChildProcessSpawner> {
@@ -908,6 +934,14 @@ const launchAndUnref = Effect.fn("externalLauncher.launchAndUnref")(function* (
     env: { ...env, ...launch.options.env },
     extendEnv: false,
   });
+
+  if (launch.waitForExit) {
+    const exitCode = yield* spawner.exitCode(command).pipe(Effect.mapError(onError));
+    if (exitCode !== 0) {
+      return yield* onError(new Error(`${launch.command} exited with status ${exitCode}`));
+    }
+    return;
+  }
 
   yield* spawner.spawn(command).pipe(
     Effect.flatMap((handle) => handle.unref),
@@ -921,7 +955,7 @@ const launchBrowser = Effect.fn("externalLauncher.launchBrowser")(function* (
   target: string,
 ): Effect.fn.Return<void, ExternalLauncherError, ChildProcessSpawner.ChildProcessSpawner> {
   const launch = yield* resolveBrowserLaunch(target);
-  return yield* launchAndUnref(
+  return yield* launchProcess(
     launch,
     (cause) =>
       new ExternalLauncherBrowserSpawnError({
@@ -952,10 +986,11 @@ const launchEditorProcess = Effect.fn("externalLauncher.launchEditorProcess")(fu
   if (spawnCommand.shell && launch.args.some((arg) => WINDOWS_SHIM_UNSAFE_ARG_PATTERN.test(arg))) {
     return yield* new ExternalLauncherUnsupportedTargetError({ editor: launch.editor });
   }
-  yield* launchAndUnref(
+  yield* launchProcess(
     {
       command: spawnCommand.command,
       args: spawnCommand.args,
+      waitForExit: launch.waitForExit ?? false,
       options: {
         detached: launch.detached ?? true,
         shell: spawnCommand.shell,

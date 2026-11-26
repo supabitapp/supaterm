@@ -162,7 +162,7 @@ describe("runMigrations", () => {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       yield* runMigrations();
-      const nextId = migrationManifest.length + 1;
+      const nextId = Math.max(...migrationManifest.map(([id]) => id)) + 1;
       const newer = [
         [nextId, "ThreadFailureLookupIndex"],
         [nextId + 1, "FromANewerBuild"],

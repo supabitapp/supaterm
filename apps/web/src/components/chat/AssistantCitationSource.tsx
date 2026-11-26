@@ -7,6 +7,8 @@ import {
 } from "~/lib/assistantTextSelection";
 import { toastManager } from "../ui/toast";
 import { observeResize } from "~/lib/observeResize";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const CITATION_PULSE_DURATION_MS = 650;
 const CITATION_HIGHLIGHT_HOLD_MS = 1575;
@@ -196,8 +198,8 @@ function observeAssistantCitationSource({
             request.onComplete();
             toastManager.add({
               type: "warning",
-              title: "Could not open the cited response",
-              description: "Click the citation to try again.",
+              title: m(msg("Could not open the cited response")),
+              description: m(msg("Click the citation to try again.")),
             });
           },
         );
@@ -217,8 +219,8 @@ function observeAssistantCitationSource({
       if (!range && !opaque) {
         toastManager.add({
           type: "warning",
-          title: "The quoted text has changed",
-          description: "Showing the source response. The saved quote is unchanged.",
+          title: m(msg("The quoted text has changed")),
+          description: m(msg("Showing the source response. The saved quote is unchanged.")),
         });
       }
     }

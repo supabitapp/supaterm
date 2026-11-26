@@ -161,6 +161,8 @@ function commandThreadIds(command: OrchestrationV2Command): ReadonlyArray<Thread
     case "thread.pull-request.link":
     case "thread.pull-request.unlink":
     case "thread.pull-request-link.sync":
+    case "thread.issue.link":
+    case "thread.issue.unlink":
     case "thread.pull-request.watch":
     case "thread.pull-request.sync":
     case "thread.title.regeneration.complete":
@@ -223,8 +225,13 @@ function scenarioCommands(scenario: OrchestratorV2Scenario): ReadonlyArray<Orche
 const findPendingRuntimeRequest = (projection: OrchestrationV2ThreadProjection) =>
   projection.runtimeRequests.find((request) => request.status === "pending");
 
+// A run completes before its turn-end checkpoint capture; the scenario settles after both.
 const hasUnsettledRun = (projection: OrchestrationV2ThreadProjection) =>
-  projection.runs.some((run) => isOrchestrationV2RunUnsettled(run.status));
+  projection.runs.some(
+    (run) =>
+      isOrchestrationV2RunUnsettled(run.status) ||
+      (run.status === "completed" && run.checkpointId === null),
+  );
 
 const SCENARIO_WAIT_ATTEMPTS = 10_000;
 // Iteration budgets burn through idle event-loop turns during async I/O; exhaust both iterations and wall-clock deadline.

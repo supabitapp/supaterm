@@ -1,7 +1,6 @@
+import { parseNewThreadLink, parseThreadLinkPrompt } from "@supaterm/shared/promptLinksCopy";
 import {
   type LinkedPrompt,
-  parseNewThreadLink,
-  parseThreadLinkPrompt,
   promptLinkAppPath,
   promptLinkDeepLink,
 } from "@supaterm/shared/promptLinks";
@@ -17,43 +16,75 @@ import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
+import { T, useGT, msg, useMessages } from "gt-react";
+
+import type { MessageResolver } from "../../i18n/messages";
 
 const OPENER_STORAGE_KEY = "supaterm:prompt-link-opener";
 const Opener = Schema.NullOr(Schema.Literals(["app", "browser"]));
 const DOWNLOAD_URL = "https://supaterm.com/download";
 
 interface LinkSummary {
+  readonly title: string;
+  readonly description: string;
   readonly prompt: LinkedPrompt | null;
   readonly details: ReadonlyArray<string>;
 }
 
 function summarize(
   appPath: string,
+  resolve: MessageResolver,
 ): { ok: true; value: LinkSummary } | { ok: false; error: string } {
+  const PROMPT_HEADER = {
+    title: resolve(msg("Open this prompt")),
+    description: resolve(msg("It opens as a draft. Nothing runs until you press Send.")),
+  };
   const url = new URL(appPath, window.location.origin);
   if (url.pathname !== "/new") {
-    const prompt = parseThreadLinkPrompt(url.search);
+    const prompt = parseThreadLinkPrompt(url.search, resolve);
     return prompt.ok
-      ? { ok: true, value: { prompt: prompt.value, details: ["Opens one of your threads."] } }
+      ? {
+          ok: true,
+          value: {
+            ...PROMPT_HEADER,
+            prompt: prompt.value,
+            details: [resolve(msg("Opens one of your threads."))],
+          },
+        }
       : prompt;
   }
-  const link = parseNewThreadLink(url.search);
+  const link = parseNewThreadLink(url.search, resolve);
   if (!link.ok) return link;
   if (link.value.kind === "pull-request") {
     const { owner, name, number } = link.value.pullRequest;
     return {
       ok: true,
-      value: { prompt: link.value.prompt, details: [`Pull request ${owner}/${name}#${number}`] },
+      value: {
+        ...PROMPT_HEADER,
+        prompt: link.value.prompt,
+        details: [
+          resolve(msg("Pull request {pullRequest}", { pullRequest: `${owner}/${name}#${number}` })),
+        ],
+      },
     };
   }
   const { repository, provider, model } = link.value;
   return {
     ok: true,
     value: {
+      ...PROMPT_HEADER,
       prompt: link.value.prompt,
       details: [
-        repository ? `Repository ${repository.owner}/${repository.name}` : "No project",
-        ...(provider ? [`Model ${model ? `${provider} ${model}` : provider}`] : []),
+        repository
+          ? resolve(
+              msg("Repository {repository}", {
+                repository: `${repository.owner}/${repository.name}`,
+              }),
+            )
+          : resolve(msg("No project")),
+        ...(provider
+          ? [resolve(msg("Model {model}", { model: model ? `${provider} ${model}` : provider }))]
+          : []),
       ],
     },
   };
@@ -103,7 +134,9 @@ function HostedPromptLinkLanding({
   readonly openInAppRemembered: boolean;
   readonly onChoose: (choice: "app" | "browser", remember: boolean) => void;
 }) {
-  const summary = summarize(appPath);
+  const gt = useGT();
+  const m = useMessages();
+  const summary = summarize(appPath, m);
   const [remember, setRemember] = useState(false);
   const deepLink = promptLinkDeepLink(appPath);
   const onPhone = /android|iphone|ipad/i.test(navigator.userAgent);
@@ -119,24 +152,25 @@ function HostedPromptLinkLanding({
   if (!summary.ok) {
     return (
       <StandalonePage>
-        <StandalonePageHeader title="Could not open the link" description={summary.error} />
+        <StandalonePageHeader title={gt("Could not open the link")} description={summary.error} />
       </StandalonePage>
     );
   }
 
-  const { prompt, details } = summary.value;
+  const { title, description, prompt, details } = summary.value;
   return (
     <StandalonePage>
-      <StandalonePageHeader
-        title="Open this prompt"
-        description="It opens as a draft. Nothing runs until you press Send."
-      />
+      <StandalonePageHeader title={title} description={description} />
       {prompt !== null && prompt.hiddenCharacters > 0 ? (
         <Alert className="mt-5" variant="error">
-          <AlertTitle>This prompt had hidden characters, it may be malicious</AlertTitle>
+          <AlertTitle>
+            <T>This prompt had hidden characters, it may be malicious</T>
+          </AlertTitle>
           <AlertDescription>
-            Supaterm removed {prompt.hiddenCharacters} hidden character
-            {prompt.hiddenCharacters === 1 ? "" : "s"}. Read the prompt before you send it.
+            {gt(
+              "{count, plural, one {Supaterm removed {count} hidden character. Read the prompt before you send it.} other {Supaterm removed {count} hidden characters. Read the prompt before you send it.}}",
+              { count: prompt.hiddenCharacters },
+            )}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -148,20 +182,20 @@ function HostedPromptLinkLanding({
       <p className="mt-3 text-xs text-muted-foreground">{details.join(" · ")}</p>
       <div className="mt-6 flex flex-wrap gap-2">
         <Button render={<a href={deepLink} />} onClick={() => onChoose("app", remember)}>
-          {onPhone ? "Open in app" : "Open in desktop app"}
+          {onPhone ? gt("Open in app") : gt("Open in desktop app")}
         </Button>
         {canContinue ? (
           <Button variant="outline" onClick={() => onChoose("browser", remember)}>
-            Continue here
+            <T>Continue here</T>
           </Button>
         ) : null}
         <Button variant="ghost" render={<a href={DOWNLOAD_URL} />}>
-          Get Supaterm
+          <T>Get Supaterm</T>
         </Button>
       </div>
       <label className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Checkbox checked={remember} onCheckedChange={(checked) => setRemember(checked === true)} />
-        Remember my choice
+        <T>Remember my choice</T>
       </label>
     </StandalonePage>
   );

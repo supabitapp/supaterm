@@ -6,7 +6,7 @@ import type {
   PullRequestMergeMethod,
 } from "@supaterm/contracts";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
-import { RefreshCwIcon, TriangleAlertIcon } from "@supaterm/icons";
+import { ClockIcon, RefreshCwIcon, TriangleAlertIcon, XIcon } from "@supaterm/icons";
 import { useState } from "react";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -19,7 +19,10 @@ import type { ChangeRequestTerminology } from "~/sourceControlPresentation";
 import { PullRequestStackLayers } from "./PullRequestStackLayers";
 import { PullRequestStackHeader } from "./PullRequestStackHeader";
 import { PullRequestGlyph } from "./pullRequestIcons";
-import { readableFailure } from "./pullRequestDetail.logic";
+import { mergeHeadPin, readableFailure } from "./pullRequestDetail.logic";
+import { msg, T, useGT, Var } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
+import { m } from "~/i18n/messages";
 
 export function PullRequestStackMenu({
   hostLabel,
@@ -27,9 +30,14 @@ export function PullRequestStackMenu({
   stack,
   reference,
   environmentId,
+  shownHeadSha,
   stale,
   canMerge,
   canRebase,
+  canAutoMerge,
+  preferAutoMerge,
+  autoMergeArmed,
+  canCancelAutoMerge,
   mergeMethod,
   onSelect,
   onActed,
@@ -43,15 +51,27 @@ export function PullRequestStackMenu({
   stack: PullRequestStack;
   reference: PullRequestRef;
   environmentId: EnvironmentId;
+  /** The head of `reference` the reader was shown; the stack read can run ahead of it. */
+  shownHeadSha: string | undefined;
   stale: boolean;
   canMerge: boolean;
   canRebase: boolean;
+  /** The host can arm auto-merge for this layer and the open layers below it. */
+  canAutoMerge: boolean;
+  /** Checks are still running, so arming auto-merge leads over merging now. */
+  preferAutoMerge: boolean;
+  /** This layer carries a stack auto-merge request, which covers the layers below it. */
+  autoMergeArmed: boolean;
+  canCancelAutoMerge: boolean;
   mergeMethod: PullRequestMergeMethod;
   onSelect?: ((reference: PullRequestRef) => void) | undefined;
   onActed: () => void;
 }) {
+  const gt = useGT();
   const [open, setOpen] = useState(false);
-  const confirm = useInlineConfirm<"merge" | "menu-merge" | "menu-rebase">();
+  const confirm = useInlineConfirm<
+    "merge" | "auto-merge" | "menu-merge" | "menu-auto-merge" | "menu-rebase"
+  >();
   const [pending, setPending] = useState(false);
   const runAction = useAtomCommand(pullRequestEnvironment.runAction, { reportFailure: false });
   const top = stack.layers.at(-1);
@@ -73,20 +93,33 @@ export function PullRequestStackMenu({
     mergeHasClosed ||
     mergeLayers.length === 0 ||
     mergeLayers.some((layer) => layer.isDraft);
-  const staleReason = notice ?? "Checking the stack with the host…";
+  const staleReason = notice ?? gt("Checking the stack with the host…");
   const rebaseDisabled = pending || stale || hasUnknownHead || hasClosed || unmerged.length === 0;
-  const run = async (action: "merge" | "update-branch") => {
-    if (pending || (action === "merge" ? !canMerge || mergeDisabled : !canRebase || rebaseDisabled))
+  const run = async (action: "merge" | "enable-auto-merge" | "update-branch") => {
+    if (
+      pending ||
+      (action === "merge"
+        ? !canMerge || mergeDisabled
+        : action === "enable-auto-merge"
+          ? !canAutoMerge || autoMergeArmed || mergeDisabled
+          : !canRebase || rebaseDisabled)
+    )
       return;
-    const target = action === "merge" ? selectedLayer : top;
+    const merging = action !== "update-branch";
+    const target = merging ? selectedLayer : top;
     if (!target?.headSha) return;
-    const actionHeads = (action === "merge" ? mergeLayers : unmerged).flatMap((layer) =>
+    const actionHeads = (merging ? mergeLayers : unmerged).flatMap((layer) =>
       layer.headSha ? [{ number: layer.number, headSha: layer.headSha }] : [],
     );
     setPending(true);
     const toastId = toastManager.add({
       type: "loading",
-      title: action === "merge" ? "Merging stack..." : "Rebasing stack...",
+      title:
+        action === "merge"
+          ? m(msg("Merging stack..."))
+          : action === "enable-auto-merge"
+            ? m(msg("Enabling stack auto-merge..."))
+            : m(msg("Rebasing stack...")),
     });
     const result = await runAction({
       environmentId,
@@ -95,8 +128,9 @@ export function PullRequestStackMenu({
         number: target.number,
         stackNumber: stack.number,
         expectedStackHeads: actionHeads,
+        ...mergeHeadPin(action, shownHeadSha),
         action,
-        ...(action === "merge" ? { mergeMethod } : { updateMethod: "rebase" }),
+        ...(merging ? { mergeMethod } : { updateMethod: "rebase" }),
       },
     });
     setPending(false);
@@ -104,26 +138,75 @@ export function PullRequestStackMenu({
     if (result._tag === "Failure") {
       toastManager.update(toastId, {
         type: "error",
-        title: action === "merge" ? "Could not merge the stack" : "Could not rebase the stack",
+        title:
+          action === "merge"
+            ? m(msg("Could not merge the stack"))
+            : action === "enable-auto-merge"
+              ? m(msg("Could not enable stack auto-merge"))
+              : m(msg("Could not rebase the stack")),
         description: readableFailure(
           squashAtomCommandFailure(result),
-          action === "merge"
-            ? "The host refused the merge. Check that you have write access, that the checks it requires have passed, and that the branch is not conflicting."
-            : "The host refused the rebase. A rebase stops at the first commit that does not apply cleanly.",
+          merging
+            ? m(
+                msg(
+                  "The host refused the merge. Check that you have write access, that the checks it requires have passed, and that the branch is not conflicting.",
+                ),
+              )
+            : m(
+                msg(
+                  "The host refused the rebase. A rebase stops at the first commit that does not apply cleanly.",
+                ),
+              ),
         ),
       });
     } else {
       toastManager.update(toastId, {
         type: "success",
-        title: action === "merge" ? "Stack merge request completed" : "Stack rebased",
+        title:
+          action === "merge"
+            ? m(msg("Stack merge request completed"))
+            : action === "enable-auto-merge"
+              ? m(msg("Stack auto-merge enabled"))
+              : m(msg("Stack rebased")),
         description:
           action === "merge"
-            ? `${hostLabel} merged the stack or added it to its merge queue.`
-            : undefined,
+            ? m(msg("{host} merged the stack or added it to its merge queue.", { host: hostLabel }))
+            : action === "enable-auto-merge"
+              ? m(
+                  msg("{host} merges the stack through #{number} once its requirements are met.", {
+                    host: hostLabel,
+                    number: reference.number,
+                  }),
+                )
+              : undefined,
       });
     }
   };
-  const mergeCountLabel = `${mergeLayers.length} ${mergeLayers.length === 1 ? terminology.singular : terminology.plural}`;
+  const cancelAutoMerge = async () => {
+    if (pending || !canCancelAutoMerge) return;
+    setPending(true);
+    const result = await runAction({
+      environmentId,
+      input: { ...reference, stackNumber: stack.number, action: "disable-auto-merge" },
+    });
+    setPending(false);
+    onActed();
+    if (result._tag === "Failure") {
+      toastManager.add({
+        type: "error",
+        title: m(msg("Could not cancel stack auto-merge")),
+        description: readableFailure(
+          squashAtomCommandFailure(result),
+          m(msg("The host refused to cancel auto-merge. Refresh and try again.")),
+        ),
+      });
+    }
+  };
+  const leadsWithAutoMerge = canAutoMerge && preferAutoMerge;
+  const buttonAction = leadsWithAutoMerge ? "enable-auto-merge" : "merge";
+  const buttonKey = leadsWithAutoMerge ? "auto-merge" : "merge";
+  const buttonArmed = confirm.armed === buttonKey;
+  const term = changeRequestTermKind(terminology);
   return (
     <>
       <Menu open={open} onOpenChange={setOpen}>
@@ -135,7 +218,11 @@ export function PullRequestStackMenu({
                   <Button
                     variant="ghost"
                     size="xs"
-                    aria-label={`Stack ${stack.number}, layer ${position} of ${stack.layers.length}`}
+                    aria-label={gt("Stack {number}, layer {position} of {size}", {
+                      number: stack.number,
+                      position,
+                      size: stack.layers.length,
+                    })}
                   />
                 }
               >
@@ -146,14 +233,21 @@ export function PullRequestStackMenu({
             }
           />
           <TooltipPopup>
-            View stack #{stack.number}, layer {position} of {stack.layers.length}
+            <T>
+              View stack #<Var>{stack.number}</Var>, layer <Var>{position}</Var> of{" "}
+              <Var>{stack.layers.length}</Var>
+            </T>
             {notice ? ` · ${notice}` : null}
           </TooltipPopup>
         </Tooltip>
         <MenuPopup align="start">
           <MenuGroup>
             <PullRequestStackHeader number={stack.number} notice={notice} stale={!!onRetry} />
-            {onRetry ? <MenuItem onClick={onRetry}>Retry stack refresh</MenuItem> : null}
+            {onRetry ? (
+              <MenuItem onClick={onRetry}>
+                <T>Retry stack refresh</T>
+              </MenuItem>
+            ) : null}
             <PullRequestStackLayers
               stack={stack}
               reference={reference}
@@ -168,16 +262,35 @@ export function PullRequestStackMenu({
               }
             />
           </MenuGroup>
-          {canMerge || canRebase ? (
+          {canMerge || canRebase || canAutoMerge || canCancelAutoMerge ? (
             <>
               <MenuSeparator />
-              {canMerge ? (
+              {canMerge && !autoMergeArmed ? (
                 <MenuItem
                   {...confirm.bind("menu-merge", () => void run("merge"))}
                   disabled={mergeDisabled}
                 >
                   <PullRequestGlyph.merged aria-hidden />
-                  {`${confirm.armed === "menu-merge" ? "Confirm merge" : "Merge stack"} (${mergeLayers.length})`}
+                  {confirm.armed === "menu-merge"
+                    ? gt("Confirm merge ({count})", { count: mergeLayers.length })
+                    : gt("Merge stack ({count})", { count: mergeLayers.length })}
+                </MenuItem>
+              ) : null}
+              {canAutoMerge && !autoMergeArmed ? (
+                <MenuItem
+                  {...confirm.bind("menu-auto-merge", () => void run("enable-auto-merge"))}
+                  disabled={mergeDisabled}
+                >
+                  <ClockIcon aria-hidden />
+                  {confirm.armed === "menu-auto-merge"
+                    ? gt("Confirm auto-merge ({count})", { count: mergeLayers.length })
+                    : gt("Auto-merge stack ({count})", { count: mergeLayers.length })}
+                </MenuItem>
+              ) : null}
+              {autoMergeArmed && canCancelAutoMerge ? (
+                <MenuItem disabled={pending} onClick={() => void cancelAutoMerge()}>
+                  <XIcon aria-hidden />
+                  <T>Cancel stack auto-merge</T>
                 </MenuItem>
               ) : null}
               {canRebase ? (
@@ -186,53 +299,100 @@ export function PullRequestStackMenu({
                   disabled={rebaseDisabled}
                 >
                   <RefreshCwIcon aria-hidden />
-                  {confirm.armed === "menu-rebase" ? "Confirm rebase" : "Rebase stack"}
+                  {confirm.armed === "menu-rebase" ? gt("Confirm rebase") : gt("Rebase stack")}
                 </MenuItem>
               ) : null}
               {confirm.armed === "menu-merge" ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  Merges {mergeCountLabel} into {stack.base} using {mergeMethod}.
+                  {gt(
+                    "Merges {count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}} into {base} using {method}.",
+                    { count: mergeLayers.length, term, base: stack.base, method: mergeMethod },
+                  )}
+                </p>
+              ) : confirm.armed === "menu-auto-merge" ? (
+                <p className="px-2 py-1 text-xs text-muted-foreground">
+                  {gt(
+                    "Merges {count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}} into {base} using {method} once each meets the requirements on {host}. This may happen immediately.",
+                    {
+                      count: mergeLayers.length,
+                      term,
+                      base: stack.base,
+                      method: mergeMethod,
+                      host: hostLabel,
+                    },
+                  )}
                 </p>
               ) : confirm.armed === "menu-rebase" ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  Rewrites each branch onto {stack.base}, bottom to top. Checks may restart.
+                  <T>
+                    Rewrites each branch onto <Var>{stack.base}</Var>, bottom to top. Checks may
+                    restart.
+                  </T>
                 </p>
               ) : null}
               {mergeHasClosed || mergeLayers.some((layer) => layer.isDraft) ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  Every layer being merged must be open and ready for review.
+                  <T>Every layer being merged must be open and ready for review.</T>
                 </p>
               ) : null}
             </>
           ) : null}
         </MenuPopup>
       </Menu>
-      {canMerge && selectedLayer?.state === "open" ? (
+      {(leadsWithAutoMerge || canMerge) && !autoMergeArmed && selectedLayer?.state === "open" ? (
         <InlineConfirmTooltip
-          armed={confirm.armed === "merge"}
+          armed={buttonArmed}
           render={<span className="inline-flex" />}
           tip={
             stale
               ? staleReason
-              : `Merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`
+              : leadsWithAutoMerge
+                ? gt(
+                    "Auto-merge stack through #{number} into {base} ({count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}}) once its requirements are met",
+                    { number: reference.number, count: mergeLayers.length, term, base: stack.base },
+                  )
+                : gt(
+                    "Merge stack through #{number} into {base} ({count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}})",
+                    { number: reference.number, count: mergeLayers.length, term, base: stack.base },
+                  )
           }
-          armedTip={`Click again to merge ${mergeCountLabel} into ${stack.base} using ${mergeMethod}`}
+          armedTip={
+            leadsWithAutoMerge
+              ? gt(
+                  "Click again to auto-merge {count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}} into {base} using {method}. This may happen immediately.",
+                  { count: mergeLayers.length, term, base: stack.base, method: mergeMethod },
+                )
+              : gt(
+                  "Click again to merge {count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}} into {base} using {method}",
+                  { count: mergeLayers.length, term, base: stack.base, method: mergeMethod },
+                )
+          }
         >
           <Button
-            {...(mergeDisabled ? {} : confirm.bind("merge", () => void run("merge")))}
+            {...(mergeDisabled ? {} : confirm.bind(buttonKey, () => void run(buttonAction)))}
             variant="default"
             size="xs"
             disabled={mergeDisabled && !stale}
             aria-disabled={mergeDisabled || undefined}
             aria-description={stale ? staleReason : undefined}
           >
-            <InlineConfirmIcon armed={confirm.armed === "merge"}>
-              <PullRequestGlyph.merged aria-hidden className="size-3.5" />
+            <InlineConfirmIcon armed={buttonArmed}>
+              {leadsWithAutoMerge ? (
+                <ClockIcon aria-hidden className="size-3.5" />
+              ) : (
+                <PullRequestGlyph.merged aria-hidden className="size-3.5" />
+              )}
             </InlineConfirmIcon>
             <InlineConfirmLabel
-              armed={confirm.armed === "merge"}
-              idle={pending ? "Working…" : "Merge stack"}
-              confirm="Confirm merge"
+              armed={buttonArmed}
+              idle={
+                pending
+                  ? gt("Working…")
+                  : leadsWithAutoMerge
+                    ? gt("Auto-merge stack")
+                    : gt("Merge stack")
+              }
+              confirm={leadsWithAutoMerge ? gt("Confirm auto-merge") : gt("Confirm merge")}
             />
           </Button>
         </InlineConfirmTooltip>

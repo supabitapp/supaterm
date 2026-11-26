@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import { CircleGaugeIcon, DollarSignIcon } from "@supaterm/icons";
 import type { ComponentProps, ReactNode } from "react";
 
@@ -21,6 +22,7 @@ export function ThreadDetailsUsage({
   contextWindow: ComponentProps<typeof ContextWindowDetails> | null;
   children?: ReactNode;
 }) {
+  const gt = useGT();
   const usage = contextWindow?.usage;
   if (!usage && !children) return null;
 
@@ -31,7 +33,7 @@ export function ThreadDetailsUsage({
   return (
     <ThreadDetailsSection
       headingId="thread-details-usage-heading"
-      title="Usage"
+      title={gt("Usage", { $context: "thread details section heading" })}
       showHeading={false}
     >
       {contextWindow && usage ? (
@@ -50,7 +52,9 @@ export function ThreadDetailsUsage({
                   )}
                 >
                   <CircleGaugeIcon aria-hidden className={THREAD_DETAILS_PANEL_ICON_CLASS} />
-                  <dt className="min-w-0 flex-1 truncate">Context used</dt>
+                  <dt className="min-w-0 flex-1 truncate">
+                    <T>Context used</T>
+                  </dt>
                   <dd
                     className={cn(
                       "m-0 flex shrink-0 items-center gap-2 font-normal text-muted-foreground tabular-nums",
@@ -72,7 +76,8 @@ export function ThreadDetailsUsage({
                       </span>
                     ) : null}
                     <span className="min-w-10 text-right pointer-coarse:min-w-11">
-                      {percentage ?? `${formatContextWindowTokens(usage.usedTokens)} tokens`}
+                      {percentage ??
+                        gt("{used} tokens", { used: formatContextWindowTokens(usage.usedTokens) })}
                     </span>
                   </dd>
                 </div>
@@ -92,7 +97,9 @@ export function ThreadDetailsUsage({
           {cost !== null ? (
             <div className={cn(THREAD_DETAILS_PANEL_LOCKED_ROW_CLASS, "flex items-center")}>
               <DollarSignIcon aria-hidden className={THREAD_DETAILS_PANEL_ICON_CLASS} />
-              <dt className="min-w-0 flex-1 truncate">Estimated cost</dt>
+              <dt className="min-w-0 flex-1 truncate">
+                <T>Estimated cost</T>
+              </dt>
               <Tooltip>
                 <TooltipTrigger
                   render={

@@ -78,4 +78,36 @@ describe("ElectronMenu", () => {
       ),
     ),
   );
+
+  it.effect("shows ampersands in labels instead of reading them as mnemonics", () =>
+    Effect.gen(function* () {
+      buildFromTemplateMock.mockImplementation(() => ({
+        popup: (options: Electron.PopupOptions) => options.callback?.(),
+      }));
+      const electronMenu = yield* ElectronMenu.ElectronMenu;
+      yield* electronMenu.showContextMenu({
+        window: makeWindow(),
+        items: [
+          { id: "filter", label: "Filter by R&D" },
+          { id: "more", label: "A&B", children: [{ id: "child", label: "C && D" }] },
+        ],
+        position: Option.none(),
+        source: Option.none(),
+      });
+
+      const template = buildFromTemplateMock.mock.calls[0]?.[0] as
+        | Electron.MenuItemConstructorOptions[]
+        | undefined;
+      assert.deepEqual(
+        template?.map((item) => item.label),
+        ["Filter by R&&D", "A&&B"],
+      );
+      const submenu = template?.[1]?.submenu as Electron.MenuItemConstructorOptions[];
+      assert.equal(submenu[0]!.label, "C &&&& D");
+    }).pipe(
+      Effect.provide(
+        ElectronMenu.layer.pipe(Layer.provide(Layer.succeed(HostProcess.Platform, "win32"))),
+      ),
+    ),
+  );
 });

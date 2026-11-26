@@ -7,10 +7,12 @@ import type { ConnectionTarget, SupervisorConnectionState } from "./model.ts";
 import {
   connectionRouteAddress,
   connectionRouteId,
-  connectionRouteLabel,
+  connectionRouteLabelText,
   connectionRoutes,
   routeHttpBaseUrl,
 } from "./routes.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type EnvironmentConnectionPhase =
   | "available"
@@ -77,34 +79,42 @@ export function presentConnectionState(
   }
 }
 
-export function connectionStatusText(connection: EnvironmentConnectionPresentation): string {
+export function connectionStatusText(
+  connection: EnvironmentConnectionPresentation,
+  resolve: MFunctionType = mFallback,
+): string {
   switch (connection.phase) {
     case "available":
-      return "Available";
+      return resolve(msg("Available", { $context: "connection status" }));
     case "offline":
-      return "Offline";
+      return resolve(msg("Offline", { $context: "connection status" }));
     case "connecting":
-      return "Connecting...";
+      return resolve(msg("Connecting..."));
     case "reconnecting":
       return connection.error
-        ? `Failed to connect. Reconnecting... Reason: ${connection.error}`
-        : "Reconnecting...";
+        ? resolve(
+            msg("Failed to connect. Reconnecting... Reason: {error}", { error: connection.error }),
+          )
+        : resolve(msg("Reconnecting..."));
     case "connected":
-      return "Connected";
+      return resolve(msg("Connected", { $context: "connection status" }));
     case "unsupported":
-      return "Client not supported";
+      return resolve(msg("Client not supported"));
     case "error":
       return connection.error
-        ? `Connection failed. Reason: ${connection.error}`
-        : "Connection failed";
+        ? resolve(msg("Connection failed. Reason: {error}", { error: connection.error }))
+        : resolve(msg("Connection failed"));
   }
 }
 
-export function connectionStatusTitle(connection: EnvironmentConnectionPresentation): string {
+export function connectionStatusTitle(
+  connection: EnvironmentConnectionPresentation,
+  resolve: MFunctionType = mFallback,
+): string {
   if (connection.phase === "reconnecting" && connection.error) {
-    return "Failed to connect. Reconnecting...";
+    return resolve(msg("Failed to connect. Reconnecting..."));
   }
-  return connectionStatusText({ ...connection, error: null });
+  return connectionStatusText({ ...connection, error: null }, resolve);
 }
 
 export function environmentMcpUrl(input: {
@@ -152,27 +162,30 @@ export function connectionCatalogDisplayUrl(entry: ConnectionCatalogEntry): stri
   }
 }
 
-export function connectionAddressLabel(url: string): string {
+export function connectionAddressLabel(url: string, resolve: MFunctionType = mFallback): string {
   const name = relayName(url);
-  return name === null ? url : `Relay · ${name}`;
+  return name === null ? url : resolve(msg("Relay · {name}", { name }));
 }
 
-export function environmentConnectionAddress(input: {
-  readonly entry: ConnectionCatalogEntry;
-  readonly connectionState: EnvironmentConnectionPhase;
-  readonly connectedTarget?: ConnectionTarget | null;
-}): string | null {
+export function environmentConnectionAddress(
+  input: {
+    readonly entry: ConnectionCatalogEntry;
+    readonly connectionState: EnvironmentConnectionPhase;
+    readonly connectedTarget?: ConnectionTarget | null;
+  },
+  resolve: MFunctionType = mFallback,
+): string | null {
   if (input.entry.enabled && input.connectionState === "connected" && input.connectedTarget) {
     const activeId = connectionRouteId(input.connectedTarget);
     const route = connectionRoutes(input.entry).find(
       (candidate) => connectionRouteId(candidate.target) === activeId,
     );
     if (route !== undefined) {
-      const label = connectionRouteLabel(route);
+      const label = connectionRouteLabelText(route, resolve);
       const address = connectionRouteAddress(route);
       return address === null ? label : `${label} · ${address}`;
     }
   }
   const savedAddress = connectionCatalogDisplayUrl(input.entry);
-  return savedAddress === null ? null : connectionAddressLabel(savedAddress);
+  return savedAddress === null ? null : connectionAddressLabel(savedAddress, resolve);
 }

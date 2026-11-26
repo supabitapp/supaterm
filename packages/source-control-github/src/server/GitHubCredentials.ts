@@ -16,7 +16,11 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import { readSourceControlHostSettings } from "@supaterm/source-control-core/shared/definition";
-import type { ServerSettings } from "@supaterm/contracts";
+import {
+  requireSettingsSecretLiteral,
+  type ServerSettings,
+  type SettingsSecretUnresolvedError,
+} from "@supaterm/contracts";
 
 import * as GitHubClient from "../shared/definition.ts";
 import { makeGhProcess } from "./gitHubCliProcess.ts";
@@ -56,7 +60,7 @@ export class GitHubNotSignedInError extends Schema.TaggedError<GitHubNotSignedIn
   override get message(): string {
     return this.account === undefined
       ? `No GitHub credential for ${this.host}: run \`gh auth login --hostname ${this.host}\`.`
-      : `No GitHub credential for ${this.account} on ${this.host}: run \`gh auth login --hostname ${this.host}\` for that account or pick another in Settings → Source Control.`;
+      : `No GitHub credential for ${this.account} on ${this.host}: run \`gh auth login --hostname ${this.host}\` for that account or pick another in Settings → Source control & issues.`;
   }
 }
 
@@ -65,7 +69,7 @@ export class GitHubHostDisabledError extends Schema.TaggedError<GitHubHostDisabl
   { host: Schema.String },
 ) {
   override get message(): string {
-    return `GitHub host ${this.host} is turned off in Settings → Source Control.`;
+    return `GitHub host ${this.host} is turned off in Settings → Source control & issues.`;
   }
 }
 
@@ -92,7 +96,8 @@ export type GitHubCredentialUnavailableError =
   | GitHubNotSignedInError
   | GitHubHostDisabledError
   | GitHubCliFailedError
-  | GitHubCliTimeoutError;
+  | GitHubCliTimeoutError
+  | SettingsSecretUnresolvedError;
 
 export class GitHubCredentials extends Context.Service<
   GitHubCredentials,
@@ -206,9 +211,16 @@ export const make = Effect.gen(function* () {
     );
 
   const savedToken = (host: string) =>
-    sourceControlHost.settings.get.pipe(
-      Effect.map((settings) => readSettings(settings).tokens[host]?.trim() || null),
-      Effect.orElseSucceed(() => null),
+    sourceControlHost.settings.getWithSecrets(GitHubClient.definition.kind).pipe(
+      Effect.map((settings) => ({
+        token: readSettings(settings).tokens[host],
+        secretProviders: settings.secretProviders,
+      })),
+      Effect.orElseSucceed(() => ({ token: undefined, secretProviders: {} })),
+      Effect.flatMap(({ token, secretProviders }) =>
+        requireSettingsSecretLiteral(token, secretProviders),
+      ),
+      Effect.map((token) => token.trim() || null),
     );
 
   const cacheKey = (host: string, account: string | undefined) =>

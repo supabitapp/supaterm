@@ -30,6 +30,7 @@ import { useMarkdownCodeHighlight } from "./markdownCodeHighlightState";
 import { QuestionAnswerHistory } from "./QuestionAnswerHistory";
 import { ThreadCommandOutput, useCommandOutputStreaming } from "./thread-command-output";
 import { ThreadMarkdownImage } from "./ThreadMarkdownImage";
+import { useGT } from "gt-react-native";
 
 function ToolCodeText({
   code,
@@ -100,6 +101,7 @@ export function ThreadWorkLogDetail(props: {
   readonly onPressPreview: (source: FilePreviewSource) => void;
   readonly themeAppearance: "light" | "dark";
 }) {
+  const gt = useGT();
   const { row } = props;
   // Command rows stream their output, including the final output, from the server.
   const streamsOutput = useCommandOutputStreaming(props.environmentId, row.projectedItem);
@@ -144,18 +146,18 @@ export function ThreadWorkLogDetail(props: {
       ? turnItemOutputText(shownItem)
       : fetchedItem
         ? (turnItemOutputText(fetchedItem) ??
-          (outputImages.length > 0 || viewedImagePath ? null : "No output."))
+          (outputImages.length > 0 || viewedImagePath ? null : gt("No output.")))
         : fetchedDetail.error
-          ? `Couldn't load output: ${fetchedDetail.error}`
+          ? gt("Couldn't load output: {error}", { error: fetchedDetail.error })
           : row.fetchesDetail
             ? fetchedDetail.data
-              ? "Output is no longer available."
-              : "Loading output…"
+              ? gt("Output is no longer available.")
+              : gt("Loading output…")
             : null;
   const exitLine =
     failedExitCode === null ? null : (
       <Text className="mt-1.5 font-mono text-2xs leading-normal text-danger-foreground">
-        exit {failedExitCode}
+        {gt("exit {code}", { code: failedExitCode, $context: "failed command exit status" })}
       </Text>
     );
   return (

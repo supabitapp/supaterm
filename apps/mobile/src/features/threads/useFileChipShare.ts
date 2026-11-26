@@ -9,12 +9,14 @@ import { assetEnvironment } from "../../state/assets";
 import { usePreparedConnection } from "../../state/session";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import { fileChipShareSource, type FileChipTarget } from "./fileChipMenu";
+import { useGT } from "gt-react-native";
 
 export function useFileChipShare(
   environmentId: EnvironmentId,
   threadId: ThreadId,
   sourceIdentifier: string,
 ) {
+  const gt = useGT();
   const connection = usePreparedConnection(environmentId);
   const httpBaseUrl = Option.isSome(connection) ? connection.value.httpBaseUrl : null;
   const createUrl = useAtomQueryRunner(assetEnvironment.createUrl, {
@@ -31,7 +33,7 @@ export function useFileChipShare(
     const request = new AbortController();
     requestRef.current = request;
     void (async () => {
-      if (httpBaseUrl === null) throw new Error("Reconnect to the environment and try again.");
+      if (httpBaseUrl === null) throw new Error(gt("Reconnect to the environment and try again."));
       const result = await createUrl(
         { environmentId, input: { resource: source.resource } },
         { signal: request.signal },
@@ -39,7 +41,8 @@ export function useFileChipShare(
       if (request.signal.aborted) return;
       const url =
         result._tag === "Success" ? resolveAssetUrl(httpBaseUrl, result.value.relativeUrl) : null;
-      if (url === null) throw new Error("The file could not be loaded. Reconnect and try again.");
+      if (url === null)
+        throw new Error(gt("The file could not be loaded. Reconnect and try again."));
       await downloadAndShareAttachment({
         url,
         attachment: source,
@@ -50,8 +53,8 @@ export function useFileChipShare(
       .catch((error: unknown) => {
         if (!request.signal.aborted) {
           Dialog.alert(
-            "Could not share file",
-            error instanceof Error ? error.message : "Try again.",
+            gt("Could not share file"),
+            error instanceof Error ? error.message : gt("Try again."),
           );
         }
       })

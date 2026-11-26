@@ -12,8 +12,10 @@ import { useEnvironmentPreviewTunnelOff } from "../../state/entities";
 import { useEnvironments } from "../../state/environments";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { BrowserChrome } from "./BrowserBar";
-import { loopbackUrlForDevice } from "./browserTabs";
+import { localPreviewUrlForDevice } from "./browserTabs";
 import { TunnelWebView, type TunnelNavigation, type TunnelWebViewRef } from "./TunnelWebView";
+import { msg, useGT } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 type LocalPreviewRouteScreenProps = StaticScreenProps<{
   readonly environmentId: string;
@@ -41,10 +43,12 @@ export function LocalPreviewScreen(props: {
   readonly onClose: () => void;
   readonly onMaximize?: (url: string) => void;
 }) {
+  const gt = useGT();
   const { environmentId, onMaximize } = props;
   const initialUrl = forDevice(props.url);
   const environmentLabel =
-    useEnvironments().presentationById.get(environmentId)?.entry.target.label ?? "the environment";
+    useEnvironments().presentationById.get(environmentId)?.entry.target.label ??
+    gt("the environment", { $context: "stands in for an environment name in a sentence" });
   const { themeVariables } = useAppearancePreferences();
   const tunnelOff = useEnvironmentPreviewTunnelOff(environmentId);
   const webView = useRef<TunnelWebViewRef>(null);
@@ -62,7 +66,7 @@ export function LocalPreviewScreen(props: {
     const normalized = normalizedOrNull(value);
     const next = normalized === null ? null : forDevice(normalized);
     if (next === null) {
-      Dialog.alert("Could not open this address", "Enter an http or https URL.");
+      Dialog.alert(m(msg("Could not open this address")), m(msg("Enter an http or https URL.")));
       return;
     }
     setFailed(false);
@@ -133,8 +137,12 @@ export function LocalPreviewScreen(props: {
                 <View className="w-full max-w-md">
                   <EmptyState
                     variant="plain"
-                    title={`${environmentLabel} doesn't share its localhost`}
-                    detail="The preview tunnel is off there, so its local servers only open in the streamed browser."
+                    title={gt("{environment} doesn't share its localhost", {
+                      environment: environmentLabel,
+                    })}
+                    detail={gt(
+                      "The preview tunnel is off there, so its local servers only open in the streamed browser.",
+                    )}
                   />
                 </View>
               </View>
@@ -146,8 +154,10 @@ export function LocalPreviewScreen(props: {
                 <View className="w-full max-w-md">
                   <EmptyState
                     variant="plain"
-                    title="This device can't open localhost pages"
-                    detail={`${unsupported} You can still use the streamed browser for this tab.`}
+                    title={gt("This device can't open localhost pages")}
+                    detail={gt("{reason} You can still use the streamed browser for this tab.", {
+                      reason: unsupported,
+                    })}
                   />
                 </View>
               </View>
@@ -162,19 +172,28 @@ export function LocalPreviewScreen(props: {
                     variant="plain"
                     title={
                       outdated
-                        ? `Update Supaterm on ${environmentLabel}`
+                        ? gt("Update Supaterm on {environment}", { environment: environmentLabel })
                         : disconnected
-                          ? `Not connected to ${environmentLabel}`
-                          : `Can't reach ${hostOf(current)}`
+                          ? gt("Not connected to {environment}", { environment: environmentLabel })
+                          : gt("Can't reach {host}", { host: hostOf(current) })
                     }
                     detail={
                       outdated
-                        ? `${environmentLabel} runs a version of Supaterm that can't open its localhost pages on this device. Update it there, then try again.`
+                        ? gt(
+                            "{environment} runs a version of Supaterm that can't open its localhost pages on this device. Update it there, then try again.",
+                            { environment: environmentLabel },
+                          )
                         : disconnected
-                          ? `Pages on ${environmentLabel}’s localhost load through its connection. Try again once it reconnects.`
-                          : `Nothing is listening on port ${portOf(current)} on ${environmentLabel}. Start the server there, then try again.`
+                          ? gt(
+                              "Pages on {environment}’s localhost load through its connection. Try again once it reconnects.",
+                              { environment: environmentLabel },
+                            )
+                          : gt(
+                              "Nothing is listening on port {port} on {environment}. Start the server there, then try again.",
+                              { port: portOf(current), environment: environmentLabel },
+                            )
                     }
-                    actionLabel="Try again"
+                    actionLabel={gt("Try again")}
                     onAction={retry}
                   />
                   {debug ? (
@@ -212,9 +231,9 @@ function hostOf(value: string): string {
   }
 }
 
-// The unspecified address would name the phone itself, so it becomes the environment's localhost.
+// A route URL that is not a web address opens the preview empty, ready for one to be typed.
 function forDevice(url: string): string {
-  return loopbackUrlForDevice(url) ?? url;
+  return localPreviewUrlForDevice(url) ?? "";
 }
 
 function normalizedOrNull(value: string): string | null {

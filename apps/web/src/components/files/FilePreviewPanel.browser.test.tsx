@@ -1,5 +1,10 @@
 import { DEFAULT_THEMES, preloadHighlighter } from "@pierre/diffs";
-import { EnvironmentId, ThreadId, type ProjectReadFileResult } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ThreadId,
+  type ProjectReadFileResult,
+  type ScopedThreadRef,
+} from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -18,9 +23,11 @@ const state = vi.hoisted(() => ({
   optimistic: null as ProjectReadFileResult | null,
   writeFile: vi.fn(),
   assetUrl: { _tag: "Loading" } as import("~/assets/assetUrls").AssetUrlState,
+  assetResources: [] as Array<import("@supaterm/contracts").AssetResource>,
   mintUrl: vi.fn<() => Promise<string | null>>(),
   browserAssetMints: 0,
   openedBrowserUrls: [] as string[],
+  draftFileDownloads: false,
 }));
 
 vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => ({
@@ -45,9 +52,15 @@ vi.mock(import("~/state/server"), async (original) => {
   const actual = await original();
   const { Atom } = await import("effect/reactivity");
   const noConfig = Atom.make(null);
+  const draftDownloads = Atom.make({
+    environment: { capabilities: { draftFileDownloads: true } },
+  });
   return {
     ...actual,
-    serverEnvironment: { ...actual.serverEnvironment, configValueAtom: (() => noConfig) as never },
+    serverEnvironment: {
+      ...actual.serverEnvironment,
+      configValueAtom: (() => (state.draftFileDownloads ? draftDownloads : noConfig)) as never,
+    },
   };
 });
 vi.mock(import("~/remoteOpen"), async (original) => ({
@@ -58,6 +71,7 @@ vi.mock(import("~/remoteOpen"), async (original) => ({
 vi.mock(import("~/hooks/useTheme"), async (original) => ({
   ...(await original()),
   useTheme: () => ({ resolvedTheme: "dark" }) as never,
+  useRenderedAppearance: () => "dark",
 }));
 vi.mock(import("~/hooks/useWorkspaceMutationRefresh"), () => ({
   useWorkspaceMutationRefresh: vi.fn(),
@@ -65,7 +79,13 @@ vi.mock(import("~/hooks/useWorkspaceMutationRefresh"), () => ({
 vi.mock(import("~/assets/assetUrls"), async (original) => ({
   ...(await original()),
   useAssetUrlRefresh: () => state.mintUrl,
-  useAssetUrlState: () => state.assetUrl,
+  useAssetUrlState: (
+    _environmentId: unknown,
+    resource: import("@supaterm/contracts").AssetResource | null,
+  ) => {
+    if (resource) state.assetResources.push(resource);
+    return state.assetUrl;
+  },
 }));
 vi.mock(import("~/browser/previewRuntime"), async (original) => ({
   ...(await original()),
@@ -161,6 +181,7 @@ vi.mock(import("./projectFilesQueryState"), async (original) => ({
   confirmProjectFileQueryData: () => true,
 }));
 
+import { DraftId } from "~/composerDraftStore";
 import FilePreviewPanel from "./FilePreviewPanel";
 
 const environmentId = EnvironmentId.make("markdown-preview-test");
@@ -173,7 +194,9 @@ function setup() {
   state.file = null;
   state.optimistic = null;
   state.assetUrl = { _tag: "Loading" };
+  state.assetResources = [];
   state.openedBrowserUrls = [];
+  state.draftFileDownloads = false;
   let mints = 0;
   state.mintUrl.mockReset().mockImplementation(async () => `/assets/report.docx?mint=${++mints}`);
   state.writeFile.mockReset().mockResolvedValue(AsyncResult.success(undefined));
@@ -188,17 +211,26 @@ function setup() {
   };
 }
 
-function markdownPreview(truncated: boolean, contents = "- [ ] Keep the rest of this file\n") {
+function markdownPreview(
+  truncated: boolean,
+  contents = "- [ ] Keep the rest of this file\n",
+  relativePath = "tasks.md",
+) {
   state.file = {
-    relativePath: "tasks.md",
+    relativePath,
     contents,
     byteLength: truncated ? 1_200_000 : contents.length,
     truncated,
   };
-  return filePreview("tasks.md");
+  return filePreview(relativePath);
 }
 
-function filePreview(relativePath: string, workspaceMutationId: string | null = null) {
+function filePreview(
+  relativePath: string,
+  workspaceMutationId: string | null = null,
+  revealLine: number | null = null,
+  composerDraftTarget: ScopedThreadRef | DraftId = threadRef,
+) {
   return (
     <FilePreviewPanel
       environmentId={environmentId}
@@ -206,12 +238,12 @@ function filePreview(relativePath: string, workspaceMutationId: string | null = 
       projectName="Project"
       relativePath={relativePath}
       threadRef={threadRef}
-      composerDraftTarget={threadRef}
+      composerDraftTarget={composerDraftTarget}
       keybindings={[]}
       availableEditors={[]}
       openInShortcutEnabled={false}
-      revealLine={null}
-      revealRequestId={0}
+      revealLine={revealLine}
+      revealRequestId={revealLine === null ? 0 : 1}
       onOpenFile={vi.fn()}
       onNavigateFolder={vi.fn()}
       folderTrail={undefined}
@@ -504,6 +536,63 @@ describe("source file scroll", () => {
     },
   );
 
+  it("reveals a linked line past the first read once the rest of the file arrives", async () => {
+    using _settings = setup();
+    const style = document.createElement("style");
+    style.textContent = appCss;
+    document.head.append(style);
+    using _style = { [Symbol.dispose]: () => style.remove() };
+    await preloadHighlighter({ themes: Object.values(DEFAULT_THEMES), langs: ["typescript"] });
+    const lines = Array.from({ length: 1200 }, (_, i) => `const line${i + 1} = ${i + 1};`);
+    state.file = {
+      relativePath: "large.ts",
+      contents: `${lines.slice(0, 100).join("\n")}\n`,
+      byteLength: 1_200_000,
+      truncated: true,
+    };
+    state.assetUrl = {
+      _tag: "Success",
+      url: "/assets/large.ts",
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    };
+    let releaseDownload: (response: Response) => void = () => {};
+    const download = new Promise<Response>((resolve) => {
+      releaseDownload = resolve;
+    });
+    const realFetch = globalThis.fetch;
+    using _fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((input, init) =>
+        new URL(String(input), location.href).pathname === "/assets/large.ts"
+          ? download
+          : realFetch(input, init),
+      );
+    const scroller = () => document.querySelector<HTMLElement>(".file-preview-virtualizer");
+
+    await using screen = await render(
+      <div style={{ height: 400, display: "flex", flexDirection: "column" }}>
+        {filePreview("large.ts", null, 800)}
+      </div>,
+    );
+    await vi.waitFor(() => expect(scroller()?.scrollTop).toBeGreaterThan(0));
+    releaseDownload(new Response(`${lines.join("\n")}\n`));
+
+    const visibleLines = () => {
+      const viewport = scroller()!.getBoundingClientRect();
+      const rows =
+        screen.container
+          .querySelector("diffs-container")
+          ?.shadowRoot?.querySelectorAll<HTMLElement>("[data-line]") ?? [];
+      return [...rows].flatMap((row) => {
+        const box = row.getBoundingClientRect();
+        return box.height > 0 && box.top >= viewport.top && box.bottom <= viewport.bottom
+          ? [Number(row.getAttribute("data-line"))]
+          : [];
+      });
+    };
+    await vi.waitFor(() => expect(visibleLines()).toContain(800));
+  });
+
   it("scrolls a find match below many wrapped lines into view", async () => {
     using _settings = setup();
     const style = document.createElement("style");
@@ -557,18 +646,65 @@ describe("source file scroll", () => {
   });
 });
 
+describe("large draft files", () => {
+  it.each([false, true])(
+    "downloads a large draft file only from a server that serves draft downloads: %s",
+    async (draftFileDownloads) => {
+      using _settings = setup();
+      state.draftFileDownloads = draftFileDownloads;
+      // An older server refuses the download, as it does a text file it cannot preview.
+      if (!draftFileDownloads) state.assetUrl = { _tag: "Failure" };
+      state.file = {
+        relativePath: "notes.txt",
+        contents: "The first megabyte of notes\n",
+        byteLength: 1_200_000,
+        truncated: true,
+      };
+      await using screen = await render(
+        filePreview("notes.txt", null, null, DraftId.make("draft-1")),
+      );
+      const download = {
+        _tag: "draft-workspace-file",
+        cwd: "/workspace",
+        path: "/workspace/notes.txt",
+        disposition: "attachment",
+      };
+      if (draftFileDownloads) {
+        await expect.element(screen.getByRole("button", { name: "Save file" })).toBeVisible();
+        expect(state.assetResources).toContainEqual(download);
+      } else {
+        await expect.element(screen.getByRole("button", { name: /word wrap/ })).toBeVisible();
+        expect(screen.getByText("Unable to load file preview.").query()).toBeNull();
+        expect(screen.getByRole("button", { name: "Save file" }).query()).toBeNull();
+        expect(state.assetResources).not.toContainEqual(download);
+      }
+    },
+  );
+});
+
 describe("rendered Markdown task saves", () => {
-  it("keeps a truncated read read-only without queuing a replacement", async () => {
+  it("renders the whole file of a truncated read, read-only", async () => {
     using _settings = setup();
+    state.assetUrl = {
+      _tag: "Success",
+      url: "/assets/tasks.md",
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    };
+    const realFetch = globalThis.fetch;
+    using _fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((input, init) =>
+        new URL(String(input), location.href).pathname === "/assets/tasks.md"
+          ? Promise.resolve(
+              new Response("- [ ] Keep the rest of this file\n\nPast the first megabyte\n"),
+            )
+          : realFetch(input, init),
+      );
     await using screen = await render(markdownPreview(true));
-    using _timers = fakeTimers();
+    await expect.element(screen.getByText("Past the first megabyte")).toBeVisible();
     const checkbox = screen.container.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
-    expect(checkbox).not.toBeNull();
     expect(checkbox.disabled).toBe(true);
-    expect(checkbox.readOnly).toBe(true);
     await act(async () => checkbox.click());
-    await vi.advanceTimersByTimeAsync(500);
-    expect(checkbox.checked).toBe(false);
     expect(state.optimistic).toBeNull();
     expect(state.writeFile).not.toHaveBeenCalled();
   });
@@ -576,6 +712,8 @@ describe("rendered Markdown task saves", () => {
   it("still toggles and saves tasks from a complete read", async () => {
     using _settings = setup();
     await using screen = await render(markdownPreview(false));
+    // The virtualized list mounts its pieces after measuring the viewport.
+    await expect.element(screen.getByRole("checkbox")).toBeInTheDocument();
     using _timers = fakeTimers();
     const checkbox = screen.container.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
     expect(checkbox).not.toBeNull();
@@ -698,5 +836,21 @@ describe("rendered Markdown select all", () => {
     // A toggled checkbox keeps focus on an input inside the preview.
     await userEvent.click(screen.getByRole("checkbox"));
     await expectFileOnlySelection();
+  });
+});
+
+describe("rendered Markdown relative images", () => {
+  it.each([
+    ["2026-11-23T14:05/README.md", "/workspace/2026-11-23T14:05/diagram.png"],
+    ["/README.md", "/diagram.png"],
+  ])("resolves relative images in %s against its folder", async (relativePath, expectedPath) => {
+    using _settings = setup();
+    await using _screen = await render(
+      markdownPreview(false, "![diagram](diagram.png)\n", relativePath),
+    );
+    await vi.waitFor(() => expect(state.assetResources).not.toHaveLength(0));
+    expect(state.assetResources).toContainEqual(
+      expect.objectContaining({ _tag: "media-file", path: expectedPath }),
+    );
   });
 });

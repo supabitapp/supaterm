@@ -2,8 +2,10 @@ import { MessageId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { isMacPlatform } from "@supaterm/shared/keybindings";
 import { type CxOptions, cx } from "class-variance-authority";
 import * as Hex from "effect/encoding/Hex";
+import { msg } from "gt-react";
 import { extendTailwindMerge } from "tailwind-merge";
 import { DraftId } from "../draftId";
+import { m, type MessageResolver } from "../i18n/messages";
 
 // Register extra font sizes so tailwind-merge does not treat text-2xs as a color.
 const twMerge = extendTailwindMerge({ extend: { theme: { text: ["2xs", "3xs", "4xs", "5xs"] } } });
@@ -22,14 +24,14 @@ export function normalizeSearchText(value: string): string {
   return value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-export function getLocalFileManagerName(platform: string): string {
+export function getLocalFileManagerName(platform: string, resolve: MessageResolver = m): string {
   if (isMacPlatform(platform)) {
     return "Finder";
   }
   if (isWindowsPlatform(platform)) {
-    return "File Explorer";
+    return resolve(msg("File Explorer", { $context: "the Windows file manager app" }));
   }
-  return "Files";
+  return resolve(msg("Files", { $context: "the Linux file manager app" }));
 }
 
 export function randomUUID(): string {

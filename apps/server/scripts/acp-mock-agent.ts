@@ -62,6 +62,9 @@ const emitTrackedToolCallKindThenHang =
   process.env.SUPATERM_ACP_EMIT_TRACKED_TOOL_CALL_KIND_THEN_HANG;
 const floodStderr = process.env.SUPATERM_ACP_FLOOD_STDERR === "1";
 const hangPromptForever = process.env.SUPATERM_ACP_HANG_PROMPT_FOREVER === "1";
+const agentVersion = process.env.SUPATERM_ACP_AGENT_VERSION ?? "0.0.0";
+const geminiApiKey = process.env.GEMINI_API_KEY;
+const idleError = process.env.SUPATERM_ACP_IDLE_ERROR;
 const clientFsProbePath = process.env.SUPATERM_ACP_CLIENT_FS_PROBE_PATH;
 const clientFsProbeLogPath = process.env.SUPATERM_ACP_CLIENT_FS_PROBE_LOG_PATH;
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
@@ -555,10 +558,7 @@ const program = Effect.gen(function* () {
       parameterizedModelPicker = request.capabilities?._meta?.parameterizedModelPicker === true;
       return {
         protocolVersion: 2,
-        info: {
-          name: "supaterm-acp-mock-agent",
-          version: process.env.SUPATERM_ACP_AGENT_VERSION ?? "0.0.0",
-        },
+        info: { name: "supaterm-acp-mock-agent", version: agentVersion },
         ...(omitInitializeModelState ? {} : { _meta: { modelState: modelState() } }),
         capabilities: {
           session: {
@@ -596,7 +596,7 @@ const program = Effect.gen(function* () {
       if (antigravityProfile) {
         if (
           request.methodId !== "oauth-personal" &&
-          !(request.methodId === "gemini-api-key" && process.env.GEMINI_API_KEY)
+          !(request.methodId === "gemini-api-key" && geminiApiKey)
         ) {
           return yield* AcpError.AcpRequestError.invalidParams(
             `Mock Antigravity rejected auth method ${request.methodId}.`,
@@ -942,7 +942,6 @@ const program = Effect.gen(function* () {
       }
       beginAcpMockPrompt(cancelledSessions, requestedSessionId);
       promptCount += 1;
-      const idleError = process.env.SUPATERM_ACP_IDLE_ERROR;
       if (idleError === "grok-background" && promptCount === 1) {
         // The structured completion lands before the prompt settles, so it is buffered.
         const taskId = "call-idle-error-background";

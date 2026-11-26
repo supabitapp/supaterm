@@ -2,14 +2,18 @@ import {
   CLIENT_GUARDED_RPC_SCOPES,
   type DeviceListInput,
   clientRpcRequiredScopes,
+  containsSecretReference,
   authScopeRequiredResponse,
   AssetCreateUrlInput,
   AuthAccessReadScope,
   ServerSettingsPatch,
   ProviderInstanceMutation,
+  changesProjectScripts,
   requiredScopesForServerSettingsPatch,
+  type SavedProjectScripts,
   requiredScopesForProjectMutation,
   ProjectMutation,
+  SecretRequestAnswerInput,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
   AuthEnvironmentMaintainScope,
@@ -138,6 +142,15 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.pullRequestsStack]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsLinkedThreads]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsDetail]: AuthOrchestrationReadScope,
+  [WS_METHODS.issuesList]: AuthOrchestrationReadScope,
+  [WS_METHODS.issuesDetail]: AuthOrchestrationReadScope,
+  [WS_METHODS.issuesComments]: AuthOrchestrationReadScope,
+  [WS_METHODS.issuesTemplates]: AuthOrchestrationReadScope,
+  [WS_METHODS.issuesCandidates]: AuthOrchestrationReadScope,
+  [WS_METHODS.issuesLinkedThreads]: AuthOrchestrationReadScope,
+  [WS_METHODS.issueTrackersList]: AuthOrchestrationReadScope,
+  [WS_METHODS.issueTrackersConnect]: AuthSettingsWriteScope,
+  [WS_METHODS.issueTrackersBindProject]: AuthSettingsWriteScope,
   [WS_METHODS.pullRequestsPreview]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsChecks]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsActivity]: AuthOrchestrationReadScope,
@@ -164,6 +177,9 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.projectsCreateNew]: AuthOrchestrationOperateScope,
   [WS_METHODS.shellOpenInEditor]: AuthOrchestrationOperateScope,
   [WS_METHODS.filesystemBrowse]: AuthFilesystemReadScope,
+  [WS_METHODS.workspaceListFolders]: AuthFilesystemReadScope,
+  [WS_METHODS.workspaceScanFolders]: AuthFilesystemReadScope,
+  [WS_METHODS.workspaceTaskFolder]: AuthFilesystemReadScope,
   [WS_METHODS.filesystemGetMetadata]: AuthFilesystemReadScope,
   [WS_METHODS.agentSessionsScan]: AuthOrchestrationReadScope,
   [WS_METHODS.agentSessionsImport]: AuthOrchestrationOperateScope,
@@ -246,12 +262,16 @@ const SettingsUpdate = Schema.Struct({
   providerInstanceMutation: Schema.optionalKey(ProviderInstanceMutation),
 });
 
-const decodeSettingsUpdate = Schema.decodeUnknownSync(SettingsUpdate);
+// Middleware receives the payload already decoded, so it is checked against the decoded shape.
+const decodeSettingsUpdate = Schema.decodeUnknownSync(Schema.toType(SettingsUpdate));
 const decodeAssetCreateUrlInput = Schema.decodeUnknownSync(AssetCreateUrlInput);
 
-const requiredScopesForSettingsUpdate = (payload: unknown) => {
+const requiredScopesForSettingsUpdate = (
+  payload: unknown,
+  saved: SavedProjectScripts | undefined,
+) => {
   const input = decodeSettingsUpdate(payload);
-  const scopes = requiredScopesForServerSettingsPatch(input.patch);
+  const scopes = requiredScopesForServerSettingsPatch(input.patch, saved);
   if (input.providerInstanceMutation === undefined) return scopes;
   return Object.values(input.patch).every((value) => value === undefined)
     ? [AuthProvidersManageScope]
@@ -259,6 +279,7 @@ const requiredScopesForSettingsUpdate = (payload: unknown) => {
 };
 
 const decodeProjectMutation = Schema.decodeUnknownSync(ProjectMutation);
+const decodeSecretRequestAnswer = Schema.decodeUnknownSync(SecretRequestAnswerInput);
 
 /**
  * A queued edit that omits `attachments` keeps the queued ones, which a payload cannot show;
@@ -289,6 +310,7 @@ const sendsProviderSignOutPrompt = (method: string, payload: unknown): boolean =
 const requiredScopesForRpcCall = (
   method: string,
   payload: unknown,
+  saved: SavedProjectScripts | undefined,
 ): ReadonlyArray<AuthEnvironmentScope> => {
   if (method === WS_METHODS.serverRetryResourceTelemetry) {
     return [AuthEnvironmentMaintainScope, AuthDiagnosticsReadScope];
@@ -304,7 +326,21 @@ const requiredScopesForRpcCall = (
         : AuthOrchestrationReadScope,
     ];
   }
-  if (method === WS_METHODS.serverUpdateSettings) return requiredScopesForSettingsUpdate(payload);
+  if (method === WS_METHODS.serverUpdateSettings) {
+    return requiredScopesForSettingsUpdate(payload, saved);
+  }
+  // This sends the credential it is given to Expo, as a saved setting would.
+  if (method === WS_METHODS.deviceEasAccount && containsSecretReference(payload)) {
+    return [AuthSettingsWriteScope, AuthProvidersManageScope];
+  }
+  // A reference answer has the server read a secret the caller names, as a saved reference does.
+  // Typed values can use any field names, so the answer's type decides, not its shape.
+  if (
+    method === WS_METHODS.secretsAnswerRequest &&
+    decodeSecretRequestAnswer(payload).answer.type === "reference"
+  ) {
+    return [AuthOrchestrationOperateScope, AuthProvidersManageScope];
+  }
   if (method === WS_METHODS.projectsMutate) {
     return requiredScopesForProjectMutation(decodeProjectMutation(payload));
   }
@@ -315,12 +351,32 @@ const requiredScopesForRpcCall = (
     : scopes;
 };
 
-export const layer = (scopes: ReadonlyArray<AuthEnvironmentScope>) =>
+/** The socket checks a stale snapshot, so the write repeats this under its lock. */
+export const authorizeProjectScripts =
+  (scopes: ReadonlyArray<AuthEnvironmentScope>, patch: ServerSettingsPatch) =>
+  (saved: SavedProjectScripts) =>
+    scopes.includes(AuthOrchestrationOperateScope) || !changesProjectScripts(patch, saved)
+      ? Effect.void
+      : Effect.fail(rpcAuthorizationError(AuthOrchestrationOperateScope));
+
+/** Without `readSaved`, any project script a settings patch carries needs `orchestration:operate`. */
+export const layer = <E = never>(
+  scopes: ReadonlyArray<AuthEnvironmentScope>,
+  readSaved?: Effect.Effect<SavedProjectScripts, E>,
+) =>
   Layer.succeed(RpcScopeAuthorization)((effect, { rpc, payload }) => {
-    const requiredScopes = requiredScopesForRpcCall(rpc._tag, payload);
-    const requiredScope = requiredScopes.find((scope) => !scopes.includes(scope));
-    if (requiredScope !== undefined) return Effect.fail(rpcAuthorizationError(requiredScope));
-    return effect;
+    const authorize = (saved: SavedProjectScripts | undefined) => {
+      const requiredScopes = requiredScopesForRpcCall(rpc._tag, payload, saved);
+      const requiredScope = requiredScopes.find((scope) => !scopes.includes(scope));
+      if (requiredScope !== undefined) return Effect.fail(rpcAuthorizationError(requiredScope));
+      return effect;
+    };
+    return readSaved !== undefined && rpc._tag === WS_METHODS.serverUpdateSettings
+      ? readSaved.pipe(
+          Effect.orElseSucceed(() => undefined),
+          Effect.flatMap(authorize),
+        )
+      : authorize(undefined);
   });
 
 /** Retrying can install or restart tools even though ordinary listing is readable. */

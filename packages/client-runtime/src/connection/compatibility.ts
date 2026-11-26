@@ -1,6 +1,9 @@
 import {
+  CLIENT_CAPABILITIES_QUERY_PARAM,
+  GIT_REF_NAMES_CAPABILITY,
   ORCHESTRATION_PROTOCOL_QUERY_PARAM,
   ORCHESTRATION_PROTOCOL_VERSION,
+  SETTINGS_SECRET_REFERENCES_CAPABILITY,
   type ExecutionEnvironmentDescriptor,
 } from "@supaterm/contracts";
 
@@ -36,5 +39,9 @@ function canSelfUpdate(descriptor: ExecutionEnvironmentDescriptor): boolean {
 export function appendOrchestrationProtocol(socketUrl: string): string {
   const url = new URL(socketUrl);
   url.searchParams.set(ORCHESTRATION_PROTOCOL_QUERY_PARAM, String(ORCHESTRATION_PROTOCOL_VERSION));
+  url.searchParams.set(
+    CLIENT_CAPABILITIES_QUERY_PARAM,
+    [SETTINGS_SECRET_REFERENCES_CAPABILITY, GIT_REF_NAMES_CAPABILITY].join(","),
+  );
   return url.toString();
 }

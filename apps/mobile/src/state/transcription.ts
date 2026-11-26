@@ -8,6 +8,7 @@ import {
   createServerVoiceTranscriber,
   createTranscriptionEnvironmentAtoms,
   uploadVoiceRecording,
+  isVoiceUploadError,
   VoiceUploadError,
   type StartedLiveDictation,
   type VoiceUploadResponse,
@@ -29,6 +30,7 @@ import {
   type TranscriptionUploadResult,
 } from "@supaterm/contracts";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { loadExpoFileSystem } from "../lib/expoFileSystem";
@@ -39,18 +41,19 @@ import { serverEnvironment } from "./server";
 import { environmentSession } from "./session";
 
 const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
+const isTranscriptionError = Schema.is(TranscriptionError);
 
 // Long enough for five minutes of audio to upload and transcribe on a slow link. Running out
 // only drops this wait: the server keeps working, and posting again joins it.
 const UPLOAD_TIMEOUT_MS = 120_000;
 
 function disconnected(cause: unknown): VoiceUploadError {
-  return new VoiceUploadError(
-    "disconnected",
-    "The recording couldn't reach the environment.",
-    true,
-    { cause },
-  );
+  return new VoiceUploadError({
+    reason: "disconnected",
+    message: "The recording couldn't reach the environment.",
+    retryable: true,
+    cause,
+  });
 }
 
 async function prepareUpload(
@@ -66,18 +69,20 @@ async function prepareUpload(
   if (result._tag === "Success") return result.value;
   if (isAtomCommandInterrupted(result)) throw disconnected(result.cause);
   const error = squashAtomCommandFailure(result);
-  if (error instanceof TranscriptionError) {
-    throw new VoiceUploadError(error.reason, error.message, error.reason === "rateLimited", {
+  if (isTranscriptionError(error)) {
+    throw new VoiceUploadError({
+      reason: error.reason,
+      message: error.message,
+      retryable: error.reason === "rateLimited",
       cause: error,
     });
   }
   if (shouldRetryThreadOutboxDelivery(error)) throw disconnected(error);
-  throw new VoiceUploadError(
-    undefined,
-    error instanceof Error ? error.message : "Transcription failed.",
-    false,
-    { cause: error },
-  );
+  throw new VoiceUploadError({
+    message: error instanceof Error ? error.message : "Transcription failed.",
+    retryable: false,
+    cause: error,
+  });
 }
 
 function environmentUrl(environmentId: EnvironmentId, relativeUrl: string): string {
@@ -158,13 +163,13 @@ export async function uploadEnvironmentVoiceRecording(input: {
       ...(input.signal ? { signal: input.signal } : {}),
     });
   } catch (error) {
-    if (error instanceof VoiceUploadError && error.reason === "unsupportedLanguage") {
-      throw new VoiceUploadError(
-        error.reason,
-        `${error.message} Choose another provider under Voice transcription in Settings.`,
-        false,
-        { cause: error },
-      );
+    if (isVoiceUploadError(error) && error.reason === "unsupportedLanguage") {
+      throw new VoiceUploadError({
+        reason: error.reason,
+        message: `${error.message} Choose another provider under Voice transcription in Settings.`,
+        retryable: false,
+        cause: error,
+      });
     }
     throw error;
   }

@@ -302,7 +302,10 @@ const linkAntigravityUserConfig = Effect.fn("linkAntigravityUserConfig")(functio
         // An empty folder is the harness's placeholder from a launch without the link.
         // rmdir refuses a non-empty folder, so content added meanwhile is never deleted.
         Effect.catch((error) =>
-          Effect.tryPromise(() => NodeFSP.rmdir(link)).pipe(
+          Effect.tryPromise({
+            try: () => NodeFSP.rmdir(link),
+            catch: (cause) => new AntigravitySkillLinkError({ link, cause }),
+          }).pipe(
             Effect.as(undefined),
             Effect.mapError(() => error),
           ),

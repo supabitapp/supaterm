@@ -28,16 +28,31 @@ import { toastManager } from "../ui/toast";
 import { PullRequestCandidatePicker } from "./PullRequestCandidatePicker";
 import { PullRequestActorLabel } from "./pullRequestPresentation";
 import { readableFailure } from "./pullRequestDetail.logic";
+import { msg, T, useGT, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
-const TRUNCATED_LABELS: Record<ReviewerTruncation, (error: string | null) => string> = {
-  unsearchable: () =>
-    "This repository has more people with access than are listed here. Ask for the rest on the host.",
-  searchable: () =>
-    "This repository has more people with access than are listed here. Search to find them.",
-  "search-failed": (error) =>
-    `Only the people already listed are matched: the host search failed. ${error ?? ""}`,
-  "search-truncated": () =>
-    "More people match than the host returned. Keep typing to narrow it down.",
+const TRUNCATED_LABELS: Record<
+  ReviewerTruncation,
+  (error: string | null, resolve: MessageResolver) => string
+> = {
+  unsearchable: (_error, resolve) =>
+    resolve(
+      msg(
+        "This repository has more people with access than are listed here. Ask for the rest on the host.",
+      ),
+    ),
+  searchable: (_error, resolve) =>
+    resolve(
+      msg("This repository has more people with access than are listed here. Search to find them."),
+    ),
+  "search-failed": (error, resolve) =>
+    resolve(
+      msg("Only the people already listed are matched: the host search failed. {error}", {
+        error: error ?? "",
+      }),
+    ),
+  "search-truncated": (_error, resolve) =>
+    resolve(msg("More people match than the host returned. Keep typing to narrow it down.")),
 };
 
 export function PullRequestReviewerPicker({
@@ -51,12 +66,15 @@ export function PullRequestReviewerPicker({
   allowed: boolean;
   searchable: boolean;
 }) {
+  const resolve = useMessages();
+  const gt = useGT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState(emptySelection<PullRequestReviewerCandidate>);
 
   const candidatesQuery = useEnvironmentQuery(
     open ? pullRequestEnvironment.reviewerCandidates({ environmentId, input: reference }) : null,
+    resolve,
   );
   // Past the first page the host is asked, since what was loaded cannot answer for the rest.
   const debouncedQuery = useDebouncedValue(query.trim(), 250);
@@ -99,8 +117,8 @@ export function PullRequestReviewerPicker({
     toastManager.add({
       type: "error",
       title: requested
-        ? `Could not ask ${logins} for a review`
-        : `Could not take back the review request to ${logins}`,
+        ? m(msg("Could not ask {logins} for a review", { logins }))
+        : m(msg("Could not take back the review request to {logins}", { logins })),
       description: readableFailure(
         squashAtomCommandFailure(result),
         "The host refused it. Check that you have write access on this repository, and that they still have access to it.",
@@ -135,14 +153,14 @@ export function PullRequestReviewerPicker({
   return (
     <PullRequestCandidatePicker
       icon={<UserPlusIcon className="size-3.5" />}
-      label="Request a review"
+      label={gt("Request a review")}
       allowed={allowed}
-      disabledReason="Asking someone to review needs write access on this repository"
+      disabledReason={gt("Asking someone to review needs write access on this repository")}
       open={open}
       onOpenChange={onOpenChange}
       query={query}
       onQueryChange={setQuery}
-      searchLabel="Search people with access"
+      searchLabel={gt("Search people with access")}
       isPending={(candidatesQuery.isPending && candidatesQuery.data === null) || searchPending}
       error={
         candidatesQuery.data === null
@@ -152,11 +170,11 @@ export function PullRequestReviewerPicker({
             : null
       }
       candidates={candidates}
-      emptyLabel="Nobody else has access to this repository."
-      noMatchLabel="Nobody with access matches that."
-      errorLabel="The people with access could not be read."
+      emptyLabel={gt("Nobody else has access to this repository.")}
+      noMatchLabel={gt("Nobody with access matches that.")}
+      errorLabel={gt("The people with access could not be read.")}
       truncated={truncation !== null}
-      truncatedLabel={truncation === null ? "" : TRUNCATED_LABELS[truncation](searchError)}
+      truncatedLabel={truncation === null ? "" : TRUNCATED_LABELS[truncation](searchError, resolve)}
       candidateKey={(candidate) => `${candidate.kind}:${candidate.id}`}
       onSelect={(candidate) =>
         setDraft((current) =>
@@ -173,10 +191,12 @@ export function PullRequestReviewerPicker({
         <>
           <PullRequestActorLabel actor={candidate} className="flex-1" />
           {candidate.kind === "team" ? (
-            <span className="shrink-0 text-muted-foreground">team</span>
+            <span className="shrink-0 text-muted-foreground">
+              <T context="a reviewer that is a team, not a person">team</T>
+            </span>
           ) : null}
           {isSelected(draft, `${candidate.kind}:${candidate.id}`, candidate.isRequested) ? (
-            <CheckIcon aria-label="Already asked" className="size-3.5 shrink-0" />
+            <CheckIcon aria-label={gt("Already asked")} className="size-3.5 shrink-0" />
           ) : null}
         </>
       )}

@@ -1,4 +1,3 @@
-import { flushSync } from "react-dom";
 import { AudioPreview } from "../files/AudioPreview";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
 import {
@@ -10,20 +9,14 @@ import {
   ProviderInstanceId,
   RunAttemptId,
   RunId,
+  RuntimeRequestId,
   ScheduledTaskId,
   ThreadId,
   TurnItemId,
   type OrchestrationV2Subagent,
 } from "@supaterm/contracts";
-import { LegendList, type LegendListRef } from "@legendapp/list/react";
-import {
-  createRef,
-  Profiler,
-  StrictMode,
-  useState,
-  type ComponentProps,
-  type ReactElement,
-} from "react";
+import { type LegendListRef } from "@legendapp/list/react";
+import { createRef, Profiler, StrictMode, type ComponentProps, type ReactElement } from "react";
 import * as DateTime from "effect/DateTime";
 import { Atom } from "effect/reactivity";
 import { describe, expect, it, onTestFinished, vi } from "vite-plus/test";
@@ -32,13 +25,15 @@ import "~/index.css";
 
 import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
-import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { shouldRefocusComposerOnWindowFocus } from "../ChatView.logic";
 import { createWorkspaceFocusController, workspaceAreaProps } from "../../lib/workspaceFocus";
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
-import { deriveTimelineEntriesFromVisibleTurnItems } from "../../session-logic";
+import {
+  deriveTimelineEntriesFromVisibleTurnItems,
+  type PendingApproval,
+} from "../../session-logic";
 import type { Root } from "mdast";
 import { ViewedImagesTimelineRow } from "./TimelineWorkEntryRow";
 import { remarkThoughtPreview, THOUGHT_PREVIEW_MAX_LENGTH } from "./TimelineWorkEntryRow.logic";
@@ -75,15 +70,17 @@ vi.mock(import("~/state/query"), async (original) => ({
   })) as never,
 }));
 
-const stubbedAsset = vi.hoisted(() => ({ url: "" }));
+const stubbedAsset = vi.hoisted(() => ({ url: "", failed: false }));
 vi.mock(import("~/assets/assetUrls"), async (original) => {
   const actual = await original();
   return {
     ...actual,
     useAssetUrlState: ((...args: Parameters<typeof actual.useAssetUrlState>) =>
-      stubbedAsset.url
-        ? { _tag: "Success", url: stubbedAsset.url }
-        : actual.useAssetUrlState(...args)) as typeof actual.useAssetUrlState,
+      stubbedAsset.failed
+        ? { _tag: "Failure" }
+        : stubbedAsset.url
+          ? { _tag: "Success", url: stubbedAsset.url }
+          : actual.useAssetUrlState(...args)) as typeof actual.useAssetUrlState,
     useAssetUrls: ((...args: Parameters<typeof actual.useAssetUrls>) =>
       stubbedAsset.url
         ? args[1].map(() => stubbedAsset.url)
@@ -116,7 +113,6 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
     turnDiffSummaries: [],
     runs: [],
     routeThreadKey: `environment-local:thread-${Math.random().toString(36).slice(2)}`,
-    onOpenTurnDiff: () => {},
     onOpenThread: () => {},
     onForkFromRun: async () => {},
     supportsConversationRollback: false,
@@ -274,10 +270,14 @@ describe("MessagesTimeline work rows", () => {
       />,
       { container },
     );
-    const viewport = props.listRef.current!.getScrollableNode()!;
+    const list = props.listRef.current!;
+    const viewport = list.getScrollableNode()!;
     const frame = screen.getByTitle("Tall preview").element() as HTMLIFrameElement;
     await vi.waitFor(() => {
       expect(frame.clientHeight).toBe(1437);
+      // LegendList measures a resized row a frame later, then clamps the scroll to its new end.
+      const row: HTMLElement | undefined = list.getState().elementAtIndex(0);
+      expect(list.getState().sizeAtIndex(0)).toBe(row?.getBoundingClientRect().height);
       expect(viewport.scrollTop).toBeGreaterThan(0);
       expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
     });
@@ -694,6 +694,48 @@ describe("MessagesTimeline messages", () => {
     await vi.waitFor(() => expect(viewport.scrollTop).toBeLessThan(atEnd));
   });
 
+  it("keeps the visible sentence in a long message when the chat width changes", async () => {
+    setup();
+    const size = { width: window.innerWidth, height: window.innerHeight };
+    onTestFinished(() => page.viewport(size.width, size.height));
+    await page.viewport(1200, 1400);
+    const props = { ...baseProps(), liveFollowEnabled: false };
+    const paragraphs = Array.from(
+      { length: 30 },
+      (_, index) =>
+        `Paragraph ${index + 1}. ${"A side panel should not move the sentence being read out of view. ".repeat(5)}`,
+    );
+    await using screen = await renderTimeline(
+      [message(paragraphs.join("\n\n"), { role: "assistant" })],
+      props,
+    );
+    screen.container.style.width = "900px";
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    const target = page.getByText(paragraphs[15]!.trim(), { exact: true }).element();
+    await vi.waitFor(() => {
+      expect(viewport.scrollHeight).toBeGreaterThan(1000);
+      expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
+    });
+    await props.listRef.current!.scrollToOffset({
+      offset:
+        viewport.scrollTop +
+        target.getBoundingClientRect().top -
+        viewport.getBoundingClientRect().top -
+        24,
+      animated: false,
+    });
+    viewport.dispatchEvent(new Event("scroll"));
+    const before = target.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+    expect(Math.abs(before - 24)).toBeLessThan(2);
+    for (const width of [500, 900]) {
+      screen.container.style.width = `${width}px`;
+      await vi.waitFor(() => {
+        const after = target.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+        expect(Math.abs(after - before)).toBeLessThan(30);
+      });
+    }
+  });
+
   it("disables the minimap's next turn button at the bottom of the thread", async () => {
     setup();
     const props = baseProps();
@@ -840,6 +882,51 @@ describe("MessagesTimeline messages", () => {
     expect(screen.text()).toContain("B turn 118:");
     expect(screen.text()).not.toContain("A turn");
     expectItemOrder();
+  });
+
+  it("opens a working parent thread at its end without landing short", async () => {
+    setup();
+    const props = baseProps();
+    const parent = Array.from({ length: 30 }, (_, index) =>
+      message(
+        `Parent turn ${index}:\n\n${"x ".repeat(200)}`,
+        { role: index % 2 === 0 ? "user" : "assistant" },
+        `parent-${index}`,
+      ),
+    );
+    await using screen = await renderElement(
+      <MessagesTimeline
+        {...props}
+        parentThreadLink={{ threadId: ThreadId.make("thread-parent"), title: "Parent thread" }}
+        timelineEntries={[message("Short child reply.", { role: "assistant" }, "child-0")]}
+      />,
+    );
+    expect(screen.text()).toContain("Subagent of");
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    const end = () => viewport.scrollHeight - viewport.clientHeight;
+    // Distance from the end as each scroll lands, against the content height at that moment.
+    const shortfalls: number[] = [];
+    viewport.addEventListener("scroll", () =>
+      shortfalls.push(Math.round(end() - viewport.scrollTop)),
+    );
+
+    // A working parent's footer (queued turns, its subagents) is taller than the child's.
+    await screen.rerender(
+      <MessagesTimeline
+        {...props}
+        routeThreadKey={`${props.routeThreadKey}-parent`}
+        timelineEntries={parent}
+        footer={<div style={{ height: 300 }}>Waiting on 4 subagents</div>}
+        isWorking
+      />,
+    );
+    await vi.waitFor(() => {
+      expect(screen.text()).toContain("Parent turn 29:");
+      expect(end() - viewport.scrollTop).toBeLessThanOrEqual(1);
+    });
+
+    expect(shortfalls.length).toBeGreaterThan(0);
+    expect(shortfalls).toEqual(shortfalls.map(() => 0));
   });
 
   it("puts rows back in item order soon after a continuous scroll stops", async () => {
@@ -1230,6 +1317,37 @@ describe("MessagesTimeline citations", () => {
       expect(cited?.textContent).toContain("the cited answer");
       expect(cited?.contains(document.activeElement)).toBe(true);
     });
+  });
+
+  it("keeps the citation highlight through an IME Escape", async () => {
+    await using _screen = await renderTimeline(
+      [
+        message("A question", {}, "question"),
+        message("the cited answer", { role: "assistant" }, "cited"),
+      ],
+      { citationRequest: CITATION_REQUEST, citationHistory: { _tag: "found" } },
+    );
+    const highlighted = () => document.querySelector("[data-citation-highlighted]");
+    await vi.waitFor(() => expect(highlighted()).not.toBeNull());
+    const pressEscape = (init: KeyboardEventInit, prevented = false) =>
+      act(() => {
+        const event = new KeyboardEvent("keydown", {
+          key: "Escape",
+          ...init,
+          bubbles: true,
+          cancelable: true,
+        });
+        // The composer's editor prevents every plain Escape before it reaches the document.
+        if (prevented) event.preventDefault();
+        document.body.dispatchEvent(event);
+      });
+
+    for (const init of [{ isComposing: true }, { keyCode: 229 }]) {
+      await pressEscape(init);
+      expect(highlighted()).not.toBeNull();
+    }
+    await pressEscape({ keyCode: 27 }, true);
+    expect(highlighted()).toBeNull();
   });
 
   it("opens the superseded attempt that folds the cited response", async () => {
@@ -1760,6 +1878,47 @@ describe("MessagesTimeline attachments", () => {
     );
   });
 
+  it("keeps an unavailable viewed image inside the 10rem work-log strip", async () => {
+    stubbedAsset.failed = true;
+    onTestFinished(() => {
+      stubbedAsset.failed = false;
+    });
+    await using screen = await renderElement(
+      <TimelineRowCtx
+        value={
+          {
+            threadRef: { environmentId: ENVIRONMENT_ID, threadId: ThreadId.make("thread-1") },
+            workspaceRoot: "/repo",
+          } as never
+        }
+      >
+        <ViewedImagesTimelineRow
+          row={{
+            kind: "viewed-images",
+            id: "viewed",
+            createdAt: CREATED_AT,
+            paths: ["/repo/step-1.jpg", "/repo/step-3.jpg"],
+          }}
+        />
+      </TimelineRowCtx>,
+    );
+    const frame = await vi.waitFor(() => {
+      const element = screen.container.querySelector<HTMLElement>(
+        '[data-image-gallery] [role="alert"]',
+      );
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    const size = await vi.waitFor(() => {
+      const rect = frame.getBoundingClientRect();
+      expect(rect.width).toBeGreaterThan(0);
+      return rect;
+    });
+    expect(size.height).toBeLessThanOrEqual(161);
+    expect(size.width).toBeLessThanOrEqual(285);
+    expect(Math.abs(size.width / size.height - 16 / 9)).toBeLessThan(0.02);
+  });
+
   it("opens an image from an expanded tool row as a gallery of the turn's viewed images", async () => {
     stubbedAsset.url =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
@@ -2014,73 +2173,6 @@ describe("MessagesTimeline thread find", () => {
   });
 });
 
-function TimelineChangedFilesCard() {
-  const [expanded, setExpanded] = useState(true);
-  return (
-    <ChangedFilesCard
-      runId={RunId.make("run-1")}
-      files={["src/a.ts", "src/b.ts", "src/c.ts"].map((path) => ({
-        path,
-        kind: "modified",
-        additions: 1,
-        deletions: 0,
-      }))}
-      totals={{ count: 3, additions: 3, deletions: 0 }}
-      allDirectoriesExpanded={expanded}
-      resolvedTheme="light"
-      onToggleAllDirectories={() => setExpanded((value) => !value)}
-      onOpenTurnDiff={() => {}}
-    />
-  );
-}
-
-function ChangedFilesTimeline() {
-  return (
-    <LegendList
-      data={["files", "after"]}
-      keyExtractor={(item) => item}
-      estimatedItemSize={100}
-      recycleItems={false}
-      className="h-[600px]"
-      renderItem={({ item }) =>
-        item === "files" ? <TimelineChangedFilesCard /> : <div data-testid="after">After</div>
-      }
-    />
-  );
-}
-
-describe("ChangedFilesCard", () => {
-  it.each(["folder", "all folders"])(
-    "measures %s collapse and expansion in the same commit",
-    async (toggle) => {
-      await using screen = await render(<ChangedFilesTimeline />);
-      const after = () =>
-        screen.container.querySelector('[data-testid="after"]')!.getBoundingClientRect().top;
-      const cardBottom = () =>
-        screen.container.querySelector("[data-changed-files-state]")!.getBoundingClientRect()
-          .bottom;
-      await vi.waitFor(() => expect(after()).toBe(cardBottom()));
-      const topBefore = after();
-      const button = () =>
-        screen.container.querySelector<HTMLButtonElement>(
-          toggle === "folder"
-            ? '[data-changed-file-row="src"] button'
-            : 'button[aria-label$="all folders"]',
-        )!;
-      await act(() => {
-        flushSync(() => button().click());
-        expect(screen.container.textContent).not.toContain("a.ts");
-        expect(after()).toBe(topBefore - 3 * 28);
-      });
-      await act(() => {
-        flushSync(() => button().click());
-        expect(screen.container.textContent).toContain("a.ts");
-        expect(after()).toBe(topBefore);
-      });
-    },
-  );
-});
-
 describe("compact reasoning math", () => {
   it.each([
     [
@@ -2269,4 +2361,168 @@ it("renders a typed /compact as one live divider that finishes with its token de
     .toBeVisible();
   expect(container.querySelectorAll('[role="separator"]')).toHaveLength(1);
   expect(container.textContent).not.toContain("Compacting context");
+});
+
+it("keeps concurrent approvals actionable outside collapsed work and restores settled rows", async () => {
+  setup();
+  const fixture = makeStreamingTimelineFixture();
+  const source = fixture.visibleTurnItems[4]!;
+  if (source.item.type !== "dynamic_tool") throw new Error("Expected fixture tool");
+  const sourceItem = source.item;
+  const commandRequest = RuntimeRequestId.make("command-approval");
+  const appRequest = RuntimeRequestId.make("app-approval");
+  const approvals: PendingApproval[] = [
+    {
+      requestId: commandRequest,
+      requestKind: "command",
+      createdAt: fixture.time(6),
+      detail: "printf '" + "long-command ".repeat(80) + "'",
+      reason: "Needs permission to run the command",
+      responseCapability: "live",
+    },
+    {
+      requestId: appRequest,
+      requestKind: "permission",
+      createdAt: fixture.time(6),
+      detail: "Open the current tab",
+      appName: "Safari",
+      options: [
+        { decision: "decline", label: "Deny" },
+        { decision: "accept", label: "Allow once" },
+        {
+          decision: "acceptAlways",
+          label: "Always allow Safari",
+          warning: "Applies to future requests",
+        },
+      ],
+      responseCapability: "live",
+    },
+  ];
+  const entries = (completed = false) =>
+    deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [
+        { ...source, item: { ...sourceItem, status: completed ? "completed" : sourceItem.status } },
+        ...approvals.map((approval, index) => ({
+          ...source,
+          position: source.position + index + 1,
+          sourceItemId: TurnItemId.make(`approval-${index}`),
+          item: {
+            ...sourceItem,
+            id: TurnItemId.make(`approval-${index}`),
+            type: "approval_request" as const,
+            status: completed ? ("completed" as const) : ("waiting" as const),
+            requestId: approval.requestId,
+            requestKind: approval.requestKind,
+            prompt: approval.detail,
+          },
+        })),
+      ],
+    });
+  const props = baseProps();
+  const onRespondToApproval = vi.fn(async () => {});
+  const ui = (overrides: Partial<TimelineProps> = {}) => (
+    <MessagesTimeline
+      {...props}
+      timelineEntries={entries()}
+      pendingApprovals={approvals}
+      canOperateThread
+      onRespondToApproval={onRespondToApproval}
+      isWorking
+      runningRunId={fixture.runId}
+      {...overrides}
+    />
+  );
+  await using screen = await renderElement(ui());
+  await expect.element(screen.getByRole("group", { name: "Command approval" })).toBeVisible();
+  await expect
+    .element(screen.getByRole("group", { name: "App permission approval" }))
+    .toBeVisible();
+  await expect.element(screen.getByText(approvals[0]!.detail!, { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Needs permission to run the command")).toBeVisible();
+  await vi.waitFor(() => {
+    expect(
+      getComputedStyle(screen.getByLabelText("Command", { exact: true }).element()).userSelect,
+    ).toBe("text");
+    expect(
+      getComputedStyle(screen.getByText("Needs permission to run the command").element())
+        .userSelect,
+    ).toBe("text");
+  });
+  await expect.element(screen.getByText("Safari", { exact: true })).toBeVisible();
+  await click(screen.buttons("More approval options")[1]!);
+  await expect.element(page.getByRole("menuitem", { name: "Always allow Safari" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Always allow Safari" }).click();
+  expect(onRespondToApproval).toHaveBeenLastCalledWith(appRequest, "acceptAlways");
+  await click(screen.buttons("More approval options")[0]!);
+  await expect.element(page.getByRole("menuitem", { name: "Cancel", exact: true })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Always allow this session" }).click();
+  expect(onRespondToApproval).toHaveBeenLastCalledWith(commandRequest, "acceptForSession");
+  await click(screen.button("Decline"));
+  expect(onRespondToApproval).toHaveBeenLastCalledWith(commandRequest, "decline");
+  await click(screen.button("Allow once"));
+  expect(onRespondToApproval).toHaveBeenLastCalledWith(appRequest, "accept");
+  for (const timelineEntries of [entries(), []]) {
+    await screen.rerender(
+      ui({ timelineEntries, heldApprovalRequestIds: new Set([commandRequest]) }),
+    );
+    await expect
+      .element(screen.getByRole("group", { name: "Command approval" }))
+      .not.toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.buttons("Approve")).toHaveLength(0));
+    await expect
+      .element(screen.getByRole("button", { name: "Allow once", exact: true }))
+      .toBeVisible();
+    await screen.rerender(ui({ timelineEntries }));
+    await expect.element(screen.getByRole("group", { name: "Command approval" })).toBeVisible();
+    await vi.waitFor(() => expect(screen.buttons("Approve")).toHaveLength(1));
+  }
+  await screen.rerender(ui({ timelineEntries: [], isWorking: false }));
+  await expect.element(screen.getByRole("group", { name: "Command approval" })).toBeVisible();
+  await click(screen.button("Approve"));
+  expect(onRespondToApproval).toHaveBeenLastCalledWith(commandRequest, "accept");
+  await click(screen.button("Deny"));
+  expect(onRespondToApproval).toHaveBeenLastCalledWith(appRequest, "decline");
+  await screen.rerender(
+    ui({
+      timelineEntries: [],
+      isWorking: false,
+      pendingApprovals: [{ ...approvals[0]!, detail: "" }],
+    }),
+  );
+  await expect
+    .element(screen.getByLabelText("Command", { exact: true }))
+    .toHaveTextContent("Command approval");
+  await screen.rerender(ui({ canOperateThread: false }));
+  await expect.element(screen.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
+  await vi.waitFor(() =>
+    expect(
+      screen.buttons("More approval options").every((button) => button.hasAttribute("disabled")),
+    ).toBe(true),
+  );
+  await screen.rerender(ui({ respondingRequestIds: [commandRequest] }));
+  await expect.element(screen.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
+  await expect
+    .element(screen.getByRole("button", { name: "Allow once", exact: true }))
+    .toBeEnabled();
+  await screen.rerender(
+    ui({ pendingApprovals: [{ ...approvals[0]!, responseCapability: "not_resumable" }] }),
+  );
+  await expect
+    .element(screen.getByText("Provider process is gone. Interrupt or restart the run to respond."))
+    .toBeVisible();
+  await vi.waitFor(() => expect(screen.buttons("Approve")).toHaveLength(0));
+  await screen.rerender(
+    ui({ pendingApprovals: [], timelineEntries: entries(true), isWorking: false }),
+  );
+  await expect
+    .element(screen.getByRole("group", { name: "Command approval" }))
+    .not.toBeInTheDocument();
+  await vi.waitFor(() => expect(screen.text()).not.toContain("Waiting for approval"));
+  await screen.getByRole("button", { expanded: false }).click();
+  await expect
+    .element(screen.getByRole("button", { name: approvals[0]!.detail!, exact: true }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Open the current tab", exact: true }))
+    .toBeVisible();
 });

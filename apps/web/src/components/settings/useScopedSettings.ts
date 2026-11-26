@@ -36,6 +36,8 @@ import {
   type ProjectOverrideEntry,
   type ScopedSettingsPatch,
 } from "./scopedSettings";
+import { msg, useMessages } from "gt-react";
+import { m } from "../../i18n/messages";
 
 const readSettings = (environmentId: EnvironmentId) =>
   readEnvironment(environmentId)?.serverConfig?.settings ?? null;
@@ -69,7 +71,7 @@ function useRunScopedPlan() {
     if (plan.unavailableReason) {
       toastManager.add({
         type: "warning",
-        title: "Setting not saved",
+        title: m(msg("Setting not saved")),
         description: plan.unavailableReason,
       });
       onFailed?.();
@@ -93,15 +95,16 @@ function useRunScopedPlan() {
       environments,
       planner,
       async (request) => {
-        const missing = requiredScopesForServerSettingsPatch(request.input.patch).find(
-          (scope) => !readEnvironmentScope(request.environmentId, scope),
-        );
+        const missing = requiredScopesForServerSettingsPatch(
+          request.input.patch,
+          readSettings(request.environmentId) ?? undefined,
+        ).find((scope) => !readEnvironmentScope(request.environmentId, scope));
         const result = missing
           ? AsyncResult.failure(
               Cause.fail(
                 new EnvironmentAuthorizationError({
                   requiredScope: missing,
-                  message: "This connection lacks permission to change these settings.",
+                  message: m(msg("This connection lacks permission to change these settings.")),
                 }),
               ),
             )
@@ -119,7 +122,9 @@ function useRunScopedPlan() {
       toastManager.add({
         type: "error",
         title:
-          savedEnvironmentCount > 0 ? "Setting saved on some environments" : "Setting not saved",
+          savedEnvironmentCount > 0
+            ? m(msg("Setting saved on some environments"))
+            : m(msg("Setting not saved")),
         description: [
           ...failedEnvironments.map(
             ({ label, message }) => `Could not save on ${label}: ${message}`,
@@ -182,10 +187,12 @@ export function useScopedSettingsWriteAllowed() {
 export function useManagedSettingDenial(paths: ReadonlyArray<string>): string | undefined {
   const context = useOptionalSettingsScope();
   const primaryPolicy = usePrimaryManagedPolicy();
+  const messages = useMessages();
   return managedSettingDenial(
     context
       ? context.connectedEnvironments.map((environment) => environment.serverConfig?.managedPolicy)
       : [primaryPolicy],
     paths,
+    messages,
   );
 }

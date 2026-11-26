@@ -75,6 +75,7 @@ import { providerModelKey, sortProviderModelItems } from "../../modelOrdering";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { hasRuntimeModelCatalog } from "../../providerModels";
 import { isImeComposing } from "~/lib/imeComposition";
+import { T, useGT, useMessages } from "gt-react";
 
 type ModelPickerItem = {
   slug: string;
@@ -221,6 +222,8 @@ function ModelPickerProviderNotices({
   onRequestClose: (() => void) | undefined;
   onOpenProviderSetup: ((instanceId: ProviderInstanceId) => void) | undefined;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const navigate = useNavigate();
   return (
     <>
@@ -229,7 +232,7 @@ function ModelPickerProviderNotices({
           {setupEntries.map((entry) => (
             <div key={entry.instanceId} className="px-1 py-1.5 text-xs leading-snug">
               <p className="line-clamp-3 text-muted-foreground">
-                {getProviderStatusMessage(entry.snapshot)}
+                {getProviderStatusMessage(entry.snapshot, m)}
               </p>
               <InlineButton
                 className="mt-1"
@@ -238,7 +241,9 @@ function ModelPickerProviderNotices({
                   onOpenProviderSetup?.(entry.instanceId);
                 }}
               >
-                {setupEntries.length > 1 ? `Set up ${entry.displayName}` : "Open provider setup"}
+                {setupEntries.length > 1
+                  ? gt("Set up {provider}", { provider: entry.displayName })
+                  : gt("Open provider setup")}
               </InlineButton>
             </div>
           ))}
@@ -261,7 +266,7 @@ function ModelPickerProviderNotices({
                   void navigate({ to: "/settings/providers" });
                 }}
               >
-                Provider settings
+                <T>Provider settings</T>
               </InlineButton>
             </>
           ) : null}
@@ -365,6 +370,8 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   /** The owning popup moves focus here when it opens (its `initialFocus`). */
   searchInputRef: RefObject<HTMLInputElement | null>;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const {
     searchInputRef,
     keybindings: providedKeybindings,
@@ -698,6 +705,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
         lockedProvider !== null ? result.filter((m) => matchesLockedProvider(m)) : result;
       return rankModelPickerSearch(candidates, searchQuery, (model) => ({
         name: model.name,
+        slug: model.slug,
         ...(model.shortName ? { shortName: model.shortName } : {}),
         ...(model.subProvider ? { subProvider: model.subProvider } : {}),
         driverKind: model.driverKind,
@@ -818,7 +826,9 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     const shown = isSearching
       ? matchesLockedProvider(entry)
       : entry.instanceId === selectedEntry?.instanceId;
-    const notice = shown ? formatProviderUpdateRequiredNotice(entry.snapshot, searchQuery) : null;
+    const notice = shown
+      ? formatProviderUpdateRequiredNotice(entry.snapshot, searchQuery, messages)
+      : null;
     return notice
       ? [
           {
@@ -912,7 +922,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
       setSearchQuery("");
       handleSelectInstance(next);
       announce(
-        next === "favorites" ? "Favorites" : (entryByInstanceId.get(next)?.displayName ?? next),
+        next === "favorites" ? gt("Favorites") : (entryByInstanceId.get(next)?.displayName ?? next),
         "model-picker",
       );
       return;
@@ -937,7 +947,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     const name = flatModels.find(
       (item) => item.slug === selectedSlug && item.instanceId === model.instanceId,
     )?.name;
-    announce(`Model: ${name ?? selectedSlug}`, "model-picker");
+    announce(gt("Model: {name}", { name: name ?? selectedSlug }), "model-picker");
   };
 
   return (
@@ -967,7 +977,10 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
               ? {
                   disabledInstanceIds: lockedDisabledInstanceIds,
                   getDisabledInstanceTooltip: (entry: ProviderInstanceEntry) =>
-                    `${entry.displayName} is unavailable in this thread. Start a new thread to switch providers.`,
+                    gt(
+                      "{provider} is unavailable in this thread. Start a new thread to switch providers.",
+                      { provider: entry.displayName },
+                    ),
                 }
               : {})}
           />
@@ -1027,7 +1040,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
           >
             <ComboboxSearchInput
               ref={searchInputRef}
-              placeholder="Search models..."
+              placeholder={gt("Search models...")}
               value={searchQuery}
               onChange={(e) => {
                 if (!isSearching) setSearchHeight(pickerContentRef.current?.offsetHeight ?? 0);
@@ -1109,9 +1122,13 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                       className="group w-full cursor-pointer"
                     >
                       <div className="min-w-0 flex-1 text-left">
-                        <div className="text-xs font-medium leading-snug">Legacy models</div>
+                        <div className="text-xs font-medium leading-snug">
+                          <T>Legacy models</T>
+                        </div>
                         <div className="mt-1 text-xs font-normal leading-snug text-muted-foreground/70">
-                          {legacySection.legacyModels.length} models
+                          {gt("{count, plural, one {{count} models} other {{count} models}}", {
+                            count: legacySection.legacyModels.length,
+                          })}
                         </div>
                       </div>
                       <ChevronRightIcon
@@ -1142,13 +1159,15 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                           </div>
                           {unavailable ? (
                             <Badge variant="outline" size="sm">
-                              Unavailable
+                              {gt("Unavailable", { $context: "backend cannot be used right now" })}
                             </Badge>
                           ) : null}
                         </div>
                         <div className="mt-1 text-xs font-normal leading-snug text-muted-foreground">
                           {subProviderSection.unavailableReason ??
-                            `${subProviderSection.models.length} ${subProviderSection.models.length === 1 ? "model" : "models"}`}
+                            gt("{count, plural, one {{count} model} other {{count} models}}", {
+                              count: subProviderSection.models.length,
+                            })}
                         </div>
                       </div>
                       {unavailable ? null : (
@@ -1203,10 +1222,10 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
               updateRequiredNotices={updateRequiredNotices}
               emptyLabel={
                 selectedInstanceId === "favorites" && !isSearching
-                  ? "No favorites yet"
+                  ? gt("No favorites yet")
                   : workspaceModelsScanning
-                    ? "Searching project models..."
-                    : "No models found"
+                    ? gt("Searching project models...")
+                    : gt("No models found")
               }
               onRequestClose={onRequestClose}
               onOpenProviderSetup={onOpenProviderSetup}

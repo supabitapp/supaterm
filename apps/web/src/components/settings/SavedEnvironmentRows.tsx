@@ -50,6 +50,7 @@ import {
   ServerUpdateAction,
   ServerUpdateProgress,
 } from "../ServerUpdateAction";
+import { useGT, msg, T, useMessages } from "gt-react";
 
 type SavedBackendListRowProps = {
   environment: EnvironmentPresentation;
@@ -64,23 +65,23 @@ function savedBackendStatus(environment: EnvironmentPresentation): {
   readonly tone: "muted" | "warning" | "error";
 } {
   if (!environment.entry.enabled && environment.connection.phase !== "unsupported")
-    return { text: "Off", tone: "muted" };
+    return { text: msg("Off", { $context: "environment switched off" }), tone: "muted" };
   const { connection } = environment;
   switch (connection.phase) {
     case "connected":
-      return { text: "Connected", tone: "muted" };
+      return { text: msg("Connected"), tone: "muted" };
     case "connecting":
-      return { text: "Connecting", tone: "warning" };
+      return { text: msg("Connecting"), tone: "warning" };
     case "reconnecting":
-      return { text: "Reconnecting", tone: "warning" };
+      return { text: msg("Reconnecting"), tone: "warning" };
     case "unsupported":
-      return { text: "Client not supported", tone: "muted" };
+      return { text: msg("Client not supported"), tone: "muted" };
     case "error":
-      return { text: "Connection failed", tone: "error" };
+      return { text: msg("Connection failed"), tone: "error" };
     case "offline":
-      return { text: "Offline", tone: "muted" };
+      return { text: msg("Offline"), tone: "muted" };
     case "available":
-      return { text: "Not connected", tone: "muted" };
+      return { text: msg("Not connected"), tone: "muted" };
   }
 }
 
@@ -91,6 +92,9 @@ export function SavedBackendListRow({
   onRemove,
   onAddRoute,
 }: SavedBackendListRowProps) {
+  const messages = useMessages();
+  const gt = useGT();
+  const m = useMessages();
   const [renameOpen, setRenameOpen] = useState(false);
   const [routesOpen, setRoutesOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -108,7 +112,7 @@ export function SavedBackendListRow({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Could not copy trace ID",
+          title: gt("Could not copy trace ID"),
           description: error.message,
         }),
       );
@@ -122,15 +126,17 @@ export function SavedBackendListRow({
     onCopy: ({ url }) => {
       toastManager.add({
         type: "success",
-        title: "MCP URL copied",
-        description: `Add it to an agent, e.g. claude mcp add --transport http supaterm ${url}`,
+        title: gt("MCP URL copied"),
+        description: gt("Add it to an agent, e.g. claude mcp add --transport http supaterm {url}", {
+          url,
+        }),
       });
     },
     onError: (error) => {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Could not copy MCP URL",
+          title: gt("Could not copy MCP URL"),
           description: error.message,
         }),
       );
@@ -155,9 +161,9 @@ export function SavedBackendListRow({
   const mcpUrl = environmentMcpUrl({ entry: environment.entry, connectedTarget });
   const routeCount = connectionRoutes(environment.entry).length;
   const subtitleText = [
-    environmentTransportLabel(environment),
+    environmentTransportLabel(environment, undefined, m),
     // The headline below names the failure in full.
-    diagnosis ? null : resumingServerUpdate ? "Restarting" : status.text,
+    diagnosis ? null : resumingServerUpdate ? gt("Restarting") : m(status.text),
     enabled && versionMismatch ? serverVersion : null,
   ]
     .filter((value): value is string => value !== null)
@@ -169,15 +175,18 @@ export function SavedBackendListRow({
     versionMismatch !== null &&
     (serverUpdateState.status === "idle" || serverUpdateState.status === "failed");
 
-  const statusTooltip = `${environmentTransportLabel(environment)}\n${
+  const statusTooltip = `${environmentTransportLabel(environment, undefined, m)}\n${
     unsupported
-      ? (environment.connection.error ?? connectionStatusText(environment.connection))
+      ? (environment.connection.error ?? connectionStatusText(environment.connection, messages))
       : enabled
-        ? connectionStatusText(environment.connection)
-        : "Switched off"
+        ? connectionStatusText(environment.connection, messages)
+        : gt("Switched off")
   }${
     versionMismatch
-      ? `\nUpdate available: ${versionMismatch.serverVersion} → ${versionMismatch.clientVersion}`
+      ? gt("\nUpdate available: {serverVersion} → {clientVersion}", {
+          serverVersion: versionMismatch.serverVersion,
+          clientVersion: versionMismatch.clientVersion,
+        })
       : ""
   }`;
 
@@ -196,7 +205,7 @@ export function SavedBackendListRow({
                 !resumingServerUpdate && status.tone === "warning" && "text-warning-foreground",
               )}
             >
-              {resumingServerUpdate ? "Restarting" : status.text}
+              {resumingServerUpdate ? gt("Restarting") : m(status.text)}
             </span>
           </PopoverTrigger>
           <PopoverPopup side="bottom" align="start">
@@ -298,7 +307,7 @@ export function SavedBackendListRow({
             serverLabel={`${environment.label} server`}
             fromVersion={serverVersion ?? undefined}
             targetVersion={APP_VERSION}
-            label={serverUpdateState.status === "failed" ? "Retry update" : "Update"}
+            label={serverUpdateState.status === "failed" ? gt("Retry update") : gt("Update")}
           />
         ) : null}
         {showUpdateAction ? (
@@ -309,7 +318,7 @@ export function SavedBackendListRow({
             installation={environment.serverConfig?.environment.capabilities.serverInstallation}
             desktopAppUpdate={supportsDesktopAppUpdate(environment.serverConfig)}
             targetVersion={versionMismatch.clientVersion}
-            label={serverUpdateState.status === "failed" ? "Retry update" : "Update"}
+            label={serverUpdateState.status === "failed" ? gt("Retry update") : gt("Update")}
             appearance="icon"
           />
         ) : null}
@@ -320,7 +329,7 @@ export function SavedBackendListRow({
             aria-expanded={routesOpen}
             onClick={() => setRoutesOpen((open) => !open)}
           >
-            {routeCount === 1 ? "Routes" : `${routeCount} routes`}
+            {routeCount === 1 ? gt("Routes") : `${routeCount} routes`}
             <ChevronRightIcon aria-hidden className={cn("size-3", routesOpen && "rotate-90")} />
           </Button>
           <Button
@@ -330,7 +339,7 @@ export function SavedBackendListRow({
             aria-controls={`remote-permissions-${environmentId}`}
             onClick={() => setPermissionsOpen((open) => !open)}
           >
-            Permissions
+            <T>Permissions</T>
             <ChevronRightIcon
               aria-hidden
               className={cn("size-3", permissionsOpen && "rotate-90")}
@@ -343,13 +352,13 @@ export function SavedBackendListRow({
                   size="sm"
                   checked={enabled}
                   disabled={isRemoving || blocked}
-                  aria-label={`${enabled ? "Switch off" : "Switch on"} ${environment.label}`}
+                  aria-label={`${enabled ? gt("Switch off") : gt("Switch on")} ${environment.label}`}
                   onCheckedChange={(checked) => onSetEnabled(environmentId, checked)}
                 />
               }
             />
             <TooltipPopup side="top">
-              {blocked ? "Client not supported" : enabled ? "Switch off" : "Switch on"}
+              {blocked ? gt("Client not supported") : enabled ? gt("Switch off") : gt("Switch on")}
             </TooltipPopup>
           </Tooltip>
           <Menu>
@@ -360,7 +369,7 @@ export function SavedBackendListRow({
                   variant="ghost-muted"
                   size="icon-xs"
                   disabled={isRemoving}
-                  aria-label={`More actions for ${environment.label}`}
+                  aria-label={gt("More actions for {label}", { label: environment.label })}
                 />
               }
             >
@@ -369,7 +378,7 @@ export function SavedBackendListRow({
             <MenuPopup align="end">
               <MenuItem onClick={() => setRenameOpen(true)}>
                 <PencilIcon />
-                Rename…
+                <T>Rename…</T>
               </MenuItem>
               <EnvironmentIconMenu
                 environmentId={environmentId}
@@ -377,19 +386,21 @@ export function SavedBackendListRow({
               />
               <MenuItem onClick={() => setRoutesOpen((open) => !open)}>
                 <RouteIcon />
-                {routesOpen ? "Hide routes" : "Routes"}
+                {routesOpen ? gt("Hide routes") : gt("Routes")}
               </MenuItem>
               {mcpUrl ? (
                 <MenuItem onClick={() => copyMcpUrl(mcpUrl, { url: mcpUrl })}>
-                  Copy MCP URL
+                  <T>Copy MCP URL</T>
                 </MenuItem>
               ) : null}
               {errorTraceId ? (
-                <MenuItem onClick={() => copyTraceId(errorTraceId)}>Copy trace ID</MenuItem>
+                <MenuItem onClick={() => copyTraceId(errorTraceId)}>
+                  <T>Copy trace ID</T>
+                </MenuItem>
               ) : null}
               <MenuSeparator />
               <MenuItem variant="destructive" onClick={() => onRemove(environment)}>
-                {isRemoving ? "Removing…" : "Remove from this device…"}
+                {isRemoving ? gt("Removing…") : gt("Remove from this device…")}
               </MenuItem>
             </MenuPopup>
           </Menu>
@@ -400,14 +411,19 @@ export function SavedBackendListRow({
 }
 
 export function EmptyRemoteEnvironments() {
+  const gt = useGT();
   return (
     <Empty className="min-h-52">
       <EmptyMedia variant="icon">
         <ChevronsLeftRightIcon />
       </EmptyMedia>
       <EmptyHeader>
-        <EmptyTitle>No saved remote environments</EmptyTitle>
-        <EmptyDescription>Click “Add environment” to pair another environment.</EmptyDescription>
+        <EmptyTitle>
+          <T>No saved remote environments</T>
+        </EmptyTitle>
+        <EmptyDescription>
+          {gt("Click “Add environment” to pair another environment.")}
+        </EmptyDescription>
       </EmptyHeader>
     </Empty>
   );

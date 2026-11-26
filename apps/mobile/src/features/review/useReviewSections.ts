@@ -1,6 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { resolveFilesystemReadAccess } from "@supaterm/client-runtime/state/filesystem";
 import { Atom } from "effect/reactivity";
+import { useMemo } from "react";
 
 import { deriveThreadCheckpointSummaries } from "@supaterm/client-runtime/state/thread-checkpoints";
 import type { EnvironmentId, ReviewDiffPreviewSource, ThreadId } from "@supaterm/contracts";
@@ -9,10 +10,11 @@ import { useCheckpointDiff } from "../../state/queries";
 import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentPresentation } from "../../state/presentation";
 import { lastReviewGitSectionsAtom, reviewEnvironment } from "../../state/review";
-import { lastReviewTurnDiffsAtom } from "../../state/reviewTurnDiffs";
+import { lastReviewTurnDiffsAtom, reviewTurnDiffText } from "../../state/reviewTurnDiffs";
 import { environmentSession } from "../../state/session";
 import { useSelectedThreadProjection } from "../../state/use-thread-detail";
 import { useSelectedThreadWorktree } from "../../state/use-selected-thread-worktree";
+import { useThreadSelection } from "../../state/use-thread-selection";
 import {
   buildReviewSectionItems,
   getReadyReviewCheckpoints,
@@ -23,6 +25,7 @@ import {
   type ReviewSectionItem,
 } from "./reviewModel";
 import { setReviewSelectedSectionId, type ReviewCacheForThread } from "./reviewState";
+import { msg, useMessages } from "gt-react-native";
 
 const NO_GIT_SECTIONS_ATOM = Atom.make<ReadonlyArray<ReviewDiffPreviewSource>>([]).pipe(
   Atom.keepAlive,
@@ -39,21 +42,26 @@ export function useReviewSections(input: {
   readonly threadId?: ThreadId;
   readonly reviewCache: ReviewCacheForThread;
 }) {
+  const messages = useMessages();
   const { environmentId, reviewCache, threadId } = input;
   const enabled = input.enabled ?? true;
   const fileAccessSession = useEnvironmentQuery(
     environmentId === undefined ? null : environmentSession.sessionStateAtom(environmentId),
   );
   const fileEnvironment = useEnvironmentPresentation(environmentId ?? null);
-  const fileAccess = resolveFilesystemReadAccess({
-    isCatalogReady: fileEnvironment.isReady,
-    connection: fileEnvironment.presentation?.connection ?? null,
-    session: fileAccessSession.data,
-    sessionError: fileAccessSession.error,
-  });
+  const fileAccess = resolveFilesystemReadAccess(
+    {
+      isCatalogReady: fileEnvironment.isReady,
+      connection: fileEnvironment.presentation?.connection ?? null,
+      session: fileAccessSession.data,
+      sessionError: fileAccessSession.error,
+    },
+    messages,
+  );
   const { canReadFiles } = fileAccess;
   const selectedThread = useSelectedThreadProjection();
   const { selectedThreadCwd } = useSelectedThreadWorktree();
+  const { selectedThreadProject } = useThreadSelection();
   const diffPreviewQuery = (sourceKind: ReviewGitSectionKind) =>
     canReadFiles && enabled && environmentId !== undefined && selectedThreadCwd !== null
       ? reviewEnvironment.diffPreview({
@@ -103,6 +111,7 @@ export function useReviewSections(input: {
       "working-tree": gitSectionState(fileAccess.isPending, workingTreePreview),
       "branch-range": gitSectionState(fileAccess.isPending, branchPreview),
     },
+    ...(selectedThreadProject ? { rootName: selectedThreadProject.title } : {}),
   });
   const selectedSectionId = resolveReviewSelectedSectionId(
     cachedSections,
@@ -123,13 +132,18 @@ export function useReviewSections(input: {
     toTurnCount: enabled ? (activeCheckpoint?.checkpointTurnCount ?? null) : null,
     ignoreWhitespace: false,
   });
+  const activeTurnDiffData = activeTurnDiff.data;
+  const activeTurnDiffText = useMemo(
+    () => (activeTurnDiffData == null ? null : reviewTurnDiffText(activeTurnDiffData)),
+    [activeTurnDiffData],
+  );
 
   const reviewSections = cachedSections.map((section): ReviewSectionItem => {
     if (section.kind === "turn") {
       return section.id === activeSectionId
         ? {
             ...section,
-            diff: activeTurnDiff.data?.diff ?? section.diff,
+            diff: activeTurnDiffText ?? section.diff,
             isLoading: activeTurnDiff.isPending,
           }
         : section;
@@ -175,7 +189,7 @@ export function useReviewSections(input: {
         ? activeTurnDiff.error
         : (selectedGitPreview?.error ?? null)) ??
       (selectedSection === null && !fileAccess.isPending && !canReadFiles
-        ? (fileAccess.error ?? "This connection cannot read local diffs.")
+        ? (fileAccess.error ?? messages(msg("This connection cannot read local diffs.")))
         : null),
     isSelectedSectionPending:
       selectedSection?.kind === "turn"

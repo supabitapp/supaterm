@@ -9,6 +9,7 @@ import * as NodeSqlite from "node:sqlite";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, expect, it } from "@effect/vitest";
 import { SERVER_EXIT_CODE_STATE_DIR_OWNED } from "@supaterm/contracts";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -483,7 +484,7 @@ setInterval(() => {}, 1_000);
         );
         yield* fs.writeFileString(
           path.join(bin, "systemctl"),
-          `#!/bin/sh\necho reload >> '${path.join(root, "reloads")}'\n`,
+          `#!/bin/sh\n[ "$*" = "--user daemon-reload" ] && echo reload >> '${path.join(root, "reloads")}'\n`,
         );
         yield* fs.chmod(path.join(bin, "busctl"), 0o755);
         yield* fs.chmod(path.join(bin, "systemctl"), 0o755);
@@ -907,6 +908,53 @@ process.exit(0);
         assert.equal(yield* fs.readFileString(unit.path), selectedUnit, replacement);
         assert.equal(unit.loadedContents, selectedUnit, replacement);
       }),
+  );
+
+  it.effect("repoints a unit that names this Supaterm home through a symlink", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped({
+        prefix: "supaterm-service-launcher-alias-",
+      });
+      const alias = path.join(root, "alias");
+      yield* fs.symlink(root, alias);
+      const statePath = path.join(root, "runtime", "service-state.json");
+      yield* writeFakeRuntime(
+        fs,
+        path,
+        path.join(root, "runtime", "versions", "1.1.0"),
+        "setInterval(() => {}, 1_000);\n",
+      );
+      yield* Effect.promise(() =>
+        writeServiceState(statePath, {
+          protocol: SERVICE_LAUNCHER_PROTOCOL,
+          activeVersion: "1.1.0",
+          update: {
+            id: "update-1",
+            fromVersion: "1.0.0",
+            targetVersion: "1.1.0",
+            status: "committed",
+          },
+        }),
+      );
+      const unit = yield* fakeServiceUnit(fs, path, alias, "1.0.0");
+      const launcher = new Launcher(
+        root,
+        yield* Effect.promise(() => readServiceState(statePath)),
+        {
+          serviceUnit: unit,
+        },
+      );
+      const running = launcher.run();
+      yield* Effect.promise(() => launcher.stop("SIGTERM"));
+      yield* Effect.promise(() => running);
+
+      assert.equal(
+        yield* fs.readFileString(unit.path),
+        renderBootServiceUnit(unitPlan(alias, "1.1.0")),
+      );
+    }),
   );
 
   it.effect(
@@ -1430,7 +1478,7 @@ if (context.update?.status === "pending") {
         { token: "initial", update: "pending" },
         { token: "initial", update: "rolled-back" },
       ]);
-      assert.equal(process.env.SUPATERM_TEST_SERVICE_TOKEN, "inherited");
+      assert.equal((yield* HostProcess.Environment).SUPATERM_TEST_SERVICE_TOKEN, "inherited");
       assert.equal(yield* fs.readFileString(envPath), "SUPATERM_TEST_SERVICE_TOKEN=changed\n");
     }),
   );

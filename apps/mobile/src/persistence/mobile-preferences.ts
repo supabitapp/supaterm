@@ -25,6 +25,7 @@ import { MobileStorageDecodeError, MobileStorageEncodeError } from "./mobile-sto
 
 const PREFERENCES_KEY = "supaterm.preferences";
 const PREFERENCES_FALLBACK_KEY = "supaterm.preferences.fallback";
+const encodeJson = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 
 export const PullRequestListControls = Schema.Struct({
   state: PullRequestListState,
@@ -70,6 +71,17 @@ const WorkspaceSelections = Schema.Struct({
       key: Schema.optional(Schema.String),
     }),
   ),
+  issues: Schema.optional(
+    Schema.Struct({
+      environmentId: Schema.String,
+      projectId: Schema.String,
+      tracker: Schema.String,
+      host: Schema.optional(Schema.String),
+      scope: Schema.String,
+      issueKey: Schema.String,
+      key: Schema.optional(Schema.String),
+    }),
+  ),
   settings: Schema.optional(Schema.String),
   settingsKey: Schema.optional(Schema.String),
   /** A draft the threads tab showed after its last chat; only meaningful in its session. */
@@ -92,6 +104,8 @@ const isPullRequestListPreferences = Schema.is(PullRequestListPreferences);
 export interface Preferences {
   readonly navigationTabOrder?: readonly string[];
   readonly hiddenNavigationTabs?: readonly string[];
+  /** Whether pull requests or issues last held the tab bar slot they share. */
+  readonly sharedSlotTab?: "pullRequests" | "issues";
   readonly pullRequestHideTestFiles?: boolean;
   /** Which hidden-by-default PR activity is shown: bot comments and resolved or dismissed ones. */
   readonly pullRequestActivityVisibility?: PullRequestActivityVisibility;
@@ -111,6 +125,8 @@ export interface Preferences {
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly showSkillsInSlashMenu?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;
+  /** The client `language` setting: a locale code or "system". Unset means English. */
+  readonly language?: string;
   readonly toolCallVisibility?: ToolCallVisibility;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly threadGrouping?: SidebarThreadGrouping;
@@ -145,6 +161,8 @@ export class MobilePreferencesSaveError extends Schema.TaggedError<MobilePrefere
   }
 }
 
+const isMobilePreferencesSaveError = Schema.is(MobilePreferencesSaveError);
+
 interface PreferencesFallback {
   readonly payload: string;
   readonly updatedAt: number;
@@ -162,7 +180,7 @@ export class MobilePreferencesStore extends Context.Service<
       transform: (current: Preferences) => Partial<Preferences>,
     ) => Effect.Effect<Preferences, MobilePreferencesSaveError>;
   }
->()("@supaterm/mobile/persistence/MobilePreferencesStore") {}
+>()("@supaterm/mobile/persistence/mobile-preferences/MobilePreferencesStore") {}
 
 const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
 const isToolCallVisibility = Schema.is(ToolCallVisibility);
@@ -171,6 +189,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   const preferences: {
     navigationTabOrder?: readonly string[];
     hiddenNavigationTabs?: readonly string[];
+    sharedSlotTab?: "pullRequests" | "issues";
     pullRequestHideTestFiles?: boolean;
     pullRequestActivityVisibility?: PullRequestActivityVisibility;
     pullRequestMergeMethod?: PullRequestMergeMethod;
@@ -188,6 +207,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     composerEnterBehavior?: ComposerEnterBehavior;
     showSkillsInSlashMenu?: boolean;
     followUpBehavior?: FollowUpBehavior;
+    language?: string;
     toolCallVisibility?: ToolCallVisibility;
     projectGroupingMode?: SidebarProjectGroupingMode;
     threadGrouping?: SidebarThreadGrouping;
@@ -214,6 +234,10 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     preferences.navigationTabOrder = parsed.navigationTabOrder.filter(
       (tab): tab is string => typeof tab === "string",
     );
+  }
+
+  if (parsed.sharedSlotTab === "pullRequests" || parsed.sharedSlotTab === "issues") {
+    preferences.sharedSlotTab = parsed.sharedSlotTab;
   }
 
   if (typeof parsed.pullRequestHideTestFiles === "boolean") {
@@ -279,6 +303,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   if (parsed.followUpBehavior === "queue" || parsed.followUpBehavior === "steer") {
     preferences.followUpBehavior = parsed.followUpBehavior;
   }
+  if (typeof parsed.language === "string") preferences.language = parsed.language;
   if (isToolCallVisibility(parsed.toolCallVisibility)) {
     preferences.toolCallVisibility = parsed.toolCallVisibility;
   }
@@ -385,10 +410,9 @@ const make = Effect.fn("MobilePreferencesStore.make")(function* () {
     key: string,
     value: unknown,
   ) {
-    return yield* Effect.try({
-      try: () => JSON.stringify(value),
-      catch: (cause) => new MobileStorageEncodeError({ key, cause }),
-    });
+    return yield* encodeJson(value).pipe(
+      Effect.mapError((cause) => new MobileStorageEncodeError({ key, cause })),
+    );
   });
 
   const nextUpdatedAt = Ref.modify(lastUpdatedAt, (last) => {
@@ -483,34 +507,33 @@ const make = Effect.fn("MobilePreferencesStore.make")(function* () {
     .withPermits(1)(loadUnlocked)
     .pipe(Effect.mapError((cause) => new MobilePreferencesLoadError({ cause })));
 
-  const update = Effect.fn("MobilePreferencesStore.update")((transform) =>
-    lock
-      .withPermits(1)(
-        Effect.gen(function* () {
-          const current = yield* loadUnlocked;
-          const patch = yield* Effect.try({
-            try: () => transform(current),
-            catch: (cause) => new MobilePreferencesSaveError({ cause }),
-          });
-          const next: Preferences = { ...current, ...patch };
-          const payload = yield* encode(PREFERENCES_KEY, next);
-          yield* saveJson(payload);
-          return next;
-        }),
-      )
-      .pipe(
-        Effect.mapError((cause) =>
-          cause instanceof MobilePreferencesSaveError
-            ? cause
-            : new MobilePreferencesSaveError({ cause }),
+  const update = Effect.fn("MobilePreferencesStore.update")(
+    (transform: (current: Preferences) => Partial<Preferences>) =>
+      lock
+        .withPermits(1)(
+          Effect.gen(function* () {
+            const current = yield* loadUnlocked;
+            const patch = yield* Effect.try({
+              try: () => transform(current),
+              catch: (cause) => new MobilePreferencesSaveError({ cause }),
+            });
+            const next: Preferences = { ...current, ...patch };
+            const payload = yield* encode(PREFERENCES_KEY, next);
+            yield* saveJson(payload);
+            return next;
+          }),
+        )
+        .pipe(
+          Effect.mapError((cause) =>
+            isMobilePreferencesSaveError(cause) ? cause : new MobilePreferencesSaveError({ cause }),
+          ),
         ),
-      ),
   );
 
   return MobilePreferencesStore.of({
     load,
     update,
-    savePatch: (patch) => update(() => patch),
+    savePatch: Effect.fn("MobilePreferencesStore.savePatch")((patch) => update(() => patch)),
   });
 });
 

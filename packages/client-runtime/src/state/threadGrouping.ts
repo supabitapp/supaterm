@@ -1,12 +1,14 @@
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 import { scopedProjectKey } from "../environment/index.ts";
 import type { EnvironmentThreadShell } from "./models.ts";
 import type { ProjectGroup } from "./projectGrouping.ts";
 import { toSortableTimestamp } from "./threadSort.ts";
 
 export const THREAD_GROUPING_OPTIONS = [
-  { value: "status", label: "Default" },
-  { value: "project", label: "Project" },
+  { value: "status", label: msg("Default") },
+  { value: "project", label: msg("Project") },
 ] as const satisfies ReadonlyArray<{ value: SidebarThreadGrouping; label: string }>;
 
 export type ThreadGroupingProject = Pick<ProjectGroup, "key" | "label" | "memberProjectRefs">;
@@ -50,10 +52,13 @@ export function resolveThreadActivityAt(thread: GroupableThread): number {
   );
 }
 
-export function groupInboxThreadsByProject<T extends GroupableThread>(input: {
-  readonly threads: readonly T[];
-  readonly projects: readonly ThreadGroupingProject[];
-}): ThreadDisplayGroup<T>[] {
+export function groupInboxThreadsByProject<T extends GroupableThread>(
+  input: {
+    readonly threads: readonly T[];
+    readonly projects: readonly ThreadGroupingProject[];
+  },
+  resolve: MFunctionType = mFallback,
+): ThreadDisplayGroup<T>[] {
   const ordered = input.threads
     .map((thread) => ({ thread, activityAt: resolveThreadActivityAt(thread) }))
     .sort(
@@ -78,7 +83,7 @@ export function groupInboxThreadsByProject<T extends GroupableThread>(input: {
   }
   const fallback = {
     key: "project:unavailable",
-    label: "Other projects",
+    label: resolve(msg("Other projects")),
     projectKey: null,
     threads: [] as T[],
   };

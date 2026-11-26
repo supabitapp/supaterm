@@ -19,6 +19,7 @@ import {
   type PullRequestDiffPage,
   type WithheldFileLoad,
 } from "./pullRequestDiffPages";
+import { useMessages, useLocale } from "gt-react-native";
 
 export type PullRequestParams = {
   readonly environmentId: string;
@@ -32,6 +33,20 @@ export type PullRequestParams = {
 };
 
 export type PullRequestDiffParams = PullRequestParams & { readonly commit?: string };
+
+/** The pull request a route names, without whatever else arrived on that route. */
+export function pullRequestParams(params: PullRequestParams): PullRequestParams {
+  return {
+    environmentId: params.environmentId,
+    projectId: params.projectId,
+    repository: params.repository,
+    number: params.number,
+    ...(params.host === undefined ? {} : { host: params.host }),
+    ...(params.navigationUrl === undefined ? {} : { navigationUrl: params.navigationUrl }),
+    ...(params.navigationId === undefined ? {} : { navigationId: params.navigationId }),
+    ...(params.initialSummary === undefined ? {} : { initialSummary: params.initialSummary }),
+  };
+}
 
 export function pullRequestTarget(params: PullRequestParams) {
   return {
@@ -112,6 +127,8 @@ export function usePullRequestDiff(
   params: PullRequestDiffParams,
   terminology: ChangeRequestTerminology,
 ) {
+  const messages = useMessages();
+  const locale = useLocale();
   const reference = pullRequestTarget(params);
   const target = {
     ...reference,
@@ -177,8 +194,8 @@ export function usePullRequestDiff(
     );
   });
   const pagesParsed = useMemo(
-    () => getCachedPullRequestDiffPages(pages, key, terminology),
-    [key, pages, terminology],
+    () => getCachedPullRequestDiffPages(pages, key, terminology, messages, locale),
+    [key, pages, terminology, messages, locale],
   );
   // The server says whether a withheld file can be read alone; GitHub may refuse the whole diff.
   const withheldFilesReadable = pages[0]?.result.withheldFilesReadable === true;

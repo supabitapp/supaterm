@@ -52,7 +52,8 @@ async function setupThemeSync(mode: "dark" | "system" = "dark") {
 
   let readSnapshot: (() => unknown) | undefined;
   const effects: Array<() => void> = [];
-  vi.doMock("react", () => ({
+  vi.doMock("react", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("react")>()),
     useCallback: <A>(callback: A) => callback,
     useEffect: (effect: () => void) => effects.push(effect),
     useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => {

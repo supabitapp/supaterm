@@ -1,0 +1,109 @@
+import { spawnAndCollect } from "@supaterm/provider-core/server/snapshotProbe";
+import { defineSecretProviderDriver } from "@supaterm/secret-provider-core/server/driver";
+import { resolveSpawnCommand } from "@supaterm/shared/shell";
+import * as SecureRandom from "effect/crypto/SecureRandom";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Option from "effect/Option";
+import { ChildProcess } from "effect/process";
+
+import { definition, type OnePasswordAccount } from "../shared/definition.ts";
+
+const ONE_PASSWORD_BINARY = "op";
+// Bounds a read long enough to reach for a fingerprint reader, short enough not to wedge a rebuild.
+const READ_TIMEOUT = Duration.seconds(45);
+
+// `--cache=false` skips the `op daemon`, which hangs on prompts a background server cannot show.
+const runOnePassword = Effect.fn("OnePasswordDriver.runOnePassword")(function* (
+  args: ReadonlyArray<string>,
+) {
+  const spawnCommand = yield* resolveSpawnCommand(ONE_PASSWORD_BINARY, ["--cache=false", ...args]);
+  return yield* spawnAndCollect(
+    ONE_PASSWORD_BINARY,
+    ChildProcess.make(spawnCommand.command, spawnCommand.args, { shell: spawnCommand.shell }),
+  );
+});
+
+// A secret is passed on verbatim; surrounding whitespace can be part of it.
+const nonEmpty = (value: string) => (value.trim().length > 0 ? value : undefined);
+
+// One `op inject` costs one unlock for every reference in the template. `op` ignores piped stdin
+// from Node, so the template goes through a temp file. A random separator after every reference
+// keeps one secret from shifting the others, and leaves any trailing newline outside the values.
+const readTogether = Effect.fn("OnePasswordDriver.readTogether")(function* (
+  account: OnePasswordAccount,
+  references: ReadonlyArray<string>,
+) {
+  const fileSystem = yield* FileSystem.FileSystem;
+  const separator = `__supaterm-secret-${yield* (yield* SecureRandom.SecureRandom).uuidV4()}__`;
+  const templatePath = yield* fileSystem.makeTempFileScoped({ prefix: "supaterm-op-inject-" });
+  yield* fileSystem.writeFileString(
+    templatePath,
+    references.map((reference) => `{{ ${reference} }}${separator}`).join(""),
+  );
+  const result = yield* runOnePassword(["inject", `--account=${account}`, "-i", templatePath]);
+  const values = result.stdout.split(separator);
+  const trailing = values.pop();
+  if (
+    result.code !== 0 ||
+    values.length !== references.length ||
+    trailing === undefined ||
+    trailing.trim().length > 0
+  ) {
+    yield* Effect.logWarning("Could not batch-read secrets from 1Password", {
+      stage: "inject",
+      exitCode: result.code,
+      references: references.length,
+    });
+    return undefined;
+  }
+  return values.map(nonEmpty);
+}, Effect.scoped);
+
+// Process arguments show in process listings and diagnostics, so even one reference is templated.
+const readOne = (account: OnePasswordAccount, reference: string) =>
+  readTogether(account, [reference]).pipe(Effect.map((values) => values?.[0]));
+
+const recover = <A, E extends { readonly _tag: string }, R>(
+  stage: "read" | "inject",
+  effect: Effect.Effect<A | undefined, E, R>,
+) =>
+  effect.pipe(
+    Effect.catch((error) =>
+      Effect.logWarning("Could not run 1Password", { stage, error: error._tag }).pipe(
+        Effect.as(undefined),
+      ),
+    ),
+  );
+
+export const driver = defineSecretProviderDriver({
+  kind: definition.kind,
+  definition,
+  read: Effect.fn("OnePasswordDriver.read")(function* ({ account }, references) {
+    // One deadline covers the batch and the fallback; a reference not read by then is unreadable.
+    const values: Array<string | undefined> = references.map(() => undefined);
+    const outcome = yield* Effect.gen(function* () {
+      if (references.length > 1) {
+        const together = yield* recover("inject", readTogether(account, references));
+        if (together !== undefined) return together;
+      }
+      yield* Effect.forEach(
+        references,
+        (reference, index) =>
+          recover("read", readOne(account, reference)).pipe(
+            Effect.map((value) => {
+              values[index] = value;
+            }),
+          ),
+        { discard: true },
+      );
+      return values;
+    }).pipe(Effect.timeoutOption(READ_TIMEOUT));
+    if (Option.isSome(outcome)) return outcome.value;
+    yield* Effect.logWarning("1Password did not answer in time", {
+      references: references.length,
+    });
+    return values;
+  }),
+});

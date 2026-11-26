@@ -163,6 +163,49 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
     }).pipe(Effect.provide(ProcessRunner.layer)),
   );
 
+  it.effect("keys a remote by its configured URL when insteadOf rewrites it", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const cwd = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-repository-identity-instead-of-test-",
+      });
+
+      yield* git(cwd, ["init"]);
+      yield* git(cwd, ["remote", "add", "origin", "https://github.com/SupatermTools/supaterm.git"]);
+      yield* git(cwd, ["config", "url.https://proxy.example/.insteadOf", "https://github.com/"]);
+      yield* git(cwd, ["config", "remote.origin.gh-resolved", "base"]);
+      const remotes = yield* git(cwd, ["remote", "-v"]);
+      expect(remotes.stdout).toContain("https://proxy.example/SupatermTools/supaterm.git (fetch)");
+
+      const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
+      const identity = yield* resolver.resolve(cwd);
+
+      expect(identity?.canonicalKey).toBe("github.com/supatermtools/supaterm");
+      expect(identity?.provider).toBe("github");
+      expect(identity?.displayName).toBe("SupatermTools/supaterm");
+      expect(identity?.locator).toEqual({
+        source: "git-remote",
+        remoteName: "origin",
+        remoteUrl: "https://github.com/SupatermTools/supaterm.git",
+      });
+
+      const shorthandCwd = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-repository-identity-instead-of-shorthand-test-",
+      });
+      yield* git(shorthandCwd, ["init"]);
+      yield* git(shorthandCwd, ["remote", "add", "origin", "gh:SupatermTools/supaterm.git"]);
+      yield* git(shorthandCwd, ["config", "url.https://github.com/.insteadOf", "gh:"]);
+
+      const shorthandIdentity = yield* resolver.resolve(shorthandCwd);
+
+      expect(shorthandIdentity?.canonicalKey).toBe("github.com/supatermtools/supaterm");
+      expect(shorthandIdentity?.provider).toBe("github");
+      expect(shorthandIdentity?.locator.remoteUrl).toBe(
+        "https://github.com/SupatermTools/supaterm.git",
+      );
+    }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
+  );
+
   it.effect("keeps a literal .git in an Azure DevOps repository name", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
@@ -214,6 +257,35 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(identity?.canonicalKey).toBe("github.com/supabitapp/supaterm");
       expect(identity?.locator.remoteUrl).toBe("git@github.com:Supabitapp/supaterm.git");
       expect(identity?.locator.remoteName).toBe("origin");
+    }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
+  );
+
+  it.effect("keeps a login embedded in a remote URL out of the identity", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const cwd = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-repository-identity-credentials-test-",
+      });
+
+      yield* git(cwd, ["init"]);
+      yield* git(cwd, [
+        "remote",
+        "add",
+        "origin",
+        "https://me:origin-secret@github.com/me/supaterm.git",
+      ]);
+      yield* git(cwd, [
+        "remote",
+        "add",
+        "upstream",
+        "https://x-access-token:upstream-secret@github.com/SupatermTools/supaterm.git?token=query-secret",
+      ]);
+
+      const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
+      const identity = yield* resolver.resolve(cwd);
+      expect(identity?.locator.remoteUrl).toBe("https://github.com/SupatermTools/supaterm.git");
+      expect(identity?.origin?.remoteUrl).toBe("https://github.com/me/supaterm.git");
+      expect(JSON.stringify(identity)).not.toContain("secret");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
 

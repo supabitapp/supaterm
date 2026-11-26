@@ -40,6 +40,8 @@ import { ComposerDictationStartAction } from "../voice-input/ComposerDictationCo
 import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
+import { msg, useGT, useMessages } from "gt-react-native";
+import { m } from "../../i18n/messages";
 export function QuestionAttachments(props: {
   requestId: string;
   question: UserInputQuestion;
@@ -50,6 +52,8 @@ export function QuestionAttachments(props: {
   onInputFocusChange?: ((focused: boolean) => void) | undefined;
   onStartDictation: () => void;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const { selectedThread } = useThreadSelection();
   const navigation = useNavigation();
   const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
@@ -159,12 +163,12 @@ export function QuestionAttachments(props: {
       )
       .then((result) => {
         const problems = attachProblems(result);
-        if (problems.length) Dialog.alert("Could not paste image", problems.join("\n\n"));
+        if (problems.length) Dialog.alert(gt("Could not paste image"), problems.join("\n\n"));
       })
       .catch((error) =>
         Dialog.alert(
-          "Could not paste image",
-          error instanceof Error ? error.message : "Try again.",
+          gt("Could not paste image"),
+          error instanceof Error ? error.message : gt("Try again."),
         ),
       )
       .finally(preparation.finish);
@@ -173,7 +177,11 @@ export function QuestionAttachments(props: {
   const { environmentId, id: threadId } = selectedThread;
   const capabilities = configs.get(environmentId)?.environment.capabilities;
   const canAttach = capabilities !== undefined;
-  const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
+  const presentation = resolveVoiceComposerPresentation(
+    voice.state,
+    voice.elapsedSeconds,
+    messages,
+  );
   const showsDictation = presentation.statusLabel !== null;
   const attachments = drafts[key]?.attachments ?? [];
   const pick = async (kind: "media" | "files") => {
@@ -187,11 +195,14 @@ export function QuestionAttachments(props: {
         append: (attachments) => append(key, attachments),
       });
       const problems = attachProblems(result);
-      if (problems.length) Dialog.alert("Could not attach file", problems.join("\n\n"));
+      if (problems.length) Dialog.alert(gt("Could not attach file"), problems.join("\n\n"));
     });
     if (AsyncResult.isFailure(picked)) {
       const error = squashAtomCommandFailure(picked);
-      Dialog.alert("Could not attach file", error instanceof Error ? error.message : "Try again.");
+      Dialog.alert(
+        gt("Could not attach file"),
+        error instanceof Error ? error.message : gt("Try again."),
+      );
     }
   };
   return (
@@ -250,7 +261,7 @@ export function QuestionAttachments(props: {
               focusedRef.current = false;
               onInputFocusChange?.(false);
             }}
-            placeholder="Or type a custom answer"
+            placeholder={gt("Or type a custom answer")}
             className={canAttach ? "min-h-[54px] pl-12 pr-12" : "min-h-[54px] pr-12"}
           />
         </TextInputWrapper>
@@ -296,7 +307,7 @@ function attachProblems(
   const skipped = skippedDuplicateAttachmentsMessage(result.duplicates);
   return [
     ...(result.error ? [result.error] : []),
-    ...(result.rejected > 0 ? ["Too many attachments."] : []),
+    ...(result.rejected > 0 ? [m(msg("Too many attachments."))] : []),
     ...(skipped ? [skipped] : []),
   ];
 }

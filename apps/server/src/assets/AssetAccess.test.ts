@@ -37,6 +37,7 @@ import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import { assetFileResponse } from "../http.ts";
 import { ASSET_ROUTE_PREFIX, issueAssetUrl, readMcpAppHtml, resolveAsset } from "./AssetAccess.ts";
 import * as NativeAppIconResolver from "./NativeAppIconResolver.ts";
+import { readPublishedThemes } from "../environmentTheme.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 import { fakeSourceControlDriverInstance } from "@supaterm/source-control-testing/fakeSourceControlDriver";
@@ -226,6 +227,48 @@ describe("AssetAccess", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
+  it.effect(
+    "serves a published theme's background image, and only the file it was issued for",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const { environmentThemesDir } = yield* ServerConfig.ServerConfig;
+        yield* fs.makeDirectory(environmentThemesDir, { recursive: true });
+        const imagePath = `${environmentThemesDir}/frieren.png`;
+        yield* fs.writeFile(imagePath, screenshotPng);
+        const resource = { _tag: "environment-theme-background", themeId: "frieren" } as const;
+        const unpublished = yield* issueAssetUrl({ resource }).pipe(Effect.flip);
+        expect(unpublished._tag).toBe("AssetWorkspaceAssetNotFoundError");
+
+        yield* fs.writeFileString(
+          `${environmentThemesDir}/frieren.json`,
+          JSON.stringify({
+            name: "Frieren",
+            appearance: "dark",
+            canvas: "#1a1b26",
+            accent: "#7aa2f7",
+          }),
+        );
+        const publishedThemes = yield* readPublishedThemes(environmentThemesDir);
+        const result = yield* issueAssetUrl({ resource, publishedThemes });
+        const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+        const separator = suffix.indexOf("/");
+        const token = suffix.slice(0, separator);
+        const asset = yield* resolveAsset(token, suffix.slice(separator + 1));
+        expect(asset).toMatchObject({ kind: "file", path: yield* fs.realPath(imagePath) });
+        if (asset?.kind !== "file") return;
+        const response = yield* assetFileResponse(asset);
+        expect(response.headers["content-type"]).toBe("image/png");
+
+        const replacementPath = `${environmentThemesDir}/replacement.png`;
+        yield* fs.writeFile(replacementPath, screenshotPng);
+        yield* fs.rename(replacementPath, imagePath);
+        expect(yield* resolveAsset(token, suffix.slice(separator + 1))).toBeNull();
+        const stale = yield* issueAssetUrl({ resource, publishedThemes }).pipe(Effect.flip);
+        expect(stale._tag).toBe("AssetWorkspaceAssetNotFoundError");
+      }).pipe(Effect.scoped, Effect.provide(layerTest)),
+  );
+
   it.effect("issues exact URLs for media and browser documents outside the workspace", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -285,15 +328,28 @@ describe("AssetAccess", () => {
       const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-download-root-" });
       const outside = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-download-outside-" });
       for (const name of ["installer.dmg", "report.docx", "archive.zip", "no-extension"]) {
-        for (const directory of [root, outside]) {
+        for (const [directory, draft] of [
+          [root, false],
+          [outside, false],
+          [root, true],
+          [outside, true],
+        ] as const) {
           const filePath = path.join(directory, name);
           yield* fs.writeFileString(filePath, "shared file bytes");
-          const resource = {
-            _tag: "media-file" as const,
-            threadId: ThreadId.make("thread-1"),
-            path: directory === root ? name : filePath,
-            disposition: "attachment" as const,
-          };
+          const requested = directory === root ? name : filePath;
+          const resource = draft
+            ? {
+                _tag: "draft-workspace-file" as const,
+                cwd: root,
+                path: requested,
+                disposition: "attachment" as const,
+              }
+            : {
+                _tag: "media-file" as const,
+                threadId: ThreadId.make("thread-1"),
+                path: requested,
+                disposition: "attachment" as const,
+              };
           const result = yield* issueAssetUrl({ resource, workspaceRoot: root });
           const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
           const separator = suffix.indexOf("/");
@@ -775,7 +831,7 @@ describe("AssetAccess", () => {
         const root = yield* fs.realPath(
           yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-link-" }),
         );
-        yield* fs.writeFileString(path.join(root, "payload.xhtml"), "<html/>");
+        yield* fs.writeFileString(path.join(root, "page.xhtml"), "<html/>");
         yield* fs.writeFileString(path.join(root, "real.pdf"), "%PDF-1.4");
         const link = path.join(root, "report.pdf");
         const issue = issueAssetUrl({
@@ -792,7 +848,7 @@ describe("AssetAccess", () => {
           return resolveAsset(suffix.slice(0, separator), suffix.slice(separator + 1));
         };
 
-        yield* fs.symlink(path.join(root, "payload.xhtml"), link);
+        yield* fs.symlink(path.join(root, "page.xhtml"), link);
         expect((yield* issue.pipe(Effect.flip))._tag).toBe("AssetPreviewTypeValidationError");
 
         yield* fs.remove(link);
@@ -803,7 +859,7 @@ describe("AssetAccess", () => {
         });
 
         yield* fs.remove(link);
-        yield* fs.symlink(path.join(root, "payload.xhtml"), link);
+        yield* fs.symlink(path.join(root, "page.xhtml"), link);
         expect(yield* resolveIssued(issued.relativeUrl)).toBeNull();
       }).pipe(Effect.provide(layerTest)),
   );
@@ -832,6 +888,12 @@ describe("AssetAccess", () => {
         },
         { _tag: "media-file", threadId, path: config.dbPath },
         { _tag: "draft-workspace-file", cwd: config.stateDir, path: "statev2.sqlite" },
+        {
+          _tag: "draft-workspace-file",
+          cwd: config.stateDir,
+          path: "statev2.sqlite",
+          disposition: "attachment",
+        },
       ] as const) {
         const error = yield* issueAssetUrl({ resource }).pipe(Effect.flip);
         expect(error._tag).toBe("AssetWorkspaceAssetNotFoundError");
@@ -1322,8 +1384,16 @@ describe("AssetAccess", () => {
       });
       const pages = path.join(root, "pages");
       yield* fileSystem.makeDirectory(pages);
+      // Coarse kernel clocks can stamp two quick same-size writes alike, so each edit gets its own mtime.
+      let editedAt = 1_000;
       const write = (name: string, text: string) =>
-        fileSystem.writeFileString(path.join(pages, name), text);
+        fileSystem
+          .writeFileString(path.join(pages, name), text)
+          .pipe(
+            Effect.andThen(
+              Effect.promise(() => NodeFSP.utimes(path.join(pages, name), ++editedAt, editedAt)),
+            ),
+          );
       yield* write("a.html", '<link rel="stylesheet" href="a.css"><script src="late.js"></script>');
       yield* write("a.css", "body { color: red; }");
       yield* write("b.html", "<h1>b</h1>");
@@ -1814,6 +1884,51 @@ describe("AssetAccess", () => {
       );
       expect(tamperedSuffixResult).toEqual({ kind: "file", path: canonicalPath });
       expect(tamperedSuffixResult).not.toEqual({ kind: "file", path: canonicalSiblingPath });
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect.skipIf(!symlinksSupported)("refuses a favicon link whose target is not an image", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.realPath(
+        yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-asset-favicon-link-" }),
+      );
+      const pictures = yield* fs.realPath(
+        yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-asset-favicon-link-pictures-" }),
+      );
+      yield* fs.writeFileString(path.join(root, "page.xhtml"), "<html/>");
+      yield* fs.writeFileString(path.join(root, "real.svg"), "<svg/>");
+      const resolveIssued = (relativeUrl: string) => {
+        const suffix = relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+        const separator = suffix.indexOf("/");
+        return resolveAsset(suffix.slice(0, separator), suffix.slice(separator + 1));
+      };
+      for (const link of [path.join(root, "favicon.svg"), path.join(pictures, "custom.svg")]) {
+        const issue = issueAssetUrl({
+          resource: { _tag: "project-favicon", cwd: root },
+          ...(link.startsWith(pictures) ? { projectFaviconPath: link } : {}),
+        });
+
+        yield* fs.symlink(path.join(root, "page.xhtml"), link);
+        expect((yield* issue.pipe(Effect.flip))._tag).toBe("AssetPreviewTypeValidationError");
+
+        yield* fs.remove(link);
+        yield* fs.symlink(path.join(root, "real.svg"), link);
+        const issued = yield* issue;
+        expect(yield* resolveIssued(issued.relativeUrl)).toEqual({
+          kind: "file",
+          path: path.join(root, "real.svg"),
+        });
+
+        yield* fs.remove(link);
+        yield* fs.symlink(path.join(root, "page.xhtml"), link);
+        // An outside icon's URL names its target, so repointing the link cannot change it.
+        expect(yield* resolveIssued(issued.relativeUrl)).toEqual(
+          link.startsWith(pictures) ? { kind: "file", path: path.join(root, "real.svg") } : null,
+        );
+        yield* fs.remove(link);
+      }
     }).pipe(Effect.provide(layerTest)),
   );
 

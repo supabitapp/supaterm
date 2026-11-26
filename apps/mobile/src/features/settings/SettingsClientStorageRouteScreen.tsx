@@ -22,8 +22,10 @@ import { useSavedRemoteConnections } from "../../state/use-remote-environment-re
 import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsScreen } from "./components/SettingsScreen";
+import { T, useGT } from "gt-react-native";
 
 export function SettingsClientStorageRouteScreen() {
+  const gt = useGT();
   const insets = useSafeAreaInsets();
   const summaryResult = useAtomValue(clientCacheSummaryAtom);
   const clearResult = useAtomValue(clearClientCacheAtom);
@@ -33,7 +35,9 @@ export function SettingsClientStorageRouteScreen() {
   const isClearing = clearResult.waiting;
   const confirm = useInlineConfirm<"all">();
   const summary = AsyncResult.isSuccess(summaryResult) ? summaryResult.value : null;
-  const clearAllLabel = summary ? `Clear ${formatBytes(summary.payloadBytes)}` : "Clear caches";
+  const clearAllLabel = summary
+    ? gt("Clear {size}", { size: formatBytes(summary.payloadBytes) })
+    : gt("Clear caches");
   const environmentSummaries = useMemo(
     () =>
       [...(summary?.environments ?? [])].sort((left, right) => {
@@ -45,7 +49,7 @@ export function SettingsClientStorageRouteScreen() {
   );
 
   return (
-    <SettingsScreen title="Client Storage">
+    <SettingsScreen title={gt("Client Storage")}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -53,7 +57,7 @@ export function SettingsClientStorageRouteScreen() {
         contentContainerClassName="gap-6 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
-        <SettingsSection title="Environment caches">
+        <SettingsSection title={gt("Environment caches")}>
           {AsyncResult.isFailure(summaryResult) ? (
             <View className="items-center gap-2 px-6 py-8">
               <SymbolView
@@ -63,16 +67,18 @@ export function SettingsClientStorageRouteScreen() {
                 type="monochrome"
                 weight="regular"
               />
-              <Text className="text-center text-base text-foreground">Storage unavailable</Text>
+              <Text className="text-center text-base text-foreground">
+                <T>Storage unavailable</T>
+              </Text>
               <Text className="text-center text-sm text-foreground-muted">
-                Restart the app and try again.
+                <T>Restart the app and try again.</T>
               </Text>
             </View>
           ) : !summary ? (
             <View className="items-center gap-3 px-6 py-8">
               <AppActivityIndicator />
               <Text className="text-center text-sm text-foreground-muted">
-                Inspecting cached data…
+                <T>Inspecting cached data…</T>
               </Text>
             </View>
           ) : (
@@ -115,9 +121,11 @@ export function SettingsClientStorageRouteScreen() {
                     type="monochrome"
                     weight="regular"
                   />
-                  <Text className="text-center text-base text-foreground">No cached data</Text>
+                  <Text className="text-center text-base text-foreground">
+                    <T>No cached data</T>
+                  </Text>
                   <Text className="text-center text-sm text-foreground-muted">
-                    Offline cache records will appear here after environments are used.
+                    <T>Offline cache records will appear here after environments are used.</T>
                   </Text>
                 </View>
               ) : null}
@@ -126,10 +134,10 @@ export function SettingsClientStorageRouteScreen() {
         </SettingsSection>
 
         <View className="gap-3">
-          <SettingsSection title="Actions">
+          <SettingsSection title={gt("Actions")}>
             <SettingsActionRow
               icon="trash"
-              label={confirm.armed === "all" ? "Confirm clearing all caches" : clearAllLabel}
+              label={confirm.armed === "all" ? gt("Confirm clearing all caches") : clearAllLabel}
               tone="danger"
               disabled={isClearing || !summary || summary.recordCount === 0}
               loading={isClearing}
@@ -137,12 +145,14 @@ export function SettingsClientStorageRouteScreen() {
             />
           </SettingsSection>
           <Text className="px-2 text-sm leading-normal text-foreground-muted">
-            Clearing caches never removes environment connections, credentials, account data, or
-            appearance preferences.
+            <T>
+              Clearing caches never removes environment connections, credentials, account data, or
+              appearance preferences.
+            </T>
           </Text>
           {AsyncResult.isFailure(summaryResult) || AsyncResult.isFailure(clearResult) ? (
             <Text selectable className="px-2 text-sm text-danger-foreground">
-              Client storage is temporarily unavailable. Try again after restarting the app.
+              <T>Client storage is temporarily unavailable. Try again after restarting the app.</T>
             </Text>
           ) : null}
         </View>
@@ -159,6 +169,7 @@ function CacheEnvironmentRow(props: {
   readonly first: boolean;
   readonly onClear: () => void;
 }) {
+  const gt = useGT();
   const confirm = useInlineConfirm<"clear">();
   const armed = confirm.armed === "clear";
   return (
@@ -168,8 +179,12 @@ function CacheEnvironmentRow(props: {
         label={props.environmentLabel}
         description={
           armed
-            ? `Confirm clearing cache for ${props.environmentLabel}`
-            : `Clear ${formatBytes(props.environment.payloadBytes)} of cached data`
+            ? gt("Confirm clearing cache for {environment}", {
+                environment: props.environmentLabel,
+              })
+            : gt("Clear {size} of cached data", {
+                size: formatBytes(props.environment.payloadBytes),
+              })
         }
         tone="danger"
         disabled={props.disabled}

@@ -9,7 +9,7 @@ import type {
 import type * as Effect from "effect/Effect";
 
 import type { TextGenerationPolicy } from "./textGenerationPolicy.ts";
-import type { ThreadTitleForkSource } from "./textGenerationPrompts.ts";
+import type { ChangeProducer, ThreadTitleForkSource } from "./textGenerationPrompts.ts";
 
 export interface CommitMessageGenerationInput {
   cwd: string;
@@ -40,6 +40,7 @@ export interface PrContentGenerationInput {
   diffPatch: string;
   changeRequestTemplate?: string | undefined;
   threadContext?: string | undefined;
+  producedBy?: ReadonlyArray<ChangeProducer> | undefined;
   policy?: TextGenerationPolicy | undefined;
 
   modelSelection: ModelSelection;
@@ -92,7 +93,10 @@ export interface ReviewGuideStackLayer {
 }
 
 export interface ReviewGuideGenerationInput {
+  /** A scratch checkout of the pull request's head. */
   cwd: string;
+  /** The project folder the checkout was made from; the user's own relative paths resolve here. */
+  projectCwd: string;
   number: number;
   title: string;
   description: string;

@@ -15,6 +15,7 @@ import {
   TurnItemId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
@@ -512,8 +513,15 @@ it("readThread returns the newest items that fit the response budget", async () 
       maxCharsPerItem: 1_500,
     };
     const result = yield* service.readThread(makeScope(), read);
-    // The CLI reads as a client without a cursor and follows only hasMore.
-    const first = yield* service.readThread({ ...makeScope(), thread: undefined }, read);
+    // An outside MCP client, such as claude.ai, reads without a thread or a link.
+    const outside = yield* service.readThread(
+      {
+        ...makeScope(),
+        thread: undefined,
+        client: { sessionId: "session-1", label: "claude.ai", access: "read-only" },
+      },
+      read,
+    );
     const fromStart = yield* service.readThread(makeScope(), { ...read, afterPosition: -1 });
     const linked = yield* service.readThread(
       {
@@ -531,7 +539,7 @@ it("readThread returns the newest items that fit the response budget", async () 
 
     expect(pageOptions).toEqual([
       { beforePosition: Number.POSITIVE_INFINITY, limit: 100, view: "activity" },
-      { limit: 100, view: "activity" },
+      { beforePosition: Number.POSITIVE_INFINITY, limit: 100, view: "activity" },
       { afterPosition: -1, limit: 100, view: "activity" },
       { beforePosition: Number.POSITIVE_INFINITY, limit: 100, view: "activity" },
     ]);
@@ -541,10 +549,13 @@ it("readThread returns the newest items that fit the response budget", async () 
     expect(result.items.at(-1)?.position).toBe(99);
     expect(result.earlierPosition).toBe(result.items[0]?.position);
     expect(result.hasMore).toBe(false);
-    expect(first.items[0]?.position).toBe(0);
-    expect(first.hasMore).toBe(true);
-    expect(first.nextPosition).toBe(first.items.at(-1)?.position);
+    expect(outside.items.at(-1)?.position).toBe(99);
+    expect(outside.earlierPosition).toBe(outside.items[0]?.position);
+    expect(outside.hasMore).toBe(false);
+    // The supaterm thread CLI pages forward from here, following only hasMore.
     expect(fromStart.items[0]?.position).toBe(0);
+    expect(fromStart.hasMore).toBe(true);
+    expect(fromStart.nextPosition).toBe(fromStart.items.at(-1)?.position);
     expect(linked.items.at(-1)?.position).toBe(99);
     expect(linked.earlierPosition).toBe(linked.items[0]?.position);
     expect(linked.hasMore).toBe(false);
@@ -1145,7 +1156,11 @@ it("requestSecret saves a pasted value to a file without opening a card", async 
 it("requestSecret returns the unsaved note for a declined, cancelled or timed-out card", async () => {
   const outcomes = ["declined", "cancelled", "pending"] as const;
   const results = await Effect.forEach(outcomes, (outcome) => {
-    const dispatched: Array<{ readonly type: string; readonly turnItemId?: string }> = [];
+    const dispatched: Array<{
+      readonly type: string;
+      readonly turnItemId?: string;
+      readonly secretStatus?: string;
+    }> = [];
     const projection = () => {
       const card = dispatched.find((command) => command.type === "secret_request.record");
       return {
@@ -1204,14 +1219,24 @@ it("requestSecret returns the unsaved note for a declined, cancelled or timed-ou
         })
         .pipe(Effect.forkChild({ startImmediately: true }));
       yield* TestClock.adjust("1 hour");
-      return yield* Fiber.join(request);
+      const result = yield* Fiber.join(request);
+      return { result, recorded: dispatched.map((command) => command.secretStatus) };
     }).pipe(Effect.provide(Layer.merge(layer, TestClock.layer())));
   }).pipe(Effect.runPromise);
 
   expect(results).toEqual([
-    { status: "declined", note: SECRET_REQUEST_UNSAVED_NOTE.declined },
-    { status: "cancelled", note: SECRET_REQUEST_UNSAVED_NOTE.cancelled },
-    { status: "timed_out", note: SECRET_REQUEST_UNSAVED_NOTE.timed_out },
+    {
+      result: { status: "declined", note: SECRET_REQUEST_UNSAVED_NOTE.declined },
+      recorded: ["pending"],
+    },
+    {
+      result: { status: "cancelled", note: SECRET_REQUEST_UNSAVED_NOTE.cancelled },
+      recorded: ["pending"],
+    },
+    {
+      result: { status: "timed_out", note: SECRET_REQUEST_UNSAVED_NOTE.timed_out },
+      recorded: ["pending", "cancelled"],
+    },
   ]);
 });
 
@@ -1301,4 +1326,82 @@ it("requestSecret cancels its card when a steering restart supersedes the reques
     expect(records.map((command) => command.secretStatus)).toEqual(["pending", "cancelled"]);
     expect(records.every((command) => command.nodeId === originalRoot)).toBe(true);
   }).pipe(Effect.provide(layer), Effect.runPromise);
+});
+
+it("requestSecret closes its card when the call is aborted while the card is being recorded", async () => {
+  const statuses: Array<string> = [];
+  const projection = () =>
+    ({
+      thread: baseThread({
+        threadId: parentThreadId,
+        title: "Parent",
+        instanceId: parentInstanceId,
+        model: "gpt-5.4",
+      }),
+      runs: [
+        { ...makeRun({ id: activeRunId, ordinal: 1, status: "running" }), rootNodeId: taskId },
+      ],
+      visibleTurnItems: [],
+      turnItems: [],
+      providerTurns: [],
+      runtimeRequests: [],
+      messages: [],
+      contextTransfers: [],
+      subagents: [],
+      updatedAt: now,
+    }) as unknown as OrchestrationV2ThreadProjection;
+
+  await Effect.gen(function* () {
+    const recorded = yield* Deferred.make<void>();
+    const release = yield* Deferred.make<void>();
+    const layer = layerOrchestratorService.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.mock(ThreadManagementService.ThreadManagementService)({
+            getThreadRecords: () => Effect.sync(projection),
+            getThreadShell: () =>
+              Effect.sync(() => projection().thread as unknown as OrchestrationV2ThreadShell),
+            // The pending card is stored before the dispatch returns to the caller.
+            dispatch: (command) =>
+              Effect.gen(function* () {
+                if (command.type !== "secret_request.record") return {} as never;
+                statuses.push(command.secretStatus);
+                if (command.secretStatus === "pending") {
+                  yield* Deferred.succeed(recorded, undefined);
+                  yield* Deferred.await(release);
+                }
+                return {} as never;
+              }),
+          } satisfies Partial<ThreadManagementService.ThreadManagementService["Service"]>),
+          ServerSettings.layerTest(),
+          Layer.mock(ProviderRegistry.ProviderRegistry)({
+            getProviders: Effect.succeed([]),
+          } satisfies Partial<ProviderRegistry.ProviderRegistry["Service"]>),
+          Layer.mock(ProjectService.ProjectService)({}),
+          Layer.mock(SecretRequests.SecretRequests)({}),
+          Layer.mock(RemoteDelegation.RemoteDelegation)({}),
+          Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+          Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({}),
+          NodeCrypto.layer,
+        ),
+      ),
+    );
+    yield* Effect.gen(function* () {
+      const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+      const request = yield* service
+        .requestSecret(makeScope(), {
+          label: "Staging password",
+          reason: "Signs in the QA account.",
+        })
+        .pipe(Effect.forkChild({ startImmediately: true }));
+      yield* Deferred.await(recorded);
+      const abort = yield* Fiber.interrupt(request).pipe(
+        Effect.forkChild({ startImmediately: true }),
+      );
+      yield* Deferred.succeed(release, undefined);
+      yield* Fiber.join(abort);
+    }).pipe(Effect.provide(Layer.merge(layer, TestClock.layer())));
+  }).pipe(Effect.runPromise);
+
+  expect(statuses).toEqual(["pending", "cancelled"]);
 });

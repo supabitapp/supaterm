@@ -7,6 +7,7 @@ export const SUPATERM_MCP_URL_ENV = "SUPATERM_MCP_URL";
 export const SUPATERM_MCP_BEARER_ENV = "SUPATERM_MCP_BEARER_TOKEN";
 export const SUPATERM_PI_RUNTIME_MODE_ENV = "SUPATERM_PI_RUNTIME_MODE";
 export const SUPATERM_PI_MCP_EXTENSION_PATH_ENV = "SUPATERM_PI_MCP_EXTENSION_PATH";
+export const SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV = "SUPATERM_PI_WORKSPACE_INSTRUCTIONS";
 export const PI_SUPATERM_SERVICE_TIER_COMMAND = "supaterm-service-tier";
 
 /**
@@ -26,6 +27,7 @@ const URL_ENV = ${JSON.stringify(SUPATERM_MCP_URL_ENV)};
 const TOKEN_ENV = ${JSON.stringify(SUPATERM_MCP_BEARER_ENV)};
 const RUNTIME_MODE_ENV = ${JSON.stringify(SUPATERM_PI_RUNTIME_MODE_ENV)};
 const EXTENSION_PATH_ENV = ${JSON.stringify(SUPATERM_PI_MCP_EXTENSION_PATH_ENV)};
+const WORKSPACE_INSTRUCTIONS_ENV = ${JSON.stringify(SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV)};
 const ORCHESTRATION_INSTRUCTIONS = ${JSON.stringify(SUPATERM_ORCHESTRATION_INSTRUCTIONS.trim())};
 const PULL_REQUEST_LINKING_INSTRUCTIONS = ${JSON.stringify(PULL_REQUEST_LINKING_INSTRUCTIONS)};
 const SERVICE_TIER_COMMAND = ${JSON.stringify(PI_SUPATERM_SERVICE_TIER_COMMAND)};
@@ -500,7 +502,8 @@ export default async function supatermMcpExtension(pi: ExtensionAPI) {
   // Keep guidance in the system prompt so leading slash commands still expand.
   pi.on("before_agent_start", (event, ctx) => {
     reconcileDiscovery(ctx);
-    const instructions = ORCHESTRATION_INSTRUCTIONS + "\\n\\n" + PULL_REQUEST_LINKING_INSTRUCTIONS;
+    const workspace = env(WORKSPACE_INSTRUCTIONS_ENV);
+    const instructions = [ORCHESTRATION_INSTRUCTIONS, PULL_REQUEST_LINKING_INSTRUCTIONS, ...(workspace ? [workspace] : [])].join("\\n\\n");
     const sections = event.systemPromptOptions?.sections;
     if (sections && typeof sections === "object" && event.systemPromptOptions?.forceSystemPrompt === undefined) {
       // A full prompt override bypasses Pi's later section rendering.

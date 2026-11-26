@@ -12,6 +12,7 @@ import { useScaledTextRole } from "../../features/settings/appearance/useScaledT
 import { useToolbarLayout } from "./useToolbarLayout";
 import { useControlTheme } from "./useControlTheme";
 import { RoutedFormSheetContext } from "./RoutedFormSheetContext";
+import { useGT } from "gt-react-native";
 
 export interface AndroidHeaderAction {
   readonly accessibilityLabel: string;
@@ -40,6 +41,7 @@ export function AndroidHeaderIconButton(props: {
 function AndroidHeaderOverflowMenu(props: {
   readonly actions: ReadonlyArray<AndroidHeaderAction>;
 }) {
+  const gt = useGT();
   return (
     <AndroidAnchoredMenu
       actions={props.actions.map((action, index) => ({
@@ -56,7 +58,7 @@ function AndroidHeaderOverflowMenu(props: {
     >
       {(open) => (
         <IconButton
-          accessibilityLabel="More actions"
+          accessibilityLabel={gt("More actions")}
           icon="ellipsis"
           tintColorClassName="accent-header-foreground"
           onPress={open}
@@ -77,6 +79,7 @@ export function AndroidScreenHeader(props: {
   readonly embedded?: boolean;
   readonly hideBottomBorder?: boolean;
 }) {
+  const gt = useGT();
   const { colors } = useControlTheme();
   const titleTypography = useScaledTextRole("title");
   const subtitleTypography = useScaledTextRole("label");
@@ -110,7 +113,7 @@ export function AndroidScreenHeader(props: {
             <View collapsable={false} className="flex-row items-center">
               {props.onBack ? (
                 <IconButton
-                  accessibilityLabel="Navigate up"
+                  accessibilityLabel={gt("Navigate up")}
                   icon="arrow.left"
                   tintColorClassName="accent-header-foreground"
                   onPress={props.onBack}

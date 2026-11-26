@@ -10,6 +10,9 @@ import { Atom } from "effect/reactivity";
 import { environmentSummaries } from "./presentation";
 import { primaryEnvironmentIdAtom } from "./primaryEnvironment";
 import { serverEnvironment } from "./server";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
+import { type MessageResolver } from "~/i18n/messages";
 
 export interface NpmRelease {
   readonly version: string;
@@ -22,11 +25,18 @@ const isServerNpmReleaseError = Schema.is(ServerNpmReleaseError);
 const supportsLookup = (config: ServerConfig | null) =>
   config?.environment.capabilities.npmReleaseLookup === true;
 
-export function npmReleaseFailureMessage(cause: Cause.Cause<unknown>): string {
+export function npmReleaseFailureMessage(
+  cause: Cause.Cause<unknown>,
+  resolve: MessageResolver = m,
+): string {
   const error = Option.getOrUndefined(Cause.findErrorOption(cause));
   return isServerNpmReleaseError(error)
     ? error.message
-    : "Could not check this environment's npm registry. Check the connection and registry settings.";
+    : resolve(
+        msg(
+          "Could not check this environment's npm registry. Check the connection and registry settings.",
+        ),
+      );
 }
 
 /** Servers released before `npmReleaseLookup` cannot read their own registry, so ask public npm. */
@@ -72,7 +82,7 @@ export const npmReleaseAtom = Atom.family((spec: string) =>
       candidates[0];
     if (environmentId === undefined) {
       return Effect.fail(
-        new ServerNpmReleaseError({ reason: "Connect to a server to check releases." }),
+        new ServerNpmReleaseError({ reason: m(msg("Connect to a server to check releases.")) }),
       );
     }
     const config = get(serverEnvironment.configValueAtom(environmentId));

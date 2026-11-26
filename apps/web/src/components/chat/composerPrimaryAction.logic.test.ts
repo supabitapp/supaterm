@@ -24,6 +24,7 @@ const idle: ComposerPrimaryActionInput = {
   isEditingQueuedMessage: false,
   hasSendableContent: true,
   isSendBusy: false,
+  isSendHeld: false,
   isPreparingWorktree: false,
   sendDisabledReason: null,
   isEnvironmentUnavailable: false,
@@ -76,6 +77,11 @@ describe("resolveComposerPrimaryAction", () => {
     ],
     ["resumes a paused thread from an empty draft", resumable, { kind: "resume" }],
     ["sends rather than resumes once there is a draft", { canResume: true }, { kind: "send" }],
+    [
+      "shows a held send as busy rather than offering Stop",
+      { ...running, ...emptyDraft, isSendHeld: true },
+      { kind: "steer", blocked: "nothing-to-send", busy: true, stop: "ready" },
+    ],
     [
       "saves a queued-message edit rather than stopping or resuming",
       { ...running, ...resumable, isEditingQueuedMessage: true },

@@ -5,10 +5,13 @@ import {
   RouterProvider,
   type AnyRouter,
 } from "@tanstack/react-router";
+import { GTProvider } from "gt-react";
 import { act as reactAct, createContext, use, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { vi } from "vite-plus/test";
 import { page, utils, type Locator, type LocatorSelectors } from "vite-plus/test/browser";
+
+import { DEFAULT_LOCALE } from "../src/i18n/locales";
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -48,6 +51,7 @@ export interface Screen extends LocatorSelectors, AsyncDisposable {
 }
 
 const RoutedUi = createContext<ReactNode>(null);
+const ENGLISH_TRANSLATIONS = { [DEFAULT_LOCALE]: {} };
 
 function RoutedUiOutlet() {
   return use(RoutedUi);
@@ -76,8 +80,13 @@ export async function render(
   const router = path === false ? undefined : createTestRouter(path);
   // The router element is created once so a rerender updates the tree instead of remounting it.
   const routerElement = router && <RouterProvider router={router} />;
-  const wrap = (node: ReactNode) =>
-    routerElement ? <RoutedUi value={node}>{routerElement}</RoutedUi> : node;
+  // The app always renders under GTProvider; without it `useGT()` returns a new function on
+  // every render, so ref callbacks and effects that capture it would re-run only in tests.
+  const wrap = (node: ReactNode) => (
+    <GTProvider locale={DEFAULT_LOCALE} translations={ENGLISH_TRANSLATIONS}>
+      {routerElement ? <RoutedUi value={node}>{routerElement}</RoutedUi> : node}
+    </GTProvider>
+  );
 
   let mounted = true;
   const unmount = async () => {

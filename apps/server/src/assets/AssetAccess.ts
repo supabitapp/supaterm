@@ -1,4 +1,4 @@
-import type { AssetResource } from "@supaterm/contracts";
+import type { AssetResource, EnvironmentTheme } from "@supaterm/contracts";
 import {
   AssetAttachmentNotFoundError,
   AssetSourceControlMediaUrlValidationError,
@@ -17,6 +17,7 @@ import {
   ThreadId,
   NativeAppIconReference,
   TurnItemId,
+  EnvironmentThemeId,
 } from "@supaterm/contracts";
 import {
   hostPreviewMimeTypeFromExtension,
@@ -53,6 +54,7 @@ import * as AssetSigner from "./AssetSigner.ts";
 import { makeIsServerInternalPath } from "../auth/serverInternalPaths.ts";
 import { parseAttachmentFileExtension, resolveAttachmentPathById } from "../attachmentStore.ts";
 import * as ServerConfig from "../config.ts";
+import { findThemeBackground } from "../environmentTheme.ts";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
@@ -184,6 +186,14 @@ const AssetClaimsSchema = Schema.Union([
   }),
   Schema.Struct({
     version: Schema.Literal(1),
+    kind: Schema.Literal("environment-theme-background"),
+    themeId: EnvironmentThemeId,
+    device: Schema.String,
+    inode: Schema.String,
+    expiresAt: Schema.Number,
+  }),
+  Schema.Struct({
+    version: Schema.Literal(1),
     kind: Schema.Literal("tool-output-image"),
     threadId: ThreadId,
     itemId: TurnItemId,
@@ -290,6 +300,8 @@ const readToolOutputImage = Effect.fn("AssetAccess.readToolOutputImage")(functio
 const projectFaviconAsset = Effect.fn("AssetAccess.projectFaviconAsset")(function* (
   filePath: string,
 ) {
+  // Checked again here: a link can be repointed after its URL was issued.
+  if (!isProjectFaviconPath(filePath)) return null;
   if (!filePath.toLowerCase().endsWith(".icns")) {
     return { kind: "file", path: filePath } satisfies ResolvedAsset;
   }
@@ -441,7 +453,8 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
       });
     }
     const download =
-      input.resource._tag === "media-file" && input.resource.disposition === "attachment";
+      (input.resource._tag === "media-file" || input.resource._tag === "draft-workspace-file") &&
+      input.resource.disposition === "attachment";
     if (!download && hostPreviewMimeTypeFromExtension(path.extname(canonicalFile)) === null) {
       return yield* new AssetPreviewTypeValidationError({ resource: input.resource });
     }
@@ -514,7 +527,8 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
       );
     const isDraftMedia =
       input.resource._tag === "draft-workspace-file" &&
-      (isWorkspaceAudioPreviewPath(resolved.relativePath) ||
+      (input.resource.disposition === "attachment" ||
+        isWorkspaceAudioPreviewPath(resolved.relativePath) ||
         isWorkspaceVideoPreviewPath(resolved.relativePath));
     if (!isDraftMedia && !isWorkspacePreviewEntryPath(resolved.relativePath)) {
       return yield* new AssetPreviewTypeValidationError({
@@ -599,12 +613,22 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
   },
 );
 
+// The themes directory may be a symlink; openMediaFile refuses any path that is not canonical.
+const canonicalThemesDir = Effect.gen(function* () {
+  const config = yield* ServerConfig.ServerConfig;
+  const fileSystem = yield* FileSystem.FileSystem;
+  return yield* fileSystem
+    .realPath(config.environmentThemesDir)
+    .pipe(Effect.orElseSucceed(() => null));
+});
+
 export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (input: {
   readonly resource: AssetResource;
   readonly workspaceRoot?: string;
   readonly projectFaviconPath?: string;
   /** Where a cloned project's checkout stands, while the clone tracker still knows it. */
   readonly projectCheckout?: "pending" | "cloned";
+  readonly publishedThemes?: ReadonlyArray<EnvironmentTheme>;
 }) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -821,6 +845,10 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
           resource: input.resource,
         });
       }
+      // A favicon link must resolve to an image file.
+      if (canonicalFaviconPath && !isProjectFaviconPath(canonicalFaviconPath)) {
+        return yield* new AssetPreviewTypeValidationError({ resource: input.resource });
+      }
       claims =
         isExternalOverride && canonicalFaviconPath
           ? {
@@ -890,6 +918,26 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
       };
       fileName = `image-${input.resource.index + 1}.${image.mimeType.slice("image/".length)}`;
       imageDimensions = readImageDimensions(image.bytes);
+      break;
+    }
+    case "environment-theme-background": {
+      // Published themes go to every client, so any client may read their backgrounds.
+      const { themeId } = input.resource;
+      const published = input.publishedThemes?.find((theme) => theme.id === themeId)?.background;
+      const themesDir = published === undefined ? null : yield* canonicalThemesDir;
+      const background = themesDir === null ? null : findThemeBackground(themesDir, themeId);
+      if (background === null || background.revision !== published) {
+        return yield* new AssetWorkspaceAssetNotFoundError({ resource: input.resource });
+      }
+      claims = {
+        version: 1,
+        kind: "environment-theme-background",
+        themeId,
+        device: background.device,
+        inode: background.inode,
+        expiresAt,
+      };
+      fileName = `${themeId}-background`;
       break;
     }
     case "native-app-icon": {
@@ -1036,6 +1084,19 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
       Effect.orElseSucceed(() => null),
     );
     return image ? ({ kind: "bytes", ...image } satisfies ResolvedAsset) : null;
+  }
+
+  if (claims.kind === "environment-theme-background") {
+    const themesDir = yield* canonicalThemesDir;
+    const background = themesDir === null ? null : findThemeBackground(themesDir, claims.themeId);
+    if (background === null) return null;
+    const file = yield* openMediaFile(background.path, claims).pipe(
+      Effect.tapError((cause) =>
+        Effect.logError("Failed to open theme background.", { path: background.path, cause }),
+      ),
+      Effect.orElseSucceed(() => null),
+    );
+    return file ? ({ kind: "file", path: background.path, file } satisfies ResolvedAsset) : null;
   }
 
   if (claims.kind === "native-app-icon") {

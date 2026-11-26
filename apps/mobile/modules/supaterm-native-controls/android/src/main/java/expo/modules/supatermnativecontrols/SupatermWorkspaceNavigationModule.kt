@@ -71,6 +71,18 @@ class SupatermWorkspaceNavigationModule : Module() {
       Prop("tabs") { view: SupatermWorkspaceNavigationView, value: List<String> ->
         view.tabs = value
       }
+      Prop("tabTitles") { view: SupatermWorkspaceNavigationView, value: Map<String, String> ->
+        view.tabTitles = value
+      }
+      Prop("expandedTabTitles") {
+          view: SupatermWorkspaceNavigationView,
+          value: Map<String, String>
+        ->
+        view.expandedTabTitles = value
+      }
+      Prop("newThreadTitle") { view: SupatermWorkspaceNavigationView, value: String ->
+        view.newThreadTitle = value
+      }
       Prop("selectedTab") { view: SupatermWorkspaceNavigationView, value: String ->
         view.selectedTab = value
       }
@@ -130,7 +142,10 @@ class SupatermWorkspaceNavigationView(
   private val onTabSelected by EventDispatcher()
   private val onNewThread by EventDispatcher()
   private val onOverlayChange by EventDispatcher()
-  var tabs by mutableStateOf(listOf("threads", "pullRequests", "usage", "settings"))
+  var tabs by mutableStateOf(listOf("threads", "pullRequests", "issues", "usage", "settings"))
+  var tabTitles by mutableStateOf(emptyMap<String, String>())
+  var expandedTabTitles by mutableStateOf(emptyMap<String, String>())
+  var newThreadTitle by mutableStateOf("New thread")
   var selectedTab by mutableStateOf("threads")
   var rail by mutableStateOf(false)
   var floating by mutableStateOf(false)
@@ -360,7 +375,7 @@ class SupatermWorkspaceNavigationView(
         .height(FAB_SIZE)
         .width(lerp(FAB_SIZE, EXPANDED_RAIL_WIDTH - RAIL_INSET * 2, fraction))
         .alpha(if (newEnabled) 1f else DISABLED_ALPHA)
-        .semantics { contentDescription = "New thread" },
+        .semantics { contentDescription = newThreadTitle },
     ) {
       Row(
         Modifier.padding(start = (FAB_SIZE - ICON_SIZE) / 2).clipToBounds(),
@@ -368,7 +383,7 @@ class SupatermWorkspaceNavigationView(
       ) {
         Icon(painterResource(R.drawable.supaterm_new_thread), contentDescription = null)
         Text(
-          "New thread",
+          newThreadTitle,
           Modifier.padding(start = 12.dp).alpha(labelAlpha(fraction)).clearAndSetSemantics {},
           style = MaterialTheme.typography.labelLarge,
           fontSize = (14 * textScale).sp,
@@ -416,21 +431,23 @@ class SupatermWorkspaceNavigationView(
     }
   }
 
-  private fun tabTitle(tab: String) = when (tab) {
+  private fun tabTitle(tab: String) = tabTitles[tab] ?: when (tab) {
     "threads" -> "Threads"
     "pullRequests" -> "Pulls"
+    "issues" -> "Issues"
     "usage" -> "Usage"
     else -> "Settings"
   }
 
   private fun expandedTabTitle(tab: String) =
-    if (tab == "pullRequests") "Pull requests" else tabTitle(tab)
+    expandedTabTitles[tab] ?: if (tab == "pullRequests") "Pull requests" else tabTitle(tab)
 
   @Composable
   private fun tabIconPainter(tab: String) = painterResource(
     when (tab) {
       "threads" -> R.drawable.supaterm_chats
       "pullRequests" -> R.drawable.supaterm_pull_requests
+      "issues" -> R.drawable.supaterm_issues
       "usage" -> R.drawable.supaterm_usage
       else -> R.drawable.supaterm_settings
     }

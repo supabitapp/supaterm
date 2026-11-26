@@ -34,17 +34,14 @@ export function useLinkedThreadReach(
     return own && { connected: own.connection.phase === "connected" };
   };
   const reads = useSupportsLinkedThreadReads(environmentId);
-  const links = useLinkedEnvironments(
-    reads &&
-      subagents.some(
-        (subagent) =>
-          subagent.childThreadId === null &&
-          subagent.remoteChild !== undefined &&
-          ownConnection(subagent.remoteChild.environmentId)?.connected !== true,
-      )
-      ? environmentId
-      : null,
+  const remote = subagents.flatMap((subagent) =>
+    subagent.childThreadId === null &&
+    subagent.remoteChild !== undefined &&
+    ownConnection(subagent.remoteChild.environmentId)?.connected !== true
+      ? [subagent.remoteChild.environmentId]
+      : [],
   );
+  const links = useLinkedEnvironments(reads && remote.length > 0 ? environmentId : null, remote);
   return { ownConnection, isLinked: reads ? (id: EnvironmentId) => links.has(id) : null };
 }
 

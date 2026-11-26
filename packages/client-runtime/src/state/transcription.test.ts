@@ -193,7 +193,11 @@ describe("uploadVoiceRecording", () => {
     const classified = await uploadVoiceRecording({
       request,
       prepare: async () => {
-        throw new VoiceUploadError("signedOut", "Sign in again.", false);
+        throw new VoiceUploadError({
+          reason: "signedOut",
+          message: "Sign in again.",
+          retryable: false,
+        });
       },
       post: async () => ({ status: 200, body: { text: "never" } }),
       cancel: async () => undefined,

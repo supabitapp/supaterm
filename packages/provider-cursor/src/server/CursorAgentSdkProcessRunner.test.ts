@@ -1,6 +1,10 @@
+// @effect-diagnostics nodeBuiltinImport:off -- A loopback socket observes a stand-in shell's death.
+import * as NodeNet from "node:net";
+
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import { ProviderSessionId, ThreadId } from "@supaterm/contracts";
+import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -11,6 +15,7 @@ import * as Path from "effect/Path";
 
 import * as CursorAgentSdk from "./CursorAgentSdk.ts";
 import * as CursorAgentSdkProcessRunner from "./CursorAgentSdkProcessRunner.ts";
+import { scrubCursorWorkerEnvironment } from "./CursorAgentSdkWorker.ts";
 import {
   deserializeRunResult,
   deserializeWorkerError,
@@ -63,6 +68,7 @@ rl.on("line", (line) => {
       return;
     }
     // Emit an early delta before the send response to verify parent buffering/ordering.
+    send({ type: "startupPhase", sendId: req.id, phase: "plugins" });
     send({ type: "delta", sendId: req.id, update: { type: "text-delta", text: "early-" } });
     send({ type: "response", id: req.id, ok: true, result: { runId: "run-worker-1", agentId: "agent-worker-1" } });
     if (mode === "cancel") {
@@ -84,6 +90,25 @@ rl.on("line", (line) => {
     });
     if (mode === "exit-after-done") {
       rawWrite("", () => process.exit(0));
+    }
+    if (mode === "background-shell" && req.listenBackgroundShells) {
+      send({ type: "backgroundShell", sessionId: req.sessionId, event: { type: "started", id: "sh-1", pid: 4101, command: "sleep 60" } });
+      // Starts sh-2 the way the SDK starts a shell. It holds a socket to the test until it dies.
+      const shell = require("node:child_process").spawn(
+        process.execPath,
+        ["-e", "require('node:net').connect(Number(process.argv[1])).on('close', () => process.exit()); setInterval(() => {}, 1e9);", process.env.FAKE_SHELL_PORT],
+        { detached: process.platform !== "win32", stdio: "ignore" },
+      );
+      shell.unref();
+      send({ type: "backgroundShell", sessionId: req.sessionId, event: { type: "started", id: "sh-2", pid: shell.pid, command: "tail -f" } });
+    }
+    return;
+  }
+  if (req.type === "stopBackgroundShell") {
+    send({ type: "backgroundShell", sessionId: req.sessionId, event: { type: "ended", id: req.shellId, pid: 4101, command: "sleep 60", stopped: true, exitCode: undefined, outputPath: undefined } });
+    send({ type: "response", id: req.id, ok: true, result: null });
+    if (mode === "background-shell") {
+      rawWrite("", () => process.exit(19));
     }
     return;
   }
@@ -230,7 +255,53 @@ describe("CursorAgentSdkWorkerProtocol", () => {
   });
 });
 
+describe("scrubCursorWorkerEnvironment", () => {
+  it("removes the AppImage runtime env the worker inherited before agent shells see it", () => {
+    const env: NodeJS.ProcessEnv = {
+      APPIMAGE: "/home/ada/Supaterm-Code.AppImage",
+      APPDIR: "/tmp/.mount_Supaterm-test",
+      ARGV0: "Supaterm-Code.AppImage",
+      OWD: "/home/ada",
+      ELECTRON_RUN_AS_NODE: "1",
+      LD_LIBRARY_PATH: "/tmp/.mount_Supaterm-test/usr/lib",
+      PATH: "/tmp/.mount_Supaterm-test/usr/bin:/usr/bin",
+      CURSOR_API_KEY: "key",
+    };
+    scrubCursorWorkerEnvironment(env);
+    assert.deepStrictEqual(env, { PATH: "/usr/bin", CURSOR_API_KEY: "key" });
+  });
+});
+
 describe("CursorAgentSdkProcessRunner", () => {
+  // A loopback socket that a stand-in shell holds open for as long as it runs.
+  const standInShell = Effect.gen(function* () {
+    const connected = yield* Deferred.make<void>();
+    const exited = yield* Deferred.make<void>();
+    const sockets = new Set<NodeNet.Socket>();
+    const server = NodeNet.createServer((socket) => {
+      sockets.add(socket);
+      Deferred.doneUnsafe(connected, Effect.void);
+      socket.on("close", () => Deferred.doneUnsafe(exited, Effect.void));
+    });
+    // Closing the socket also ends a stand-in that outlived its worker.
+    yield* Effect.acquireRelease(
+      Effect.callback<void>((resume) => {
+        server.listen(0, "127.0.0.1", () => resume(Effect.void));
+      }),
+      () =>
+        Effect.callback<void>((resume) => {
+          for (const socket of sockets) socket.destroy();
+          server.close(() => resume(Effect.void));
+        }),
+    );
+    const address = server.address();
+    return {
+      port: typeof address === "object" && address !== null ? address.port : 0,
+      connected,
+      exited,
+    };
+  });
+
   const writeFakeWorker = Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -249,6 +320,7 @@ describe("CursorAgentSdkProcessRunner", () => {
           const executable = yield* HostProcess.ExecutablePath;
           const registeredPids: Array<number> = [];
           const unregisteredPids: Array<number> = [];
+          const stoppedUnits: Array<string> = [];
           const protocolEvents: Array<string> = [];
 
           const runner = yield* CursorAgentSdkProcessRunner.makeCursorAgentSdkProcessRunner({
@@ -264,7 +336,19 @@ describe("CursorAgentSdkProcessRunner", () => {
               Effect.sync(() => {
                 protocolEvents.push(event.payload.type);
               }),
-          });
+          }).pipe(
+            Effect.provideService(AgentScope, {
+              wrap: ({ command, args, name }) =>
+                Effect.succeed({ command, args, unit: `unit-${name}` }),
+              oomKilled: () => Effect.succeed(false),
+              stop: (unit) =>
+                Effect.sync(() => {
+                  stoppedUnits.push(unit);
+                }),
+              kill: () => Effect.succeed(false),
+              clear: () => Effect.void,
+            }),
+          );
 
           const session = yield* runner.open(openInput);
           assert.equal(session.agentId, "agent-worker-1");
@@ -282,8 +366,10 @@ describe("CursorAgentSdkProcessRunner", () => {
 
           const receivedDeltas: Array<string> = [];
           const firstDeltaGate = yield* Deferred.make<void>();
+          const startupPhases: Array<string> = [];
           const run = yield* session.send({
             message: "hi",
+            onStartupPhase: (phase) => Effect.sync(() => startupPhases.push(phase)),
             onDelta: (update) =>
               Effect.gen(function* () {
                 const text = (update as { readonly text?: string }).text ?? "";
@@ -294,6 +380,7 @@ describe("CursorAgentSdkProcessRunner", () => {
               }),
           });
           assert.equal(run.runId, "run-worker-1");
+          assert.deepEqual(startupPhases, ["plugins"]);
           yield* Deferred.await(firstDeltaGate);
 
           const steerOutcome = yield* run.steer!("change course");
@@ -319,6 +406,7 @@ describe("CursorAgentSdkProcessRunner", () => {
           assert.isFalse(session.isAlive?.());
 
           assert.deepEqual(unregisteredPids, registeredPids);
+          assert.deepEqual(stoppedUnits, ["unit-cursor-sdk"]);
           assert.include(protocolEvents, "agent.open");
           assert.include(protocolEvents, "agent.opened");
           assert.include(protocolEvents, "run.started");
@@ -636,6 +724,83 @@ describe("CursorAgentSdkProcessRunner", () => {
           assert.isTrue(sessionB.isAlive?.());
           assert.lengthOf(yield* sessionB.listMessages, 1);
           yield* sessionB.close;
+        }),
+      ).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.live(
+    "forwards background shell events across IPC, routes stop(), and ends orphans on worker crash",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const scriptPath = yield* writeFakeWorker;
+          const executable = yield* HostProcess.ExecutablePath;
+          const shell = yield* standInShell;
+
+          const runner = yield* CursorAgentSdkProcessRunner.makeCursorAgentSdkProcessRunner({
+            resolveLaunch: Effect.succeed({
+              command: executable,
+              args: [scriptPath],
+              env: { FAKE_WORKER_MODE: "background-shell", FAKE_SHELL_PORT: String(shell.port) },
+            }),
+            protocolLoggerFor: () => undefined,
+          });
+
+          const events: Array<object> = [];
+          const startedFirst = yield* Deferred.make<() => void>();
+          const bothEnded = yield* Deferred.make<void>();
+          let endedCount = 0;
+
+          const session = yield* runner.open(openInput);
+          const run = yield* session.send({
+            message: "watch it",
+            onBackgroundShell: (event) =>
+              Effect.gen(function* () {
+                if (event.type === "started") {
+                  const { stop, ...started } = event;
+                  events.push(started);
+                  if (event.id === "sh-1") yield* Deferred.succeed(startedFirst, stop);
+                  return;
+                }
+                events.push(event);
+                endedCount += 1;
+                if (endedCount === 2) yield* Deferred.succeed(bothEnded, undefined);
+              }),
+          });
+          yield* run.wait;
+
+          // Stopping sh-1 triggers a worker-side ended event, then the fake worker crashes to
+          // verify sh-2 is ended with it and gets a synthesized ended(stopped: true) event.
+          const stopFirst = yield* Deferred.await(startedFirst);
+          yield* Deferred.await(shell.connected);
+          stopFirst();
+          yield* Deferred.await(bothEnded);
+          yield* Deferred.await(shell.exited);
+
+          const pid = (events[1] as { readonly pid: number }).pid;
+          assert.deepEqual(events, [
+            { type: "started", id: "sh-1", pid: 4101, command: "sleep 60" },
+            { type: "started", id: "sh-2", pid, command: "tail -f" },
+            {
+              type: "ended",
+              id: "sh-1",
+              pid: 4101,
+              command: "sleep 60",
+              stopped: true,
+              exitCode: undefined,
+              outputPath: undefined,
+            },
+            {
+              type: "ended",
+              id: "sh-2",
+              pid,
+              command: "tail -f",
+              stopped: true,
+              exitCode: undefined,
+              outputPath: undefined,
+            },
+          ]);
+          yield* session.close;
         }),
       ).pipe(Effect.provide(NodeServices.layer)),
   );

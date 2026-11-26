@@ -1,3 +1,4 @@
+import { unknownThreadLinkLabel } from "@supaterm/shared/threadLinksCopy";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { resolveLinkedThreadOpen } from "@supaterm/client-runtime/linked-thread";
 import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
@@ -7,7 +8,6 @@ import {
   guessThreadLinkRef,
   threadLinkCandidates,
   type ThreadLink,
-  unknownThreadLinkLabel,
 } from "@supaterm/shared/threadLinks";
 
 import {
@@ -26,6 +26,7 @@ import { ContextChip, ContextChipLabel } from "../ContextChip";
 import { UnresolvedChip } from "../contextChipParts";
 import { ThreadContextChip } from "../ThreadContextChip";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { useMessages, useGT } from "gt-react";
 
 /**
  * `label` is the link's written text; an autolink has none. `threadRef` is the thread whose
@@ -37,6 +38,8 @@ export function MarkdownThreadLink(props: {
   readonly link: ThreadLink;
   readonly label: string | null;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const candidates = threadLinkCandidates(props.link, props.environmentId);
   const writtenRef = candidates[0]!;
   const environmentId = writtenRef.environmentId;
@@ -101,7 +104,7 @@ export function MarkdownThreadLink(props: {
     }) === "linked"
   ) {
     const knownTitle = props.label ?? written?.title ?? null;
-    const title = knownTitle ?? `Thread on ${linkedLabel}`;
+    const title = knownTitle ?? gt("Thread on {label}", { label: linkedLabel });
     return (
       <Tooltip>
         <TooltipTrigger
@@ -121,24 +124,27 @@ export function MarkdownThreadLink(props: {
                   }
                 />
               }
-              aria-label={`Thread, ${title}`}
+              aria-label={gt("Thread, {title}", { title })}
             >
               <MessagesSquareIcon />
               <ContextChipLabel>{title}</ContextChipLabel>
             </ContextChip>
           }
         />
-        <TooltipPopup side="top">Read the thread on {linkedLabel}</TooltipPopup>
+        <TooltipPopup side="top">
+          {gt("Read the thread on {label}", { label: linkedLabel })}
+        </TooltipPopup>
       </Tooltip>
     );
   }
   if (missing && resolved === null && childRef === null && !mayBeOmitted) {
-    const unknown = unknownThreadLinkLabel(props.link, props.environmentId);
+    const unknown = unknownThreadLinkLabel(props.link, props.environmentId, messages);
     return <UnresolvedChip label={props.label ?? unknown} tooltip={unknown} />;
   }
   const ref = resolved?.ref ?? childRef ?? writtenRef;
   const childTitle = childRef === null ? undefined : childTitles.get(childRef.threadId);
-  const fallbackTitle = resolved === null && childRef === null ? "Thread" : "Untitled thread";
+  const fallbackTitle =
+    resolved === null && childRef === null ? gt("Thread") : gt("Untitled thread");
   const title = resolved?.metadata.title.trim() || childTitle || props.label || fallbackTitle;
   return (
     <ThreadContextChip

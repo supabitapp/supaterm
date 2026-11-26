@@ -12,6 +12,7 @@ import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
 import { textDirection } from "~/textDirection";
 
 import { isCommentSubmitShortcut } from "./commentSubmitShortcut";
+import { T, useGT } from "gt-react";
 
 interface DiffCommentSecondaryAction {
   readonly label: string;
@@ -47,14 +48,15 @@ export function DiffCommentAnnotation({
   onCancel,
   onComment,
   onDelete,
-  placeholder = "Add a comment…",
-  submitLabel = "Comment",
+  placeholder,
+  submitLabel,
   pending = false,
   secondaryAction,
   focusOnMount = true,
   voiceEnvironmentId,
   completionScope = null,
 }: DiffCommentAnnotationProps) {
+  const gt = useGT();
   const [localDraftText, setLocalDraftText] = useState("");
   const displayedText = kind === "draft" && !onTextChange ? localDraftText : text;
   const trimmedText = displayedText.trim();
@@ -96,7 +98,7 @@ export function DiffCommentAnnotation({
             <Button
               variant="ghost-muted"
               size="icon-xs"
-              aria-label="Delete comment"
+              aria-label={gt("Delete comment")}
               onClick={onDelete}
             >
               <TrashIcon className="size-3" />
@@ -122,14 +124,19 @@ export function DiffCommentAnnotation({
         readOnly={voiceBusy}
         value={displayedText}
         dir={textDirection(displayedText)}
-        placeholder={placeholder}
-        aria-label={`Comment on lines ${rangeLabel}`}
+        placeholder={placeholder ?? gt("Add a comment…")}
+        aria-label={gt("Comment on lines {rangeLabel}", { rangeLabel })}
         onValueChange={changeText}
         onFocus={(event) => {
           const end = event.currentTarget.value.length;
           event.currentTarget.setSelectionRange(end, end);
         }}
         onKeyDown={(event) => {
+          // Unclaimed, an IME Escape would close the right panel sheet or leave the pull requests page.
+          if (event.nativeEvent.isComposing || event.keyCode === 229) {
+            event.stopPropagation();
+            return;
+          }
           if (event.key === "Escape") {
             event.preventDefault();
             onCancel();
@@ -151,9 +158,11 @@ export function DiffCommentAnnotation({
             onBusyChange={setVoiceBusy}
           />
         ) : null}
-        <span className="mr-auto text-3xs text-muted-foreground/70">⌘/Ctrl Enter to send</span>
+        <span className="mr-auto text-3xs text-muted-foreground/70">
+          <T>⌘/Ctrl Enter to send</T>
+        </span>
         <Button variant="ghost-muted" size="xs" onClick={onCancel}>
-          Cancel
+          <T>Cancel</T>
         </Button>
         {secondaryAction ? (
           <Button
@@ -167,7 +176,7 @@ export function DiffCommentAnnotation({
           </Button>
         ) : null}
         <Button size="xs" disabled={!canComment} onClick={() => onComment(trimmedText)}>
-          {submitLabel}
+          {submitLabel ?? gt("Comment", { $context: "verb, submit button" })}
         </Button>
       </div>
     </div>

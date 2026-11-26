@@ -332,6 +332,25 @@ describe("queued worktree branch resolution", () => {
     expect(fetchRefs).toHaveBeenCalledTimes(1);
   });
 
+  it("starts a plain folder's worktree without resolving a base branch", async () => {
+    const initial = task();
+    const message = {
+      ...initial,
+      creation: {
+        ...initial.creation!,
+        repositories: ["/repo/api"],
+        startsFromRepositoryDefaults: true,
+      },
+    };
+    const fetchRefs = vi.fn(async () => AsyncResult.success(refs));
+    await harness.manager.enqueue(message);
+
+    const result = await prepareQueuedThreadCreation(message, "/repo", fetchRefs);
+
+    expect(AsyncResult.isSuccess(result) && result.value?.message).toBe(message);
+    expect(fetchRefs).not.toHaveBeenCalled();
+  });
+
   it.each(["local", "worktree"] as const)(
     "keeps an explicit %s workspace unchanged",
     async (mode) => {

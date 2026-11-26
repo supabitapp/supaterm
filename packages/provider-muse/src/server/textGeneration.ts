@@ -9,13 +9,17 @@ import type { MuseSettings } from "../settings.ts";
 import { formatGeneratedBranchName, sanitizeFeatureBranchName } from "@supaterm/shared/git";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
 import { extractJsonObject } from "@supaterm/shared/schemaJson";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import { createMuseSdkHost, createMuseSdkHostEffect, type MuseSdkHost } from "./sdk.ts";
+import {
+  createMuseSdkHost,
+  createMuseSdkHostEffect,
+  MuseSdkError,
+  type MuseSdkHost,
+} from "./sdk.ts";
 import { museModelCapabilities, resolveMuseReasoningEffort } from "./modelCatalog.ts";
 import { isMuseUsageLimitFailure } from "./usageLimits.ts";
 import type { ProviderTextGeneration } from "@supaterm/provider-core/server/textGeneration";
@@ -89,12 +93,11 @@ class MuseTurnFailure extends Schema.TaggedError<MuseTurnFailure>()("MuseTurnFai
   }
 }
 const isMuseTurnFailure = Schema.is(MuseTurnFailure);
+const isMuseSdkError = Schema.is(MuseSdkError);
 
 function museFailureDetail(cause: unknown): string {
   const error =
-    Cause.isUnknownError(cause) && isMuseTurnFailure(cause.cause)
-      ? cause.cause.turnError
-      : undefined;
+    isMuseSdkError(cause) && isMuseTurnFailure(cause.cause) ? cause.cause.turnError : undefined;
   // Muse sends `quota` only for quota exhaustion, which it still labels `modelError`.
   if (error?.quota !== undefined || isMuseUsageLimitFailure(error?.message))
     return "Muse Code usage limit reached. Try again after it resets.";
@@ -288,16 +291,18 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
         (host: MuseSdkHost) => Effect.promise(() => host.close()),
         { interruptible: true },
       );
-      return yield* Effect.tryPromise((signal) =>
-        generateMuseText(
-          host,
-          cwd,
-          `${input.prompt}\n\nReturn only a JSON object matching this schema, with no markdown fences. Do not use tools or ask questions.\n${jsonSchema}`,
-          modelId,
-          reasoningEffort,
-          signal,
-        ),
-      );
+      return yield* Effect.tryPromise({
+        try: (signal) =>
+          generateMuseText(
+            host,
+            cwd,
+            `${input.prompt}\n\nReturn only a JSON object matching this schema, with no markdown fences. Do not use tools or ask questions.\n${jsonSchema}`,
+            modelId,
+            reasoningEffort,
+            signal,
+          ),
+        catch: (cause) => new MuseSdkError({ operation: "generate text", cause }),
+      });
     }).pipe(
       Effect.scoped,
       Effect.mapError(

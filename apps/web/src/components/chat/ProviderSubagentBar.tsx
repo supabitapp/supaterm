@@ -15,6 +15,7 @@ import {
   ReadOnlyComposerLead,
   ReadOnlyComposerStatus,
 } from "./ReadOnlyComposerBar";
+import { T, useMessages, useGT } from "gt-react";
 
 export function ProviderSubagentBar(props: {
   readonly provider: ProviderInstanceEntry | null;
@@ -25,6 +26,8 @@ export function ProviderSubagentBar(props: {
   readonly onOpenParent: (() => void) | null;
   readonly actions?: ReactNode;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const { status } = props;
   const live = status !== null && isOrchestrationV2WorkActive(status.status);
   const modelDescription =
@@ -32,6 +35,7 @@ export function ProviderSubagentBar(props: {
   const announcement = formatProviderSubagentStatus(
     status === null ? null : { ...status, startedAt: null },
     0,
+    messages,
   );
 
   return (
@@ -39,16 +43,18 @@ export function ProviderSubagentBar(props: {
       actions={
         <>
           <span role="status" className="sr-only">
-            {`${modelDescription} subagent: ${announcement}`}
+            {gt("{model} subagent: {status}", { model: modelDescription, status: announcement })}
           </span>
           <span className="shrink-0 text-muted-foreground @max-[640px]/composer-surface:sr-only">
-            Runs on its own
+            <T>Runs on its own</T>
           </span>
           {props.actions}
           {props.onOpenParent ? (
             <Button size="sm" variant="ghost" onClick={props.onOpenParent}>
               <ArrowUpLeftIcon />
-              <span className="@max-[320px]/composer-surface:sr-only">Open parent</span>
+              <span className="@max-[320px]/composer-surface:sr-only">
+                <T>Open parent</T>
+              </span>
             </Button>
           ) : null}
         </>
@@ -74,7 +80,10 @@ export function ProviderSubagentBar(props: {
         )}
       </ReadOnlyComposerLead>
       <ReadOnlyComposerStatus
-        ref={tickTextContent((nowMs) => formatProviderSubagentStatus(status, nowMs), live)}
+        ref={tickTextContent(
+          (nowMs) => formatProviderSubagentStatus(status, nowMs, messages),
+          live,
+        )}
         aria-hidden
       />
     </ReadOnlyComposerBar>

@@ -28,6 +28,7 @@ import * as GitCafeCredentials from "./GitCafeCredentials.ts";
 import * as GitCafeHosts from "./gitCafeHosts.ts";
 
 const AUTH_HOST = "git.cafe";
+const isGitCafeApiError = Schema.is(GitCafeApi.GitCafeApiError);
 const ADMISSION_TIMEOUT = "30 seconds";
 const ADMISSION_POLL_INTERVAL = "500 millis";
 const cliArgs = (host: string) => [
@@ -109,12 +110,32 @@ export const makeDiscovery = Effect.gen(function* () {
     installHint: cliDiscovery.installHint,
     probe: (cwd: string) =>
       credentials.cliEnv(AUTH_HOST).pipe(
+        Effect.result,
         Effect.flatMap((env) =>
           probeSourceControlProvider({
             cwd,
             spec: cliDiscovery,
-            process: { run: (input) => process.run({ ...input, env: { ...input.env, ...env } }) },
-          }),
+            process: {
+              run: (input) =>
+                process.run({
+                  ...input,
+                  env: { ...input.env, ...(Result.isSuccess(env) ? env.success : {}) },
+                }),
+            },
+          }).pipe(
+            Effect.map((item) =>
+              Result.isSuccess(env)
+                ? item
+                : {
+                    ...item,
+                    auth: providerAuth({
+                      status: "unauthenticated",
+                      host: AUTH_HOST,
+                      detail: env.failure.message,
+                    }),
+                  },
+            ),
+          ),
         ),
       ),
     refineUnknownRemote: () => Effect.succeed(null),
@@ -390,6 +411,20 @@ export const make = Effect.gen(function* () {
           input.cwd,
           { host: target.host, path: `/repos/${target.repository}` },
           Repository,
+        ).pipe(
+          Effect.mapError((failure) => {
+            const cause = failure.cause;
+            if (!isGitCafeApiError(cause) || cause.reason !== "not-found") return failure;
+            return error(
+              "getRepositoryCloneUrls",
+              input.cwd,
+              failure.detail,
+              new GitCafeApi.GitCafeApiError({
+                ...cause,
+                userFacingDetail: SourceControlProvider.repositoryNotFoundDetail(target.repository),
+              }),
+            );
+          }),
         );
         return cloneUrls(target);
       },

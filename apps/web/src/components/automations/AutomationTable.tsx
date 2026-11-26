@@ -8,6 +8,7 @@ import {
   SendIcon,
   TrashIcon,
 } from "@supaterm/icons";
+import { T, useGT, useMessages } from "gt-react";
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { EnvironmentId, ScheduledTask } from "@supaterm/contracts";
@@ -19,6 +20,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 
 import { useInlineConfirm } from "../../hooks/useInlineConfirm";
+import { useClientSettings } from "../../hooks/useSettings";
 import { useNowMinuteMs } from "../../hooks/useNowMinute";
 import { cn } from "../../lib/utils";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
@@ -63,17 +65,28 @@ export function AutomationTable({
   readonly showEnvironment: boolean;
   readonly onEdit: (environmentId: EnvironmentId, task: ScheduledTask) => void;
 }) {
+  const gt = useGT();
   const now = useNowMinuteMs();
   return (
     <div className="@container/automations overflow-hidden rounded-[inherit]">
-      <Table aria-label="Automations">
+      <Table aria-label={gt("Automations")}>
         <TableHeader>
           <TableRow>
             <TableHead className="w-full">
-              <span className="ms-2">Automation</span>
+              <span className="ms-2">
+                <T>Automation</T>
+              </span>
             </TableHead>
-            {showProject ? <TableHead className={WIDE_COLUMN}>Project</TableHead> : null}
-            {showEnvironment ? <TableHead className={WIDE_COLUMN}>Environment</TableHead> : null}
+            {showProject ? (
+              <TableHead className={WIDE_COLUMN}>
+                <T>Project</T>
+              </TableHead>
+            ) : null}
+            {showEnvironment ? (
+              <TableHead className={WIDE_COLUMN}>
+                <T>Environment</T>
+              </TableHead>
+            ) : null}
             <TableHead className={WIDE_COLUMN}>
               <Popover>
                 <PopoverTrigger
@@ -87,20 +100,28 @@ export function AutomationTable({
                     />
                   }
                 >
-                  Schedule
+                  <T>Schedule</T>
                 </PopoverTrigger>
                 <PopoverPopup side="top" tooltipStyle>
-                  Fixed times use the environment's time zone.
+                  <T>Fixed times use the environment's time zone.</T>
                 </PopoverPopup>
               </Popover>
             </TableHead>
-            <TableHead className={WIDE_COLUMN}>Last run</TableHead>
-            <TableHead>Next run</TableHead>
-            <TableHead>
-              <span className="sr-only">Enabled</span>
+            <TableHead className={WIDE_COLUMN}>
+              <T>Last run</T>
             </TableHead>
             <TableHead>
-              <span className="sr-only">Actions</span>
+              <T>Next run</T>
+            </TableHead>
+            <TableHead>
+              <span className="sr-only">
+                <T>Enabled</T>
+              </span>
+            </TableHead>
+            <TableHead>
+              <span className="sr-only">
+                <T>Actions</T>
+              </span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -134,8 +155,11 @@ function AutomationRow({
   readonly now: number;
   readonly onEdit: () => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const navigate = useNavigate();
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
+  const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const threadRef = task.threadId ? scopeThreadRef(environmentId, task.threadId) : null;
   const [busy, setBusy] = useState(false);
   const confirm = useInlineConfirm<"delete">();
@@ -165,15 +189,15 @@ function AutomationRow({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Could not update automation",
+          title: gt("Could not update automation"),
           description: String(squashAtomCommandFailure(result)),
         }),
       );
     }
   };
   const titleTone = task.enabled ? "text-foreground" : "text-muted-foreground";
-  const projectLabel = project?.displayName ?? "Project removed";
-  const schedule = scheduleSummary(task.schedule, timeZone, task.nextRunAt);
+  const projectLabel = project?.displayName ?? gt("Project removed");
+  const schedule = scheduleSummary(task.schedule, timestampFormat, timeZone, task.nextRunAt, m);
   const details = [
     showProject ? projectLabel : null,
     showEnvironment ? environmentLabel : null,
@@ -264,8 +288,8 @@ function AutomationRow({
       <TableCell>
         <span className="tabular-nums text-muted-foreground">
           {task.enabled && task.nextRunAt
-            ? relativeLabel(task.nextRunAt, now)
-            : nextRunLabel(task, now)}
+            ? relativeLabel(task.nextRunAt, now, m)
+            : nextRunLabel(task, now, m)}
         </span>
       </TableCell>
       <TableCell>
@@ -274,7 +298,11 @@ function AutomationRow({
             checked={task.enabled}
             disabled={busy || !canOperate}
             hitArea="comfortable"
-            aria-label={task.enabled ? `Pause ${task.title}` : `Resume ${task.title}`}
+            aria-label={
+              task.enabled
+                ? gt("Pause {title}", { title: task.title })
+                : gt("Resume {title}", { title: task.title })
+            }
             onCheckedChange={() => void act("toggle")}
           />
         </span>
@@ -288,7 +316,7 @@ function AutomationRow({
                 variant="ghost-muted"
                 className="me-1"
                 disabled={busy}
-                aria-label={`Actions for ${task.title}`}
+                aria-label={gt("Actions for {title}", { title: task.title })}
               />
             }
           >
@@ -297,14 +325,14 @@ function AutomationRow({
           <MenuPopup align="end">
             <MenuItem disabled={!canOperate} onClick={edit}>
               <PencilIcon />
-              Edit
+              <T context="verb">Edit</T>
             </MenuItem>
             <MenuItem
               disabled={!canOperate || task.lastRunStatus === "running"}
               onClick={() => void act("run")}
             >
               <PlayIcon />
-              Run now
+              <T>Run now</T>
             </MenuItem>
             {threadRef ? (
               <MenuItem
@@ -316,7 +344,7 @@ function AutomationRow({
                 }
               >
                 <MessageSquareIcon />
-                Open thread
+                <T>Open thread</T>
               </MenuItem>
             ) : null}
             <MenuSeparator />
@@ -326,7 +354,11 @@ function AutomationRow({
               variant="destructive"
             >
               <TrashIcon />
-              {confirm.armed === "delete" ? "Confirm delete" : "Delete"}
+              {confirm.armed === "delete" ? (
+                <T>Confirm delete</T>
+              ) : (
+                <T context="verb, deletes an automation">Delete</T>
+              )}
             </MenuItem>
           </MenuPopup>
         </Menu>
@@ -354,10 +386,16 @@ export function AutomationTableSkeleton() {
 }
 
 function LastRunStatus({ task, now }: { readonly task: ScheduledTask; readonly now: number }) {
+  const gt = useGT();
+  const m = useMessages();
   const status = task.lastRunStatus;
-  const label = lastRunLabel(task, now);
+  const label = lastRunLabel(task, now, m);
   if (status === "never" || status === "succeeded") {
-    return <span className="tabular-nums text-muted-foreground">{label ?? "Never"}</span>;
+    return (
+      <span className="tabular-nums text-muted-foreground">
+        {label ?? gt("Never", { $context: "automation has not run yet" })}
+      </span>
+    );
   }
   const { Icon, variant } = RUN_STATUS_BADGE[status];
   return (

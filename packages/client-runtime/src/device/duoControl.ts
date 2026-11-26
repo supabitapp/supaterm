@@ -1,5 +1,7 @@
 // @effect-diagnostics globalTimers:off - The stream owns this browser control queue and its timeout.
 import type { DeviceScreenSize } from "./stream.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type DuoPose = "closed" | "book" | "open" | "laptop" | "tent";
 export type DuoOrientation =
@@ -53,7 +55,9 @@ export function createDuoControl(options: {
   send: (request: { requestId: number; command: DuoCommand }) => boolean;
   onChange: (state: DuoControlState) => void;
   timeoutMs?: number;
+  resolve?: MFunctionType;
 }) {
+  const resolve = options.resolve ?? mFallback;
   let nextId = 1;
   let active: { requestId: number; command: DuoCommand } | null = null;
   let queued: DuoCommand | null = null;
@@ -73,10 +77,11 @@ export function createDuoControl(options: {
     queued = null;
     const id = active.requestId;
     timer = setTimeout(() => {
-      if (active?.requestId === id) clear("Device control timed out. Its position is unknown.");
+      if (active?.requestId === id)
+        clear(resolve(msg("Device control timed out. Its position is unknown.")));
     }, options.timeoutMs ?? 5_000);
     publish();
-    if (!options.send(active)) clear("Device is disconnected.");
+    if (!options.send(active)) clear(resolve(msg("Device is disconnected.")));
   };
   return {
     enqueue(command: DuoCommand) {
@@ -95,7 +100,7 @@ export function createDuoControl(options: {
       timer = null;
       active = null;
       if (!reply.ok) {
-        clear(reply.error ?? "Device control failed. Its position is unknown.");
+        clear(reply.error ?? resolve(msg("Device control failed. Its position is unknown.")));
         return;
       }
       if (queued) drain();

@@ -12,6 +12,8 @@ import {
   latestProviderTurnForAttempt,
   PROVIDER_DISPLAY_NAMES,
   type ModelSelection,
+  type ProviderDriverKind,
+  type ProviderInstanceId,
   type OrchestrationV2NotificationSource,
   type OrchestrationV2PendingBackgroundTask,
   type OrchestrationV2ProviderGoal,
@@ -55,6 +57,8 @@ import {
 } from "./models.ts";
 import { commandDisplayText } from "../work-log/commandLabel.ts";
 import { formatSubagentDisplayTitle } from "./subagentDisplay.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 // Preparing runs show their workspace setup instead.
 const PROVIDER_STARTING_RUN_STATUSES = new Set(["starting", "running"]);
@@ -111,24 +115,97 @@ function latestMatchingRun(
   );
 }
 
-function providerStartingLabel(
+// Phases a provider can report while it prepares a turn; an unknown one keeps the plain label.
+function providerStartingPhase(phase: string | undefined, provider: string) {
+  switch (phase) {
+    case "plugins":
+      return msg("Loading {provider} plugins", { provider });
+    case "mcp":
+      return msg("Starting {provider} MCP servers", { provider });
+    case "hooks":
+      return msg("Loading {provider} hooks", { provider });
+    case "skills":
+      return msg("Loading {provider} rules and skills", { provider });
+    case "resume":
+      return msg("Resuming {provider} session", { provider });
+    case "connecting":
+      return msg("Connecting to {provider}", { provider });
+    default:
+      return msg("Starting {provider}", { provider });
+  }
+}
+
+/** The instances a client knows, so a run names its provider before the provider session exists. */
+export type ProviderDrivers = ReadonlyArray<Pick<ServerProvider, "instanceId" | "driver">>;
+
+/** A provider that has not produced output yet: its logo, and the step it reports. */
+function presentProviderStarting(input: {
+  readonly instanceId: ProviderInstanceId;
+  readonly driver: ProviderDriverKind | undefined;
+  readonly phase?: string | undefined;
+}): Pick<
+  ThreadRunSummary,
+  "providerStartingLabel" | "providerStartingLabelMsg" | "providerStarting"
+> {
+  const name = input.driver === undefined ? undefined : PROVIDER_DISPLAY_NAMES[input.driver];
+  const label =
+    name === undefined
+      ? msg("Starting", { $context: "a provider is launching" })
+      : providerStartingPhase(input.phase, name);
+  return {
+    providerStartingLabel: mFallback(label),
+    providerStartingLabelMsg: label,
+    ...(input.driver === undefined
+      ? {}
+      : { providerStarting: { instanceId: input.instanceId, driver: input.driver } }),
+  };
+}
+
+// A session shared by several threads names the one thread its phase describes.
+function startupPhaseFor(
   projection: ThreadStructure,
+  session: OrchestrationV2ProviderSession | undefined,
+) {
+  return session?.startupPhaseThreadId === undefined ||
+    session.startupPhaseThreadId === projection.thread.id
+    ? session?.startupPhase
+    : undefined;
+}
+
+function providerStarting(
   run: OrchestrationV2ThreadProjection["runs"][number],
-): string {
-  const driver = projection.providerSessions.findLast(
-    (session) => session.providerInstanceId === run.providerInstanceId,
-  )?.driver;
-  const name = driver === undefined ? undefined : PROVIDER_DISPLAY_NAMES[driver];
-  return name === undefined ? "Starting" : `Starting ${name}`;
+  session: OrchestrationV2ProviderSession | undefined,
+  phase: string | undefined,
+  providers: ProviderDrivers | undefined,
+) {
+  return presentProviderStarting({
+    instanceId: run.providerInstanceId,
+    driver:
+      session?.driver ??
+      providers?.find((provider) => provider.instanceId === run.providerInstanceId)?.driver,
+    phase,
+  });
+}
+
+// A phase only describes a run that has not answered yet.
+function runHasProviderOutput(projection: ThreadStructure, runId: RunId) {
+  return projection.turnItems.some(
+    (item) => item.runId === runId && item.providerTurnId !== null && item.type !== "user_message",
+  );
 }
 
 function summarizeThreadRun(
   projection: ThreadStructure,
   run: OrchestrationV2ThreadProjection["runs"][number],
+  providers?: ProviderDrivers,
 ): ThreadRunSummary {
   const turnStatus = isOrchestrationV2RunInProgress(run.status)
     ? latestProviderTurnForAttempt(projection.providerTurns, run.activeAttemptId)?.status
     : undefined;
+  const session = projection.providerSessions.findLast(
+    (candidate) => candidate.providerInstanceId === run.providerInstanceId,
+  );
+  const phase = startupPhaseFor(projection, session);
   return {
     runId: run.id,
     status: run.status,
@@ -140,13 +217,16 @@ function summarizeThreadRun(
         (message) => message.runId === run.id && message.role === "assistant",
       )?.id ?? null,
     // A run counts as running before its provider opens; until a turn appears,
-    // the provider can still be launching for minutes.
+    // the provider can still be launching for minutes. Some providers keep
+    // preparing after their turn opens and report that step until the first output.
     ...(turnStatus === undefined
       ? PROVIDER_STARTING_RUN_STATUSES.has(run.status)
-        ? { providerStartingLabel: providerStartingLabel(projection, run) }
+        ? providerStarting(run, session, phase, providers)
         : {}
       : turnStatus === "pending" || turnStatus === "running"
-        ? {}
+        ? phase === undefined || runHasProviderOutput(projection, run.id)
+          ? {}
+          : providerStarting(run, session, phase, providers)
         : { turnEnded: true }),
     ...(run.sourcePlanRef === undefined ? {} : { sourcePlanRef: run.sourcePlanRef }),
   };
@@ -176,12 +256,15 @@ export function deriveLatestThreadRun(projection: ThreadStructure): ThreadRunSum
   return run === null ? null : summarizeThreadRun(projection, run);
 }
 
-export function deriveThreadActivityRun(projection: ThreadStructure): ThreadRunSummary | null {
+export function deriveThreadActivityRun(
+  projection: ThreadStructure,
+  providers?: ProviderDrivers,
+): ThreadRunSummary | null {
   const run =
     latestMatchingRun(projection, (candidate) =>
       isOrchestrationV2RunInProgress(candidate.status),
     ) ?? presentedLatestRun(projection);
-  return run === null ? null : summarizeThreadRun(projection, run);
+  return run === null ? null : summarizeThreadRun(projection, run, providers);
 }
 
 /**
@@ -307,23 +390,24 @@ export function readSelectedEffortValue(
 }
 
 const SUBAGENT_STATUS_LABELS: Record<OrchestrationV2ExecutionNode["status"], string> = {
-  idle: "Idle",
-  pending: "Working",
-  running: "Working",
-  waiting: "Waiting",
-  completed: "Completed",
-  interrupted: "Interrupted",
-  failed: "Failed",
-  cancelled: "Cancelled",
-  rolled_back: "Cancelled",
+  idle: msg("Idle"),
+  pending: msg("Working"),
+  running: msg("Working"),
+  waiting: msg("Waiting"),
+  completed: msg("Completed"),
+  interrupted: msg("Interrupted"),
+  failed: msg("Failed"),
+  cancelled: msg("Cancelled"),
+  rolled_back: msg("Cancelled"),
 };
 
 export function formatProviderSubagentStatus(
   status: ProviderSubagentStatus | null,
   nowMs: number,
+  resolve: MFunctionType = mFallback,
 ): string {
-  if (status === null) return "Starting";
-  const label = SUBAGENT_STATUS_LABELS[status.status];
+  if (status === null) return resolve(msg("Starting"));
+  const label = resolve(SUBAGENT_STATUS_LABELS[status.status]);
   const live = isOrchestrationV2WorkActive(status.status);
   if (!live && status.status !== "completed") return label;
   const start = status.startedAt === null ? Number.NaN : Date.parse(status.startedAt);
@@ -334,7 +418,9 @@ export function formatProviderSubagentStatus(
       : Date.parse(status.completedAt);
   if (!Number.isFinite(start) || !Number.isFinite(end)) return label;
   const elapsed = formatDuration(Math.max(1_000, Math.floor((end - start) / 1_000) * 1_000));
-  return live ? `${label} ${elapsed}` : `${label} in ${elapsed}`;
+  return live
+    ? resolve(msg("{label} {elapsed}", { label, elapsed }))
+    : resolve(msg("{label} in {elapsed}", { label, elapsed }));
 }
 
 /** The run a manual continuation resumes; the server holds the queue until it does. */
@@ -565,12 +651,28 @@ type BackgroundWorkKind = OrchestrationV2PendingBackgroundTask["kind"];
 
 const BACKGROUND_WORK_KINDS: Record<
   BackgroundWorkKind,
-  { readonly order: number; readonly singular: string; readonly plural: string }
+  { readonly order: number; readonly singular: string; readonly count: string }
 > = {
-  subagent: { order: 0, singular: "subagent", plural: "subagents" },
-  command: { order: 1, singular: "command", plural: "commands" },
-  monitor: { order: 2, singular: "monitor", plural: "monitors" },
-  background_task: { order: 3, singular: "background task", plural: "background tasks" },
+  subagent: {
+    order: 0,
+    singular: msg("subagent"),
+    count: msg("{count, plural, one {{count} subagent} other {{count} subagents}}"),
+  },
+  command: {
+    order: 1,
+    singular: msg("command"),
+    count: msg("{count, plural, one {{count} command} other {{count} commands}}"),
+  },
+  monitor: {
+    order: 2,
+    singular: msg("monitor"),
+    count: msg("{count, plural, one {{count} monitor} other {{count} monitors}}"),
+  },
+  background_task: {
+    order: 3,
+    singular: msg("background task"),
+    count: msg("{count, plural, one {{count} background task} other {{count} background tasks}}"),
+  },
 };
 
 export interface RunStopPresentation {
@@ -637,9 +739,11 @@ export interface PendingBackgroundWorkPresentation {
   readonly waiting: boolean;
 }
 
-function joinWithAnd(parts: ReadonlyArray<string>): string {
+function joinWithAnd(parts: ReadonlyArray<string>, resolve: MFunctionType): string {
   if (parts.length <= 1) return parts.join("");
-  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+  return resolve(
+    msg("{items} and {last}", { items: parts.slice(0, -1).join(", "), last: parts.at(-1)! }),
+  );
 }
 
 /** The PR link behind the background work's one PR watch, if it holds exactly one. */
@@ -674,6 +778,7 @@ export function isBackgroundWorkStopPending(
 
 export function presentPendingBackgroundWork(
   tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>,
+  resolve: MFunctionType = mFallback,
 ): PendingBackgroundWorkPresentation | null {
   if (tasks.length === 0) return null;
   const waiting = backgroundWorkHoldsCompletion(tasks);
@@ -693,7 +798,7 @@ export function presentPendingBackgroundWork(
         kind: task.kind,
         label:
           label === undefined || label.length === 0
-            ? BACKGROUND_WORK_KINDS[task.kind].singular
+            ? resolve(BACKGROUND_WORK_KINDS[task.kind].singular)
             : label,
         childThreadId: task.kind === "subagent" ? task.childThreadId : undefined,
         hasOutput:
@@ -707,22 +812,47 @@ export function presentPendingBackgroundWork(
     );
   const [only] = items;
   if (items.length === 1 && only !== undefined) {
-    const noun = BACKGROUND_WORK_KINDS[only.kind].singular;
+    const noun = resolve(BACKGROUND_WORK_KINDS[only.kind].singular);
     const named = only.label !== noun;
     const title = named
-      ? `${waiting ? "Waiting" : "Running"} · ${only.label}`
-      : waiting
-        ? `Waiting on a ${noun}`
-        : `Running a ${noun}`;
+      ? waiting
+        ? resolve(msg("Waiting · {label}", { label: only.label }))
+        : resolve(msg("Running · {label}", { label: only.label }))
+      : backgroundWorkSingleTitle(only.kind, waiting, resolve);
     return { title, items, waiting };
   }
   const counts = new Map<BackgroundWorkKind, number>();
   for (const item of items) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
-  const groups = Array.from(counts, ([kind, count]) => {
-    const { singular, plural } = BACKGROUND_WORK_KINDS[kind];
-    return `${count} ${count === 1 ? singular : plural}`;
-  });
-  return { title: `${waiting ? "Waiting on" : "Running"} ${joinWithAnd(groups)}`, items, waiting };
+  const groups = joinWithAnd(
+    Array.from(counts, ([kind, count]) => resolve(BACKGROUND_WORK_KINDS[kind].count, { count })),
+    resolve,
+  );
+  return {
+    title: waiting
+      ? resolve(msg("Waiting on {groups}", { groups }))
+      : resolve(msg("Running {groups}", { groups })),
+    items,
+    waiting,
+  };
+}
+
+function backgroundWorkSingleTitle(
+  kind: BackgroundWorkKind,
+  waiting: boolean,
+  resolve: MFunctionType,
+): string {
+  switch (kind) {
+    case "subagent":
+      return waiting ? resolve(msg("Waiting on a subagent")) : resolve(msg("Running a subagent"));
+    case "command":
+      return waiting ? resolve(msg("Waiting on a command")) : resolve(msg("Running a command"));
+    case "monitor":
+      return waiting ? resolve(msg("Waiting on a monitor")) : resolve(msg("Running a monitor"));
+    case "background_task":
+      return waiting
+        ? resolve(msg("Waiting on a background task"))
+        : resolve(msg("Running a background task"));
+  }
 }
 
 export interface ProviderGoalPresentation {
@@ -733,12 +863,12 @@ export interface ProviderGoalPresentation {
 }
 
 const PROVIDER_GOAL_TITLES: Record<OrchestrationV2ProviderGoal["status"], string> = {
-  active: "Pursuing goal",
-  paused: "Goal paused",
-  blocked: "Goal blocked",
-  usage_limited: "Goal hit a usage limit",
-  budget_limited: "Goal reached its token budget",
-  complete: "Goal complete",
+  active: msg("Pursuing goal"),
+  paused: msg("Goal paused"),
+  blocked: msg("Goal blocked"),
+  usage_limited: msg("Goal hit a usage limit"),
+  budget_limited: msg("Goal reached its token budget"),
+  complete: msg("Goal complete"),
 };
 
 function formatGoalTokens(tokens: number): string {
@@ -751,23 +881,36 @@ function formatGoalTokens(tokens: number): string {
 export function presentProviderGoal(
   goal: OrchestrationV2ProviderGoal,
   working: boolean,
+  resolve: MFunctionType = mFallback,
 ): ProviderGoalPresentation {
   const usage: Array<string> = [];
   if (goal.tokensUsed !== undefined && goal.tokensUsed > 0) {
     usage.push(
       goal.tokenBudget == null
-        ? `${formatGoalTokens(goal.tokensUsed)} tokens`
-        : `${formatGoalTokens(goal.tokensUsed)} / ${formatGoalTokens(goal.tokenBudget)} tokens`,
+        ? resolve(msg("{used} tokens", { used: formatGoalTokens(goal.tokensUsed) }))
+        : resolve(
+            msg("{used} / {budget} tokens", {
+              used: formatGoalTokens(goal.tokensUsed),
+              budget: formatGoalTokens(goal.tokenBudget),
+            }),
+          ),
     );
   }
   if (goal.timeUsedSeconds !== undefined && goal.timeUsedSeconds >= 60) {
     usage.push(formatDuration(goal.timeUsedSeconds * 1_000));
   }
   if (goal.checks !== undefined && goal.checks > 0) {
-    usage.push(`${goal.checks} ${goal.checks === 1 ? "check" : "checks"}`);
+    usage.push(
+      resolve(
+        msg("{count, plural, one {{count} check} other {{count} checks}}", { count: goal.checks }),
+      ),
+    );
   }
   return {
-    title: goal.status === "active" && !working ? "Goal set" : PROVIDER_GOAL_TITLES[goal.status],
+    title:
+      goal.status === "active" && !working
+        ? resolve(msg("Goal set"))
+        : resolve(PROVIDER_GOAL_TITLES[goal.status]),
     objective: goal.objective,
     usage: usage.length === 0 ? null : usage.join(" · "),
     canResume: goal.status !== "active" && goal.status !== "complete",

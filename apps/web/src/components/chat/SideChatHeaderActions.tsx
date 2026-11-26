@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import {
   isAtomCommandInterrupted,
   settlePromise,
@@ -27,6 +28,7 @@ export function SideChatHeaderActions(props: {
   readonly parentRef: ScopedThreadRef;
 }) {
   const { threadRef, parentRef } = props;
+  const gt = useGT();
   const shell = useQuietThreadShell(threadRef);
   const canOperate = useEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope);
   const deleteThread = useAtomCommand(threadEnvironment.delete, { reportFailure: false });
@@ -67,7 +69,7 @@ export function SideChatHeaderActions(props: {
     if (result._tag === "Success") {
       useChatPaneStore.getState().unlinkSideChat({ kind: "server", threadRef });
     } else if (!isAtomCommandInterrupted(result)) {
-      failureToast("Could not promote the side chat", result);
+      failureToast(gt("Could not promote the side chat"), result);
     }
   };
 
@@ -79,8 +81,8 @@ export function SideChatHeaderActions(props: {
       const confirmed = await settlePromise(() =>
         api.dialogs.confirm(
           [
-            `Delete side chat "${shell.title}"?`,
-            "This permanently clears its conversation history.",
+            gt('Delete side chat "{title}"?', { title: shell.title }),
+            gt("This permanently clears its conversation history."),
           ].join("\n"),
           { variant: "destructive" },
         ),
@@ -97,7 +99,7 @@ export function SideChatHeaderActions(props: {
       releaseComposerDraftUploads(threadRef);
       useComposerDraftStore.getState().clearDraftThread(threadRef);
     } else if (!isAtomCommandInterrupted(result)) {
-      failureToast("Could not delete the side chat", result);
+      failureToast(gt("Could not delete the side chat"), result);
     }
   };
 
@@ -112,14 +114,14 @@ export function SideChatHeaderActions(props: {
               aria-disabled={!canAddToChat || undefined}
               onClick={addToChat}
             >
-              Add to chat
+              <T>Add to chat</T>
             </Button>
           }
         />
         <TooltipPopup side="bottom">
           {canAddToChat
-            ? "Adds this side chat to the main thread's next message."
-            : "Available after the first message."}
+            ? gt("Adds this side chat to the main thread's next message.")
+            : gt("Available after the first message.")}
         </TooltipPopup>
       </Tooltip>
       <Tooltip>
@@ -131,12 +133,12 @@ export function SideChatHeaderActions(props: {
               disabled={!canOperate || busy}
               onClick={() => void promote()}
             >
-              Promote
+              <T context="verb, turns the side chat into a full thread">Promote</T>
             </Button>
           }
         />
         <TooltipPopup side="bottom">
-          Make this a full thread: it shows in the sidebar and can be forked.
+          <T>Make this a full thread: it shows in the sidebar and can be forked.</T>
         </TooltipPopup>
       </Tooltip>
       <Tooltip>
@@ -145,7 +147,7 @@ export function SideChatHeaderActions(props: {
             <Button
               variant="ghost-destructive"
               size="icon-xs"
-              aria-label="Delete side chat"
+              aria-label={gt("Delete side chat")}
               disabled={!canOperate || shell === null || busy}
               onClick={() => void deleteSideChat()}
             >
@@ -153,7 +155,9 @@ export function SideChatHeaderActions(props: {
             </Button>
           }
         />
-        <TooltipPopup side="bottom">Delete side chat</TooltipPopup>
+        <TooltipPopup side="bottom">
+          <T>Delete side chat</T>
+        </TooltipPopup>
       </Tooltip>
     </div>
   );

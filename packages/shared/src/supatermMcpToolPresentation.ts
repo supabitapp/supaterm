@@ -55,6 +55,8 @@ export type SupatermMcpToolSummaryAction =
   | "environment-link"
   | "environment-unlink"
   | "environment-update"
+  | "theme-read"
+  | "theme-set"
   | "attachment-prepare"
   | "attachment-discard"
   | "attachment-send"
@@ -67,6 +69,14 @@ export type SupatermMcpToolSummaryAction =
   | "unwatch-pr"
   | "write-pr-guides"
   | "read-pr-guide"
+  | "list-issues"
+  | "read-issue"
+  | "create-issue"
+  | "comment-issue"
+  | "set-issue-state"
+  | "link-issue"
+  | "unlink-issue"
+  | "list-thread-issues"
   | "read-pr"
   | "list-repo-prs"
   | "create-pr"
@@ -147,6 +157,17 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     "read-pr-guide",
     "pull-request",
   ),
+  list_issues: tool(["List", "Listing", "Listed", "issues"], "list-issues"),
+  read_issue: tool(["Read", "Reading", "Read", "an issue"], "read-issue"),
+  create_issue: tool(["File", "Filing", "Filed", "an issue"], "create-issue"),
+  comment_on_issue: tool(
+    ["Comment on", "Commenting on", "Commented on", "an issue"],
+    "comment-issue",
+  ),
+  set_issue_state: tool(["Change", "Changing", "Changed", "an issue's state"], "set-issue-state"),
+  link_issue: tool(["Link", "Linking", "Linked", "an issue"], "link-issue"),
+  unlink_issue: tool(["Unlink", "Unlinking", "Unlinked", "an issue"], "unlink-issue"),
+  list_thread_issues: tool(["Check", "Checking", "Checked", "linked issues"], "list-thread-issues"),
   pull_request_read: tool(["Read", "Reading", "Read", "a pull request"], "read-pr", "pull-request"),
   pull_request_list: tool(
     ["List", "Listing", "Listed", "pull requests"],
@@ -430,6 +451,8 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     ["Update", "Updating", "Updated", "environment preferences"],
     "environment-update",
   ),
+  supaterm_theme_read: tool(["Read", "Reading", "Read", "themes"], "theme-read"),
+  supaterm_theme_set: tool(["Set", "Setting", "Set", "the theme"], "theme-set"),
   supaterm_thread_launch: tool(
     ["Launch", "Launching", "Launched", "a project thread"],
     "thread-create",

@@ -1,6 +1,7 @@
 import type { CodexMicroAgentAssignment, CodexMicroAgentKey } from "@supaterm/contracts";
 import { scopedProjectKey, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { CheckIcon, MessageSquareIcon } from "@supaterm/icons";
+import { T, useGT, Var } from "gt-react";
 import { useState } from "react";
 
 import { useProjects, useThreadShells } from "../../../state/entities";
@@ -30,6 +31,7 @@ function CodexMicroThreadPicker({
   selected: CodexMicroAgentAssignment | null;
   onSelect: (assignment: CodexMicroAgentAssignment) => void;
 }) {
+  const gt = useGT();
   const threads = useThreadShells();
   const projects = useProjects();
   const [query, setQuery] = useState("");
@@ -47,11 +49,13 @@ function CodexMicroThreadPicker({
   );
 
   return (
-    <Command mode="none" value={query} onValueChange={setQuery} aria-label="Choose a thread">
-      <CommandInput placeholder="Search threads" aria-label="Search threads" />
+    <Command mode="none" value={query} onValueChange={setQuery} aria-label={gt("Choose a thread")}>
+      <CommandInput placeholder={gt("Search threads")} aria-label={gt("Search threads")} />
       <CommandList className="max-h-72 overflow-y-auto">
         {choices.length === 0 ? (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">No threads found.</p>
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            <T>No threads found.</T>
+          </p>
         ) : (
           choices.map(({ thread, projectTitle }) => {
             const key = scopedThreadKey({
@@ -76,7 +80,7 @@ function CodexMicroThreadPicker({
               >
                 <MessageSquareIcon aria-hidden className="size-4 shrink-0" />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate">{thread.title || "Untitled thread"}</span>
+                  <span className="truncate">{thread.title || gt("Untitled thread")}</span>
                   {projectTitle ? (
                     <span className="truncate text-xs text-muted-foreground">{projectTitle}</span>
                   ) : null}
@@ -88,7 +92,7 @@ function CodexMicroThreadPicker({
         )}
         {truncated ? (
           <p className="px-3 py-2 text-xs text-muted-foreground">
-            Keep typing to find older threads.
+            <T>Keep typing to find older threads.</T>
           </p>
         ) : null}
       </CommandList>
@@ -107,6 +111,7 @@ export function CodexMicroAgentKeyDialog({
   onChange: (assignment: CodexMicroAgentAssignment | null) => void;
   onClose: () => void;
 }) {
+  const gt = useGT();
   const [tab, setTab] = useState<AgentKeyTab>(
     assignment?.type === "action" ? "shortcuts" : "threads",
   );
@@ -124,12 +129,18 @@ export function CodexMicroAgentKeyDialog({
     >
       <DialogPopup className="w-full sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Assign agent key {codexMicroAgentKeyNumber(agentKey)}</DialogTitle>
-          <DialogDescription>Choose a thread to follow or a shortcut to run</DialogDescription>
+          <DialogTitle>
+            <T>
+              Assign agent key <Var>{codexMicroAgentKeyNumber(agentKey)}</Var>
+            </T>
+          </DialogTitle>
+          <DialogDescription>
+            <T>Choose a thread to follow or a shortcut to run</T>
+          </DialogDescription>
         </DialogHeader>
         <DialogPanel className="flex min-h-0 flex-col">
           <ToggleGroup
-            aria-label="Assignment type"
+            aria-label={gt("Assignment type")}
             className="w-full *:flex-1"
             value={[tab]}
             onValueChange={(next) => {
@@ -137,14 +148,18 @@ export function CodexMicroAgentKeyDialog({
               if (value === "threads" || value === "shortcuts") setTab(value);
             }}
           >
-            <Toggle value="threads">Threads</Toggle>
-            <Toggle value="shortcuts">Shortcuts</Toggle>
+            <Toggle value="threads">
+              <T>Threads</T>
+            </Toggle>
+            <Toggle value="shortcuts">
+              <T>Shortcuts</T>
+            </Toggle>
           </ToggleGroup>
           {tab === "threads" ? (
             <CodexMicroThreadPicker selected={assignment} onSelect={assign} />
           ) : (
             <CodexMicroActionPicker
-              label="Choose a shortcut"
+              label={gt("Choose a shortcut")}
               selected={assignment?.type === "action" ? assignment.action : undefined}
               onSelect={(action) => {
                 if (action !== null) assign({ type: "action", action });
@@ -159,10 +174,10 @@ export function CodexMicroAgentKeyDialog({
             disabled={assignment === null}
             onClick={() => assign(null)}
           >
-            Remove assignment
+            <T>Remove assignment</T>
           </Button>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            <T>Cancel</T>
           </Button>
         </DialogFooter>
       </DialogPopup>

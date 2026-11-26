@@ -11,6 +11,7 @@ import type { DevicePlatform, EnvironmentId } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
 import { refreshDeviceHubAccess } from "~/state/device";
+import { m } from "~/i18n/messages";
 
 export interface DeviceStreamState {
   readonly status: DeviceStreamStatus;
@@ -111,6 +112,7 @@ export const deviceStreamSessionAtom = Atom.family((key: DeviceStreamKey) =>
         onInputConnected: (connected, detail) =>
           update({ input: { connected, ...(detail ? { detail } : {}) } }),
       },
+      m,
     );
     session = {
       stream: client,

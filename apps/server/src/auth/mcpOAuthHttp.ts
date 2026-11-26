@@ -8,12 +8,14 @@ import {
   mcpClientScopes,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import * as HttpEffect from "effect/http/HttpEffect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
+import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as McpOAuth from "./McpOAuth.ts";
 import { renderErrorPage } from "./mcpOAuthHtml.ts";
 
@@ -68,6 +70,7 @@ export const layer = HttpApiBuilder.group(
   "mcpOAuth",
   Effect.fnUntraced(function* (handlers) {
     const oauth = yield* McpOAuth.McpOAuth;
+    const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
     const protectedResource = () =>
       requestUrls.pipe(Effect.map(McpOAuth.protectedResourceMetadata));
 
@@ -168,6 +171,16 @@ export const layer = HttpApiBuilder.group(
         Effect.gen(function* () {
           yield* noStore;
           return yield* oauth.exchangeCode({ request, urls: yield* requestUrls, token: payload });
+        }),
+      )
+      .handle("revoke", ({ payload }) =>
+        Effect.gen(function* () {
+          yield* noStore;
+          // RFC 7009 §2.2: an unknown or already revoked token gets the same 200 as a revoked one.
+          if (payload.token === undefined) return;
+          yield* environmentAuth
+            .revokeMcpClientToken(Redacted.value(payload.token))
+            .pipe(Effect.orDie);
         }),
       );
   }),

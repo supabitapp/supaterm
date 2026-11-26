@@ -2,6 +2,10 @@ import { sanitizeNewRefName } from "@supaterm/shared/git";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { resolveSendEnvMode } from "@supaterm/shared/projectSettings";
 import type { ComposerDraftWorkspaceSelection } from "../../state/use-composer-drafts";
+import { msg } from "gt-react-native";
+
+import { m, type MessageResolver } from "../../i18n/messages";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 
 type WorkspaceMode = "local" | "worktree";
 
@@ -9,20 +13,35 @@ export function resolveNewTaskWorkspaceSelection(input: {
   readonly selection: ComposerDraftWorkspaceSelection | undefined;
   readonly fallback: ComposerDraftWorkspaceSelection;
   readonly isGitRepo: boolean;
+  /** A project folder that is no repository can still take a worktree of one it tracks. */
+  readonly tracksGitRepositories?: boolean | undefined;
 }): ComposerDraftWorkspaceSelection {
   const selection = input.selection ?? input.fallback;
-  const mode = resolveSendEnvMode({ requestedEnvMode: selection.mode, isGitRepo: input.isGitRepo });
-  return input.isGitRepo ? selection : { mode, branch: null, worktreePath: null };
+  if (input.isGitRepo) return selection;
+  const mode = resolveSendEnvMode({
+    requestedEnvMode: selection.mode,
+    isGitRepo: false,
+    tracksGitRepositories: input.tracksGitRepositories === true,
+  });
+  return {
+    mode,
+    branch: null,
+    worktreePath: null,
+    ...(selection.repositories !== undefined ? { repositories: selection.repositories } : {}),
+  };
 }
 
-export function resolveNewTaskWorkspaceLabel(input: {
-  readonly workspaceMode: WorkspaceMode;
-  readonly worktreePath: string | null;
-}): "Current checkout" | "Current worktree" | "New worktree" {
+export function resolveNewTaskWorkspaceLabel(
+  input: {
+    readonly workspaceMode: WorkspaceMode;
+    readonly worktreePath: string | null;
+  },
+  resolve: MessageResolver = m,
+): string {
   if (input.workspaceMode === "worktree") {
-    return "New worktree";
+    return resolve(msg("New worktree"));
   }
-  return input.worktreePath ? "Current worktree" : "Current checkout";
+  return input.worktreePath ? resolve(msg("Current worktree")) : resolve(msg("Current checkout"));
 }
 
 export function resolveNewTaskBranchWorktreePath(input: {
@@ -72,18 +91,32 @@ export function resolveNewTaskLocalWorkspaceSelection(input: {
   };
 }
 
-export function resolveNewTaskBranchLabel(input: {
-  readonly branchName: string | null;
-  readonly startFromOrigin: boolean;
-  readonly workspaceMode: WorkspaceMode;
-  readonly pullRequestReference?: string;
-}): string {
+export function resolveNewTaskBranchLabel(
+  input: {
+    readonly branchName: string | null;
+    readonly startFromOrigin: boolean;
+    readonly workspaceMode: WorkspaceMode;
+    readonly pullRequestReference?: string;
+  },
+  resolve: MessageResolver = m,
+): string {
   if (input.workspaceMode === "worktree" && input.pullRequestReference) {
     const parsed = sourceControlClients.parseChangeRequestUrl(input.pullRequestReference);
-    if (parsed) return `From ${parsed.definition.changeRequest.shortLabel} #${parsed.link.number}`;
+    if (parsed)
+      return resolve(
+        msg(
+          "{term, select, mr {From MR #{number}} cr {From change request #{number}} other {From PR #{number}}}",
+          {
+            term: changeRequestTermKind(parsed.definition.changeRequest),
+            number: parsed.link.number,
+          },
+        ),
+      );
   }
   if (!input.branchName) {
-    return input.workspaceMode === "worktree" ? "Default branch" : "Choose branch";
+    return input.workspaceMode === "worktree"
+      ? resolve(msg("Default branch"))
+      : resolve(msg("Choose branch"));
   }
 
   if (input.workspaceMode === "local") {
@@ -91,7 +124,9 @@ export function resolveNewTaskBranchLabel(input: {
   }
 
   // Only the server can determine a local branch's configured remote.
-  return input.startFromOrigin ? `From ${input.branchName} (remote)` : `From ${input.branchName}`;
+  return input.startFromOrigin
+    ? resolve(msg("From {branchName} (remote)", { branchName: input.branchName }))
+    : resolve(msg("From {branchName}", { branchName: input.branchName }));
 }
 
 export function shouldCheckoutNewTaskBranch(input: {
@@ -164,6 +199,7 @@ export function resolveNewTaskDraftWorkspace(input: {
   readonly defaultMode: WorkspaceMode;
   readonly defaultModeSettled: boolean;
   readonly isGitRepo: boolean;
+  readonly tracksGitRepositories?: boolean | undefined;
   readonly branches: Parameters<typeof fillNewTaskWorkspaceBranch>[0]["branches"];
   readonly projectCwd: string | null;
 }): ComposerDraftWorkspaceSelection {
@@ -173,6 +209,7 @@ export function resolveNewTaskDraftWorkspace(input: {
       selection,
       fallback: { mode: input.defaultMode, branch: null, worktreePath: null },
       isGitRepo: input.isGitRepo,
+      tracksGitRepositories: input.tracksGitRepositories,
     }),
     branches: input.branches,
     projectCwd: input.projectCwd,

@@ -1,11 +1,11 @@
 import {
   type EnvironmentId,
-  managedCapabilityDenial,
   type ManagedPolicySummary,
   type RelayHostStatus,
   type ServerSettings,
   type ServerSettingsPatch,
 } from "@supaterm/contracts";
+import { managedCapabilityDenial } from "@supaterm/client-runtime/contract-labels";
 import { relayName } from "@supaterm/shared/relay/name";
 
 import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
@@ -13,25 +13,33 @@ import { useEnvironmentQuery } from "~/state/query";
 import { serverEnvironment } from "~/state/server";
 import { Switch } from "../ui/switch";
 import { SettingsRow } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
+import { msg, useGT, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
-function statusDescription(status: RelayHostStatus): string | null {
+function statusDescription(status: RelayHostStatus, resolve: MessageResolver = m): string | null {
   const name = status.relayEndpoint === undefined ? null : relayName(status.relayEndpoint);
   switch (status.state) {
     case "off":
       return null;
     case "idle":
-      return "Ready to link a device. Use Add device below to create a pairing link.";
+      return resolve(msg("Ready to link a device. Use Add device below to create a pairing link."));
     case "connecting":
-      return "Preparing your connection…";
+      return resolve(msg("Preparing your connection…"));
     case "registered":
       return name === null
-        ? "Connected. Paired clients can reach this host from anywhere."
-        : `Connected as ${name}. Paired clients can reach this host from anywhere.`;
+        ? resolve(msg("Connected. Paired clients can reach this host from anywhere."))
+        : resolve(
+            msg("Connected as {name}. Paired clients can reach this host from anywhere.", { name }),
+          );
     case "superseded":
-      return "Another host is using this relay identity. Turn Encrypted Relay off and on to reconnect here.";
+      return resolve(
+        msg(
+          "Another host is using this relay identity. Turn Encrypted Relay off and on to reconnect here.",
+        ),
+      );
     case "invalid-url":
-      return "The relay server URL is invalid.";
+      return resolve(msg("The relay server URL is invalid."));
   }
 }
 
@@ -67,20 +75,25 @@ export function PublicRelaySettings({
   readonly disabled: boolean;
   readonly update: (patch: ServerSettingsPatch) => void;
 }) {
-  const relayDenial = managedCapabilityDenial(policy, "relay");
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
+  const m = useMessages();
+  const relayDenial = managedCapabilityDenial(policy, "relay", m);
   const enabled = isPublicRelayActive(settings, policy);
   return (
     <SettingsRow
       title={searchableSetting("public-relay").title}
       description={
         relayDenial ??
-        (enabled && status ? statusDescription(status) : null) ??
-        "Connect your other devices from anywhere with end-to-end encryption. Turn it on, then use Add device below."
+        (enabled && status ? m(statusDescription(status, m)) : null) ??
+        gt(
+          "Connect your other devices from anywhere with end-to-end encryption. Turn it on, then use Add device below.",
+        )
       }
-      managed={relayDenial ?? managedSettingDenial([policy], ["publicRelayEnabled"])}
+      managed={relayDenial ?? managedSettingDenial([policy], ["publicRelayEnabled"], m)}
       control={
         <Switch
-          aria-label="Enable Encrypted Relay"
+          aria-label={gt("Enable Encrypted Relay")}
           disabled={disabled}
           checked={enabled}
           onCheckedChange={(publicRelayEnabled) => update({ publicRelayEnabled })}

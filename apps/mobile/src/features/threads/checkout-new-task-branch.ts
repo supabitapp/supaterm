@@ -13,6 +13,8 @@ import type {
 import { deriveLocalBranchNameFromRemoteRef } from "@supaterm/shared/git";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
+import { msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const VCS_REF_QUERY_MAX_LENGTH = 256;
 
@@ -31,7 +33,9 @@ export async function checkoutNewTaskBranch<E>(input: {
 }): Promise<AtomCommandResult<VcsRef, E | Error>> {
   if (!input.project) {
     return AsyncResult.failure(
-      Cause.fail(new Error("The selected project is unavailable. Reconnect and try again.")),
+      Cause.fail(
+        new Error(m(msg("The selected project is unavailable. Reconnect and try again."))),
+      ),
     );
   }
   if (input.workspaceMode === "worktree") return AsyncResult.success(input.branch);

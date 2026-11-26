@@ -1,3 +1,4 @@
+import { useGT } from "gt-react-native";
 import { View } from "react-native";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { ThreadLoadingSkeleton, useThreadLoadingShimmer } from "./thread-loading-skeleton";
@@ -8,6 +9,7 @@ export function ThreadFeedLoading(props: {
   readonly bottomInset: number;
   readonly horizontalPadding: number;
 }) {
+  const gt = useGT();
   const { themeAppearance, themeVariables: theme } = useAppearancePreferences();
   const shimmerColor =
     themeAppearance === "dark" ? theme["--color-foreground"] : theme["--color-screen"];
@@ -16,7 +18,7 @@ export function ThreadFeedLoading(props: {
   return (
     <View
       accessible
-      accessibilityLabel="Loading conversation"
+      accessibilityLabel={gt("Loading conversation")}
       accessibilityState={{ busy: true }}
       pointerEvents="none"
       style={{

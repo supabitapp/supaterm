@@ -1548,6 +1548,19 @@ describe("thread outbox", () => {
         creation: { ...creationMessage.creation, branch: "" },
       }),
     ).toBe(false);
+    const plainFolderCreation = {
+      ...creationMessage,
+      creation: {
+        ...creationMessage.creation,
+        branch: null,
+        repositories: ["/workspace/api"],
+        startsFromRepositoryDefaults: true,
+      },
+    } satisfies QueuedThreadMessage;
+    expect(decodeQueuedThreadMessage(encodeQueuedThreadMessage(plainFolderCreation))).toEqual(
+      plainFolderCreation,
+    );
+    expect(isQueuedThreadCreationSendable(plainFolderCreation)).toBe(true);
     expect(isQueuedThreadCreationSendable({ ...creationMessage, modelSelection: undefined })).toBe(
       false,
     );
@@ -1723,11 +1736,11 @@ describe("voice message delivery", () => {
   });
 
   it("holds a refused recording with the reason, keeping it for a retry", () => {
-    const refusal = new VoiceUploadError(
-      "signedOut",
-      "Sign in to this provider again to transcribe.",
-      false,
-    );
+    const refusal = new VoiceUploadError({
+      reason: "signedOut",
+      message: "Sign in to this provider again to transcribe.",
+      retryable: false,
+    });
     expect(step({ error: refusal })).toEqual({
       step: "hold",
       message: {
@@ -1750,10 +1763,22 @@ describe("voice message delivery", () => {
 
   it("retries a dropped upload or a rate limit under the same ids", () => {
     expect(
-      step({ error: new VoiceUploadError("disconnected", "The recording couldn't reach.", true) }),
+      step({
+        error: new VoiceUploadError({
+          reason: "disconnected",
+          message: "The recording couldn't reach.",
+          retryable: true,
+        }),
+      }),
     ).toEqual({ step: "retry" });
     expect(
-      step({ error: new VoiceUploadError("rateLimited", "Transcription is rate limited.", true) }),
+      step({
+        error: new VoiceUploadError({
+          reason: "rateLimited",
+          message: "Transcription is rate limited.",
+          retryable: true,
+        }),
+      }),
     ).toEqual({ step: "retry" });
   });
 });

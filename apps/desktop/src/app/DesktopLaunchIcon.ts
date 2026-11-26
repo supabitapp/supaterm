@@ -5,6 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Scope from "effect/Scope";
+import * as Schema from "effect/Schema";
 
 import * as Electron from "electron";
 
@@ -14,6 +15,14 @@ import { loadMacApplicationIcon } from "../electron/MacApplicationIcon.ts";
 import * as DesktopAssets from "./DesktopAssets.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import { makeLaunchIconFrames, type LaunchIconFrames } from "./LaunchIconFrames.ts";
+
+class DockIconLoadError extends Schema.TaggedError<DockIconLoadError>()("DockIconLoadError", {
+  cause: Schema.Defect(),
+}) {
+  override get message(): string {
+    return "Could not load the native Dock icon.";
+  }
+}
 
 const FRAME_MILLIS = 66;
 const FADE_SECONDS = 0.6;
@@ -134,7 +143,10 @@ export const make = Effect.gen(function* () {
     const lit = Electron.nativeImage.createFromPath(paths.value.lit);
     const unlit = Electron.nativeImage.createFromPath(paths.value.unlit);
     if (lit.isEmpty() || unlit.isEmpty()) return;
-    const icon = yield* Effect.tryPromise(loadMacApplicationIcon).pipe(
+    const icon = yield* Effect.tryPromise({
+      try: loadMacApplicationIcon,
+      catch: (cause) => new DockIconLoadError({ cause }),
+    }).pipe(
       Effect.tapError((error) =>
         Effect.logWarning("Native Dock icon is unavailable", { cause: error.cause }),
       ),

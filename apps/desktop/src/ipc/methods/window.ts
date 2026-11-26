@@ -19,7 +19,6 @@ import {
 } from "@supaterm/contracts";
 import { PROJECT_FAVICON_EXTENSIONS } from "@supaterm/shared/projectFavicon";
 import { resolveEditorCommand } from "@supaterm/shared/editor";
-import { withPathDirectoryListings } from "@supaterm/shared/shell";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -55,6 +54,8 @@ import {
   resolveWslPickFolderDefaultPath,
   wslUncPathToLinuxPath,
 } from "../../wsl/wslPathParsing.ts";
+import { msg } from "gt-i18n";
+import { m } from "../../i18n/messages.ts";
 
 const ContextMenuPosition = Schema.Struct({
   x: Schema.Number,
@@ -158,7 +159,8 @@ export const getLocalEnvironmentBootstraps = DesktopIpc.makeSyncIpcMethod({
         runningDistro,
         httpBaseUrl: httpBaseUrl.href,
         wsBaseUrl: toWebSocketBaseUrl(httpBaseUrl),
-        bootstrapToken: yield* configuration.currentBootstrapToken,
+        // The renderer uses this token with httpBaseUrl once the backend has reported ready.
+        ...(snapshot.ready ? { bootstrapToken: yield* configuration.currentBootstrapToken } : {}),
       });
     }
     return bootstraps;
@@ -285,7 +287,7 @@ export const pickProjectFavicon = DesktopIpc.makeIpcMethod({
       multiple: false,
       filters: [
         {
-          name: "Images",
+          name: m(msg("Images")),
           extensions: PROJECT_FAVICON_EXTENSIONS.map((extension) => extension.slice(1)),
         },
       ],
@@ -338,6 +340,12 @@ export const openExternal = DesktopIpc.makeIpcMethod({
 
 const READ_MEDIA_MAX_BYTES = 256 * 1024 * 1024;
 
+// No URL field: media URLs can carry signed query tokens.
+class MediaReadError extends Schema.TaggedError<MediaReadError>()("MediaReadError", {
+  message: Schema.String,
+  cause: Schema.Defect(),
+}) {}
+
 // The renderer can display media it cannot fetch(); reading here keeps Save and Copy working for it.
 export const readMedia = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.READ_MEDIA_CHANNEL,
@@ -354,25 +362,28 @@ export const readMedia = DesktopIpc.makeIpcMethod({
       return null;
     }
     const session = window.value.webContents.session;
-    return yield* Effect.tryPromise(async () => {
-      // Like an <img>, send the session's cookies.
-      const response = await session.fetch(url, { credentials: "include" });
-      const mimeType = response.headers.get("content-type") ?? "";
-      if (!response.ok || !response.body) {
-        await response.body?.cancel();
-        return { status: response.status, mimeType, data: new Uint8Array() };
-      }
-      // The whole body crosses IPC, so stop before a huge file can exhaust main-process memory.
-      const chunks: Uint8Array[] = [];
-      let size = 0;
-      for await (const chunk of response.body) {
-        size += chunk.byteLength;
-        if (size > READ_MEDIA_MAX_BYTES) {
-          return { status: 413, mimeType, data: new Uint8Array() };
+    return yield* Effect.tryPromise({
+      try: async () => {
+        // Like an <img>, send the session's cookies.
+        const response = await session.fetch(url, { credentials: "include" });
+        const mimeType = response.headers.get("content-type") ?? "";
+        if (!response.ok || !response.body) {
+          await response.body?.cancel();
+          return { status: response.status, mimeType, data: new Uint8Array() };
         }
-        chunks.push(chunk);
-      }
-      return { status: response.status, mimeType, data: Buffer.concat(chunks) };
+        // The whole body crosses IPC, so stop before a huge file can exhaust main-process memory.
+        const chunks: Uint8Array[] = [];
+        let size = 0;
+        for await (const chunk of response.body) {
+          size += chunk.byteLength;
+          if (size > READ_MEDIA_MAX_BYTES) {
+            return { status: 413, mimeType, data: new Uint8Array() };
+          }
+          chunks.push(chunk);
+        }
+        return { status: response.status, mimeType, data: Buffer.concat(chunks) };
+      },
+      catch: (cause) => new MediaReadError({ message: "Could not read media.", cause }),
     }).pipe(Effect.orElseSucceed(() => null));
   }),
 });
@@ -423,7 +434,6 @@ export const probeRemoteEditors = DesktopIpc.makeIpcMethod({
   result: Schema.Array(EditorId),
   handler: Effect.fn("desktop.ipc.window.probeRemoteEditors")(function* () {
     const env = yield* HostProcess.Environment;
-    // Shared listings stop each editor re-stating every PATH entry x PATHEXT candidate on Windows.
     const resolved = yield* Effect.forEach(
       REMOTE_CAPABLE_EDITOR_IDS,
       (editorId) => {
@@ -433,7 +443,7 @@ export const probeRemoteEditors = DesktopIpc.makeIpcMethod({
           : Effect.succeed(false);
       },
       { concurrency: REMOTE_EDITOR_PROBE_CONCURRENCY },
-    ).pipe(withPathDirectoryListings);
+    );
     return REMOTE_CAPABLE_EDITOR_IDS.filter((_, index) => resolved[index]);
   }),
 });
@@ -482,6 +492,15 @@ export const revealWindow = DesktopIpc.makeIpcMethod({
   }),
 });
 
+class AlignmentHapticError extends Schema.TaggedError<AlignmentHapticError>()(
+  "AlignmentHapticError",
+  { cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return "Could not perform the alignment haptic.";
+  }
+}
+
 export const performAlignmentHaptic = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.PERFORM_ALIGNMENT_HAPTIC_CHANNEL,
   payload: Schema.Undefined,
@@ -489,9 +508,10 @@ export const performAlignmentHaptic = DesktopIpc.makeIpcMethod({
   handler: Effect.fn("desktop.ipc.window.performAlignmentHaptic")(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     if (environment.platform !== "darwin") return;
-    yield* Effect.tryPromise(performMacAlignmentHaptic).pipe(
-      Effect.catch((error) => Effect.logWarning("Could not perform the haptic.", error)),
-    );
+    yield* Effect.tryPromise({
+      try: performMacAlignmentHaptic,
+      catch: (cause) => new AlignmentHapticError({ cause }),
+    }).pipe(Effect.catch((error) => Effect.logWarning("Could not perform the haptic.", error)));
   }),
 });
 

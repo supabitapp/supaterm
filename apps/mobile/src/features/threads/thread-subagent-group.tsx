@@ -34,6 +34,7 @@ import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { MotionPresence } from "../../components/ui/MotionPresence";
 
 import { useOpenThreadInspector } from "./thread-inspector-navigation";
+import { useGT, useMessages } from "gt-react-native";
 
 type SubagentItem = Extract<OrchestrationV2TurnItem, { type: "subagent" }>;
 type AgentTiming = Pick<OrchestrationV2Subagent, "status" | "startedAt" | "completedAt">;
@@ -41,7 +42,8 @@ type AgentTiming = Pick<OrchestrationV2Subagent, "status" | "startedAt" | "compl
 function SubagentElapsed({ agents }: { readonly agents: ReadonlyArray<AgentTiming> }) {
   const live = agents.some((agent) => isActiveSubagentStatus(agent.status));
   const nowMs = useVisibleSecondClock(live);
-  const elapsed = subagentCardElapsed(agents, nowMs);
+  const messages = useMessages();
+  const elapsed = subagentCardElapsed(agents, nowMs, messages);
   return elapsed ? (
     <Text className="shrink-0 text-xs tabular-nums text-foreground-muted">{elapsed}</Text>
   ) : null;
@@ -109,6 +111,7 @@ export function ThreadSubagentGroup(props: {
   readonly iconSubtleColor: ColorValue;
   readonly onToggleRow: (rowId: string, anchorKey: string) => void;
 }) {
+  const gt = useGT();
   const config = useAtomValue(serverEnvironment.configValueAtom(props.environmentId));
   const navigation = useNavigation();
   const openInspector = useOpenThreadInspector();
@@ -204,11 +207,13 @@ export function ThreadSubagentGroup(props: {
                   accessibilityHint={
                     target === null
                       ? agent.remoteChild !== undefined
-                        ? `Runs on ${agent.remoteChild.label}`
-                        : "Provider-managed agent"
+                        ? gt("Runs on {label}", { label: agent.remoteChild.label })
+                        : gt("Provider-managed agent")
                       : target.linked === undefined
-                        ? "Opens this agent's thread"
-                        : `Opens a read-only view of this agent's thread on ${target.linked.label}`
+                        ? gt("Opens this agent's thread")
+                        : gt("Opens a read-only view of this agent's thread on {label}", {
+                            label: target.linked.label,
+                          })
                   }
                   disabled={target === null}
                   onPress={() => {

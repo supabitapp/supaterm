@@ -28,6 +28,7 @@ import { ChildProcessSpawner } from "effect/process";
 
 import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
 import * as DesktopBackendManager from "./DesktopBackendManager.ts";
+import * as DesktopBackendRecoveryProcess from "./DesktopBackendRecoveryProcess.ts";
 import * as DesktopHomeOwner from "./DesktopHomeOwner.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopObservability from "../app/DesktopObservability.ts";
@@ -39,9 +40,34 @@ import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
-const { logWarning: logBackendPoolWarning } =
+const { logInfo: logBackendPoolInfo, logWarning: logBackendPoolWarning } =
   DesktopObservability.makeComponentLogger("desktop-backend-pool");
+
+const makeRecovery = Effect.gen(function* () {
+  const environment = yield* DesktopEnvironment.DesktopEnvironment;
+  const supported =
+    environment.platform === "linux" ||
+    (environment.platform === "darwin" && environment.isPackaged);
+  if (!supported) return undefined;
+  const runFork = Effect.runForkWith(yield* Effect.context<never>());
+  return DesktopBackendRecoveryProcess.make({
+    appDataDirectory: environment.appDataDirectory,
+    stateDir: environment.stateDir,
+    onRecovery: (pid) =>
+      runFork(logBackendPoolInfo("recovering a backend left by a previous desktop", { pid })),
+    onError: (operation) =>
+      runFork(logBackendPoolWarning("desktop backend recovery failed", { operation })),
+  });
+});
+
+export const recoverLocalBackend = makeRecovery.pipe(
+  Effect.flatMap((recovery) =>
+    recovery === undefined ? Effect.void : Effect.promise((signal) => recovery.recover(signal)),
+  ),
+);
 
 const decodeServerRuntime = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ pid: Schema.Number, port: Schema.Number })),
@@ -130,6 +156,7 @@ export const layer = Layer.effect(
     const electronApp = yield* ElectronApp.ElectronApp;
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
     const { primaryBackendStartup } = yield* DesktopState.DesktopState;
+    const recovery = yield* makeRecovery;
     // Without this, instance scopes are orphaned: they only close via explicit unregister() calls,
     // so on app shutdown the WSL backend child process gets hard-killed by the OS instead of
     // receiving the graceful SIGTERM + grace period the instance's stop finalizer would otherwise
@@ -238,6 +265,16 @@ export const layer = Layer.effect(
       // primaries as Windows.
       label: configuration.resolvePrimaryLabel,
       configResolve: configuration.resolvePrimary,
+      ...(recovery === undefined
+        ? {}
+        : {
+            trackProcess: (pid) =>
+              Effect.promise(() => recovery.track(pid)).pipe(
+                Effect.map((forget) =>
+                  forget === undefined ? Effect.void : Effect.promise(forget),
+                ),
+              ),
+          }),
       // Window creation errors propagating out of handleBackendReady must not block the readiness
       // callback (that would prevent restartAttempt from being reset), so we absorb them here.
       onReady: (httpBaseUrl, pid) =>
@@ -263,7 +300,7 @@ export const layer = Layer.effect(
         DesktopHomeOwner.readLiveHomeOwner().pipe(
           Effect.flatMap((owner) =>
             electronDialog.showErrorBox(
-              "This Supaterm home is unavailable",
+              m(msg("This Supaterm home is unavailable")),
               DesktopHomeOwner.homeOwnedMessage(owner),
             ),
           ),

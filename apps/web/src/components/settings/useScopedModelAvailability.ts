@@ -12,6 +12,7 @@ import {
 } from "../../providerInstances";
 import { useEnvironmentProviders, useEnvironments } from "../../state/environments";
 import { useSettingsScope } from "./SettingsScopeContext";
+import { useGT } from "gt-react";
 
 export function useScopedModelDisabledReason(
   settings: UnifiedSettings,
@@ -21,6 +22,7 @@ export function useScopedModelDisabledReason(
     readonly textGeneration?: boolean;
   } = {},
 ) {
+  const gt = useGT();
   const { supportsCapability, textGeneration = false } = options;
   const { targets } = useSettingsScope();
   const { environments } = useEnvironments();
@@ -55,7 +57,10 @@ export function useScopedModelDisabledReason(
         entry.driverKind !== sourceEntry?.driverKind ||
         !options?.some((option) => option.slug === model && !option.isUnavailable)
       ) {
-        return `This model is unavailable on ${environment?.label ?? "a selected environment"}. Select that environment to choose its model separately.`;
+        return gt(
+          "This model is unavailable on {environment}. Select that environment to choose its model separately.",
+          { environment: environment?.label ?? "a selected environment" },
+        );
       }
     }
     return null;

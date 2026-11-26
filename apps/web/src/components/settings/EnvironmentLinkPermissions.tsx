@@ -12,11 +12,12 @@ import {
   AuthAccessReadScope,
   AuthAccessWriteScope,
   AuthMcpClientAccess,
+  type EnvironmentId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { useId, useState } from "react";
 
-import type { LinkIntermediary } from "@supaterm/client-runtime/state/peerLinks";
+import type { LinkIntermediary, LinkPairingRoute } from "@supaterm/client-runtime/state/peerLinks";
 import { requestConfirmDialog } from "~/confirmDialog";
 import type { EnvironmentPresentation } from "~/state/environments";
 import {
@@ -35,6 +36,8 @@ import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { type LinkChoice, LINK_OFF, linkPermissionRow } from "./EnvironmentLinkPermissions.logic";
 import { failureToast, UNLINK_COMMAND_LABEL } from "./LinkedEnvironmentsSettings";
+import { toastManager } from "../ui/toast";
+import { T, useGT, useMessages, Var } from "gt-react";
 
 /** What agents on each of the user's other connected machines may do on `target`. */
 export function EnvironmentLinkPermissions({
@@ -60,8 +63,10 @@ export function EnvironmentLinkPermissions({
   return (
     <div className="space-y-2 border-t border-border/50 py-3 text-xs">
       <p className="text-muted-foreground">
-        Agents on your other machines can work on {target.label} at the level you pick. Each machine
-        links separately, and only in this direction.
+        <T>
+          Agents on your other machines can work on <Var>{target.label}</Var> at the level you pick.
+          Each machine links separately, and only in this direction.
+        </T>
       </p>
       <ul className="space-y-2">
         {sources.map((source) => (
@@ -91,6 +96,8 @@ function SourceLinkRow({
   /** The machines that can get a pairing code from `target`, when this app cannot. */
   readonly intermediaries: ReadonlyArray<LinkIntermediary>;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const labelId = useId();
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(source.environmentId));
   const canUnlink = useAtomValue(peerLinkEnvironment.unlink.permissionAtom(source.environmentId));
@@ -135,7 +142,7 @@ function SourceLinkRow({
     });
     setBusy(false);
     if (result._tag === "MintFailed" || result._tag === "LinkFailed") {
-      failureToast("Could not link the environment", result.failure);
+      failureToast(gt("Could not link the environment"), result.failure);
     }
   };
   const forget = async () => {
@@ -145,17 +152,38 @@ function SourceLinkRow({
       input: { environmentId: target.environmentId },
     });
     setBusy(false);
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      failureToast("Could not forget the link", squashAtomCommandFailure(result));
+    if (result._tag === "Success") {
+      if (result.value.removed && result.value.endedThere !== true) {
+        toastManager.add({
+          type: "warning",
+          title: gt("{label} did not answer", { label: target.label }),
+          description: gt(
+            'Revoke "Supaterm · {source}" in {target}\'s Sharing & access to end the session there too.',
+            { source: source.label, target: target.label },
+          ),
+        });
+      }
+    } else if (!isAtomCommandInterrupted(result)) {
+      failureToast(gt("Could not forget the link"), squashAtomCommandFailure(result));
     }
   };
   const choose = async (next: LinkChoice) => {
     if (busy || next === row.value) return;
     const confirmation =
       next === LINK_OFF
-        ? `Stop agents on ${source.label} from working on ${target.label}? ${source.label} forgets the link. Revoke "Supaterm · ${source.label}" in ${target.label}'s Sharing & access to end the session there too.`
+        ? gt(
+            "Stop agents on {source} from working on {target}? {source} forgets the link, and its session on {target} ends too if it answers.",
+            { source: source.label, target: target.label },
+          )
         : row.linked
-          ? `Let agents on ${source.label} work on ${target.label} at ${accessConfig[next].label}? ${source.label} links again with a new code. Its old session stays in ${target.label}'s Sharing & access until you revoke it there, and a task starting over the old link right now may need starting again.`
+          ? gt(
+              "Let agents on {source} work on {target} at {access}? {source} links again with a new code. Its old session stays in {target}'s Sharing & access until you revoke it there, and a task starting over the old link right now may need starting again.",
+              {
+                source: source.label,
+                target: target.label,
+                access: messages(accessConfig[next].label),
+              },
+            )
           : null;
     if (
       confirmation !== null &&
@@ -173,7 +201,11 @@ function SourceLinkRow({
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
       <span id={labelId} className="min-w-0">
-        <span className="block text-foreground">Agents on {source.label}</span>
+        <span className="block text-foreground">
+          <T>
+            Agents on <Var>{source.label}</Var>
+          </T>
+        </span>
         {row.note === null ? null : <span className="block text-muted-foreground">{row.note}</span>}
       </span>
       <span className="flex items-center gap-2">
@@ -184,7 +216,7 @@ function SourceLinkRow({
             disabled={busy || links.isPending}
             onClick={() => void forget()}
           >
-            Forget
+            <T>Forget</T>
           </Button>
         ) : null}
         {relinkAccess === null ? null : (
@@ -194,7 +226,7 @@ function SourceLinkRow({
             disabled={busy || links.isPending}
             onClick={() => void linkAt(relinkAccess)}
           >
-            Link again
+            <T>Link again</T>
           </Button>
         )}
         <Select
@@ -209,27 +241,57 @@ function SourceLinkRow({
               {row.value === null
                 ? "…"
                 : row.value === LINK_OFF
-                  ? "Off"
-                  : accessConfig[row.value].label}
+                  ? gt("Off", { $context: "agent link turned off" })
+                  : messages(accessConfig[row.value].label)}
             </SelectValue>
           </SelectTrigger>
           <SelectPopup alignItemWithTrigger={false}>
             <SelectItem value={LINK_OFF} disabled={!row.canForget}>
-              Off
+              {gt("Off", { $context: "agent link turned off" })}
             </SelectItem>
             {AuthMcpClientAccess.literals.map((option) => (
-              <SelectItem key={option} value={option} disabled={row.grant === null}>
-                <span className="grid min-w-0 gap-0.5 py-0.5">
-                  <span className="font-medium text-foreground">{accessConfig[option].label}</span>
-                  <span className="text-xs leading-4 text-muted-foreground">
-                    {accessConfig[option].description}
-                  </span>
-                </span>
-              </SelectItem>
+              <LinkAccessOption
+                key={option}
+                option={option}
+                grant={row.grant}
+                targetId={target.environmentId}
+              />
             ))}
           </SelectPopup>
         </Select>
       </span>
     </li>
+  );
+}
+
+function LinkAccessOption({
+  option,
+  grant,
+  targetId,
+}: {
+  readonly option: AuthMcpClientAccess;
+  readonly grant: LinkPairingRoute | null;
+  readonly targetId: EnvironmentId;
+}) {
+  const messages = useMessages();
+  // The machine holding the link refuses a level this app's session there does not hold.
+  const mayPairThrough = useAtomValue(
+    peerLinkEnvironment.pairLink.permissionAtom(
+      grant?._tag === "Through" ? grant.intermediary.environmentId : null,
+      { environmentId: targetId, access: option },
+    ),
+  );
+  return (
+    <SelectItem
+      value={option}
+      disabled={grant === null || (grant._tag === "Through" && !mayPairThrough)}
+    >
+      <span className="grid min-w-0 gap-0.5 py-0.5">
+        <span className="font-medium text-foreground">{messages(accessConfig[option].label)}</span>
+        <span className="text-xs leading-4 text-muted-foreground">
+          {messages(accessConfig[option].description)}
+        </span>
+      </span>
+    </SelectItem>
   );
 }

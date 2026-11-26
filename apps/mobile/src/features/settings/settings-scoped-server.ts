@@ -14,6 +14,7 @@ import {
   resolveProjectSettings,
 } from "@supaterm/shared/projectSettings";
 
+import { m, type MessageResolver } from "../../i18n/messages";
 import type { SettingsTarget } from "./settings-environment-filter";
 
 export interface ScopedMobileSettingsTarget {
@@ -25,11 +26,13 @@ export interface ScopedMobileSettingsTarget {
 
 export function managedSettingReason(
   targets: readonly ScopedMobileSettingsTarget[],
-  ...paths: readonly string[]
+  paths: readonly string[],
+  resolve: MessageResolver = m,
 ): string | undefined {
   return managedSettingDenial(
     targets.map((target) => target.environment.serverConfig.managedPolicy),
     paths,
+    resolve,
   );
 }
 

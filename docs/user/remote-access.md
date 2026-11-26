@@ -248,7 +248,8 @@ If that port is already in use, choose another with
 
 A web app served over HTTPS needs an HTTPS endpoint for direct connections. It connects directly
 to your server; a hosted pairing link does not make an unreachable backend
-reachable or convert HTTP to HTTPS.
+reachable or convert HTTP to HTTPS. Opening a hosted pairing link shows the
+server address and asks you to confirm before adding it.
 
 For an Encrypted Relay connection in a browser, use the [local companion](#pair-through-the-encrypted-relay).
 
@@ -450,8 +451,8 @@ machine's **Sharing & access** until you revoke it there.
 When this app cannot make the code there, because it is not connected to that
 machine or may not manage access on it, another of your connected machines that
 links to it at full access gets the code instead, and **Permissions** names
-that machine. Your session on that machine must manage access there. The result
-is a separate link with the access you pick, listed and revocable on the linked
+that machine. Your session on that machine must manage access there and already
+have the access you pick. The result is a separate link with the access you pick, listed and revocable on the linked
 machine like any other. Links still do not chain.
 
 The **Linked environments** section lists each machine's links. To link to a
@@ -478,8 +479,10 @@ section lists the links and forgets them.
   machine's own threads, projects or settings, and they skip its project setup
   scripts.
 - The link shows up in that machine's **Settings → Sharing & access** like any
-  outside agent. Revoke it there to end it. **Forget** on this machine only
-  removes it here.
+  outside agent, and can be revoked there. **Forget** on this machine also ends
+  it there when that machine confirms it. If it can't, such as when it is
+  offline or on an older Supaterm, Forget says so; revoke it in that machine's
+  Sharing & access.
 - A link stays valid while agents use it. One unused for 30 days expires, as
   does one to a machine on an older Supaterm after 30 days; pick its access
   again in that machine's **Permissions**, or link again with a new pairing
@@ -569,7 +572,11 @@ checkout use that checkout's permissions.
 client: pushing, switching or creating branches, cloning, and removing
 worktrees. It does not restrict what a task does. Starting a task in a new
 worktree still creates that branch and worktree with `orchestration:operate`,
-and the agent it runs can use Git however the environment allows.
+and the agent it runs can use Git however the environment allows. A project
+that [lays out its worktrees with its own command](multi-repo-projects.md#lay-the-folder-out-yourself)
+runs that command on the host, so creating a worktree there from the client also
+needs `orchestration:operate` or `terminal:operate`; without one of them,
+removing a worktree skips the project's `remove` command.
 
 Settings changes, provider management, environment maintenance, and access
 management can each be granted separately. New pairings without `--scope`

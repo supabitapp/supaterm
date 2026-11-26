@@ -494,8 +494,10 @@ it.layer(layerWithCeiling)("runtime mode ceiling", (it) => {
       const threadId = ThreadId.make("thread:ceiling-queue-limited");
       yield* createThread(threadId);
       yield* orchestrator.dispatch(sendMessage(threadId, "limited"));
+      // It names its model, so it stays with the limited provider when the thread moves on.
       yield* orchestrator.dispatch({
         ...sendMessage(threadId, "limited-waiting"),
+        modelSelection: { instanceId, model: "gpt-5" },
         dispatchMode: { type: "queue_after_active" },
       });
       const [limited, waiting] = (yield* orchestrator.getThreadRecords(threadId, ["runs"])).runs;

@@ -14,7 +14,7 @@ import {
   type PullRequestListEntry,
 } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
-import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 import * as Deferred from "effect/Deferred";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
@@ -66,7 +66,7 @@ const trustedRouting = {
   forget: () => Effect.void,
 };
 
-class MutationRefused extends Data.TaggedError("MutationRefused") {}
+class MutationRefused extends Schema.TaggedError<MutationRefused>()("MutationRefused", {}) {}
 
 it.effect.each([
   "prefers the local environment with the same github account",
@@ -1063,6 +1063,119 @@ it.effect.each(["closed", "draft", "permission", "stack", "method"] as const)(
       const results = yield* Fiber.joinAll([merge, close]);
       expect(results.map((result) => result._tag)).toEqual(["Failure", "Success"]);
       expect(calls).toEqual(["close"]);
+    }),
+);
+
+it.effect("pins a quick merge to the head it judged mergeable unless the caller showed one", () =>
+  Effect.gen(function* () {
+    const pinned: Array<string | undefined> = [];
+    const client = {
+      [WS_METHODS.pullRequestsDetail]: () =>
+        Effect.succeed({
+          state: "open",
+          isDraft: false,
+          headSha: "checked-head",
+          capabilities: { actions: ["merge"] },
+          viewerPermissions: { actions: ["merge"] },
+        }),
+      [WS_METHODS.pullRequestsRunAction]: (input: { expectedHeadSha?: string }) =>
+        Effect.sync(() => void pinned.push(input.expectedHeadSha)),
+    } as unknown as WsRpcProtocolClient;
+    const { atoms, registry } = yield* makeTestRuntime(client);
+    const input = {
+      projectId: ProjectId.make("project-1"),
+      repository: "acme/web",
+      number: 1,
+      action: "merge" as const,
+      resolveMergeMethod: () => "squash" as const,
+    };
+    for (const shown of [{}, { expectedHeadSha: "shown-head" }]) {
+      yield* atoms.runAction.run(registry, {
+        environmentId: TARGET.environmentId,
+        input: { ...input, ...shown },
+      });
+    }
+    expect(pinned).toEqual(["checked-head", "shown-head"]);
+  }),
+);
+
+const reviewClient = (sent: Array<string>, name: string, pins: boolean, local = false) =>
+  ({
+    [WS_METHODS.serverGetConfig]: () =>
+      Effect.succeed({
+        environment: { capabilities: pins ? { pullRequestReviewHeadPin: true } : {} },
+      }),
+    [local ? WS_METHODS.pullRequestsRoutingIdentity : WS_METHODS.pullRequestsRouting]: () =>
+      Effect.succeed({
+        host: "github.com",
+        provider: "github",
+        viewer: "viewer",
+        accountId: "123",
+      }),
+    [WS_METHODS.pullRequestsSubmitReview]: (input: { readonly expectedHeadSha?: string }) =>
+      Effect.sync(() => void sent.push(`${name}:${input.expectedHeadSha ?? "unpinned"}`)),
+  }) as unknown as WsRpcProtocolClient;
+const review = (expectedHeadSha?: string) => ({
+  projectId: ProjectId.make("project-1"),
+  repository: "acme/web",
+  number: 1,
+  verdict: "approve" as const,
+  body: "",
+  comments: [],
+  ...(expectedHeadSha === undefined ? {} : { expectedHeadSha }),
+});
+
+it.effect.each([
+  { pins: true, head: "reviewed-head", sent: ["origin:reviewed-head"] },
+  { pins: false, head: "reviewed-head", sent: [] },
+  { pins: false, head: undefined, sent: ["origin:unpinned"] },
+])(
+  "sends a review pinned to $head only to a server that keeps the pin: pins $pins",
+  ({ pins, head, sent }) =>
+    Effect.gen(function* () {
+      const calls: string[] = [];
+      const { atoms, registry } = yield* makeTestRuntime(reviewClient(calls, "origin", pins));
+      const result = yield* atoms.submitReview
+        .run(registry, { environmentId: TARGET.environmentId, input: review(head) })
+        .pipe(Effect.result);
+      expect(calls).toEqual(sent);
+      expect(result).toMatchObject(
+        sent.length > 0
+          ? { _tag: "Success" }
+          : {
+              _tag: "Failure",
+              failure: {
+                _tag: "EnvironmentRpcUnavailableError",
+                message:
+                  "Update Supaterm on Test environment to submit this review. Its version cannot keep a review on the commits you read.",
+              },
+            },
+      );
+    }),
+);
+
+it.effect.each([
+  { alternatePins: false, sent: ["origin:reviewed-head"] },
+  { alternatePins: true, sent: ["local:reviewed-head"] },
+])(
+  "routes a pinned review past an alternate that drops the pin: $alternatePins",
+  ({ alternatePins, sent }) =>
+    Effect.gen(function* () {
+      const calls: string[] = [];
+      const { environmentRegistry, supervisor } = yield* makeTestRuntime(
+        reviewClient(calls, "origin", true),
+        reviewClient(calls, "local", alternatePins, true),
+      );
+      yield* createPullRequestRouter()(
+        WS_METHODS.pullRequestsSubmitReview,
+        review("reviewed-head"),
+      ).pipe(
+        Effect.provideService(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
+        Effect.provideService(PullRequestRoutingPermissions, trustedRouting),
+        Effect.provideService(RpcPermissionGuard, { authorize: () => Effect.void }),
+        Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+      );
+      expect(calls).toEqual(sent);
     }),
 );
 

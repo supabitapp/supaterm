@@ -3,6 +3,7 @@ import { Platform, Pressable, StyleSheet, View, type AccessibilityActionEvent } 
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { cn } from "../../lib/cn";
+import { useGT } from "gt-react-native";
 const ACCESSIBILITY_RESIZE_STEP = 24;
 interface WorkspacePaneDividerProps {
   readonly accessibilityLabel: string;
@@ -41,6 +42,7 @@ function ResizeGestureDetector(props: {
   return <GestureDetector gesture={resizeGesture}>{props.children}</GestureDetector>;
 }
 export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
+  const gt = useGT();
   const latestProps = useRef(props);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed props to a ref read by the native pan gesture callbacks
   useLayoutEffect(() => {
@@ -78,18 +80,18 @@ export function WorkspacePaneDivider(props: WorkspacePaneDividerProps) {
         accessibilityActions={[
           {
             name: "increment",
-            label: "Make pane wider",
+            label: gt("Make pane wider"),
           },
           {
             name: "decrement",
-            label: "Make pane narrower",
+            label: gt("Make pane narrower"),
           },
         ]}
         accessibilityLabel={props.accessibilityLabel}
         accessibilityRole="adjustable"
         accessibilityValue={{
           now: Math.round(props.currentWidth),
-          text: `${Math.round(props.currentWidth)} points wide`,
+          text: gt("{width} points wide", { width: Math.round(props.currentWidth) }),
         }}
         onAccessibilityAction={handleAccessibilityAction}
       >

@@ -10,6 +10,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import * as Context from "effect/Context";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
@@ -28,6 +29,7 @@ import type {
   GitActionProgressEvent,
   GitPreparePullRequestThreadInput,
   ModelSelection,
+  ServerProvider,
 } from "@supaterm/contracts";
 
 import {
@@ -160,6 +162,14 @@ function runGitSyncForFakeCheckout(cwd: string, args: readonly string[]): void {
     `Failed to simulate a host checkout with git ${args.join(" ")}: ${result.stderr?.trim() || "unknown error"}`,
   );
 }
+// Git blocks file submodule transports (CVE-2022-39253) despite repo config; local fixtures need env permission.
+const withGitFileProtocol = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.flatMap(HostProcess.Environment, (env) =>
+    effect.pipe(
+      Effect.provideService(HostProcess.Environment, { ...env, GIT_ALLOW_PROTOCOL: "file" }),
+    ),
+  );
+
 function makeTempDir(
   prefix: string,
 ): Effect.Effect<string, PlatformError.PlatformError, FileSystem.FileSystem | Scope.Scope> {
@@ -617,6 +627,7 @@ function makeManager(input?: {
   pullRequests?: Partial<PullRequestService.PullRequestService["Service"]>;
   sourceControlProvider?: SourceControlProvider["Service"];
   textGeneration?: Partial<FakeGitTextGeneration>;
+  providers?: ReadonlyArray<ServerProvider>;
   serverSettings?: Parameters<typeof ServerSettings.layerTest>[0];
   setupScriptRunner?: ProjectSetupScriptRunner.ProjectSetupScriptRunner["Service"];
   gitConfigReads?: string[];
@@ -725,7 +736,7 @@ function makeManager(input?: {
     Layer.succeed(TextGeneration.TextGeneration, textGeneration),
     Layer.mock(PullRequestService.PullRequestService)(input?.pullRequests ?? {}),
     Layer.mock(ProviderRegistry.ProviderRegistry)({
-      getProviders: Effect.succeed([]),
+      getProviders: Effect.succeed(input?.providers ?? []),
     }),
     Layer.succeed(
       ProjectSetupScriptRunner.ProjectSetupScriptRunner,
@@ -1042,6 +1053,95 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         aheadOfDefaultCount: 0,
         pr: null,
       });
+    }),
+  );
+
+  it.effect("status of a repository without remotes runs no remote, provider or PR lookups", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("supaterm-git-manager-");
+      yield* initRepo(repoDir);
+      yield* runGit(repoDir, ["checkout", "-b", "feature/local-only"]);
+      const gitCommands: string[] = [];
+      const { manager } = yield* makeManager({ gitCommands });
+
+      const local = yield* manager.localStatus({ cwd: repoDir });
+      const remote = yield* manager.remoteStatus({ cwd: repoDir });
+
+      expect(local.hasPrimaryRemote).toBe(false);
+      expect(local.sourceControlProvider).toBeUndefined();
+      expect(remote?.pr ?? null).toBeNull();
+      // Once git reports no remotes, remote URLs, branch remotes and remote refs cannot exist.
+      expect(
+        gitCommands.filter((args) =>
+          /remote get-url|remote\.[^ ]+\.url|branch\.[^ ]+\.remote|refs\/remotes/.test(args),
+        ),
+      ).toEqual([]);
+
+      // A remote added outside Supaterm shows on the next read.
+      yield* runGit(repoDir, [
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/pingdotgg/codething-mvp.git",
+      ]);
+      yield* TestClock.adjust("2 seconds");
+      const afterRemote = yield* manager.localStatus({ cwd: repoDir });
+      expect(afterRemote.hasPrimaryRemote).toBe(true);
+      expect(afterRemote.sourceControlProvider?.kind).toBe("github");
+    }),
+  );
+
+  it.effect("a turn-end status refresh reads the branch remote and remote URL once", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("supaterm-git-manager-");
+      yield* initRepo(repoDir);
+      const remoteDir = yield* createBareRemote();
+      yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+      yield* runGit(repoDir, ["checkout", "-b", "feature/turn-end"]);
+      yield* runGit(repoDir, ["push", "-u", "origin", "feature/turn-end"]);
+      const gitCommands: string[] = [];
+      const { manager } = yield* makeManager({ gitCommands });
+      const count = (cmd: string) => gitCommands.filter((args) => args === cmd).length;
+
+      // Turn end: local status, then the PR lookup for a branch that has no PR yet.
+      yield* manager.invalidateLocalStatus(repoDir);
+      yield* manager.localStatus({ cwd: repoDir });
+      yield* manager.invalidateRemoteStatus(repoDir);
+      const remote = yield* manager.remoteStatus(
+        { cwd: repoDir },
+        { refreshUpstream: false, refreshMissingPullRequest: true },
+      );
+
+      expect(remote?.pr ?? null).toBeNull();
+      expect(count("config --get branch.feature/turn-end.remote")).toBe(1);
+      expect(count("config --get-all remote.origin.url")).toBe(1);
+
+      // The thread's PR backfill can reach the lookup before the status refresh does.
+      const backfillCommands: string[] = [];
+      const backfill = yield* makeManager({ gitCommands: backfillCommands });
+      yield* backfill.manager.localStatus({ cwd: repoDir });
+      yield* backfill.manager.branchPullRequest(
+        { cwd: repoDir, branch: "feature/turn-end" },
+        { confirmTerminal: false },
+      );
+      yield* backfill.manager.remoteStatus(
+        { cwd: repoDir },
+        { refreshUpstream: false, refreshMissingPullRequest: true },
+      );
+      expect(
+        backfillCommands.filter((args) => args === "config --get branch.feature/turn-end.remote")
+          .length,
+      ).toBe(1);
+
+      // A fresh identity check reads git itself, not what local status just read.
+      yield* manager.invalidateLocalStatus(repoDir);
+      yield* manager.localStatus({ cwd: repoDir });
+      gitCommands.length = 0;
+      yield* manager.branchPullRequest(
+        { cwd: repoDir, branch: "feature/turn-end" },
+        { freshGitState: true },
+      );
+      expect(count("config --get-all remote.origin.url")).toBe(1);
     }),
   );
 
@@ -3348,6 +3448,12 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       const repoDir = yield* makeTempDir("supaterm-git-manager-");
       yield* initRepo(repoDir);
       yield* runGit(repoDir, ["checkout", "-b", "feature/status-open-over-merged"]);
+      yield* runGit(repoDir, [
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/pingdotgg/codething-mvp.git",
+      ]);
 
       const { manager } = yield* makeManager({
         providerScenario: {
@@ -3516,6 +3622,51 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
           Effect.map((result) => result.stdout.trim()),
         ),
       ).toBe("Implement stacked git actions");
+    }),
+  );
+
+  it.effect("stages the worktree once for a typed commit message", () =>
+    Effect.gen(function* () {
+      const repoDir = yield* makeTempDir("supaterm-git-manager-");
+      yield* initRepo(repoDir);
+      NodeFS.writeFileSync(NodePath.join(repoDir, "README.md"), "typed\n");
+      const gitCommands: string[] = [];
+      const { manager } = yield* makeManager({ gitCommands });
+
+      const created = yield* runStackedAction(manager, {
+        cwd: repoDir,
+        action: "commit",
+        commitMessage: "Typed subject\n\nTyped body",
+      });
+
+      expect(created.commit).toMatchObject({ status: "created", subject: "Typed subject" });
+      expect(gitCommands.filter((args) => args.endsWith("add -A"))).toHaveLength(1);
+      expect((yield* runGit(repoDir, ["log", "-1", "--pretty=%B"])).stdout.trim()).toBe(
+        "Typed subject\n\nTyped body",
+      );
+
+      // Status shows the staged change, but staging the reverted worktree leaves nothing.
+      NodeFS.writeFileSync(NodePath.join(repoDir, "README.md"), "staged\n");
+      yield* runGit(repoDir, ["add", "README.md"]);
+      NodeFS.writeFileSync(NodePath.join(repoDir, "README.md"), "typed\n");
+      const head = (yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout;
+
+      const skipped = yield* runStackedAction(manager, {
+        cwd: repoDir,
+        action: "commit",
+        commitMessage: "Nothing to commit",
+      });
+
+      expect(skipped.commit.status).toBe("skipped_no_changes");
+      expect((yield* runGit(repoDir, ["rev-parse", "HEAD"])).stdout).toBe(head);
+      expect((yield* runGit(repoDir, ["show", ":README.md"])).stdout).toBe("staged\n");
+
+      // A generated message already checked a scratch index, so staging again stays at two.
+      NodeFS.writeFileSync(NodePath.join(repoDir, "README.md"), "generated\n");
+      gitCommands.length = 0;
+      const generated = yield* runStackedAction(manager, { cwd: repoDir, action: "commit" });
+      expect(generated.commit.status).toBe("created");
+      expect(gitCommands.filter((args) => args.endsWith("add -A"))).toHaveLength(2);
     }),
   );
 
@@ -4088,7 +4239,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         ),
       );
       yield* Deferred.await(gate.reached);
-      NodeFS.writeFileSync(NodePath.join(repoDir, ".git", "index.lock"), "");
+      NodeFS.appendFileSync(NodePath.join(repoDir, ".git", "config"), "\n[broken\n");
       yield* Deferred.succeed(gate.release, undefined);
       const result = yield* Fiber.join(action);
 
@@ -4706,6 +4857,273 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect(generatedPrompt).not.toContain("vp run abandoned");
       expect(generatedPrompt).not.toContain("abandoned output");
       expect(Buffer.byteLength(generatedThreadContext ?? "")).toBeLessThanOrEqual(16_000);
+    }),
+  );
+
+  const claudeWorkProvider: ServerProvider = {
+    instanceId: ProviderInstanceId.make("claude_work"),
+    driver: ProviderDriverKind.make("claudeAgent"),
+    displayName: "Work account",
+    enabled: true,
+    installed: true,
+    version: "1.0.0",
+    status: "ready",
+    auth: { status: "authenticated" },
+    checkedAt: "2026-09-27T00:00:00.000Z",
+    models: [],
+    slashCommands: [],
+    skills: [],
+  };
+
+  const seedPrThread = Effect.fnUntraced(function* (input: {
+    readonly threadId: ThreadId;
+    readonly worktreePath: string;
+    readonly forkedFrom?: { readonly threadId: ThreadId; readonly runId: RunId };
+    readonly runs: ReadonlyArray<{
+      readonly modelSelection: ModelSelection;
+      readonly text: string;
+      readonly status?: "rolled_back";
+    }>;
+  }) {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const { threadId } = input;
+    const createdAt = DateTime.makeUnsafe("2026-09-27T00:00:00.000Z");
+    const modelSelection = input.runs[0]!.modelSelection;
+    yield* store.apply({
+      id: EventId.make(`event:${threadId}:thread`),
+      type: "thread.created",
+      threadId,
+      providerInstanceId: modelSelection.instanceId,
+      occurredAt: createdAt,
+      payload: {
+        createdBy: "user",
+        creationSource: "web",
+        id: threadId,
+        projectId: ProjectId.make("project:pr-thread-model"),
+        title: "PR thread model",
+        providerInstanceId: modelSelection.instanceId,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: input.worktreePath,
+        activeProviderThreadId: null,
+        lineage: input.forkedFrom
+          ? {
+              parentThreadId: input.forkedFrom.threadId,
+              relationshipToParent: "fork",
+              rootThreadId: input.forkedFrom.threadId,
+            }
+          : { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+        forkedFrom: input.forkedFrom ? { type: "run", ...input.forkedFrom } : null,
+        createdAt,
+        updatedAt: createdAt,
+        archivedAt: null,
+        doneOverride: null,
+        doneAt: null,
+        lastVisitedAt: null,
+        deletedAt: null,
+      },
+    });
+    for (const [index, spec] of input.runs.entries()) {
+      const ordinal = index + 1;
+      const runId = RunId.make(`run:${threadId}:${ordinal}`);
+      const messageId = MessageId.make(`message:${threadId}:${ordinal}`);
+      yield* store.apply({
+        id: EventId.make(`event:${threadId}:run:${ordinal}`),
+        type: "run.updated",
+        threadId,
+        runId,
+        occurredAt: createdAt,
+        payload: {
+          id: runId,
+          threadId,
+          ordinal,
+          providerInstanceId: spec.modelSelection.instanceId,
+          modelSelection: spec.modelSelection,
+          providerThreadId: null,
+          userMessageId: messageId,
+          rootNodeId: null,
+          activeAttemptId: null,
+          status: spec.status ?? "completed",
+          requestedAt: createdAt,
+          startedAt: createdAt,
+          completedAt: createdAt,
+          checkpointId: null,
+          contextHandoffId: null,
+        },
+      });
+      yield* store.apply({
+        id: EventId.make(`event:${threadId}:item:${ordinal}`),
+        type: "turn-item.updated",
+        threadId,
+        runId,
+        occurredAt: createdAt,
+        payload: {
+          id: TurnItemId.make(`item:${threadId}:${ordinal}`),
+          threadId,
+          runId,
+          nodeId: null,
+          providerThreadId: null,
+          providerTurnId: null,
+          nativeItemRef: null,
+          parentItemId: null,
+          ordinal,
+          status: "completed",
+          title: null,
+          startedAt: createdAt,
+          completedAt: createdAt,
+          updatedAt: createdAt,
+          type: "user_message",
+          messageId,
+          createdBy: "user",
+          creationSource: "web",
+          inputIntent: "turn_start",
+          text: spec.text,
+          attachments: [],
+        },
+      });
+    }
+  });
+
+  const createPrPrompt = Effect.fnUntraced(function* (
+    seed: (
+      worktreePath: string,
+    ) => Effect.Effect<
+      void,
+      ProjectionStore.ProjectionStoreV2Error,
+      ProjectionStore.ProjectionStoreV2
+    >,
+    threadId: ThreadId,
+  ) {
+    const repoDir = yield* makeTempDir("supaterm-git-manager-");
+    yield* initRepo(repoDir);
+    yield* runGit(repoDir, ["checkout", "-b", "feature/thread-model"]);
+    NodeFS.writeFileSync(NodePath.join(repoDir, "thread-model.txt"), "model\n");
+    yield* runGit(repoDir, ["add", "thread-model.txt"]);
+    yield* runGit(repoDir, ["commit", "-m", "Thread model"]);
+    const remoteDir = yield* createBareRemote();
+    yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
+    let generatedPrompt = "";
+    const writer = fromRunner("test", (request) => {
+      generatedPrompt = request.prompt;
+      return decodeJsonReply(request, "test", '{"title":"Thread model","body":"Body"}');
+    });
+    const { manager } = yield* makeManager({
+      serverSettings: {
+        textGenerationModelSelection: {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "gpt-6.1-terra",
+        },
+      },
+      textGeneration: { generatePrContent: writer.generatePrContent },
+      providers: [claudeWorkProvider],
+      seed: seed(repoDir),
+    });
+    yield* manager.runStackedAction({
+      actionId: "test-action-id",
+      cwd: repoDir,
+      action: "create_pr",
+      threadId,
+    });
+    return generatedPrompt;
+  });
+
+  it.effect("create_pr tells the writer which model and harness made the change", () =>
+    Effect.gen(function* () {
+      const threadId = ThreadId.make("thread:pr-thread-model");
+      const instanceId = claudeWorkProvider.instanceId;
+      const prompt = yield* createPrPrompt(
+        (worktreePath) =>
+          seedPrThread({
+            threadId,
+            worktreePath,
+            runs: [
+              {
+                modelSelection: { instanceId, model: "claude-opus-5-5" },
+                text: "Add the thread model file",
+              },
+              {
+                modelSelection: { instanceId, model: "claude-haiku-5-5" },
+                text: "Undo that",
+                status: "rolled_back",
+              },
+              {
+                modelSelection: {
+                  instanceId: ProviderInstanceId.make("claude_removed"),
+                  model: "claude-sonnet-5-5",
+                },
+                text: "Polish the file",
+              },
+            ],
+          }),
+        threadId,
+      );
+
+      expect(prompt).toContain("Add the thread model file");
+      expect(prompt).toContain('- model "claude-opus-5-5", harness Claude\n');
+      expect(prompt).toContain('- model "claude-sonnet-5-5", harness unknown\n');
+      expect(prompt).not.toContain("Work account");
+      expect(prompt).not.toContain("claude_removed");
+      expect(prompt).not.toContain("claude-haiku-5-5");
+    }),
+  );
+
+  it.effect("create_pr credits the models a fork inherited its history from", () =>
+    Effect.gen(function* () {
+      const sourceThreadId = ThreadId.make("thread:pr-fork-source");
+      const forkThreadId = ThreadId.make("thread:pr-fork");
+      const prompt = yield* createPrPrompt(
+        (worktreePath) =>
+          Effect.gen(function* () {
+            yield* seedPrThread({
+              threadId: sourceThreadId,
+              worktreePath,
+              runs: [
+                {
+                  modelSelection: {
+                    instanceId: claudeWorkProvider.instanceId,
+                    model: "claude-opus-5-5",
+                  },
+                  text: "Implement the thread model file",
+                },
+              ],
+            });
+            yield* seedPrThread({
+              threadId: forkThreadId,
+              worktreePath,
+              forkedFrom: {
+                threadId: sourceThreadId,
+                runId: RunId.make(`run:${sourceThreadId}:1`),
+              },
+              runs: [
+                {
+                  modelSelection: {
+                    instanceId: ProviderInstanceId.make("codex"),
+                    model: "gpt-6.2",
+                  },
+                  text: "Review the change",
+                },
+              ],
+            });
+            // Rolling the source back afterwards leaves the work the fork inherited in place.
+            const store = yield* ProjectionStore.ProjectionStoreV2;
+            const [sourceRun] = (yield* store.getThreadRecords(sourceThreadId, ["runs"])).runs;
+            yield* store.apply({
+              id: EventId.make(`event:${sourceThreadId}:rollback`),
+              type: "run.updated",
+              threadId: sourceThreadId,
+              runId: sourceRun!.id,
+              occurredAt: sourceRun!.requestedAt,
+              payload: { ...sourceRun!, status: "rolled_back" },
+            });
+          }),
+        forkThreadId,
+      );
+
+      expect(prompt).toContain("Implement the thread model file");
+      expect(prompt).toContain('- model "claude-opus-5-5", harness Claude\n');
+      expect(prompt).toContain('- model "gpt-6.2", harness Codex\n');
     }),
   );
 
@@ -6499,18 +6917,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     "checks out the submodules of the head an existing PR branch moves onto (head %s one)",
     (headChange) =>
       Effect.gen(function* () {
-        // Git blocks file submodule transports (CVE-2022-39253) despite repo config; local fixtures need env permission.
-        const previousAllowedProtocol = process.env.GIT_ALLOW_PROTOCOL;
-        process.env.GIT_ALLOW_PROTOCOL = "file";
-        yield* Effect.addFinalizer(() =>
-          Effect.sync(() => {
-            if (previousAllowedProtocol === undefined) {
-              delete process.env.GIT_ALLOW_PROTOCOL;
-            } else {
-              process.env.GIT_ALLOW_PROTOCOL = previousAllowedProtocol;
-            }
-          }),
-        );
         const submoduleDir = yield* makeTempDir("supaterm-git-submodule-");
         yield* initRepo(submoduleDir);
         const repoDir = yield* makeTempDir("supaterm-git-manager-");
@@ -6569,7 +6975,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         );
         expect((yield* runGit(worktreePath, ["status", "--porcelain"])).stdout).toBe("");
         expect(result).toMatchObject({ isOnPullRequestHead: true });
-      }),
+      }).pipe(withGitFileProtocol),
   );
 
   it.effect("refreshes a reused PR worktree onto the updated pull request head", () =>

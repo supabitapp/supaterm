@@ -99,6 +99,37 @@ catalog digests and status deltas gets the provider list of its first config in 
 provider with 250 slash commands and 200 skills. The lists load with the first cwd snapshot, and a
 machine refresh sends back an empty provider list.
 
+## Server process metrics
+
+`node scripts/server-metrics.ts run --out <file>` starts a checkout's server against throwaway
+state, a fake Anthropic API and the real `claude` CLI, and records server CPU, wakeups, RSS and
+heap at rest, with quiet Claude threads and with 5 streaming, plus how long a new thread takes to
+reach the API. Only the server process is measured.
+
+- Compare refs with `ab <checkoutA> <checkoutB>`, not with two files from different times. It
+  alternates the two on one machine, and `compare` flags a metric only when the bootstrap interval
+  of the median difference clears both the threshold and the noise floor. Single runs on a busy
+  machine differ by more than most regressions.
+- Read per-thread cost from `scaling`, a fit over 5 to 20 open threads. It separates what each
+  open thread costs from the fixed cost of the server, which the absolute numbers mix.
+- `--soak <minutes>` reports heap and RSS slopes in MB per hour and the constructors that grew.
+  A rising heap floor is a leak; a high but flat one is not. A leak only shows in code the soak
+  drives, so give a new subsystem with long-lived state a part in its workload.
+- Measure server work with `working`: many worktree threads editing files at once with one client
+  subscribed to all of them. Turns per minute that stay flat as threads are added mean the
+  server, not the agents, is the bottleneck.
+- Upper bounds no user hits daily, such as 20 clients reconnecting at once, run only with
+  `--stress`; the default reconnect is a user's 3 devices holding 10 threads each.
+- `--quick` shortens every window for a per-PR or nightly check; `compare` refuses to mix quick
+  and full runs. `server-metrics --help` says which scenario to trust for what.
+- The quiet and streaming windows save a CPU and an allocation profile, so a regression comes with
+  the functions that cost it.
+
+Run it on macOS and Windows too, and on Linux with `--no-agent-scope`. Only Linux has agent
+scopes, so other platforms take per-process paths a Linux server with a systemd user manager never
+runs. A one-second `ps -A` poll per Claude session cost 0.1.11 about 18% of a core with 20 open
+threads on macOS and went unnoticed on Linux.
+
 ## Event store and startup
 
 Sequence cursors must seek an index rather than scan retained history. The application sequence
@@ -139,6 +170,11 @@ parse every message item's payload; the index's expression and `WHERE` must stay
 query's. Migration 020 scans the turn-item table once on first start; a message item whose payload
 is not valid JSON is left out of the index. Each message-item write re-parses the old and new
 payload for the index, so its cost grows with the payload.
+
+A read that names a partial index with `INDEXED BY` fails to prepare when the index's predicate
+no longer implies the query's, and released builds keep their read after a downgrade. To change
+such a predicate, create an index under a new name and leave the shipped one in place, as
+migration 036 does for remote tasks.
 
 Command palette results keep live VCS and linked pull-request queries leased to the visible
 viewport, including a small overscan region. Cached badges remain available while leases are

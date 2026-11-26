@@ -10,10 +10,12 @@ import {
   type SidePulseSettings as SidePulseSettingsValue,
 } from "@supaterm/contracts";
 import { sidePulseEffectUsesColor, sidePulseLightColor } from "@supaterm/shared/sidePulsePrograms";
+import { msg, T, useGT, useMessages } from "gt-react";
 import { useEffect, useState } from "react";
 
 import { useDesktopDeviceState } from "../../../hooks/useDesktopDeviceState";
 import { updateClientSettings, useClientSettings } from "../../../hooks/useSettings";
+import { m, type MessageResolver } from "../../../i18n/messages";
 import { cn, isMacPlatform } from "../../../lib/utils";
 import { Button } from "../../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../ui/select";
@@ -25,7 +27,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../../settings/settingsLayout";
-import { searchableSetting } from "../../settings/settingsSearch";
+import { useSearchableSetting } from "../../settings/settingsSearch";
 import { getSidePulseBridge } from "../sidePulseBridge";
 import { SidePulseColorPicker } from "./SidePulseColorPicker";
 import { SidePulseLedPreview } from "./SidePulseLedPreview";
@@ -40,7 +42,7 @@ const TONE_TEXT_CLASS_NAMES: Readonly<Record<Tone, string>> = {
 
 const isMacHost = isMacPlatform(navigator.platform);
 
-const DEFAULT_DESCRIPTION = "Show what your agents are doing on SidePulse Pro.";
+const DEFAULT_DESCRIPTION = msg("Show what your agents are doing on SidePulse Pro.");
 
 const LIGHTS: ReadonlyArray<{
   readonly state: SidePulseLedState;
@@ -49,30 +51,38 @@ const LIGHTS: ReadonlyArray<{
 }> = [
   {
     state: "attention",
-    title: "Needs you",
-    description: "An agent is waiting for your approval or answer, or failed",
+    title: msg("Needs you"),
+    description: msg("An agent is waiting for your approval or answer, or failed"),
   },
-  { state: "working", title: "Working", description: "An agent is running" },
+  {
+    state: "working",
+    title: msg("Working", { $context: "SidePulse light state" }),
+    description: msg("An agent is running"),
+  },
   {
     state: "done",
-    title: "Done",
-    description: "An agent finished with a reply you have not seen",
+    title: msg("Done", { $context: "SidePulse light state" }),
+    description: msg("An agent finished with a reply you have not seen"),
   },
-  { state: "idle", title: "Idle", description: "Nothing needs you" },
+  {
+    state: "idle",
+    title: msg("Idle", { $context: "SidePulse light state" }),
+    description: msg("Nothing needs you"),
+  },
 ];
 
 const EFFECT_LABELS: Readonly<Record<SidePulseEffect, string>> = {
-  solid: "Solid",
-  breathe: "Breathe",
-  pulse: "Pulse",
-  heartbeat: "Heartbeat",
-  glow: "Glow",
-  roll: "Roll",
-  ripple: "Ripple",
-  scanner: "Scanner",
-  twinkle: "Twinkle",
-  rainbow: "Rainbow",
-  spectrum: "Spectrum",
+  solid: msg("Solid", { $context: "SidePulse light effect" }),
+  breathe: msg("Breathe", { $context: "SidePulse light effect" }),
+  pulse: msg("Pulse", { $context: "SidePulse light effect" }),
+  heartbeat: msg("Heartbeat", { $context: "SidePulse light effect" }),
+  glow: msg("Glow", { $context: "SidePulse light effect" }),
+  roll: msg("Roll", { $context: "SidePulse light effect" }),
+  ripple: msg("Ripple", { $context: "SidePulse light effect" }),
+  scanner: msg("Scanner", { $context: "SidePulse light effect" }),
+  twinkle: msg("Twinkle", { $context: "SidePulse light effect" }),
+  rainbow: msg("Rainbow", { $context: "SidePulse light effect" }),
+  spectrum: msg("Spectrum", { $context: "SidePulse light effect" }),
 };
 
 const DEFAULTS = DEFAULT_CLIENT_SETTINGS.sidePulse;
@@ -106,6 +116,7 @@ function EffectSelect({
   readonly effect: SidePulseEffect;
   readonly onChange: (effect: SidePulseEffect) => void;
 }) {
+  const messages = useMessages();
   return (
     <Select
       value={effect}
@@ -114,12 +125,12 @@ function EffectSelect({
       }}
     >
       <SelectTrigger size="sm" className="w-full sm:w-36" aria-label={label}>
-        <SelectValue>{EFFECT_LABELS[effect]}</SelectValue>
+        <SelectValue>{messages(EFFECT_LABELS[effect])}</SelectValue>
       </SelectTrigger>
       <SelectPopup align="end" alignItemWithTrigger={false}>
         {SIDE_PULSE_EFFECTS.map((option) => (
           <SelectItem key={option} value={option}>
-            {EFFECT_LABELS[option]}
+            {messages(EFFECT_LABELS[option])}
           </SelectItem>
         ))}
       </SelectPopup>
@@ -138,6 +149,9 @@ function SidePulseLightRow({
   readonly showing: boolean;
   readonly bridge: DesktopSidePulseBridge;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
+  const title = messages(light.title);
   const [draftColor, setDraftColor] = useState<SidePulseColor | null>(null);
   const shown =
     draftColor === null
@@ -160,23 +174,30 @@ function SidePulseLightRow({
 
   return (
     <SettingsRow
-      title={light.title}
-      description={light.description}
+      title={title}
+      description={messages(light.description)}
       resetAction={
         customized ? (
           <SettingResetButton
-            label={`${light.title} light`}
+            label={gt("{name} light", {
+              name: title,
+              $context: "setting name in a reset button label",
+            })}
             onClick={() => save({ effect: DEFAULTS.effects[light.state], color: null })}
           />
         ) : null
       }
       control={
         <>
-          {showing ? <span className="text-xs text-muted-foreground">Showing now</span> : null}
+          {showing ? (
+            <span className="text-xs text-muted-foreground">
+              <T>Showing now</T>
+            </span>
+          ) : null}
           <SidePulseLedPreview ledState={light.state} settings={shown} fallbackColor={color} />
           {sidePulseEffectUsesColor(effect) ? (
             <SidePulseColorPicker
-              label={`${light.title} color`}
+              label={gt("{name} color", { name: title })}
               color={color}
               custom={settings.colors[light.state] !== null}
               onPreview={setDraftColor}
@@ -190,7 +211,7 @@ function SidePulseLightRow({
             <span aria-hidden className="size-8 shrink-0 sm:size-7" />
           )}
           <EffectSelect
-            label={`${light.title} effect`}
+            label={gt("{name} effect", { name: title })}
             effect={effect}
             onChange={(next) => save({ effect: next })}
           />
@@ -203,60 +224,83 @@ function SidePulseLightRow({
 function connectionSummary(
   enabled: boolean,
   state: SidePulseDeviceState | null,
+  resolve: MessageResolver = m,
 ): { readonly label: string | null; readonly description: string; readonly tone: Tone } {
-  if (!enabled) return { label: "Off", description: DEFAULT_DESCRIPTION, tone: "muted" };
+  const defaultDescription = resolve(DEFAULT_DESCRIPTION);
+  if (!enabled) {
+    return {
+      label: resolve(msg("Off", { $context: "SidePulse is turned off" })),
+      description: defaultDescription,
+      tone: "muted",
+    };
+  }
   if (state === null || !state.enabled) {
-    return { label: null, description: DEFAULT_DESCRIPTION, tone: "muted" };
+    return { label: null, description: defaultDescription, tone: "muted" };
   }
   if (state.devices.length === 0) {
     return {
-      label: "Not detected",
-      description: "Insert SidePulse Pro in the SD card slot.",
+      label: resolve(msg("Not detected")),
+      description: resolve(msg("Insert SidePulse Pro in the SD card slot.")),
       tone: "muted",
     };
   }
   const errors = new Set(state.devices.map((device) => device.error));
   if (errors.has("access-denied")) {
     return {
-      label: "No access",
+      label: resolve(msg("No access")),
       description: isMacHost
-        ? "Allow Supaterm to use removable volumes in System Settings > Privacy & Security > Files & Folders."
-        : "Supaterm can't open the SidePulse volume. Make sure your user can read and write it.",
+        ? resolve(
+            msg(
+              "Allow Supaterm to use removable volumes in System Settings > Privacy & Security > Files & Folders.",
+            ),
+          )
+        : resolve(
+            msg(
+              "Supaterm can't open the SidePulse volume. Make sure your user can read and write it.",
+            ),
+          ),
       tone: "error",
     };
   }
   if (errors.has("read-only")) {
     return {
-      label: "Can't write",
-      description: "This computer doesn't allow writing to the SidePulse volume.",
+      label: resolve(msg("Can't write")),
+      description: resolve(msg("This computer doesn't allow writing to the SidePulse volume.")),
       tone: "error",
     };
   }
   if (errors.has("write-failed")) {
     return {
-      label: "Write failed",
-      description: "Supaterm couldn't update the LEDs. It keeps trying.",
+      label: resolve(msg("Write failed")),
+      description: resolve(msg("Supaterm couldn't update the LEDs. It keeps trying.")),
       tone: "error",
     };
   }
-  return { label: "Connected", description: DEFAULT_DESCRIPTION, tone: "success" };
+  return {
+    label: resolve(msg("Connected", { $context: "device connection status" })),
+    description: defaultDescription,
+    tone: "success",
+  };
 }
 
-const EJECT_GUARD_DESCRIPTION =
-  "macOS ejects SidePulse when a locked Mac wakes from deep sleep. This helper keeps it connected and needs your administrator password.";
+const EJECT_GUARD_DESCRIPTION = msg(
+  "macOS ejects SidePulse when a locked Mac wakes from deep sleep. This helper keeps it connected and needs your administrator password.",
+);
 
 const INSTALL_COPY = {
-  action: "Install…",
-  pending: "Installing…",
-  failed: "Couldn't install the helper. Try again.",
+  action: msg("Install…"),
+  pending: msg("Installing…"),
+  failed: msg("Couldn't install the helper. Try again."),
 };
 const REMOVE_COPY = {
-  action: "Remove…",
-  pending: "Removing…",
-  failed: "Couldn't remove the helper. Try again.",
+  action: msg("Remove…"),
+  pending: msg("Removing…"),
+  failed: msg("Couldn't remove the helper. Try again."),
 };
 
 function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseBridge }) {
+  const searchableSetting = useSearchableSetting();
+  const messages = useMessages();
   const [status, setStatus] = useState<SidePulseEjectGuardStatus | null>(null);
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -292,17 +336,17 @@ function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseB
       description={
         failed ? (
           <span role="alert" className="text-destructive-foreground">
-            {copy.failed}
+            {messages(copy.failed)}
           </span>
         ) : (
-          EJECT_GUARD_DESCRIPTION
+          messages(EJECT_GUARD_DESCRIPTION)
         )
       }
       control={
         <>
           {installed ? (
             <span role="status" className="text-xs text-success-foreground">
-              Installed
+              <T>Installed</T>
             </span>
           ) : null}
           <Button
@@ -311,7 +355,7 @@ function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseB
             disabled={pending}
             onClick={toggle}
           >
-            {pending ? copy.pending : copy.action}
+            {pending ? messages(copy.pending) : messages(copy.action)}
           </Button>
         </>
       }
@@ -326,15 +370,18 @@ export function SidePulseSettings() {
 }
 
 function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBridge }) {
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
+  const messages = useMessages();
   const settings = useClientSettings((current) => current.sidePulse);
   const state = useDesktopDeviceState(bridge);
-  const summary = connectionSummary(settings.enabled, state);
+  const summary = connectionSummary(settings.enabled, state, messages);
   const devices = settings.enabled && state?.enabled ? state.devices : [];
   const showing = devices.length > 0 ? (state?.preview ?? state?.ledState ?? null) : null;
 
   return (
     <SettingsPageContainer>
-      <SettingsSection id="sidepulse-connection" title="Connection">
+      <SettingsSection id="sidepulse-connection" title={gt("Connection")}>
         <SettingsRow
           {...searchableSetting("sidepulse-enabled")}
           description={summary.description}
@@ -348,7 +395,7 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
               ) : null}
               <Switch
                 checked={settings.enabled}
-                aria-label="Enable SidePulse"
+                aria-label={gt("Enable SidePulse")}
                 onCheckedChange={(checked) => void updateSidePulseSettings({ enabled: checked })}
               />
             </>
@@ -356,7 +403,7 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
         />
         <SettingsRow
           {...searchableSetting("sidepulse-brightness")}
-          description="Adjusts the brightness of every SidePulse animation"
+          description={gt("Adjusts the brightness of every SidePulse animation")}
           aria-disabled={!settings.enabled || undefined}
           control={
             <BrightnessSlider
@@ -369,7 +416,7 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
         />
         {isMacHost ? <SidePulseEjectGuardRow bridge={bridge} /> : null}
       </SettingsSection>
-      <SettingsSection id="sidepulse-lights" title="Lights">
+      <SettingsSection id="sidepulse-lights" title={gt("Lights")}>
         {LIGHTS.map((light) => (
           <SidePulseLightRow
             key={light.state}

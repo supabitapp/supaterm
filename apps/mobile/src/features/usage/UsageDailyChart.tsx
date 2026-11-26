@@ -8,6 +8,7 @@ import Svg, { Line } from "react-native-svg";
 
 import type { UsageChartDay, UsageChartMetric } from "./usageChartData";
 import { PROVIDER_LABEL, useProviderColors } from "./usageProviders";
+import { useGT } from "gt-react-native";
 
 export const AVERAGE_LINE_COLOR = "rgba(142, 142, 147, 0.9)";
 const HOLD_DELAY_MS = 100;
@@ -34,6 +35,7 @@ export function UsageDailyChart({
   onSelectDay,
   formatPeriod,
 }: UsageDailyChartProps) {
+  const gt = useGT();
   const colors = useProviderColors();
   const [width, setWidth] = useState(0);
   const activeIndex = useSharedValue(-1);
@@ -92,7 +94,10 @@ export function UsageDailyChart({
         accessibilityLabel={[
           peak === undefined
             ? undefined
-            : `Highest ${formatPeriod(peak.day)}, ${format(peak.total)}`,
+            : gt("Highest {period}, {total}", {
+                period: formatPeriod(peak.day),
+                total: format(peak.total),
+              }),
           average > 0 ? `average ${format(average)}` : undefined,
         ]
           .filter(Boolean)

@@ -17,6 +17,8 @@ import { PullRequestEditButton } from "./PullRequestEditButton";
 import { readableFailure } from "./pullRequestDetail.logic";
 import { canEditPullRequestChangeRequest } from "@supaterm/client-runtime/pull-request-editing";
 import { isImeComposing } from "~/lib/imeComposition";
+import { msg, T, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 /** The pull request title, which the reader can rename in place when the host allows it. */
 export function PullRequestTitleEditor({
@@ -32,6 +34,7 @@ export function PullRequestTitleEditor({
   detail: PullRequestDetail;
   canWriteSourceControl: boolean;
 }) {
+  const gt = useGT();
   const update = useAtomCommand(pullRequestEnvironment.update, { reportFailure: false });
   const [titleScope, setTitleScope] = useState<{
     readonly pullRequestKey: string;
@@ -56,10 +59,10 @@ export function PullRequestTitleEditor({
       setTitleScope({ pullRequestKey, text: title });
       toastManager.add({
         type: "error",
-        title: "The title could not be saved",
+        title: m(msg("The title could not be saved")),
         description: readableFailure(
           squashAtomCommandFailure(result),
-          "The host refused the new title.",
+          m(msg("The host refused the new title.")),
         ),
       });
     }
@@ -80,7 +83,7 @@ export function PullRequestTitleEditor({
         </Tooltip>
         {canEditPullRequestChangeRequest(detail) ? (
           <PullRequestEditButton
-            aria-label="Edit title"
+            aria-label={gt("Edit title")}
             onClick={() => setTitleScope({ pullRequestKey, text: detail.title })}
           />
         ) : null}
@@ -114,7 +117,7 @@ export function PullRequestTitleEditor({
           disabled={titleSaving}
           onClick={() => setTitleScope(null)}
         >
-          Cancel
+          <T>Cancel</T>
         </Button>
         <Button
           size="xs"
@@ -122,7 +125,7 @@ export function PullRequestTitleEditor({
           disabled={!canWriteSourceControl || titleSaving || titleDraft.trim().length === 0}
           onClick={() => void saveTitle(titleDraft)}
         >
-          {titleSaving ? "Saving..." : "Save"}
+          {titleSaving ? gt("Saving...") : gt("Save")}
         </Button>
       </div>
     </div>

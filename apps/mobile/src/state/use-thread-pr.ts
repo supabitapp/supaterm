@@ -21,6 +21,7 @@ import {
   presentThreadPr,
   type ThreadPrPresentation,
 } from "./thread-pr-presentation";
+import { useMessages } from "gt-react-native";
 
 const MAX_PULL_REQUEST_SNAPSHOTS = 500;
 
@@ -77,14 +78,18 @@ export function withKnownPullRequestSummary<
 }
 
 export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentation | null {
+  const messages = useMessages();
   const demand = use(ThreadPrDemandContext);
   const { linkedPresentation, pullRequestRef } = useMemo(
     () =>
-      resolveThreadPrSource({
-        pullRequests: thread.pullRequests,
-        branchPullRequest: thread.branchPullRequest,
-      }),
-    [thread.pullRequests, thread.branchPullRequest],
+      resolveThreadPrSource(
+        {
+          pullRequests: thread.pullRequests,
+          branchPullRequest: thread.branchPullRequest,
+        },
+        messages,
+      ),
+    [thread.pullRequests, thread.branchPullRequest, messages],
   );
   const key = pullRequestRef === null ? null : snapshotKey(thread.environmentId, pullRequestRef);
   // Select this row's entry so answers for other pull requests do not re-render it.
@@ -108,10 +113,14 @@ export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentatio
   const summaryPresentation =
     summary === undefined
       ? null
-      : presentThreadPr(pullRequestDetailToVcsStatus(summary), {
-          kind: summary.provider,
-          name: summary.provider,
-          baseUrl: "",
-        });
+      : presentThreadPr(
+          pullRequestDetailToVcsStatus(summary),
+          {
+            kind: summary.provider,
+            name: summary.provider,
+            baseUrl: "",
+          },
+          messages,
+        );
   return linkedPresentation ?? summaryPresentation;
 }

@@ -1,3 +1,4 @@
+import { formatRelativeHourShort } from "@supaterm/shared/usageFormatCopy";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import type { UsageProviderKind } from "@supaterm/contracts";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -6,7 +7,6 @@ import type { DailyTotals, HourlyTotals } from "@supaterm/shared/usageMerge";
 import {
   formatDayShort,
   formatHourShort,
-  formatRelativeHourShort,
   formatTokens,
   formatUsd,
   periodAverage,
@@ -15,6 +15,7 @@ import { cn } from "~/lib/utils";
 import { UsageCalendarHeatmap } from "./UsageCalendarHeatmap";
 import { PROVIDER_ORDER, PROVIDER_PRESENTATION } from "./usageProviders";
 import { observeResize } from "~/lib/observeResize";
+import { T, useMessages, useGT } from "gt-react";
 
 const VIEW_WIDTH = 960;
 const VIEW_HEIGHT = 260;
@@ -179,7 +180,9 @@ function UsageChartTooltip({
         );
       })}
       <div className="mt-1 flex items-center justify-between gap-3 border-t border-border pt-1">
-        <span className="text-muted-foreground">Total</span>
+        <span className="text-muted-foreground">
+          <T>Total</T>
+        </span>
         <span className={cn("tabular-nums", partial ? "text-muted-foreground" : "text-foreground")}>
           {format(column?.total ?? 0)}
         </span>
@@ -317,6 +320,8 @@ export function UsageProviderChart({
   timeZone,
   hour12,
 }: UsageProviderChartProps) {
+  const gt = useGT();
+  const m = useMessages();
   const periods = resolution === "hour" ? hours : days;
   const totals: readonly (DailyTotals | HourlyTotals)[] = resolution === "hour" ? hourly : daily;
   const byPeriod = new Map(
@@ -343,9 +348,16 @@ export function UsageProviderChart({
     resolution === "hour" ? formatHourShort(period, timeZone, hour12) : formatDayShort(period);
   const formatTooltipPeriod = (period: string) =>
     resolution === "hour" && referenceTime !== undefined
-      ? formatRelativeHourShort(period, referenceTime, timeZone, hour12)
+      ? formatRelativeHourShort(period, referenceTime, timeZone, hour12, m)
       : formatPeriod(period);
-  const ariaLabel = `${resolution === "hour" ? "Hourly" : "Daily"} ${metric === "tokens" ? "processed tokens" : "cost"} by provider`;
+  const ariaLabel =
+    resolution === "hour"
+      ? metric === "tokens"
+        ? gt("Hourly processed tokens by provider")
+        : gt("Hourly cost by provider")
+      : metric === "tokens"
+        ? gt("Daily processed tokens by provider")
+        : gt("Daily cost by provider");
 
   if (resolution === "day" && periods.length >= CALENDAR_MIN_DAYS) {
     return (
@@ -366,7 +378,9 @@ export function UsageProviderChart({
         {average > 0 ? (
           <>
             <span aria-hidden className="w-3 border-t border-dashed border-muted-foreground" />
-            {format(average)} {resolution === "hour" ? "hourly" : "daily"} average
+            {resolution === "hour"
+              ? gt("{value} hourly average", { value: format(average) })
+              : gt("{value} daily average", { value: format(average) })}
           </>
         ) : null}
       </div>
@@ -469,13 +483,17 @@ export function UsageProviderChart({
           <caption>{ariaLabel}</caption>
           <thead>
             <tr>
-              <th scope="col">{resolution === "hour" ? "Hour" : "Day"}</th>
+              <th scope="col">{resolution === "hour" ? gt("Hour") : gt("Day")}</th>
               {providers.map((provider) => (
                 <th key={provider} scope="col">
                   {PROVIDER_PRESENTATION[provider].label}
                 </th>
               ))}
-              {providers.length > 1 ? <th scope="col">Total</th> : null}
+              {providers.length > 1 ? (
+                <th scope="col">
+                  <T>Total</T>
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>

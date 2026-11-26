@@ -4,6 +4,7 @@ import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { cn } from "~/lib/utils";
 
 import { Button } from "./ui/button";
+import { useGT } from "gt-react";
 
 export function CommandBlock({
   command,
@@ -14,6 +15,7 @@ export function CommandBlock({
   readonly className?: string;
   readonly prominent?: boolean;
 }) {
+  const gt = useGT();
   const { copyToClipboard, isCopied } = useCopyToClipboard({
     timeout: 1500,
     target: "command",
@@ -34,7 +36,7 @@ export function CommandBlock({
       <Button
         size="icon-xs"
         variant="ghost"
-        aria-label="Copy command"
+        aria-label={gt("Copy command")}
         onClick={() => copyToClipboard(command, undefined)}
       >
         <Icon className="size-3.5" />

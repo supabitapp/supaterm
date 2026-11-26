@@ -14,6 +14,7 @@ import * as Schema from "effect/Schema";
 import { HttpClient, HttpClientResponse } from "effect/http";
 import { ChildProcessSpawner } from "effect/process";
 import * as TestClock from "effect/testing/TestClock";
+import { userFacingSourceControlDetail } from "@supaterm/source-control-core/server/SourceControlProvider";
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
 
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
@@ -701,10 +702,47 @@ describe("GitHubSourceControlProvider writes", () => {
       for (const repository of ["me/", "/notes", "a/b/c/d", "", "two words"]) {
         const error = yield* Effect.flip(gh.getRepositoryCloneUrls({ cwd: "/repo", repository }));
         assert.include(error.message, "Repositories are named owner/name.");
+        assert.strictEqual(
+          userFacingSourceControlDetail(error.cause),
+          "Repositories are named owner/name.",
+        );
       }
       assert.strictEqual(requests.length, 2);
     });
   });
+  it.effect("exposes only fixed repository lookup details with the resolved owner", () =>
+    Effect.gen(function* () {
+      const gh = yield* makeProvider({
+        rest: (input) =>
+          input.path === "user"
+            ? Effect.succeed(restResponse({ login: "me" }))
+            : input.path === "repos/me/private"
+              ? Effect.fail(
+                  new GitHubRequestPolicy.GitHubApiAuthenticationError({
+                    host: input.host,
+                    operation: input.operation,
+                  }),
+                )
+              : Effect.fail(
+                  new GitHubRequestPolicy.GitHubApiNotFoundError({
+                    host: input.host,
+                    operation: input.operation,
+                  }),
+                ),
+      });
+      for (const repository of ["vouch", "other/vouch"]) {
+        const error = yield* Effect.flip(gh.getRepositoryCloneUrls({ cwd: "/repo", repository }));
+        assert.strictEqual(
+          userFacingSourceControlDetail(error.cause),
+          `Repository ${repository === "vouch" ? "me/vouch" : repository} was not found. Check the owner and name and try again.`,
+        );
+      }
+      const authError = yield* Effect.flip(
+        gh.getRepositoryCloneUrls({ cwd: "/repo", repository: "me/private" }),
+      );
+      assert.strictEqual(userFacingSourceControlDetail(authError.cause), undefined);
+    }),
+  );
 });
 
 describe("GitHubSourceControlProvider.checkoutChangeRequest", () => {
@@ -1103,7 +1141,9 @@ it("reports unauthenticated when Settings turn off every signed-in host", () => 
   assert.strictEqual(auth.status, "unauthenticated");
   assert.deepStrictEqual(
     auth.detail,
-    Option.some("Every GitHub host gh is signed in to is turned off in Settings → Source Control."),
+    Option.some(
+      "Every GitHub host gh is signed in to is turned off in Settings → Source control & issues.",
+    ),
   );
 });
 

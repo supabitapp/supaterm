@@ -1,8 +1,5 @@
 import { resolvePullRequestDetailChecks } from "@supaterm/client-runtime/pull-request-checks";
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { PullRequestChangeBreakdownRows } from "../pullRequest/PullRequestChangeBreakdownStat";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
@@ -61,7 +58,6 @@ import {
   resolvePullRequestMergeMethod,
   allowedPullRequestMergeMethods,
   canPerformPullRequestAction,
-  PULL_REQUEST_MERGE_METHOD_LABELS,
   resolvePullRequestMenuActions,
   resolveThreadPanelPullRequestAction,
 } from "../pullRequest/pullRequestDetail.logic";
@@ -96,6 +92,7 @@ import {
   THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 // A null checks response is settled; polling cannot find checks.
 const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
@@ -128,6 +125,8 @@ export function ThreadDetailsPrRow({
   onActed?: () => void;
   onStopWatching?: (() => void) | undefined;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const serverConfigs = useServerConfigs();
   const supportsPullRequests = serverConfigs.has(environmentId);
   const repository = sourceControlClients.repositorySelector(project?.repositoryIdentity);
@@ -162,6 +161,12 @@ export function ThreadDetailsPrRow({
   const terminology = sourceControlClients.get(
     detail?.provider ?? project?.repositoryIdentity?.provider,
   ).changeRequest;
+  const term =
+    terminology.singular === "merge request"
+      ? "mr"
+      : terminology.singular === "change request"
+        ? "cr"
+        : "pr";
   const open = reference !== null && (detail?.state ?? pr?.state) === "open";
   const refreshKey = `${environmentId}:${project?.id}:${reference?.host}:${reference?.repository}:${number}`;
   useLiveRefresh(
@@ -179,14 +184,19 @@ export function ThreadDetailsPrRow({
     checks: detail?.checks ?? [],
   });
 
+  const [armedMergeHead, setArmedMergeHead] = useState<string>();
   const { actionPending, pendingAction, perform } = usePullRequestActionRunner({
     environmentId,
     reference,
+    // The row shows no diff, so a merge lands the head it had when the confirmation opened.
+    headSha: armedMergeHead ?? detail?.headSha,
     terminology,
     onSuccess: () => {
       checksQuery.refresh();
       onActed?.();
     },
+    // A refused merge usually means the row is stale, so show what the host has now.
+    onFailure: () => detailQuery.refresh(),
   });
   const { handoff, startHandoff } = usePullRequestHandoffs({ environmentId, detail });
   const lastSelectedMergeMethod = useUiStateStore((state) => state.pullRequestMergeMethod);
@@ -200,6 +210,17 @@ export function ThreadDetailsPrRow({
     (project?.id as ProjectId | undefined) ?? null,
   );
   const confirm = useInlineConfirm<"merge" | "enable-auto-merge" | "close">();
+  // Arming a merge records the head on the row, which the confirming click then lands.
+  const pinnedConfirm = (key: "merge" | "enable-auto-merge", run: () => void) => {
+    const control = confirm.bind(key, run);
+    return {
+      ...control,
+      onClick: (event: Parameters<typeof control.onClick>[0]) => {
+        if (confirm.armed !== key) setArmedMergeHead(detail?.headSha);
+        control.onClick(event);
+      },
+    };
+  };
   const rowRef = useRef<HTMLDivElement | null>(null);
   const { canMergeSinglePullRequest } = usePullRequestStackGate({
     environmentId,
@@ -231,14 +252,22 @@ export function ThreadDetailsPrRow({
     projectDefaultMergeMethod,
     lastSelectedMergeMethod,
   );
+  const mergeMethodKey =
+    selectedMergeMethod === "fast-forward" ? "fastForward" : selectedMergeMethod;
   const selectMergeMethod = (method: PullRequestMergeMethod) => {
     setMergeMethodSelection({ key: refreshKey, method });
     setLastSelectedMergeMethod(method);
   };
   const autoMergeArmed = detail?.state === "open" && detail.autoMergeEnabled === true;
-  const armedAutoMergeLabel = detail?.autoMergeMethod
-    ? `Auto-merge (${PULL_REQUEST_MERGE_METHOD_LABELS[detail.autoMergeMethod].toLowerCase()})`
-    : "Auto-merge";
+  const armedAutoMergeLabel = gt(
+    "{method, select, merge {Auto-merge (merge) enabled} squash {Auto-merge (squash and merge) enabled} rebase {Auto-merge (rebase and merge) enabled} fastForward {Auto-merge (fast-forward merge) enabled} other {Auto-merge enabled}}",
+    {
+      method:
+        detail?.autoMergeMethod === "fast-forward"
+          ? "fastForward"
+          : (detail?.autoMergeMethod ?? "none"),
+    },
+  );
 
   const startInNewThread = (kind: HandoffKind) => {
     if (detail === null) return;
@@ -279,18 +308,21 @@ export function ThreadDetailsPrRow({
     });
     toastManager.add({
       type: "success",
-      title: "Added to the composer",
-      description: "The task is in the composer. Read it over, then send.",
+      title: gt("Added to the composer"),
+      description: gt("The task is in the composer. Read it over, then send."),
     });
   };
 
   const statePresentation =
     detail === null
       ? null
-      : resolvePullRequestState({
-          state: detail.state,
-          isDraft: detail.isDraft,
-        });
+      : resolvePullRequestState(
+          {
+            state: detail.state,
+            isDraft: detail.isDraft,
+          },
+          messages,
+        );
   const icon = statePresentation ? (
     <statePresentation.Icon
       aria-hidden
@@ -307,12 +339,31 @@ export function ThreadDetailsPrRow({
 
   const stateLabel = (
     statePresentation ??
-    (pr ? resolvePullRequestState({ state: pr.state, isDraft: pr.isDraft === true }) : null)
+    (pr
+      ? resolvePullRequestState({ state: pr.state, isDraft: pr.isDraft === true }, messages)
+      : null)
   )?.label.toLowerCase();
   const accessibleTitle = (detail?.title ?? pr?.title)?.trim();
-  const openAriaLabel = `${capitalizeTerm(terminology.singular)} #${number}${
-    stateLabel ? `, ${stateLabel}` : ""
-  }${accessibleTitle ? `: ${accessibleTitle}` : ""}`;
+  const openAriaLabel =
+    stateLabel && accessibleTitle
+      ? gt(
+          "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}, {state}: {title}",
+          { term, number, state: stateLabel, title: accessibleTitle },
+        )
+      : stateLabel
+        ? gt(
+            "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}, {state}",
+            { term, number, state: stateLabel },
+          )
+        : accessibleTitle
+          ? gt(
+              "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}: {title}",
+              { term, number, title: accessibleTitle },
+            )
+          : gt(
+              "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}",
+              { term, number },
+            );
 
   // Everything the host reported, at a glance. The row stays one line; the tooltip is where the
   // rest of the answer lives — styled like the sidebar's thread tooltip, title above icon-led
@@ -320,7 +371,11 @@ export function ThreadDetailsPrRow({
   const rowTooltip =
     detail === null || statePresentation === null ? (
       <TooltipPopup side="top">
-        {status?.tooltip ?? `${capitalizeTerm(terminology.singular)} #${number}`}
+        {status?.tooltip ??
+          gt(
+            "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}",
+            { term, number },
+          )}
       </TooltipPopup>
     ) : (
       <TooltipPopup
@@ -361,31 +416,33 @@ export function ThreadDetailsPrRow({
                   }
                 />
                 <div className="min-w-0 truncate text-foreground/75">
-                  {describePullRequestChecks(detail.checks)}
+                  {describePullRequestChecks(detail.checks, messages)}
                 </div>
               </div>
             ) : null}
             {autoMergeArmed ? (
               <div className="flex min-w-0 items-center gap-2">
                 <PullRequestGlyph.merged aria-hidden className="size-3 shrink-0 text-info" />
-                <div className="min-w-0 truncate text-foreground/75">
-                  {armedAutoMergeLabel} enabled
-                </div>
+                <div className="min-w-0 truncate text-foreground/75">{armedAutoMergeLabel}</div>
               </div>
             ) : null}
             {detail.isDraft && conflicting ? (
               <div className="flex min-w-0 items-start gap-2 text-destructive">
                 <TriangleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
                 <div className="min-w-0 flex-1 wrap-break-word">
-                  Merge conflicts with {detail.baseBranch}
+                  <T>
+                    Merge conflicts with <Var>{detail.baseBranch}</Var>
+                  </T>
                 </div>
               </div>
             ) : null}
             <div className="flex min-w-0 items-center gap-2">
               <DiffIcon className="size-3 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex items-baseline gap-1 truncate text-foreground/75">
-                {detail.changedFiles.toLocaleString()}{" "}
-                {detail.changedFiles === 1 ? "file" : "files"}
+                {gt("{count, plural, one {{formatted} file} other {{formatted} files}}", {
+                  count: detail.changedFiles,
+                  formatted: detail.changedFiles.toLocaleString(),
+                })}
                 <PullRequestDiffStat additions={detail.additions} deletions={detail.deletions} />
               </div>
             </div>
@@ -404,33 +461,38 @@ export function ThreadDetailsPrRow({
   const trailingAction =
     rowAction === "resolve"
       ? {
-          label: "Resolve",
-          pendingLabel: "Preparing...",
+          label: gt("Resolve", { $context: "verb, resolves merge conflicts" }),
+          pendingLabel: gt("Preparing..."),
           pending: handoff === "conflicts",
           destructive: true,
           suffix: null,
-          tooltip: "Draft a prompt in this thread for a subagent to resolve the conflicts",
+          tooltip: gt("Draft a prompt in this thread for a subagent to resolve the conflicts"),
           controlProps: { onClick: () => draftSubagentHandoff("conflicts") },
         }
       : rowAction === "ready"
         ? {
-            label: "Ready",
-            pendingLabel: "Marking...",
+            label: gt("Ready", { $context: "verb, marks a draft pull request ready for review" }),
+            pendingLabel: gt("Marking..."),
             pending: pendingAction === "ready",
             destructive: false,
             suffix: null,
-            tooltip: `Mark this ${terminology.singular} as ready for review`,
+            tooltip: gt(
+              "Mark this {term, select, mr {merge request} cr {change request} other {pull request}} as ready for review",
+              { term },
+            ),
             controlProps: { onClick: () => void perform("ready") },
           }
         : rowAction === "fix"
           ? {
-              label: "Fix",
-              pendingLabel: "Fix",
+              label: gt("Fix", { $context: "verb, fixes failing checks" }),
+              pendingLabel: gt("Fix", { $context: "verb, fixes failing checks" }),
               pending: handoff === "findings",
               destructive: true,
               suffix:
-                handoff === "findings" ? <Spinner size="xs" aria-label="Preparing fix" /> : null,
-              tooltip: "Draft a prompt in this thread for a subagent to fix the failing checks",
+                handoff === "findings" ? (
+                  <Spinner size="xs" aria-label={gt("Preparing fix")} />
+                ) : null,
+              tooltip: gt("Draft a prompt in this thread for a subagent to fix the failing checks"),
               controlProps: { onClick: () => draftSubagentHandoff("findings") },
             }
           : rowAction === "merge"
@@ -438,17 +500,30 @@ export function ThreadDetailsPrRow({
                 label: (
                   <InlineConfirmLabel
                     armed={confirm.armed === "merge"}
-                    idle="Merge"
-                    confirm="Confirm"
+                    idle={gt("Merge", { $context: "verb, merges a pull request" })}
+                    confirm={gt("Confirm", { $context: "verb, confirms the armed action" })}
                   />
                 ),
-                pendingLabel: "Merging...",
+                pendingLabel: gt("Merging..."),
                 pending: pendingAction === "merge",
                 destructive: false,
                 suffix: null,
-                tooltip: `Merge this ${terminology.singular} (${selectedMergeMethod})`,
-                armedTooltip: `Click again to merge #${number} into ${detail?.baseBranch} (${selectedMergeMethod})`,
-                controlProps: confirm.bind(
+                tooltip: gt(
+                  "Merge this {term, select, mr {merge request} cr {change request} other {pull request}} ({method, select, merge {merge} squash {squash} rebase {rebase} fastForward {fast-forward} other {merge}})",
+                  {
+                    term,
+                    method: mergeMethodKey,
+                  },
+                ),
+                armedTooltip: gt(
+                  "Click again to merge #{number} into {base} ({method, select, merge {merge} squash {squash} rebase {rebase} fastForward {fast-forward} other {merge}})",
+                  {
+                    number,
+                    base: detail?.baseBranch,
+                    method: mergeMethodKey,
+                  },
+                ),
+                controlProps: pinnedConfirm(
                   "merge",
                   () => void perform("merge", selectedMergeMethod),
                 ),
@@ -458,17 +533,26 @@ export function ThreadDetailsPrRow({
                   label: (
                     <InlineConfirmLabel
                       armed={confirm.armed === "enable-auto-merge"}
-                      idle="Auto-merge"
-                      confirm="Confirm"
+                      idle={gt("Auto-merge")}
+                      confirm={gt("Confirm", { $context: "verb, confirms the armed action" })}
                     />
                   ),
-                  pendingLabel: "Enabling...",
+                  pendingLabel: gt("Enabling..."),
                   pending: pendingAction === "enable-auto-merge",
                   destructive: false,
                   suffix: null,
-                  tooltip: `Merge into ${detail?.baseBranch} (${selectedMergeMethod}) once its checks pass`,
-                  armedTooltip: `Click again to enable auto-merge. The host may merge #${number} right away.`,
-                  controlProps: confirm.bind(
+                  tooltip: gt(
+                    "Merge into {base} ({method, select, merge {merge} squash {squash} rebase {rebase} fastForward {fast-forward} other {merge}}) once its checks pass",
+                    {
+                      base: detail?.baseBranch,
+                      method: mergeMethodKey,
+                    },
+                  ),
+                  armedTooltip: gt(
+                    "Click again to enable auto-merge. The host may merge #{number} right away.",
+                    { number },
+                  ),
+                  controlProps: pinnedConfirm(
                     "enable-auto-merge",
                     () => void perform("enable-auto-merge", selectedMergeMethod),
                   ),
@@ -487,7 +571,7 @@ export function ThreadDetailsPrRow({
       {autoMergeArmed ? (
         <PullRequestGlyph.merged
           role="img"
-          aria-label={`${armedAutoMergeLabel} enabled`}
+          aria-label={armedAutoMergeLabel}
           className="size-3.5 shrink-0 text-info"
         />
       ) : null}
@@ -509,7 +593,7 @@ export function ThreadDetailsPrRow({
                 size="sm"
                 part={detail === null ? "secondary" : "icon-segment"}
                 className="group/watch"
-                aria-label={`Stop watching #${number}`}
+                aria-label={gt("Stop watching #{number}", { number })}
                 onClick={onStopWatching}
               />
             }
@@ -518,8 +602,10 @@ export function ThreadDetailsPrRow({
             <EyeOffIcon aria-hidden className="hidden size-3.5 group-hover/watch:block" />
           </TooltipTrigger>
           <TooltipPopup side="top">
-            Watching: the agent wakes when checks finish, someone comments, or the branch conflicts.
-            Click to stop.
+            <T>
+              Watching: the agent wakes when checks finish, someone comments, or the branch
+              conflicts. Click to stop.
+            </T>
           </TooltipPopup>
         </Tooltip>
       </>
@@ -542,7 +628,12 @@ export function ThreadDetailsPrRow({
                       variant="ghost"
                       size="sm"
                       part="secondary"
-                      aria-label={`More ${terminology.singular} actions`}
+                      aria-label={gt(
+                        "More {term, select, mr {merge request} cr {change request} other {pull request}} actions",
+                        {
+                          term,
+                        },
+                      )}
                     />
                   }
                 >
@@ -550,7 +641,12 @@ export function ThreadDetailsPrRow({
                 </MenuTrigger>
               }
             />
-            <TooltipPopup side="top">More {terminology.singular} actions</TooltipPopup>
+            <TooltipPopup side="top">
+              {gt(
+                "More {term, select, mr {merge request} cr {change request} other {pull request}} actions",
+                { term },
+              )}
+            </TooltipPopup>
           </Tooltip>
           <MenuPopup align="end" anchor={rowRef} className="w-(--anchor-width)">
             {rowAction === "fix" || rowAction === "resolve" ? (
@@ -560,7 +656,11 @@ export function ThreadDetailsPrRow({
                   onClick={() => startInNewThread(rowAction === "fix" ? "findings" : "conflicts")}
                 >
                   <SquarePenIcon className="size-3.5" />
-                  {rowAction === "fix" ? "Fix in a new thread" : "Resolve in a new thread"}
+                  {rowAction === "fix" ? (
+                    <T>Fix in a new thread</T>
+                  ) : (
+                    <T>Resolve in a new thread</T>
+                  )}
                 </MenuItem>
                 <MenuSeparator />
               </>
@@ -576,7 +676,7 @@ export function ThreadDetailsPrRow({
             />
             <MenuItem onClick={() => void readLocalApi()?.shell.openExternal(detail.url)}>
               <ArrowUpRightIcon className="size-3.5" />
-              {openOnHostLabel(sourceControlClients.get(detail.provider))}
+              {openOnHostLabel(sourceControlClients.get(detail.provider), undefined, messages)}
             </MenuItem>
             {canClose ? (
               <>
@@ -587,7 +687,14 @@ export function ThreadDetailsPrRow({
                   disabled={actionPending}
                 >
                   <PullRequestGlyph.closed className="size-3.5" />
-                  {confirm.armed === "close" ? "Confirm close" : `Close ${terminology.singular}`}
+                  {confirm.armed === "close" ? (
+                    <T>Confirm close</T>
+                  ) : (
+                    gt(
+                      "Close {term, select, mr {merge request} cr {change request} other {pull request}}",
+                      { term },
+                    )
+                  )}
                 </MenuItem>
               </>
             ) : canReopen ? (
@@ -595,7 +702,10 @@ export function ThreadDetailsPrRow({
                 <MenuSeparator />
                 <MenuItem disabled={actionPending} onClick={() => void perform("reopen")}>
                   <PullRequestGlyph.reopen className="size-3.5" />
-                  Reopen {terminology.singular}
+                  {gt(
+                    "Reopen {term, select, mr {merge request} cr {change request} other {pull request}}",
+                    { term },
+                  )}
                 </MenuItem>
               </>
             ) : null}

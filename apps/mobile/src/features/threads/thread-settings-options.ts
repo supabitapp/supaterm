@@ -1,12 +1,15 @@
 import {
   clampManagedRuntimeMode,
-  managedRuntimeModeDenial,
   type AuthMcpClientAccess,
   type ManagedPolicySummary,
   type ProviderOptionDescriptor,
   type RuntimeMode,
 } from "@supaterm/contracts";
+import { managedRuntimeModeDenial } from "@supaterm/client-runtime/contract-labels";
 import { firstManagedDenial } from "@supaterm/client-runtime/managed-policy";
+import { msg } from "gt-react-native";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 /**
  * The slider holds reasoning levels only. Prompt-injected values (ultrathink and
@@ -22,23 +25,23 @@ export const RUNTIME_MODE_CHOICES: ReadonlyArray<{
 }> = [
   {
     mode: "approval-required",
-    label: "Supervised",
-    description: "Ask before commands and file changes.",
+    label: msg("Supervised"),
+    description: msg("Ask before commands and file changes."),
   },
   {
     mode: "auto-accept-edits",
-    label: "Auto-accept edits",
-    description: "Auto-approve edits, ask before other actions.",
+    label: msg("Auto-accept edits"),
+    description: msg("Auto-approve edits, ask before other actions."),
   },
   {
     mode: "auto",
-    label: "Auto",
-    description: "Supported providers approve routine actions; others still ask.",
+    label: msg("Auto"),
+    description: msg("Supported providers approve routine actions; others still ask."),
   },
   {
     mode: "full-access",
-    label: "Full access",
-    description: "Allow commands and edits without prompts.",
+    label: msg("Full access"),
+    description: msg("Allow commands and edits without prompts."),
   },
 ];
 
@@ -50,14 +53,19 @@ export const LINK_ACCESS_CHOICES: ReadonlyArray<{
 }> = [
   {
     access: "read-only",
-    label: "Read only",
-    description: "Read projects and threads. Cannot start, message or change anything.",
+    label: msg("Read only"),
+    description: msg("Read projects and threads. Cannot start, message or change anything."),
   },
   ...RUNTIME_MODE_CHOICES.map((choice) => ({ ...choice, access: choice.mode })),
 ];
 
-export const linkAccessLabel = (access: AuthMcpClientAccess): string =>
-  LINK_ACCESS_CHOICES.find((choice) => choice.access === access)?.label ?? access;
+export const linkAccessLabel = (
+  access: AuthMcpClientAccess,
+  resolve: MessageResolver = m,
+): string => {
+  const label = LINK_ACCESS_CHOICES.find((choice) => choice.access === access)?.label;
+  return label === undefined ? access : resolve(label);
+};
 
 export function runtimeModeChoicesForSupportedModes(
   supportedRuntimeModes: ReadonlyArray<RuntimeMode> | undefined,
@@ -78,10 +86,11 @@ export type RuntimeModeChoice = (typeof RUNTIME_MODE_CHOICES)[number] & {
 export function withManagedRuntimeModeLimits(
   choices: ReadonlyArray<RuntimeModeChoice>,
   policies: ReadonlyArray<ManagedPolicySummary | undefined>,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<RuntimeModeChoice> {
   return choices.map((choice) => {
     const reason = firstManagedDenial(policies, (policy) =>
-      managedRuntimeModeDenial(policy, choice.mode),
+      managedRuntimeModeDenial(policy, choice.mode, resolve),
     );
     return reason === undefined ? choice : { ...choice, disabledReason: reason };
   });
@@ -111,8 +120,9 @@ export function managedRuntimeModeSwitch(
   policy: ManagedPolicySummary | undefined,
   runtimeMode: RuntimeMode,
   supportedRuntimeModes: ReadonlyArray<RuntimeMode> | undefined,
+  resolve: MessageResolver = m,
 ): { readonly denial: string; readonly target: RuntimeModeChoice | undefined } | undefined {
-  const denial = managedRuntimeModeDenial(policy, runtimeMode);
+  const denial = managedRuntimeModeDenial(policy, runtimeMode, resolve);
   if (denial === undefined) return undefined;
   const choices = runtimeModeChoicesForSupportedModes(supportedRuntimeModes);
   const target = clampManagedRuntimeMode(

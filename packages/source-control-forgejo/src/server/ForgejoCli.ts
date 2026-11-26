@@ -1,6 +1,8 @@
+import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Result from "effect/Result";
 import * as Clock from "effect/Clock";
@@ -26,6 +28,7 @@ export class ForgejoCliError extends Schema.TaggedError<ForgejoCliError>()("Forg
   command: Schema.Literals(["fj", "tea"]),
   cwd: Schema.String,
   detail: Schema.String,
+  userFacingDetail: Schema.optional(Schema.String),
   reason: Schema.optional(
     Schema.Literals([
       "missing-cli",
@@ -220,7 +223,14 @@ export function matchForgejoLogin(
       : undefined;
 }
 
+const ForgejoKeysConfig = Config.all({
+  dataHome: Config.String("XDG_DATA_HOME").pipe(Config.option),
+  appData: Config.String("APPDATA").pipe(Config.option),
+});
+
 export const make = Effect.gen(function* () {
+  // Optional strings cannot fail to decode.
+  const { dataHome, appData } = yield* Effect.suspend(() => ForgejoKeysConfig).pipe(Effect.orDie);
   const { process } = yield* SourceControlHost.SourceControlHost;
   const fileSystem = yield* FileSystem.FileSystem;
   const httpClient = yield* HttpClient.HttpClient;
@@ -260,10 +270,8 @@ export const make = Effect.gen(function* () {
     for (const path of forgejoKeysPaths({
       platform: yield* HostProcess.Platform,
       home: yield* HostProcess.HomeDirectory,
-      ...(globalThis.process.env.XDG_DATA_HOME
-        ? { dataHome: globalThis.process.env.XDG_DATA_HOME }
-        : {}),
-      ...(globalThis.process.env.APPDATA ? { appData: globalThis.process.env.APPDATA } : {}),
+      ...(Option.isSome(dataHome) ? { dataHome: dataHome.value } : {}),
+      ...(Option.isSome(appData) ? { appData: appData.value } : {}),
     })) {
       const exists = yield* fileSystem.exists(path).pipe(
         Effect.mapError(
@@ -583,7 +591,14 @@ export const make = Effect.gen(function* () {
         ssh: false,
         path: remote?.path ?? "",
       };
-    const schemeRemoteUrl = remote?.ssh ? input.context?.provider.baseUrl : remoteUrl;
+    // A reference or repository URL names the host; the project's own remote decides the scheme.
+    const callerNamedRemote =
+      referenceRemote ?? (input.repository ? parseForgejoRemote(input.repository) : null);
+    const schemeSource = callerNamedRemote ? input.context?.remoteUrl : remoteUrl;
+    const schemeRemoteUrl =
+      schemeSource && parseForgejoRemote(schemeSource)?.ssh
+        ? input.context?.provider.baseUrl
+        : schemeSource;
     const fjLogins = yield* listLogins({
       cwd: input.cwd,
       command: "fj",

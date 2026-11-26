@@ -4,6 +4,7 @@ import { Pressable } from "react-native";
 import { AppText } from "./AppText";
 import { ListRowLayout, type ListRowContentProps } from "./ListRowLayout";
 import { ThemedSwitch } from "./ThemedSwitch";
+import { T, useGT } from "gt-react-native";
 
 /**
  * A mixed row flips the value last picked on it, so a pick that some environments dropped can be
@@ -15,6 +16,7 @@ export function ListToggleRow(
     readonly onValueChange: (value: boolean) => void;
   },
 ) {
+  const gt = useGT();
   const [picked, setPicked] = useState(false);
   const pick = (value: boolean) => {
     setPicked(value);
@@ -29,7 +31,11 @@ export function ListToggleRow(
       accessory={
         props.value === null ? (
           <Pressable
-            accessibilityLabel={`Set ${props.label} ${picked ? "off" : "on"} for selected environments`}
+            accessibilityLabel={
+              picked
+                ? gt("Set {label} off for selected environments", { label: props.label })
+                : gt("Set {label} on for selected environments", { label: props.label })
+            }
             accessibilityRole="button"
             accessibilityHint={props.description}
             accessibilityState={{ disabled: Boolean(props.disabled) }}
@@ -38,7 +44,7 @@ export function ListToggleRow(
             onPress={() => pick(!picked)}
           >
             <AppText className="text-sm font-supaterm-medium text-foreground">
-              {picked ? "Mixed · Set off" : "Mixed · Set on"}
+              {picked ? <T>Mixed · Set off</T> : <T>Mixed · Set on</T>}
             </AppText>
           </Pressable>
         ) : (

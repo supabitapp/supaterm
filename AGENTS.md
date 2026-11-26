@@ -61,6 +61,7 @@ The most common defect in this repo is a change that works on the path you teste
 - **Contracts.** Anything crossing the wire is typed in `packages/contracts`. Change the schema and the server, web, mobile, and desktop all follow.
 - **Reverse states.** If you added a way in, add the way out and the way to see it. Snooze needs unsnooze. Close needs reopen. A one-way door is a bug.
 - **Connection modes.** Local, remote/direct, remote/relay, and SSH behave differently. Multi-device and multi-environment cases are real.
+- **Languages.** Translate user-facing copy in `apps/{web,mobile,desktop}/src/i18n/translations` (`vp run i18n:generate` / `vp run i18n:check`). See [Translating the UI](docs/internals/i18n.md).
 - **Docs.** Check whether the change makes existing guidance inaccurate. Apply the [documentation rules](#documentation) before adding anything.
 
 ## Dev servers
@@ -87,7 +88,7 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
 
 - Smallest proof that the change works. While you iterate, run `vp test run <files>` (for big files, add `-t "<name>"`), `vp lint <files>`, and `vp run typecheck` in the package you changed.
 - Before you push, run `vp run check:changed`. It runs CI's fast checks for changed files: format, lint, knip, typecheck of affected packages and dependents, and tests beside changes. CI still runs the full test suites. A changed `package.json` or a path it does not recognize makes it typecheck every package, so it does not replace the targeted checks above.
-- Use `vp run typecheck`, not `npx tsc`; it caches per package. Both run tsc-rs (`typescript` is the `@tsc-rs/typescript` drop-in).
+- Use `vp run typecheck`; it caches per package. Each package runs `effect-tsgo tsrs --noEmit`, the Rust TypeScript 7 checker with Effect's diagnostics built in. There is no `typescript` package to run.
 - Run `node -e` snippets from `apps/server` or the owning package. The repo root resolves only its own few devDependencies.
 - Test behavior that can break, such as orchestration and event-sourcing, provider protocol translation, auth and permission guards, persistence and migrations, external-format parsing, race fixes, and the logic a bug fix changed. Leave out tests for what types already guarantee, trivial logic, copy text, smoke runs, mock-call mirrors, callback wiring, and props rendered to static markup.
 - Extend before you add. When an existing test or table covers the behavior, add a row or an assertion there. Write a new `it` only when no case fits.

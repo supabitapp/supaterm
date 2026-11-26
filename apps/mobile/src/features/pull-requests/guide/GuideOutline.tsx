@@ -8,6 +8,7 @@ import { PullRequestMarkdown } from "../PullRequestMarkdown";
 import { Menu } from "../../../components/ui/Menu";
 
 import { useAppearancePreferences } from "../../settings/appearance/AppearancePreferencesProvider";
+import { useGT } from "gt-react-native";
 
 export function GuideOutline({
   guide,
@@ -18,6 +19,7 @@ export function GuideOutline({
   readonly onOpen: (position: number) => void;
   readonly onRewrite?: () => void;
 }) {
+  const gt = useGT();
   const { appearance, setCodeWordBreak } = useAppearancePreferences();
   const files = new Set(guide.stops.flatMap(stopFilePaths));
   return (
@@ -25,23 +27,27 @@ export function GuideOutline({
       <View className="mb-5 flex-row items-center justify-between">
         <View className="flex-row items-baseline gap-2">
           <Text className="text-base font-supaterm-semibold">
-            {guide.stops.length} {guide.stops.length === 1 ? "stop" : "stops"}
+            {gt("{count, plural, one {{count} stops} other {{count} stops}}", {
+              count: guide.stops.length,
+            })}
           </Text>
           <Text className="text-sm text-foreground-muted">
-            through {files.size} {files.size === 1 ? "file" : "files"}
+            {gt("{count, plural, one {through {count} file} other {through {count} files}}", {
+              count: files.size,
+            })}
           </Text>
         </View>
         <Menu
-          title="Guide options"
+          title={gt("Guide options")}
           actions={[
             {
               id: "word-wrap",
-              title: "Word wrap",
+              title: gt("Word wrap"),
               image: "text.alignleft",
               state: appearance.codeWordBreak ? "on" : "off",
             },
             ...(onRewrite
-              ? [{ id: "rewrite", title: "Rewrite guide", image: "arrow.clockwise" }]
+              ? [{ id: "rewrite", title: gt("Rewrite guide"), image: "arrow.clockwise" }]
               : []),
           ]}
           onPressAction={({ nativeEvent }) =>
@@ -52,7 +58,7 @@ export function GuideOutline({
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Guide options"
+            accessibilityLabel={gt("Guide options")}
             className="h-11 w-11 items-center justify-center rounded-full active:bg-grouped-card"
           >
             <SymbolView name="ellipsis" size={20} tintColorClassName="accent-icon-muted" />
@@ -72,7 +78,10 @@ export function GuideOutline({
           <Pressable
             key={`${guide.headSha}:${JSON.stringify(stop)}`}
             accessibilityRole="button"
-            accessibilityLabel={`Stop ${position + 1}: ${stop.title}`}
+            accessibilityLabel={gt("Stop {position}: {title}", {
+              position: position + 1,
+              title: stop.title,
+            })}
             onPress={() => onOpen(position)}
             className="flex-row gap-4 active:opacity-60"
           >
@@ -91,7 +100,7 @@ export function GuideOutline({
                   <SymbolView name="eye" size={14} tintColorClassName="accent-warning-foreground" />
                 ) : null}
                 <Text className="shrink text-xs text-foreground-muted" numberOfLines={1}>
-                  {filename ?? "Context"}
+                  {filename ?? gt("Context", { $context: "guide stop with no file" })}
                   {paths.length > 1 ? ` +${paths.length - 1}` : ""}
                 </Text>
               </View>
@@ -104,7 +113,12 @@ export function GuideOutline({
       })}
       {guide.stops.length ? (
         <View className="self-end">
-          <Button label="Start tour" tone="text" onPress={() => onOpen(0)} icon="arrow.right" />
+          <Button
+            label={gt("Start tour")}
+            tone="text"
+            onPress={() => onOpen(0)}
+            icon="arrow.right"
+          />
         </View>
       ) : null}
     </View>

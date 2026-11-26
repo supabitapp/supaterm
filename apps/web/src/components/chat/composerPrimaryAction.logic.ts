@@ -21,6 +21,8 @@ export interface ComposerPrimaryActionInput {
   readonly isEditingQueuedMessage: boolean;
   readonly hasSendableContent: boolean;
   readonly isSendBusy: boolean;
+  /** A send is armed and waiting for its images to finish preparing. */
+  readonly isSendHeld: boolean;
   readonly isPreparingWorktree: boolean;
   readonly sendDisabledReason: string | null;
   readonly isEnvironmentUnavailable: boolean;
@@ -108,7 +110,11 @@ export type ComposerPrimaryAction = {
 } & (
   | { readonly kind: "answer"; readonly questionIndex: number; readonly isLastQuestion: boolean }
   | { readonly kind: "stop" }
-  | { readonly kind: ComposerSubmitKind; readonly preparingWorktree: boolean }
+  | {
+      readonly kind: ComposerSubmitKind;
+      readonly preparingWorktree: boolean;
+      readonly held: boolean;
+    }
 );
 
 // A disconnected environment still queues messages, so it only blocks actions that need it now.
@@ -196,7 +202,12 @@ export function resolveComposerPrimaryAction(
       guarded,
     };
   }
-  if (stop !== "none" && !input.hasSendableContent && !input.isEditingQueuedMessage) {
+  if (
+    stop !== "none" &&
+    !input.hasSendableContent &&
+    !input.isEditingQueuedMessage &&
+    !input.isSendHeld
+  ) {
     return {
       kind: "stop",
       busy: false,
@@ -208,8 +219,9 @@ export function resolveComposerPrimaryAction(
   const kind = submitKind(input);
   return {
     kind,
-    busy: input.isSendBusy,
+    busy: input.isSendBusy || input.isSendHeld,
     preparingWorktree: input.isPreparingWorktree,
+    held: input.isSendHeld,
     blocked: submitBlock(input, kind),
     stop,
     guarded,

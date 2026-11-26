@@ -1,0 +1,1 @@
+export const THEME_CSS_MAX_LENGTH = 100_000;

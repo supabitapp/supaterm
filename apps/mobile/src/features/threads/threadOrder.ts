@@ -1,7 +1,10 @@
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
-import { planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
+import { activeThreadSortKey, planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
 import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
 import type { EnvironmentId } from "@supaterm/contracts";
+import { msg } from "gt-react-native";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export type ThreadMoveDestination =
   | "up"
@@ -65,9 +68,13 @@ function rowId(row: OrderRow): string {
   return `${row.environmentId}:${row.id}`;
 }
 
+function storedKey(row: OrderRow, section: PendingThreadOrder["section"]) {
+  return (section === "pinned" ? row.pinOrderKey : row.activeOrderKey) ?? null;
+}
+
 function rowOrder(row: OrderRow, section: PendingThreadOrder["section"]) {
   return {
-    key: (section === "pinned" ? row.pinOrderKey : row.activeOrderKey) ?? null,
+    key: section === "pinned" ? storedKey(row, section) : activeThreadSortKey(row),
     anchor: section === "pinned" ? (row.pinnedAt ?? "") : (row.reopenedAt ?? row.createdAt),
   };
 }
@@ -79,12 +86,13 @@ export function createThreadMovePlanner(input: {
   readonly reorderableEnvironmentIds: ReadonlySet<EnvironmentId>;
 }) {
   const orderedIds = input.ordered.map(rowId);
-  const keysById = new Map(
-    (input.allThreads ?? input.ordered).map((row) => [
-      rowId(row),
-      rowOrder(row, input.section).key,
-    ]),
-  );
+  // Hidden rows keep their stored key: only stored keys can collide with a write.
+  const keysById = new Map([
+    ...(input.allThreads ?? input.ordered).map(
+      (row) => [rowId(row), storedKey(row, input.section)] as const,
+    ),
+    ...input.ordered.map((row) => [rowId(row), rowOrder(row, input.section).key] as const),
+  ]);
   const writableIds = new Set(
     (input.allThreads ?? input.ordered)
       .filter((row) => input.reorderableEnvironmentIds.has(row.environmentId))
@@ -179,12 +187,16 @@ export function canMoveThreadToActive(source: ThreadDragSection, loaded: boolean
   return loaded && source !== "active";
 }
 
-export function threadDragAction(source: ThreadDragSection, destination: ThreadDragSection) {
+export function threadDragAction(
+  source: ThreadDragSection,
+  destination: ThreadDragSection,
+  resolve: MessageResolver = m,
+) {
   if (destination === "snoozed") return null;
-  if (destination === "done") return source === "done" ? null : "Mark as Done";
-  if (source === destination) return "Reorder";
-  if (destination === "pinned") return "Pin";
-  if (source === "pinned") return "Unpin";
-  if (source === "done") return "Reopen";
-  return "Unsnooze";
+  if (destination === "done") return source === "done" ? null : resolve(msg("Mark as Done"));
+  if (source === destination) return resolve(msg("Reorder", { $context: "verb, thread action" }));
+  if (destination === "pinned") return resolve(msg("Pin", { $context: "verb, thread action" }));
+  if (source === "pinned") return resolve(msg("Unpin", { $context: "verb, thread action" }));
+  if (source === "done") return resolve(msg("Reopen", { $context: "verb, thread action" }));
+  return resolve(msg("Unsnooze", { $context: "verb, thread action" }));
 }

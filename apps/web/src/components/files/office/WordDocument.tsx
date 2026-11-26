@@ -14,6 +14,8 @@ import {
   type WordSpan,
   type WordLink,
 } from "./word-protocol";
+import { msg, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 type Opened = {
   pages: readonly WordPageSize[];
@@ -26,6 +28,7 @@ export default function WordDocument(props: {
   onDetails: (text: string) => void;
   onError: (cause: unknown) => void;
 }) {
+  const gt = useGT();
   const { onError, bytes, onDetails } = props;
   const [opened, setOpened] = useState<Opened>();
   const scroll = useRef<((index: number, y?: number) => void) | null>(null);
@@ -89,9 +92,15 @@ export default function WordDocument(props: {
         while (!controller.signal.aborted) {
           const step = await engine.call("layout", undefined, { signal: controller.signal });
           if (!step.done) continue;
-          if (step.pages.length > 1000) throw new Error("Preview limited to 1,000 pages.");
+          if (step.pages.length > 1000) throw new Error(m(msg("Preview limited to 1,000 pages.")));
           setOpened({ pages: step.pages, paint, engine });
-          onDetails(`${step.pages.length} page${step.pages.length === 1 ? "" : "s"}`);
+          onDetails(
+            m(
+              msg("{count, plural, one {{count} page} other {{count} pages}}", {
+                count: step.pages.length,
+              }),
+            ),
+          );
           break;
         }
       })
@@ -118,7 +127,7 @@ export default function WordDocument(props: {
     <OfficePages
       pages={opened.pages}
       paint={opened.paint}
-      label="Page"
+      label={gt("Page", { $context: "noun, prefix of a numbered document page" })}
       scrollRef={scroll}
       onError={onError}
       overlay={(index) => (

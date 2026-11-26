@@ -573,6 +573,20 @@ it.effect("refuses saving an enabled task above the policy ceiling", () =>
       assert.equal(reenabled.message, "Example Corp limits threads to Auto-accept edits.");
       // A task bound to a thread runs in that thread's mode, so its own is not checked.
       yield* service.upsert(fullAccessTask(true, ThreadId.make("thread:bound")));
+      // An edit that leaves the thread out keeps the task bound to it.
+      const { threadId: _bound, ...keptThread } = fullAccessTask(
+        true,
+        ThreadId.make("thread:bound"),
+      );
+      yield* service.upsert(keptThread);
+      // A task that starts a new thread each run runs in its own mode.
+      const newThreads = yield* service
+        .upsert({
+          ...fullAccessTask(true, ThreadId.make("thread:bound")),
+          threadMode: "new_thread",
+        })
+        .pipe(Effect.flip);
+      assert.equal(newThreads.message, "Example Corp limits threads to Auto-accept edits.");
     }).pipe(Effect.provide(ceilingLayer(launches, ceilingPolicy)));
   }).pipe(Effect.provide(SqlitePersistence.layerMemory)),
 );

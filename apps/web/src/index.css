@@ -101,7 +101,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --command-content-inset: 1rem;
   --floating-content-inset: 0.75rem;
   /* App layer order: the bottom terminal drawer (45, above the timeline minimap),
-     docked sheets, then the floating preview player (47–49, see
+     docked sheets, a desktop page shown in the right panel sheet (47, see
+     RightPanelSheet.tsx), then the floating preview player (47–49, see
      previewMiniPlayerLayout.ts), then dialogs and popovers (50 and up). */
   --z-sheet: 46;
   --glass-blur: 12px;
@@ -117,6 +118,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --workspace-titlebar-control-gap: 0.75rem;
   --workspace-titlebar-scroll-fade-height: 1.5rem;
   --chat-content-max-width: 46rem;
+  --html-preview-max-width: var(--chat-content-max-width);
   --thread-details-panel-width: 16.5rem;
   /* The prompt on phones: iOS zooms into any input under 16px on focus. */
   --font-size-prompt-touch: max(var(--font-size-prompt, 1rem), 16px);
@@ -623,7 +625,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
 
 @utility live-activity-focus-aligned {
   width: calc(100% - var(--live-activity-focus-width) - var(--live-activity-focus-width));
-  margin-left: var(--live-activity-focus-width);
+  margin-inline-start: var(--live-activity-focus-width);
 }
 
 @property --assistant-citation-highlight-opacity {
@@ -716,6 +718,12 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
     width: 100%;
     min-width: 0;
     max-width: var(--chat-content-max-width);
+  }
+
+  /* ChatCanvas sets these only while HTML previews run wider than the chat column. */
+  .html-preview-lane {
+    width: var(--html-preview-lane-width, auto);
+    margin-inline-start: var(--html-preview-lane-offset, 0px);
   }
 
   .messages-timeline-row-frame {
@@ -1737,9 +1745,11 @@ code,
 }
 
 /* Triple-click selection stops at block-level boxes, flex items included, so file chips in
-   prose stay inline-level down to the icon and label. */
+   prose stay inline-level down to the icon and label. Chromium also stops it at
+   draggable="true" (desktop native file drags) unless user-select is set back to text. */
 .chat-markdown-file-link {
   display: inline-block;
+  user-select: text;
   overflow-x: clip;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1749,6 +1759,17 @@ code,
   display: inline;
   margin-inline-end: 0.2em;
   vertical-align: -0.125em;
+}
+
+/* Firefox resolves a drag over the sprite icon's <use> to the shared <symbol> and collapses the
+   selection there, or snaps an unselectable icon's point into the text before it. Passing the
+   pointer to the chip lands the selection at its label. Chromium keeps triple-click line
+   selection only without user-select: none here. */
+@supports (-moz-appearance: none) {
+  .chat-markdown-file-link > svg {
+    pointer-events: none;
+    user-select: none;
+  }
 }
 
 .chat-markdown-file-link > [data-slot="context-chip-label"] {
@@ -2026,6 +2047,16 @@ code,
 
 :root[data-chat-width="full"] {
   --chat-content-max-width: 100%;
+}
+
+/* HTML preview width setting. ChatCanvas measures this and never lays a
+   preview out narrower than the chat column. */
+:root[data-html-preview-width="wide"] {
+  --html-preview-max-width: 72rem;
+}
+
+:root[data-html-preview-width="full"] {
+  --html-preview-max-width: 100%;
 }
 
 :root[data-diff-color-scheme="blue-orange"] {

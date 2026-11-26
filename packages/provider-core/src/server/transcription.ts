@@ -1,5 +1,5 @@
-import type { TranscriptionError } from "@supaterm/contracts";
-import * as Data from "effect/Data";
+import { TranscriptionError } from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 
@@ -9,9 +9,10 @@ const PCM_FORMAT = 1;
 export const PCM_BYTES_PER_SECOND = SAMPLE_RATE * BYTES_PER_SAMPLE;
 
 /** Live transcription failed before taking any audio, so nothing was spent and batch can run. */
-export class LiveTranscriptionUnavailable extends Data.TaggedError("LiveTranscriptionUnavailable")<{
-  readonly cause: TranscriptionError;
-}> {}
+export class LiveTranscriptionUnavailable extends Schema.TaggedError<LiveTranscriptionUnavailable>()(
+  "LiveTranscriptionUnavailable",
+  { cause: TranscriptionError },
+) {}
 
 export interface WavAudio {
   /** The whole file, for backends that upload WAV. */

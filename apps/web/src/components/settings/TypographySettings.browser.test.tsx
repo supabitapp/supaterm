@@ -66,4 +66,27 @@ describe("TypographySection", () => {
     await userEvent.keyboard("{Enter}");
     expect(state.updateSettings).toHaveBeenCalledExactlyOnceWith({ fontFamilySans: "serif" });
   });
+
+  it("keeps the typed font family when an IME Escape cancels a conversion", async () => {
+    using _storage = setup(null);
+    await using screen = await render(<TypographySection />);
+    const input = screen.getByRole("textbox", { name: "Interface font family" });
+    await input.fill("Noto ゴシック");
+
+    for (const composition of [
+      { key: "Escape", isComposing: true, keyCode: 27 },
+      { key: "Escape", isComposing: false, keyCode: 229 },
+    ]) {
+      const event = new KeyboardEvent("keydown", {
+        ...composition,
+        bubbles: true,
+        cancelable: true,
+      });
+      await act(() => input.element().dispatchEvent(event));
+      await expect.element(input).toHaveValue("Noto ゴシック");
+    }
+
+    await userEvent.keyboard("{Escape}");
+    await expect.element(input).toHaveValue(DEFAULT_UNIFIED_SETTINGS.fontFamilySans);
+  });
 });

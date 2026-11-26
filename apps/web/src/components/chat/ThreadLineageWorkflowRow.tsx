@@ -24,6 +24,7 @@ import {
   THREAD_DETAILS_PANEL_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 function phaseElapsed(phase: SubagentWorkflowGroup["phases"][number]) {
   const instants = (key: "startedAt" | "completedAt") =>
@@ -41,6 +42,14 @@ function phaseElapsed(phase: SubagentWorkflowGroup["phases"][number]) {
   };
 }
 
+const PHASE_STATUS_LABEL = {
+  running: msg("running", { $context: "workflow phase status" }),
+  failed: msg("failed", { $context: "workflow phase status" }),
+  stopped: msg("stopped", { $context: "workflow phase status" }),
+  done: msg("Done", { $context: "workflow phase status" }),
+  "not started": msg("not started", { $context: "workflow phase status" }),
+} satisfies Record<ReturnType<typeof phaseStatusLabel>, string>;
+
 function phaseStatusLabel(phase: SubagentWorkflowGroup["phases"][number]) {
   if (phase.state === "running") return "running";
   if (phase.members.some((member) => member.status === "failed")) return "failed";
@@ -49,7 +58,7 @@ function phaseStatusLabel(phase: SubagentWorkflowGroup["phases"][number]) {
   ) {
     return "stopped";
   }
-  return phase.state === "done" ? "Done" : "not started";
+  return phase.state === "done" ? "done" : "not started";
 }
 
 function WorkflowMemberRow({
@@ -69,6 +78,7 @@ function WorkflowMemberRow({
   driver: ProviderDriverKind | undefined;
   onOpen: (threadId: string) => void;
 }) {
+  const gt = useGT();
   const threadId = member.childThreadId;
   const canOpen = threadId !== null;
   return (
@@ -79,7 +89,7 @@ function WorkflowMemberRow({
           render={
             <ThreadDetailsControl
               part="row"
-              aria-label={`Open ${member.title} chat`}
+              aria-label={gt("Open {title} chat", { title: member.title })}
               disabled={!canOpen}
               onClick={() => canOpen && onOpen(threadId)}
             />
@@ -145,6 +155,8 @@ export function ThreadLineageWorkflowRow({
   readonly stopping: boolean;
   readonly stopDisabled: boolean;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const [expanded, setExpanded] = useState(false);
   const [phaseOpen, setPhaseOpen] = useState<ReadonlyMap<number, boolean>>(() => new Map());
   const label = group.workflow.workflowName ?? group.workflow.title;
@@ -169,7 +181,7 @@ export function ThreadLineageWorkflowRow({
                     variant="ghost"
                     part="icon"
                     tone="destructive"
-                    aria-label={`Stop workflow ${label}`}
+                    aria-label={gt("Stop workflow {label}", { label })}
                     disabled={stopDisabled}
                     onClick={onStop}
                   />
@@ -181,7 +193,9 @@ export function ThreadLineageWorkflowRow({
                   <SquareIcon weight="fill" aria-hidden className="size-3" />
                 )}
               </TooltipTrigger>
-              <TooltipPopup side="left">Stop entire workflow</TooltipPopup>
+              <TooltipPopup side="left">
+                <T>Stop entire workflow</T>
+              </TooltipPopup>
             </Tooltip>
           </div>
         ) : null}
@@ -191,7 +205,9 @@ export function ThreadLineageWorkflowRow({
           variant="ghost"
           part="secondary"
           aria-expanded={expanded}
-          aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
+          aria-label={
+            expanded ? gt("Collapse {label}", { label }) : gt("Expand {label}", { label })
+          }
           onClick={() => setExpanded((value) => !value)}
         >
           <span className="text-muted-foreground">
@@ -212,18 +228,32 @@ export function ThreadLineageWorkflowRow({
                     variant="panel"
                     tone={phase.state === "running" ? "emphasized" : "muted"}
                     expanded={open}
-                    aria-label={`${open ? "Collapse" : "Expand"} ${phase.title} phase, ${status}`}
+                    aria-label={
+                      open
+                        ? gt("Collapse {title} phase, {status}", {
+                            title: phase.title,
+                            status: m(PHASE_STATUS_LABEL[status]),
+                          })
+                        : gt("Expand {title} phase, {status}", {
+                            title: phase.title,
+                            status: m(PHASE_STATUS_LABEL[status]),
+                          })
+                    }
                     onClick={() =>
                       setPhaseOpen((phases) => new Map(phases).set(phase.index, !open))
                     }
                     accessory={
                       <>
                         {status === "failed" ? (
-                          <SectionHeaderStatus>Failed</SectionHeaderStatus>
+                          <SectionHeaderStatus>
+                            <T context="workflow phase status">Failed</T>
+                          </SectionHeaderStatus>
                         ) : null}
                         <span className="shrink-0 text-2xs font-normal tabular-nums">
-                          {phase.settledCount}/{phase.members.length}{" "}
-                          {phase.members.length === 1 ? "agent" : "agents"}
+                          {gt(
+                            "{count, plural, one {{settled}/{count} agent} other {{settled}/{count} agents}}",
+                            { count: phase.members.length, settled: phase.settledCount },
+                          )}
                         </span>
                         <span className="shrink-0 text-2xs font-normal tabular-nums empty:hidden">
                           <AgentElapsed agent={phaseElapsed(phase)} />
@@ -273,7 +303,7 @@ export function ThreadLineageWorkflowRow({
                   THREAD_DETAILS_PANEL_ROW_HEIGHT_CLASS,
                 )}
               >
-                No agents yet
+                <T>No agents yet</T>
               </li>
             ) : null}
           </ul>

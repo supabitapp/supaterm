@@ -21,13 +21,20 @@ import {
   readThreadUndoNotice,
   useThreadUndoNotice,
 } from "./thread-undo-notice";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 type Notice = NonNullable<ReturnType<typeof useThreadUndoNotice>>;
 
 const NOTICE_CONTENT = {
-  Done: { message: "Marked as Done", icon: "checkmark.circle" },
-  Snoozed: { message: "Snoozed", icon: "clock" },
-  Unpinned: { message: "Unpinned", icon: "pin.slash" },
+  Done: { message: msg("Marked as Done"), icon: "checkmark.circle" },
+  Snoozed: {
+    message: msg("Snoozed", { $context: "notice, the thread was snoozed" }),
+    icon: "clock",
+  },
+  Unpinned: {
+    message: msg("Unpinned", { $context: "notice, the thread was unpinned" }),
+    icon: "pin.slash",
+  },
 } satisfies Record<Notice["action"], { message: string; icon: AppSymbolName }>;
 
 export function ThreadUndoNotice(props: { readonly visible: boolean }) {
@@ -40,6 +47,8 @@ export function ThreadUndoNotice(props: { readonly visible: boolean }) {
 }
 
 function SwipeableUndoNotice(props: { readonly notice: Notice }) {
+  const gt = useGT();
+  const m = useMessages();
   const { notice } = props;
   const content = NOTICE_CONTENT[notice.action];
   const insets = useSafeAreaInsets();
@@ -115,17 +124,17 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
           <View
             accessible
             accessibilityRole="alert"
-            accessibilityLabel={content.message}
-            accessibilityActions={[{ name: "dismiss", label: "Dismiss" }]}
+            accessibilityLabel={m(content.message)}
+            accessibilityActions={[{ name: "dismiss", label: gt("Dismiss") }]}
             onAccessibilityAction={dismiss}
             pointerEvents="none"
             style={StyleSheet.absoluteFill}
           />
           <Toast
             variant="capsule"
-            message={content.message}
+            message={m(content.message)}
             icon={content.icon}
-            action={{ label: "Undo", onPress: () => void notice.undo() }}
+            action={{ label: gt("Undo"), onPress: () => void notice.undo() }}
           />
         </Animated.View>
       </GestureDetector>

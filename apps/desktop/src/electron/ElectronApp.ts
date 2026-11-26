@@ -52,6 +52,7 @@ export class ElectronApp extends Context.Service<
      * pinned to `en-US` however the machine is configured.
      */
     readonly systemLocale: Effect.Effect<string>;
+    readonly preferredSystemLanguages: Effect.Effect<ReadonlyArray<string>>;
     readonly environmentMachineIcons: Effect.Effect<DesktopEnvironmentMachineIcons>;
     readonly whenReady: Effect.Effect<void, ElectronAppWhenReadyError>;
     readonly quit: Effect.Effect<void>;
@@ -102,11 +103,23 @@ const addScopedAppListener = <Args extends ReadonlyArray<unknown>>(
       }),
   ).pipe(Effect.asVoid);
 
+class MachineSymbolReadError extends Schema.TaggedError<MachineSymbolReadError>()(
+  "MachineSymbolReadError",
+  { symbolName: Schema.String, cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return `Could not read the ${this.symbolName} machine symbol.`;
+  }
+}
+
 const readEnvironmentMachineSymbol = Effect.fn("desktop.readEnvironmentMachineSymbol")(
   (name: string) =>
-    Effect.try(() => {
-      const image = Electron.nativeImage.createFromNamedImage(name, { pointSize: 32 });
-      return image.isEmpty() ? null : image.toDataURL();
+    Effect.try({
+      try: () => {
+        const image = Electron.nativeImage.createFromNamedImage(name, { pointSize: 32 });
+        return image.isEmpty() ? null : image.toDataURL();
+      },
+      catch: (cause) => new MachineSymbolReadError({ symbolName: name, cause }),
     }).pipe(Effect.orElseSucceed(() => null)),
 );
 
@@ -154,6 +167,7 @@ export const make = ElectronApp.of({
     };
   }),
   name: Effect.sync(() => Electron.app.name),
+  preferredSystemLanguages: Effect.sync(() => Electron.app.getPreferredSystemLanguages()),
   systemLocale: Effect.gen(function* () {
     const platform = yield* HostProcess.Platform;
     let identifier = Electron.app.getSystemLocale();

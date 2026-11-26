@@ -54,6 +54,10 @@ vi.mock("@supaterm/client-runtime/state/runtime", async (importOriginal) => ({
   executeAtomQuery: state.executeQuery,
 }));
 vi.mock("./use-atom-query-runner", () => ({ useAtomQueryRunner: () => state.mint }));
+vi.mock("gt-react-native", async (importOriginal) => {
+  const gt = await importOriginal<typeof import("gt-react-native")>();
+  return { ...gt, useMessages: () => gt.mFallback };
+});
 
 import { refreshAssetUrl, useRefreshAssetUrl, useAssetUrlState } from "./assets";
 

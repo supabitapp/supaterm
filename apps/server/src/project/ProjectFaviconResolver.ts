@@ -84,10 +84,13 @@ const WORKSPACE_PACKAGE_PARENTS = ["apps", "packages"] as const;
 const MAX_PACKAGES_PER_PARENT = 64;
 
 const HTML_LINK_RE = /<link\b[^<>]*>/gi;
-const HTML_ICON_REL_RE = /\brel=["'](?:icon|shortcut icon)["']/i;
-const HTML_ICON_HREF_RE = /\bhref=["']([^"'?]+)/i;
-const ICON_REL_RE = /\brel\s*:\s*["'](?:icon|shortcut icon)["']/i;
-const ICON_HREF_RE = /\bhref\s*:\s*["']([^"'?]+)/i;
+// `rel` is an unordered, whitespace-separated token list; any `icon` token marks an icon link.
+const ICON_REL_VALUE = String.raw`(?:"(?:[^"]*[\t\n\f\r ])?icon(?=[\t\n\f\r "])|'(?:[^']*[\t\n\f\r ])?icon(?=[\t\n\f\r ']))`;
+// HTML attribute syntax: a name, then an optional double-quoted, single-quoted, or unquoted value.
+const HTML_ATTRIBUTE_RE =
+  /([^\t\n\f\r "'<>/=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r >]+)))?/g;
+const ICON_REL_RE = new RegExp(String.raw`\brel\s*:\s*${ICON_REL_VALUE}`, "i");
+const ICON_HREF_RE = /\bhref\s*:\s*["']([^"'?#]+)/i;
 
 export class ProjectFaviconResolutionError extends Schema.TaggedError<ProjectFaviconResolutionError>()(
   "ProjectFaviconResolutionError",
@@ -127,18 +130,36 @@ export class ProjectFaviconResolver extends Context.Service<
   }
 >()("supaterm/project/ProjectFaviconResolver") {}
 
-function extractIconHref(source: string): string | null {
+function* extractIconHrefs(source: string): Generator<string> {
   for (const [tag] of source.matchAll(HTML_LINK_RE)) {
-    if (!HTML_ICON_REL_RE.test(tag)) continue;
-    const hrefMatch = tag.match(HTML_ICON_HREF_RE);
-    if (hrefMatch?.[1]) return hrefMatch[1];
+    const attributes = new Map<string, { value: string; quoted: boolean }>();
+    for (const [, name, doubleQuoted, singleQuoted, unquoted] of tag
+      .slice("<link".length)
+      .matchAll(HTML_ATTRIBUTE_RE)) {
+      const key = name!.toLowerCase();
+      if (attributes.has(key)) continue;
+      const quotedValue = doubleQuoted ?? singleQuoted;
+      attributes.set(key, {
+        value: quotedValue ?? unquoted ?? "",
+        quoted: quotedValue !== undefined,
+      });
+    }
+    const rel = attributes
+      .get("rel")
+      ?.value.toLowerCase()
+      .split(/[\t\n\f\r ]+/);
+    if (!rel?.includes("icon")) continue;
+    const href = attributes.get("href");
+    // An unquoted `{...}` is a JSX expression, not a path.
+    if (!href || (!href.quoted && href.value.startsWith("{"))) continue;
+    const path = href.value.split(/[?#]/, 1)[0];
+    if (path) yield path;
   }
   for (const run of source.split("}")) {
     if (!ICON_REL_RE.test(run)) continue;
     const hrefMatch = run.match(ICON_HREF_RE);
-    if (hrefMatch?.[1]) return hrefMatch[1];
+    if (hrefMatch?.[1]) yield hrefMatch[1];
   }
-  return null;
 }
 
 // ENOTDIR, EISDIR, and ELOOP surface as BadResource. A candidate below a regular file,
@@ -163,6 +184,8 @@ export const make = Effect.gen(function* () {
   const projectFileLoader = yield* SupatermProjectFileLoader.SupatermProjectFileLoader;
 
   const resolveIconHref = (baseDir: string, href: string): ReadonlyArray<string> => {
+    // `data:`, `https:` and `//host` icons name no project file, and a long data URL fails `stat`.
+    if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href.trim())) return [];
     // Browsers strip surrounding whitespace from URL attributes; file paths keep theirs.
     const clean = href.trim().replace(/^\//, "");
     return [path.join(baseDir, "public", clean), path.join(baseDir, clean)];
@@ -278,11 +301,12 @@ export const make = Effect.gen(function* () {
     if (Option.isNone(source) || Option.isNone(source.value)) {
       return null;
     }
-    const href = extractIconHref(new TextDecoder().decode(source.value.value));
-    if (!href) {
-      return null;
-    }
-    return yield* findExistingFile(projectCwd, resolveIconHref(baseDir, href), "workspace");
+    const hrefs = Array.from(extractIconHrefs(new TextDecoder().decode(source.value.value)));
+    return yield* findExistingFile(
+      projectCwd,
+      hrefs.flatMap((href) => resolveIconHref(baseDir, href)),
+      "workspace",
+    );
   });
 
   // Probes start at once so a miss costs one round of filesystem latency, not one per probe.

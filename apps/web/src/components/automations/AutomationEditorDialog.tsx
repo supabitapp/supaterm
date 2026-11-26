@@ -2,8 +2,6 @@ import { useAtomValue } from "@effect/atom-react";
 import { type ReactNode, useRef, useState } from "react";
 import type {
   EnvironmentId,
-  ModelSelection,
-  OrchestrationV2ThreadLaunchWorkspaceStrategy,
   ProjectId,
   ScheduledTask,
   ScheduledTaskId,
@@ -23,9 +21,17 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { ChevronDownIcon, MessageSquareIcon } from "@supaterm/icons";
-import { resolvePastedPath } from "@supaterm/shared/path";
+import { fileBasename, resolvePastedPath } from "@supaterm/shared/path";
+import {
+  resolveWorktreeRepositorySelection,
+  scheduledTaskWorkspaceStrategy,
+  type WorktreeRepositoryChoice,
+  type WorktreeRepositorySelection,
+} from "@supaterm/client-runtime/state/thread-repositories";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
+import { useWorktreeRepositoryChoices } from "../../hooks/useWorktreeRepositoryChoices";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import { useEnvironment, type EnvironmentPresentation } from "../../state/environments";
@@ -43,7 +49,11 @@ import { WorktreeBaseBranchPicker } from "../WorktreeBaseBranchPicker";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { SETTINGS_PICKER_TRIGGER_CLASSNAME } from "../settings/settingsLayout";
+import { TraitsPicker } from "../chat/TraitsPicker";
+import { createModelSelection } from "@supaterm/shared/model";
+import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 import {
   Combobox,
   ComboboxEmpty,
@@ -92,15 +102,23 @@ import {
 
 /** JS day-of-week (0 = Sunday) rendered Monday-first, matching how people read a week. */
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
-const WEEKDAY_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
+const WEEKDAY_SHORT = [
+  msg("Su", { $context: "two-letter weekday abbreviation" }),
+  msg("Mo", { $context: "two-letter weekday abbreviation" }),
+  msg("Tu", { $context: "two-letter weekday abbreviation" }),
+  msg("We", { $context: "two-letter weekday abbreviation" }),
+  msg("Th", { $context: "two-letter weekday abbreviation" }),
+  msg("Fr", { $context: "two-letter weekday abbreviation" }),
+  msg("Sa", { $context: "two-letter weekday abbreviation" }),
+] as const;
 
 // Thread ids are trimmed, so the leading space keeps this from matching one.
 const NEW_THREAD_DESTINATION = " new-thread";
 
 const WORKSPACE_MODE_LABELS: Record<WorkspaceMode, string> = {
-  worktree: "Create a new worktree",
-  root: "Use the project checkout",
-  existing_worktree: "Use a specific checkout",
+  worktree: msg("Create a new worktree"),
+  root: msg("Use the project checkout"),
+  existing_worktree: msg("Use a specific checkout"),
 };
 
 const EMPTY_DRAFT: DraftState = {
@@ -121,11 +139,11 @@ const EMPTY_DRAFT: DraftState = {
   workspaceMode: "worktree",
   baseRef: "",
   startFromOrigin: true,
+  repositories: undefined,
   existingWorktreePath: "",
-  modelKey: "",
+  modelSelection: null,
   runtimeMode: "full-access",
   interactionMode: "default",
-  baseModelSelection: null,
 };
 
 /** Labelled field: a caption sitting above its control. */
@@ -146,10 +164,91 @@ function Field({
   );
 }
 
+/**
+ * The tracked repositories each run's new worktree takes, and any saved one the project no longer
+ * offers, which the task keeps until it is unchecked. Hidden when there is nothing to list.
+ */
+function ScheduledTaskRepositories({
+  choices,
+  selection,
+  onChange,
+}: {
+  readonly choices: ReadonlyArray<WorktreeRepositoryChoice>;
+  readonly selection: WorktreeRepositorySelection;
+  readonly onChange: (repositories: ReadonlyArray<string>) => void;
+}) {
+  const gt = useGT();
+  if (choices.length === 0 && selection.unavailable.length === 0) return null;
+  const selected = new Set([...selection.selected, ...selection.unavailable]);
+  const toggle = (path: string, checked: boolean) =>
+    onChange(
+      [...choices.map((choice) => choice.repositoryPath), ...selection.unavailable].filter(
+        (candidate) => (candidate === path ? checked : selected.has(candidate)),
+      ),
+    );
+  return (
+    <div className="space-y-1.5">
+      <Label>
+        <T>Repositories</T>
+      </Label>
+      <div className="max-h-52 overflow-y-auto rounded-md border">
+        {choices.map((choice) => (
+          <label
+            key={choice.repositoryPath}
+            className="flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5 text-sm not-last:border-b"
+          >
+            <Checkbox
+              className="self-center"
+              checked={selected.has(choice.repositoryPath)}
+              onCheckedChange={(checked) => toggle(choice.repositoryPath, checked)}
+            />
+            <span className="min-w-0 truncate">{choice.name}</span>
+            {choice.relativePath !== undefined && choice.relativePath !== choice.name ? (
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                {choice.relativePath}
+              </span>
+            ) : null}
+          </label>
+        ))}
+        {selection.unavailable.map((path) => (
+          <label
+            key={path}
+            className="flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5 text-sm not-last:border-b"
+          >
+            <Checkbox
+              className="self-center"
+              checked
+              onCheckedChange={(checked) => toggle(path, checked)}
+            />
+            <span className="min-w-0 truncate">{fileBasename(path)}</span>
+            <span className="min-w-0 truncate text-xs text-warning-foreground">
+              <T>Unavailable</T>
+            </span>
+          </label>
+        ))}
+      </div>
+      <p
+        className={cn(
+          "text-xs",
+          selection.needsChoice || selection.unavailable.length > 0
+            ? "text-warning-foreground"
+            : "text-muted-foreground",
+        )}
+      >
+        {selection.unavailable.length > 0
+          ? gt("Runs fail until each unavailable repository is back or unchecked.")
+          : selection.needsChoice
+            ? gt("Choose the repositories each run works on.")
+            : gt("Each gets its own worktree on the run's branch.")}
+      </p>
+    </div>
+  );
+}
+
 const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
-  new_thread: "New thread each run",
-  continue: "One thread, continuing the conversation",
-  fresh_session: "One thread, fresh session each run",
+  new_thread: msg("New thread each run"),
+  continue: msg("One thread, continuing the conversation"),
+  fresh_session: msg("One thread, fresh session each run"),
 };
 
 function useScheduledTaskThread(environmentId: EnvironmentId, threadId: ThreadId | null) {
@@ -180,16 +279,18 @@ function ScheduledTaskDestination({
   /** Absent on servers that predate thread modes. */
   readonly onThreadModeChange: ((mode: ScheduledTaskThreadMode) => void) | undefined;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = threadId === null ? null : scopeThreadRef(environmentId, threadId);
   const thread = useScheduledTaskThread(environmentId, threadId);
   const currentLabel =
     ref !== null
-      ? thread?.title.trim() || `Thread ${ref.threadId}`
+      ? thread?.title.trim() || gt("Thread {threadId}", { threadId: ref.threadId })
       : threadMode === "new_thread"
-        ? "New thread each run"
-        : "Started by the first run";
+        ? gt("New thread each run")
+        : gt("Started by the first run");
   const shells = useThreadShells(open);
   // Mounts older done threads matching the query, which shells may leave out.
   useThreadSearch(open && projectId ? [environmentId] : [], query, {
@@ -214,28 +315,32 @@ function ScheduledTaskDestination({
   };
   const detail =
     threadMode === "new_thread"
-      ? "Each run starts a new thread with the workspace and model below."
+      ? gt("Each run starts a new thread with the workspace and model below.")
       : ref === null
         ? threadMode === "continue"
-          ? "The first run starts a thread with the workspace and model below. Later runs continue that conversation."
-          : "The first run starts a thread with the workspace and model below. Later runs post there, each in a fresh session without earlier runs' context."
+          ? gt(
+              "The first run starts a thread with the workspace and model below. Later runs continue that conversation.",
+            )
+          : gt(
+              "The first run starts a thread with the workspace and model below. Later runs post there, each in a fresh session without earlier runs' context.",
+            )
         : threadMode === "continue"
-          ? "Each run continues this conversation, in its workspace and with its current model."
-          : "Each run starts a fresh session in this thread, without earlier runs' context.";
+          ? gt("Each run continues this conversation, in its workspace and with its current model.")
+          : gt("Each run starts a fresh session in this thread, without earlier runs' context.");
   return (
-    <Field label="Destination" htmlFor="scheduled-task-destination">
+    <Field label={gt("Destination")} htmlFor="scheduled-task-destination">
       {onThreadModeChange ? (
         <Select
           value={threadMode}
           onValueChange={(value) => onThreadModeChange(value as ScheduledTaskThreadMode)}
         >
           <SelectTrigger size="sm" id="scheduled-task-destination">
-            <SelectValue>{THREAD_MODE_LABELS[threadMode]}</SelectValue>
+            <SelectValue>{m(THREAD_MODE_LABELS[threadMode])}</SelectValue>
           </SelectTrigger>
           <SelectPopup>
             {(Object.keys(THREAD_MODE_LABELS) as ScheduledTaskThreadMode[]).map((mode) => (
               <SelectItem key={mode} value={mode}>
-                {THREAD_MODE_LABELS[mode]}
+                {m(THREAD_MODE_LABELS[mode])}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -267,7 +372,7 @@ function ScheduledTaskDestination({
                 ? "scheduled-task-destination-thread"
                 : "scheduled-task-destination"
             }
-            aria-label={onThreadModeChange ? "Destination thread" : undefined}
+            aria-label={onThreadModeChange ? gt("Destination thread") : undefined}
             disabled={disabled}
             render={<Button variant="outline" size="sm" />}
             className="w-full justify-between"
@@ -278,21 +383,23 @@ function ScheduledTaskDestination({
           </ComboboxTrigger>
           <ComboboxPopup align="start" side="bottom" className="w-80">
             <ComboboxSearchInput
-              aria-label="Search threads"
-              placeholder="Search all threads..."
+              aria-label={gt("Search threads")}
+              placeholder={gt("Search all threads...")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
-            <ComboboxEmpty>No threads found.</ComboboxEmpty>
+            <ComboboxEmpty>
+              <T>No threads found.</T>
+            </ComboboxEmpty>
             <ComboboxList className="max-h-72">
               {items.map((value, index) => (
                 <ComboboxItem key={value} index={index} value={value}>
                   <span className="block truncate">
                     {value === NEW_THREAD_DESTINATION
-                      ? "New thread each run"
+                      ? gt("New thread each run")
                       : value === threadId
                         ? currentLabel
-                        : threads.find((row) => row.id === value)?.title || "Untitled thread"}
+                        : threads.find((row) => row.id === value)?.title || gt("Untitled thread")}
                   </span>
                 </ComboboxItem>
               ))}
@@ -303,20 +410,13 @@ function ScheduledTaskDestination({
       <div className="space-y-1 text-sm">
         <p className="text-muted-foreground">{detail}</p>
         {threadMode !== "new_thread" ? (
-          <p className="text-muted-foreground">Deleting the thread also deletes this task.</p>
+          <p className="text-muted-foreground">
+            <T>Deleting the thread also deletes this task.</T>
+          </p>
         ) : null}
       </div>
     </Field>
   );
-}
-
-function splitModelKey(value: string): ModelSelection | null {
-  const index = value.indexOf(":");
-  if (index <= 0 || index === value.length - 1) return null;
-  return {
-    instanceId: ProviderInstanceId.make(value.slice(0, index)),
-    model: value.slice(index + 1),
-  };
 }
 
 /**
@@ -336,6 +436,8 @@ export function AutomationEditorDialog({
   readonly connectedEnvironments: readonly EnvironmentPresentation[];
   readonly onClose: () => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const [environmentId, setEnvironmentId] = useState(initialEnvironmentId);
   const environment = useEnvironment(environmentId);
   // Older servers reject one-time schedules, so offer Once only where it can save.
@@ -385,6 +487,13 @@ export function AutomationEditorDialog({
     !tasksQuery.data.tasks.some((entry) => entry.id === draft.editingId);
   const selectedProjectId = draft.projectId || projects[0]?.id || "";
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
+  const { choices: repositoryChoices } = useWorktreeRepositoryChoices(
+    draft.workspaceMode === "worktree" ? (selectedProject ?? null) : null,
+  );
+  const repositorySelection = resolveWorktreeRepositorySelection(
+    { choices: repositoryChoices, chosen: draft.repositories },
+    m,
+  );
   const automaticBaseRef = draft.workspaceMode === "worktree" && !draft.baseRef.trim();
   const automaticBaseRefs = usePaginatedBranches({
     environmentId,
@@ -407,7 +516,7 @@ export function AutomationEditorDialog({
   // The real model picker is keyed by a `${instanceId}:${model}` string, which
   // is exactly how the draft stores its selection.
   const firstInstance = instanceEntries[0];
-  const draftSelection = draft.modelKey ? splitModelKey(draft.modelKey) : null;
+  const draftSelection = draft.modelSelection;
   const activeSelection =
     draftSelection &&
     instanceEntries.some((entry) => entry.instanceId === draftSelection.instanceId && entry.enabled)
@@ -416,6 +525,7 @@ export function AutomationEditorDialog({
   const activeInstanceId =
     activeSelection?.instanceId ?? firstInstance?.instanceId ?? ("" as ProviderInstanceId);
   const activeModel = activeSelection?.model ?? "";
+  const activeEntry = instanceEntries.find((entry) => entry.instanceId === activeInstanceId);
   const boundThread = useScheduledTaskThread(
     environmentId,
     draft.threadId ? (draft.threadId as ThreadId) : null,
@@ -461,50 +571,45 @@ export function AutomationEditorDialog({
       !projects.some((project) => project.id === selectedProjectId) ||
       selection === null
     ) {
-      reportFailure("Automation is incomplete", "Add a title, prompt, project, and model.");
+      reportFailure(gt("Automation is incomplete"), gt("Add a title, prompt, project, and model."));
       return;
     }
     const schedule = scheduleFromDraft(draft);
     if (schedule === null) {
-      for (const error of scheduleDraftErrors(draft)) reportFailure(error.title, error.description);
+      for (const error of scheduleDraftErrors(draft, m))
+        reportFailure(error.title, error.description);
       return;
     }
     if (
       schedule.type === "interval" &&
       (!Number.isSafeInteger(schedule.everyMs) || schedule.everyMs < MIN_SCHEDULED_TASK_INTERVAL_MS)
     ) {
-      reportFailure("Invalid interval", "Enter an interval of at least one minute.");
+      reportFailure(gt("Invalid interval"), gt("Enter an interval of at least one minute."));
       return;
     }
     if (schedule.type === "once" && !offersOnce) {
       reportFailure(
-        "Once is not available here",
-        "This environment runs an older Supaterm. Update it to schedule a one-time task, or pick another schedule.",
+        gt("Once is not available here"),
+        gt(
+          "This environment runs an older Supaterm. Update it to schedule a one-time task, or pick another schedule.",
+        ),
       );
       return;
     }
     if (draft.workspaceMode === "existing_worktree" && !draft.existingWorktreePath.trim()) {
-      reportFailure("Checkout path is required", "Enter the path of the checkout to run in.");
+      reportFailure(
+        gt("Checkout path is required"),
+        gt("Enter the path of the checkout to run in."),
+      );
       return;
     }
-    // Keep the original selection object (with provider options) when the
-    // picker still points at the same instance+model.
-    const modelSelection =
-      draft.baseModelSelection !== null &&
-      draft.baseModelSelection.instanceId === selection.instanceId &&
-      draft.baseModelSelection.model === selection.model
-        ? draft.baseModelSelection
-        : selection;
-    const workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy =
-      draft.workspaceMode === "root"
-        ? { type: "root" }
-        : draft.workspaceMode === "existing_worktree"
-          ? { type: "existing_worktree", worktreePath: draft.existingWorktreePath.trim() }
-          : {
-              type: "worktree",
-              baseRef: worktreeBaseRef,
-              startFromOrigin: draft.startFromOrigin,
-            };
+    const workspaceStrategy = scheduledTaskWorkspaceStrategy({
+      mode: draft.workspaceMode,
+      baseRef: worktreeBaseRef,
+      startFromOrigin: draft.startFromOrigin,
+      worktreePath: draft.existingWorktreePath,
+      selection: repositorySelection,
+    });
     const input: ScheduledTaskUpsertInput = {
       ...(draft.editingId ? { id: draft.editingId as ScheduledTaskId, requireExisting: true } : {}),
       title: draft.title.trim(),
@@ -516,7 +621,7 @@ export function AutomationEditorDialog({
       ...(draft.threadId === "" && draft.savedThreadId !== "" ? { unbindThread: true } : {}),
       ...(offersThreadModes ? { threadMode: draft.threadMode } : {}),
       workspaceStrategy,
-      modelSelection,
+      modelSelection: selection,
       // Tasks have no mode picker; a mode above the administrator's ceiling would fail every run.
       runtimeMode:
         clampManagedRuntimeMode(environment?.serverConfig?.managedPolicy, draft.runtimeMode) ??
@@ -532,7 +637,7 @@ export function AutomationEditorDialog({
     if (result._tag === "Failure") {
       submissionPending.current = false;
       if (!isAtomCommandInterrupted(result)) {
-        reportFailure("Could not save automation", squashAtomCommandFailure(result));
+        reportFailure(gt("Could not save automation"), squashAtomCommandFailure(result));
       }
       return;
     }
@@ -542,15 +647,21 @@ export function AutomationEditorDialog({
   return (
     <Dialog
       open
+      // A stray click outside would discard the unsaved draft; Escape and Cancel still close it.
+      disablePointerDismissal
       onOpenChange={(open) => {
         if (!open && !saving) onClose();
       }}
     >
       <DialogPopup className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{draft.editingId ? "Edit automation" : "New automation"}</DialogTitle>
+          <DialogTitle>
+            {draft.editingId ? <T>Edit automation</T> : <T>New automation</T>}
+          </DialogTitle>
           <DialogDescription>
-            Run a prompt automatically, on an interval, at a fixed time, or once at a set date.
+            <T>
+              Run a prompt automatically, on an interval, at a fixed time, or once at a set date.
+            </T>
           </DialogDescription>
         </DialogHeader>
 
@@ -558,13 +669,15 @@ export function AutomationEditorDialog({
           <fieldset disabled={saving || !canOperate} className="space-y-5">
             {!canOperate ? (
               <p className="text-sm text-muted-foreground">
-                This connection does not have permission to manage automations.
+                <T>This connection does not have permission to manage automations.</T>
               </p>
             ) : null}
             {!connected ? (
-              <p className="text-sm text-destructive">Reconnect this environment before saving.</p>
+              <p className="text-sm text-destructive">
+                <T>Reconnect this environment before saving.</T>
+              </p>
             ) : null}
-            <Field label="Runs on" htmlFor="scheduled-task-environment">
+            <Field label={gt("Runs on")} htmlFor="scheduled-task-environment">
               <Select
                 value={environmentId}
                 disabled={task !== null || saving}
@@ -575,10 +688,10 @@ export function AutomationEditorDialog({
                   setDraft((current) => ({
                     ...unbindDraftFromThread(current),
                     projectId: defaultAutomationProjectId(projectsOn(next.environmentId), scope),
-                    modelKey: "",
-                    baseModelSelection: null,
+                    modelSelection: null,
                     baseRef: "",
                     startFromOrigin: true,
+                    repositories: undefined,
                     existingWorktreePath: "",
                   }));
                 }}
@@ -591,7 +704,7 @@ export function AutomationEditorDialog({
                         className="size-4 shrink-0"
                       />
                       <span className="min-w-0 truncate">
-                        {environment?.label ?? "Unavailable environment"}
+                        {environment?.label ?? gt("Unavailable environment")}
                       </span>
                     </span>
                   </SelectValue>
@@ -635,13 +748,13 @@ export function AutomationEditorDialog({
             ) : null}
             {editingTaskMissing ? (
               <p className="text-xs text-destructive wrap-anywhere" role="status">
-                This automation no longer exists.
+                <T>This automation no longer exists.</T>
               </p>
             ) : null}
-            <Field label="Name" htmlFor="scheduled-task-title">
+            <Field label={gt("Name")} htmlFor="scheduled-task-title">
               <Input
                 id="scheduled-task-title"
-                placeholder="e.g. Check for Sentry issues"
+                placeholder={gt("e.g. Check for Sentry issues")}
                 value={draft.title}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, title: event.target.value }))
@@ -674,7 +787,7 @@ export function AutomationEditorDialog({
             />
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Project" htmlFor="scheduled-task-project">
+              <Field label={gt("Project")} htmlFor="scheduled-task-project">
                 <Select
                   value={selectedProjectId}
                   onValueChange={(projectId) =>
@@ -682,7 +795,7 @@ export function AutomationEditorDialog({
                   }
                 >
                   <SelectTrigger size="sm" id="scheduled-task-project">
-                    <SelectValue placeholder="Select a project">
+                    <SelectValue placeholder={gt("Select a project")}>
                       {selectedProject?.title}
                     </SelectValue>
                   </SelectTrigger>
@@ -706,7 +819,7 @@ export function AutomationEditorDialog({
                 </Select>
               </Field>
 
-              <Field label="Workspace" htmlFor="scheduled-task-workspace">
+              <Field label={gt("Workspace")} htmlFor="scheduled-task-workspace">
                 <Select
                   value={draft.workspaceMode}
                   onValueChange={(value) =>
@@ -714,19 +827,25 @@ export function AutomationEditorDialog({
                   }
                 >
                   <SelectTrigger size="sm" id="scheduled-task-workspace">
-                    <SelectValue>{WORKSPACE_MODE_LABELS[draft.workspaceMode]}</SelectValue>
+                    <SelectValue>{m(WORKSPACE_MODE_LABELS[draft.workspaceMode])}</SelectValue>
                   </SelectTrigger>
                   <SelectPopup>
-                    <SelectItem value="worktree">Create a new worktree</SelectItem>
-                    <SelectItem value="root">Use the project checkout</SelectItem>
-                    <SelectItem value="existing_worktree">Use a specific checkout</SelectItem>
+                    <SelectItem value="worktree">
+                      <T>Create a new worktree</T>
+                    </SelectItem>
+                    <SelectItem value="root">
+                      <T>Use the project checkout</T>
+                    </SelectItem>
+                    <SelectItem value="existing_worktree">
+                      <T>Use a specific checkout</T>
+                    </SelectItem>
                   </SelectPopup>
                 </Select>
               </Field>
             </div>
 
             {draft.workspaceMode === "worktree" ? (
-              <Field label="Base branch" htmlFor="scheduled-task-base-ref">
+              <Field label={gt("Base branch")} htmlFor="scheduled-task-base-ref">
                 <WorktreeBaseBranchPicker
                   key={`${environmentId}:${selectedProjectId}`}
                   id="scheduled-task-base-ref"
@@ -742,8 +861,15 @@ export function AutomationEditorDialog({
                 />
               </Field>
             ) : null}
+            {draft.workspaceMode === "worktree" && repositoryChoices !== null ? (
+              <ScheduledTaskRepositories
+                choices={repositoryChoices}
+                selection={repositorySelection}
+                onChange={(repositories) => setDraft((current) => ({ ...current, repositories }))}
+              />
+            ) : null}
             {draft.workspaceMode === "existing_worktree" ? (
-              <Field label="Checkout path" htmlFor="scheduled-task-checkout">
+              <Field label={gt("Checkout path")} htmlFor="scheduled-task-checkout">
                 <Input
                   id="scheduled-task-checkout"
                   value={draft.existingWorktreePath}
@@ -761,11 +887,11 @@ export function AutomationEditorDialog({
               </Field>
             ) : null}
 
-            <Field label="Prompt" htmlFor="scheduled-task-prompt">
+            <Field label={gt("Prompt")} htmlFor="scheduled-task-prompt">
               <Textarea
                 id="scheduled-task-prompt"
                 className="max-h-64 overflow-y-auto"
-                placeholder="What should the agent do each time this runs?"
+                placeholder={gt("What should the agent do each time this runs?")}
                 value={draft.prompt}
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, prompt: event.target.value }))
@@ -773,8 +899,8 @@ export function AutomationEditorDialog({
               />
             </Field>
 
-            <Field label="Model">
-              <div>
+            <Field label={gt("Model")}>
+              <div className="flex flex-wrap items-center gap-1.5">
                 <ProviderModelPicker
                   environmentId={environmentId}
                   // The saved selection only seeds new threads; bound runs ignore it.
@@ -786,18 +912,49 @@ export function AutomationEditorDialog({
                   modelOptionsByInstance={modelOptionsByInstance}
                   isComposerOwned={false}
                   triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                  onInstanceModelChange={(instanceId, model) =>
-                    setDraft((current) => ({ ...current, modelKey: `${instanceId}:${model}` }))
-                  }
+                  onInstanceModelChange={(instanceId, model) => {
+                    if (
+                      instanceId === activeSelection?.instanceId &&
+                      model === activeSelection.model
+                    )
+                      return;
+                    setDraft((current) => ({
+                      ...current,
+                      modelSelection: createModelSelection(instanceId, model),
+                    }));
+                  }}
                 />
+                {!draft.threadId && activeSelection && activeEntry ? (
+                  <TraitsPicker
+                    provider={activeEntry.driverKind}
+                    models={activeEntry.models}
+                    model={activeModel}
+                    modelOptions={activeSelection.options ?? []}
+                    allowPromptInjectedEffort={false}
+                    disabled={saving || !connected}
+                    triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                    onModelOptionsChange={(options) =>
+                      setDraft((current) => ({
+                        ...current,
+                        modelSelection: createModelSelection(
+                          activeInstanceId,
+                          activeModel,
+                          options,
+                        ),
+                      }))
+                    }
+                  />
+                ) : null}
               </div>
             </Field>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <Label>Schedule</Label>
+                <Label>
+                  <T>Schedule</T>
+                </Label>
                 <ToggleGroup
-                  aria-label="Schedule type"
+                  aria-label={gt("Schedule type")}
                   value={[draft.scheduleMode]}
                   onValueChange={(values) => {
                     const mode = values[0];
@@ -821,11 +978,17 @@ export function AutomationEditorDialog({
                       });
                   }}
                 >
-                  <Toggle value="fixed">At a time</Toggle>
+                  <Toggle value="fixed">
+                    <T>At a time</T>
+                  </Toggle>
                   {offersOnce || draft.scheduleMode === "once" ? (
-                    <Toggle value="once">Once</Toggle>
+                    <Toggle value="once">
+                      <T context="schedule type, runs one time">Once</T>
+                    </Toggle>
                   ) : null}
-                  <Toggle value="interval">Every interval</Toggle>
+                  <Toggle value="interval">
+                    <T>Every interval</T>
+                  </Toggle>
                 </ToggleGroup>
               </div>
 
@@ -833,7 +996,9 @@ export function AutomationEditorDialog({
                 <div className="space-y-1.5">
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="scheduled-task-time">Run at</Label>
+                      <Label htmlFor="scheduled-task-time">
+                        <T>Run at</T>
+                      </Label>
                       <Input
                         type="time"
                         id="scheduled-task-time"
@@ -848,13 +1013,15 @@ export function AutomationEditorDialog({
                       {runAtZone === undefined ? null : (
                         <span className="text-xs text-muted-foreground">{runAtZone}</span>
                       )}
-                      <span className="text-xs text-muted-foreground">on</span>
+                      <span className="text-xs text-muted-foreground">
+                        <T context="precedes the weekdays a schedule runs on">on</T>
+                      </span>
                     </div>
                     <ToggleGroup
                       multiple
                       variant="outline"
                       size="sm"
-                      aria-label="Days to run"
+                      aria-label={gt("Days to run")}
                       value={[...draft.weekdays].map(String)}
                       onValueChange={(values) => {
                         if (values.length === 0) return;
@@ -865,19 +1032,21 @@ export function AutomationEditorDialog({
                       }}
                     >
                       {WEEKDAY_ORDER.map((day) => (
-                        <Toggle key={day} value={String(day)} aria-label={WEEKDAY_LABELS[day]}>
-                          {WEEKDAY_SHORT[day]}
+                        <Toggle key={day} value={String(day)} aria-label={m(WEEKDAY_LABELS[day])}>
+                          {m(WEEKDAY_SHORT[day])}
                         </Toggle>
                       ))}
                     </ToggleGroup>
                   </div>
                   <p id="scheduled-task-time-zone" className="text-xs text-muted-foreground">
-                    Uses the environment's time zone.
+                    <T>Uses the environment's time zone.</T>
                   </p>
                 </div>
               ) : draft.scheduleMode === "once" ? (
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="scheduled-task-run-at">Run on</Label>
+                  <Label htmlFor="scheduled-task-run-at">
+                    <T>Run on</T>
+                  </Label>
                   <Input
                     type="datetime-local"
                     id="scheduled-task-run-at"
@@ -891,7 +1060,9 @@ export function AutomationEditorDialog({
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="scheduled-task-interval">Run every</Label>
+                  <Label htmlFor="scheduled-task-interval">
+                    <T>Run every</T>
+                  </Label>
                   <Input
                     type="number"
                     id="scheduled-task-interval"
@@ -904,19 +1075,23 @@ export function AutomationEditorDialog({
                       setDraft((current) => ({ ...current, intervalMinutes: event.target.value }))
                     }
                   />
-                  <span className="text-xs text-muted-foreground">minutes</span>
+                  <span className="text-xs text-muted-foreground">
+                    <T>minutes</T>
+                  </span>
                 </div>
               )}
             </div>
 
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 space-y-1">
-                <Label htmlFor="scheduled-task-enabled">Enabled</Label>
+                <Label htmlFor="scheduled-task-enabled">
+                  <T>Enabled</T>
+                </Label>
                 <p
                   id="scheduled-task-enabled-description"
                   className="text-sm text-muted-foreground"
                 >
-                  Paused automations do not run automatically. Run now still works.
+                  <T>Paused automations do not run automatically. Run now still works.</T>
                 </p>
               </div>
               <Switch
@@ -931,7 +1106,7 @@ export function AutomationEditorDialog({
 
         <DialogFooter>
           <DialogClose render={<Button variant="outline" size="sm" disabled={saving} />}>
-            Cancel
+            <T>Cancel</T>
           </DialogClose>
           <Button
             size="sm"
@@ -945,7 +1120,7 @@ export function AutomationEditorDialog({
             }
             onClick={() => void submit()}
           >
-            {draft.editingId ? "Save automation" : "Create automation"}
+            {draft.editingId ? <T>Save automation</T> : <T>Create automation</T>}
           </Button>
         </DialogFooter>
       </DialogPopup>

@@ -1,5 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { afterEach, beforeEach, expect, it } from "@effect/vitest";
+import { beforeEach, expect, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
@@ -44,6 +44,7 @@ const commandIn = (
         DesktopEnvironment.DesktopEnvironment,
         environmentFor(path, { ...input, baseDir }),
       ),
+      Effect.provideService(HostProcess.Environment, shellEnv),
     );
     return yield* spawner
       ? make.pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner))
@@ -89,19 +90,9 @@ const fakePowerShell = (initial: string, inherited: Record<string, string> = {})
   return { registry, spawner };
 };
 
-const SHELL_ENV_NAMES = ["PATH", "SHELL", "ZDOTDIR", "XDG_CONFIG_HOME"] as const;
-const machineEnv = SHELL_ENV_NAMES.map((name) => [name, process.env[name]] as const);
+let shellEnv: NodeJS.ProcessEnv = {};
 beforeEach(() => {
-  process.env.PATH = "";
-  process.env.SHELL = "/bin/zsh";
-  delete process.env.ZDOTDIR;
-  delete process.env.XDG_CONFIG_HOME;
-});
-afterEach(() => {
-  for (const [name, value] of machineEnv) {
-    if (value === undefined) delete process.env[name];
-    else process.env[name] = value;
-  }
+  shellEnv = { PATH: "", SHELL: "/bin/zsh" };
 });
 
 it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
@@ -149,7 +140,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         const path = yield* Path.Path;
         const home = yield* fs.makeTempDirectoryScoped();
         const { registry, spawner } = fakePowerShell("C:\\Tools");
-        if (platform === "linux") process.env.PATH = path.join(home, ".local", "bin");
+        if (platform === "linux") shellEnv.PATH = path.join(home, ".local", "bin");
         const command = yield* commandIn({ home, platform }, spawner);
 
         yield* command.installAutomatically;
@@ -191,7 +182,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         const theirs = path.join(directory, platform === "win32" ? "supaterm.cmd" : "supaterm");
         yield* fs.makeDirectory(directory);
         yield* fs.writeFileString(theirs, "existing supaterm\n", { mode: 0o755 });
-        process.env.PATH = directory;
+        shellEnv.PATH = directory;
         const { registry, spawner } = fakePowerShell(directory);
         const command = yield* commandIn({ home, platform }, spawner);
 
@@ -245,10 +236,10 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const zshrc = path.join(home, ".zshrc");
       yield* fs.writeFileString(zshrc, "# mine");
       // A folder already on PATH needs nothing.
-      process.env.PATH = path.join(home, ".local", "bin");
+      shellEnv.PATH = path.join(home, ".local", "bin");
       yield* command.addToPath;
       expect(yield* fs.readFileString(zshrc)).toBe("# mine");
-      process.env.PATH = "";
+      shellEnv.PATH = "";
       yield* Effect.all([command.addToPath, command.addToPath], { concurrency: "unbounded" });
       expect((yield* command.addToPath).pathSetup).toEqual({ file: "~/.zshrc", added: true });
       expect(yield* fs.readFileString(zshrc)).toBe(
@@ -296,7 +287,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
 
       const launcher = path.join(home, ".supaterm", "bin", "supaterm");
       yield* fs.writeFileString(launcher, "npm's supaterm\n");
-      process.env.PATH = path.dirname(launcher);
+      shellEnv.PATH = path.dirname(launcher);
       expect(yield* command.state).toMatchObject({ onPath: false, shadowedBy: launcher });
       expect((yield* Effect.flip(command.install)).message).toContain("Could not set up");
       yield* command.uninstall;
@@ -318,10 +309,10 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(yield* fs.readLink(link!)).toBe(path.join(home, "old-supaterm", "bin", "supaterm"));
       // On PATH, it runs the other home's launcher. Settings offers Install (not Remove, and not
       // "another supaterm runs first"), which updates that link in place.
-      process.env.PATH = path.dirname(link!);
+      shellEnv.PATH = path.dirname(link!);
       expect(yield* after.state).toMatchObject({ installedPath: null, onPath: false });
       expect((yield* after.state).shadowedBy).toBeUndefined();
-      process.env.PATH = "";
+      shellEnv.PATH = "";
       // Off PATH, Add to PATH would expose the other home's command, not this one.
       expect((yield* after.state).pathSetup).toBeUndefined();
       yield* Effect.flip(after.addToPath);
@@ -330,20 +321,20 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const shadow = path.join(home, "shadow");
       yield* fs.makeDirectory(shadow);
       yield* fs.writeFileString(path.join(shadow, "supaterm"), "#!/bin/sh\n", { mode: 0o755 });
-      process.env.PATH = shadow;
+      shellEnv.PATH = shadow;
       yield* Effect.flip(after.install);
       expect(yield* fs.readLink(link!)).toBe(path.join(home, "old-supaterm", "bin", "supaterm"));
       // Install takes it over, also with its folder first on PATH.
-      process.env.PATH = path.dirname(link!);
+      shellEnv.PATH = path.dirname(link!);
       expect((yield* after.install).installedPath).toBe(link);
       expect(yield* fs.readLink(link!)).toBe(path.join(home, "new-supaterm", "bin", "supaterm"));
-      process.env.PATH = "";
+      shellEnv.PATH = "";
       yield* after.uninstall;
       expect(yield* fs.exists(path.join(home, ".local", "bin", "supaterm"))).toBe(false);
       expect(yield* fs.exists(path.join(home, "bin", "supaterm"))).toBe(false);
 
       // A folder already on PATH wins, even written with a trailing slash.
-      process.env.PATH = `${path.join(home, "bin")}/`;
+      shellEnv.PATH = `${path.join(home, "bin")}/`;
       expect((yield* after.install).installedPath).toBe(path.join(home, "bin", "supaterm"));
 
       // An old link of ours is updated where it is, not moved to a folder that may be off PATH.
@@ -353,7 +344,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         path.join(home, "old-supaterm", "bin", "supaterm"),
         path.join(home, "bin", "supaterm"),
       );
-      process.env.PATH = "";
+      shellEnv.PATH = "";
       expect((yield* after.install).installedPath).toBe(path.join(home, "bin", "supaterm"));
       expect(yield* fs.readLink(path.join(home, "bin", "supaterm"))).toBe(
         path.join(home, "new-supaterm", "bin", "supaterm"),
@@ -371,7 +362,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const shadow = path.join(home, "shadow");
       yield* fs.makeDirectory(shadow);
       yield* fs.writeFileString(path.join(shadow, "supaterm"), "#!/bin/sh\n", { mode: 0o755 });
-      process.env.PATH = [shadow, `${path.join(home, ".local", "bin")}/`].join(":");
+      shellEnv.PATH = [shadow, `${path.join(home, ".local", "bin")}/`].join(":");
 
       const command = yield* commandIn({ home });
       const theirs = path.join(shadow, "supaterm");
@@ -393,11 +384,11 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(behind.installedPath).toBe(path.join(home, ".local", "bin", "supaterm"));
       expect(behind.pathSetup).toBeUndefined();
       // Off PATH behind theirs, adding the folder would still put ours first.
-      process.env.PATH = shadow;
+      shellEnv.PATH = shadow;
       expect((yield* command.state).pathSetup).toBeUndefined();
       yield* Effect.flip(command.addToPath);
       expect(yield* fs.exists(path.join(home, ".zshrc"))).toBe(false);
-      process.env.PATH = [shadow, `${path.join(home, ".local", "bin")}/`].join(":");
+      shellEnv.PATH = [shadow, `${path.join(home, ".local", "bin")}/`].join(":");
       yield* fs.remove(path.join(home, ".local", "bin", "supaterm"));
 
       yield* fs.remove(theirs);
@@ -422,7 +413,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         const candidate = path.join(shadow, "supaterm");
         if (kind === "directory") yield* fs.makeDirectory(candidate);
         else yield* fs.writeFileString(candidate, "plain text", { mode: 0o644 });
-        process.env.PATH = [shadow, path.join(home, ".local", "bin")].join(":");
+        shellEnv.PATH = [shadow, path.join(home, ".local", "bin")].join(":");
         const command = yield* commandIn({ home });
         const installed = yield* command.install;
         expect(installed.onPath).toBe(true);
@@ -439,7 +430,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         const path = yield* Path.Path;
         const home = yield* fs.makeTempDirectoryScoped();
         const launcher = path.join(home, ".supaterm", "bin", "supaterm");
-        process.env.PATH = [path.dirname(launcher), path.join(home, ".local", "bin")].join(":");
+        shellEnv.PATH = [path.dirname(launcher), path.join(home, ".local", "bin")].join(":");
 
         const command = yield* commandIn({ home });
         const installed = yield* command.install;
@@ -467,9 +458,8 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const home = yield* fs.makeTempDirectoryScoped();
       const userPath = "C:\\Users\\Me\\npm;%USERPROFILE%\\tools";
       const { registry, spawner } = fakePowerShell(userPath);
-      const command = yield* commandIn({ home, platform: "win32" }, spawner).pipe(
-        Effect.provideService(HostProcess.Environment, { SystemRoot: "C:\\Windows" }),
-      );
+      shellEnv.SystemRoot = "C:\\Windows";
+      const command = yield* commandIn({ home, platform: "win32" }, spawner);
 
       registry.failReads = true;
       yield* command.installAutomatically;

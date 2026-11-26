@@ -1,7 +1,8 @@
 # Working with threads
 
 Use a new thread for a separate task. Choose **New worktree** when its code changes
-need a separate branch and working directory.
+need a separate branch and working directory. Threads in the same checkout share its
+branch, so Supaterm refuses a branch switch there while one of them is working.
 
 ## Start a thread
 
@@ -183,7 +184,8 @@ You can also change it in Settings → General on web and desktop, or Settings �
 
 In Default grouping, threads that are working or waiting on work they will resume from fold into a
 collapsed **Working** section. That includes subagents, watched pull requests with checks still
-running, Claude monitors, and background commands or other monitors the agent says it is waiting on.
+running, Claude monitors and `sleep` timers, and background commands or other monitors the agent
+says it is waiting on.
 A dev server or other process an agent leaves running does not keep a thread there. A thread returns to the top of the active list when it
 finishes, fails, or needs an approval or answer.
 The Working section lists the thread you last sent work to first. Pinned threads stay in the
@@ -223,7 +225,8 @@ threads in the active list. A closed pull request can also mark an idle thread a
 Pins, work in progress, pending questions or approvals, running monitors, pull request watches,
 and background work the agent is waiting on prevent automatic completion. An open pull request does not prevent inactivity
 completion unless you turn on **Keep threads with an open PR**, but an old closed or merged pull request does not mark work as Done if you
-resumed it after it closed. Only your own messages count as resuming. A turn that
+resumed it after it closed. Your own messages count as resuming, and so does a
+message an agent sends with `supaterm_thread_send` or `supaterm thread send`. A turn that
 finished background work or a pull request watch starts on its own does not.
 
 To keep one thread out of the Done shelf no matter how long it sits idle, open its menu,
@@ -239,6 +242,19 @@ Mixed values show where the selected environments disagree. Mobile applies these
 rules to connected environments that support shared settings. Offline environments
 and older servers keep their previous values. Changing a rule does not reopen
 already Done threads.
+
+### Done or archive
+
+Done is for work that is done for now. A Done thread stays in the sidebar's Done
+section and in search, and a message to it, from you, an agent, or a scheduled task, makes it
+active again. Archive is for work you want out of the way. An archived thread leaves the
+sidebar and search and shows only in **Settings → Archive**, where you can unarchive or
+delete it. It refuses new messages, including ones from agents and scheduled tasks, until you
+unarchive it. Removing a project deletes its threads either way.
+
+A scheduled task that posts into one thread keeps running after you archive that thread, and
+each run fails. Mark the thread as Done instead, or move or pause the task in **Automations**
+(**Settings → Scheduled tasks** on mobile).
 
 ## Link a pull request
 

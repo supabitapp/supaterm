@@ -7,6 +7,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 
 import {
+  isRelayHostBrowserUnavailableError,
   RelayHostBrowserUnavailableError,
   resolveDiscoveredServerUrl,
 } from "~/browser/browserTargetResolver";
@@ -32,8 +33,7 @@ export async function openDiscoveredPort<E>(input: {
             requireReachable: true,
           });
   } catch (error) {
-    if (error instanceof RelayHostBrowserUnavailableError)
-      return AsyncResult.failure(Cause.fail(error));
+    if (isRelayHostBrowserUnavailableError(error)) return AsyncResult.failure(Cause.fail(error));
     throw error;
   }
   const result = await openPreviewSession({

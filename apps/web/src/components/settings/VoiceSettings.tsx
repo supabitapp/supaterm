@@ -13,6 +13,7 @@ import {
 } from "@supaterm/contracts/settings";
 import { PlusIcon, XIcon } from "@supaterm/icons";
 import * as Equal from "effect/Equal";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import {
@@ -30,6 +31,7 @@ import {
   voiceLanguageLabel,
   voiceLanguageOptions,
 } from "../../voice/voiceLanguage";
+import { m, type MessageResolver } from "../../i18n/messages";
 import { isMacPlatform } from "../../lib/utils";
 import { useEnvironmentProviders } from "../../state/environments";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
@@ -44,7 +46,7 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { useSettingsScope } from "./SettingsScopeContext";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 
 const SYSTEM_LANGUAGE = "system";
@@ -55,15 +57,24 @@ function providerName(provider: ServerProvider) {
   return provider.displayName ?? provider.instanceId;
 }
 
-function transcriptionStatus(provider: ServerProvider) {
-  if (!provider.enabled) return "Off";
-  if (provider.transcription?.status === "ready") return "Ready";
-  return provider.transcription?.reason === "signedOut" ? "Sign in again" : "Can't transcribe";
+function transcriptionStatus(provider: ServerProvider, resolve: MessageResolver = m) {
+  if (!provider.enabled) {
+    return resolve(msg("Off", { $context: "transcription provider is turned off" }));
+  }
+  if (provider.transcription?.status === "ready") {
+    return resolve(msg("Ready", { $context: "transcription provider status" }));
+  }
+  return provider.transcription?.reason === "signedOut"
+    ? resolve(msg("Sign in again"))
+    : resolve(msg("Can't transcribe"));
 }
 
 function VoiceTranscriptionSettingRow(props: {
   readonly providers: ReadonlyArray<ServerProvider>;
 }) {
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
+  const messages = useMessages();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const providers = props.providers.filter((provider) => provider.transcription !== undefined);
@@ -72,13 +83,15 @@ function VoiceTranscriptionSettingRow(props: {
   const options = [
     {
       value: AUTOMATIC_TRANSCRIPTION,
-      label: `Automatic (${automatic ? providerName(automatic) : "none"})`,
-      status: automatic ? transcriptionStatus(automatic) : "Can't transcribe",
+      label: automatic
+        ? gt("Automatic ({provider})", { provider: providerName(automatic) })
+        : gt("Automatic (none)"),
+      status: automatic ? transcriptionStatus(automatic, messages) : gt("Can't transcribe"),
     },
     ...providers.map((provider) => ({
       value: provider.instanceId,
       label: providerName(provider),
-      status: transcriptionStatus(provider),
+      status: transcriptionStatus(provider, messages),
     })),
   ];
   const value = selectedId ?? AUTOMATIC_TRANSCRIPTION;
@@ -87,11 +100,15 @@ function VoiceTranscriptionSettingRow(props: {
       serverScoped
       settingKeys={["transcriptionProviderInstanceId"]}
       {...searchableSetting("voice-transcription")}
-      description="Voice input sent to this environment is transcribed and charged to this login. Automatic uses the first ready login, Claude's first. A login you choose is never swapped for another account."
+      description={gt(
+        "Voice input sent to this environment is transcribed and charged to this login. Automatic uses the first ready login, Claude's first. A login you choose is never swapped for another account.",
+      )}
       resetAction={
         selectedId !== DEFAULT_UNIFIED_SETTINGS.transcriptionProviderInstanceId ? (
           <SettingResetButton
-            label="voice transcription"
+            label={gt("voice transcription", {
+              $context: "setting name in a reset button label",
+            })}
             onClick={() =>
               updateSettings({
                 transcriptionProviderInstanceId:
@@ -103,7 +120,9 @@ function VoiceTranscriptionSettingRow(props: {
       }
       control={
         providers.length === 0 ? (
-          <span className="text-muted-foreground text-xs">No provider here can transcribe.</span>
+          <span className="text-muted-foreground text-xs">
+            <T>No provider here can transcribe.</T>
+          </span>
         ) : (
           <Select
             value={value}
@@ -118,7 +137,7 @@ function VoiceTranscriptionSettingRow(props: {
             <SelectTrigger
               size="sm"
               className="w-auto min-w-0 max-w-full"
-              aria-label="Voice transcription provider"
+              aria-label={gt("Voice transcription provider")}
             >
               <SelectValue>
                 {options.find((option) => option.value === value)?.label ?? value}
@@ -142,13 +161,17 @@ function VoiceTranscriptionSettingRow(props: {
 }
 
 function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<ServerProvider> }) {
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const value = settings.voiceLanguage ?? SYSTEM_LANGUAGE;
   const transcriber = props.providers.find(
     (provider) => provider.instanceId === settings.transcriptionProviderInstanceId,
   );
-  const systemLabel = `System (${voiceLanguageLabel(systemVoiceLanguage())})`;
+  const systemLabel = gt("System ({language})", {
+    language: voiceLanguageLabel(systemVoiceLanguage()),
+  });
   const options = [
     { value: SYSTEM_LANGUAGE, label: systemLabel },
     ...voiceLanguageOptions(transcriber?.driver)
@@ -158,11 +181,11 @@ function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<Serv
   return (
     <SettingsRow
       {...searchableSetting("voice-language")}
-      description="The language you speak for voice input on this device."
+      description={gt("The language you speak for voice input on this device.")}
       resetAction={
         settings.voiceLanguage !== DEFAULT_UNIFIED_SETTINGS.voiceLanguage ? (
           <SettingResetButton
-            label="voice language"
+            label={gt("voice language", { $context: "setting name in a reset button label" })}
             onClick={() =>
               updateSettings({ voiceLanguage: DEFAULT_UNIFIED_SETTINGS.voiceLanguage })
             }
@@ -179,7 +202,7 @@ function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<Serv
           <SelectTrigger
             size="sm"
             className="w-auto min-w-0 max-w-full"
-            aria-label="Voice language"
+            aria-label={gt("Voice language")}
           >
             <SelectValue>
               {options.find((option) => option.value === value)?.label ?? voiceLanguageLabel(value)}
@@ -199,22 +222,30 @@ function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<Serv
 }
 
 function VoiceHoldToTalkSettingRow() {
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const isMac = isMacPlatform(navigator.platform);
   const options = [
     { value: "alt", label: isMac ? "Option" : "Alt", display: isMac ? "⌥ Option" : "Alt" },
     { value: "space", label: "Space", display: "Space" },
-    { value: "off", label: "Off", display: "Off" },
+    {
+      value: "off",
+      label: gt("Off", { $context: "hold to talk is turned off" }),
+      display: gt("Off", { $context: "hold to talk is turned off" }),
+    },
   ] as const;
   return (
     <SettingsRow
       {...searchableSetting("voice-hold-to-talk")}
-      description="Hold this key in the composer or a comment field to talk, and let go to stop."
+      description={gt(
+        "Hold this key in the composer or a comment field to talk, and let go to stop.",
+      )}
       resetAction={
         settings.voiceHoldToTalkKey !== DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey ? (
           <SettingResetButton
-            label="hold to talk"
+            label={gt("hold to talk", { $context: "setting name in a reset button label" })}
             onClick={() =>
               updateSettings({ voiceHoldToTalkKey: DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey })
             }
@@ -229,7 +260,11 @@ function VoiceHoldToTalkSettingRow() {
             if (option) updateSettings({ voiceHoldToTalkKey: option.value });
           }}
         >
-          <SelectTrigger size="sm" className="w-auto min-w-0 max-w-full" aria-label="Hold to talk">
+          <SelectTrigger
+            size="sm"
+            className="w-auto min-w-0 max-w-full"
+            aria-label={gt("Hold to talk")}
+          >
             <SelectValue>
               {options.find((option) => option.value === settings.voiceHoldToTalkKey)?.display}
             </SelectValue>
@@ -314,14 +349,27 @@ function useMicrophoneList(): MicrophoneList {
   return { listing, askForAccess };
 }
 
-function microphoneDescription(chosen: VoiceMicrophone | null, route: MicrophoneRoute | null) {
+function microphoneDescription(
+  chosen: VoiceMicrophone | null,
+  route: MicrophoneRoute | null,
+  resolve: MessageResolver = m,
+) {
   if (chosen && route?.chosenMissing) {
-    return `${chosen.label} isn't connected, so voice input uses the system default.`;
+    return resolve(
+      msg("{microphone} isn't connected, so voice input uses the system default.", {
+        microphone: chosen.label,
+      }),
+    );
   }
   if (route?.passedOver && route.input) {
-    return `${route.passedOver.label} is Bluetooth, so voice input uses ${route.input.label}.`;
+    return resolve(
+      msg("{microphone} is Bluetooth, so voice input uses {input}.", {
+        microphone: route.passedOver.label,
+        input: route.input.label,
+      }),
+    );
   }
-  return "The microphone voice input records from on this device.";
+  return resolve(msg("The microphone voice input records from on this device."));
 }
 
 function selectedMicrophone(chosen: VoiceMicrophone | null, route: MicrophoneRoute) {
@@ -335,15 +383,20 @@ function MicrophoneSelect(props: {
   readonly preference: MicrophonePreference;
   readonly onChoose: (microphone: VoiceMicrophone | null) => void;
 }) {
+  const gt = useGT();
   const { chosen } = props.preference;
   const route = resolveMicrophone(props.inputs, props.preference);
   const systemInput = resolveMicrophone(props.inputs, { ...props.preference, chosen: null }).input;
   const microphones = namedMicrophones(props.inputs);
   const options = [
-    { value: SYSTEM_MICROPHONE, label: "System default", detail: systemInput?.label ?? null },
+    {
+      value: SYSTEM_MICROPHONE,
+      label: gt("System default"),
+      detail: systemInput?.label ?? null,
+    },
     ...microphones.map((input) => ({ value: input.deviceId, label: input.label, detail: null })),
     ...(chosen && route.chosenMissing
-      ? [{ value: chosen.deviceId, label: chosen.label, detail: "Not connected" }]
+      ? [{ value: chosen.deviceId, label: chosen.label, detail: gt("Not connected") }]
       : []),
   ];
   const value = selectedMicrophone(chosen, route);
@@ -359,7 +412,7 @@ function MicrophoneSelect(props: {
         if (input) props.onChoose({ deviceId: input.deviceId, label: input.label });
       }}
     >
-      <SelectTrigger size="sm" className="w-auto min-w-0 max-w-full" aria-label="Microphone">
+      <SelectTrigger size="sm" className="w-auto min-w-0 max-w-full" aria-label={gt("Microphone")}>
         <SelectValue>{options.find((option) => option.value === value)?.label}</SelectValue>
       </SelectTrigger>
       <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -379,6 +432,9 @@ function MicrophoneSelect(props: {
 }
 
 function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList }) {
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
+  const messages = useMessages();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const { listing, askForAccess } = props.microphones;
@@ -388,13 +444,25 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
   };
   const route = listing.kind === "listed" ? resolveMicrophone(listing.inputs, preference) : null;
   const unlistedControls = {
-    unsupported: <span className="text-muted-foreground text-xs">Needs HTTPS or localhost.</span>,
+    unsupported: (
+      <span className="text-muted-foreground text-xs">
+        <T>Needs HTTPS or localhost.</T>
+      </span>
+    ),
     loading: null,
-    failed: <span className="text-muted-foreground text-xs">Couldn't list microphones.</span>,
-    none: <span className="text-muted-foreground text-xs">No microphone found.</span>,
+    failed: (
+      <span className="text-muted-foreground text-xs">
+        <T>Couldn't list microphones.</T>
+      </span>
+    ),
+    none: (
+      <span className="text-muted-foreground text-xs">
+        <T>No microphone found.</T>
+      </span>
+    ),
     labelsHidden: (
       <Button size="xs" variant="outline" onClick={askForAccess}>
-        Show microphones
+        <T>Show microphones</T>
       </Button>
     ),
   };
@@ -403,13 +471,13 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
       {...searchableSetting("voice-microphone")}
       description={
         listing.kind === "labelsHidden" && listing.accessDenied
-          ? "Microphone access is blocked. Allow it in your browser or system settings."
-          : microphoneDescription(preference.chosen, route)
+          ? gt("Microphone access is blocked. Allow it in your browser or system settings.")
+          : microphoneDescription(preference.chosen, route, messages)
       }
       resetAction={
         preference.chosen !== DEFAULT_UNIFIED_SETTINGS.voiceMicrophone ? (
           <SettingResetButton
-            label="microphone"
+            label={gt("microphone", { $context: "setting name in a reset button label" })}
             onClick={() =>
               updateSettings({ voiceMicrophone: DEFAULT_UNIFIED_SETTINGS.voiceMicrophone })
             }
@@ -432,6 +500,8 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
 }
 
 function VoiceAvoidBluetoothSettingRow(props: { readonly microphones: MicrophoneList }) {
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const { listing } = props.microphones;
@@ -440,12 +510,14 @@ function VoiceAvoidBluetoothSettingRow(props: { readonly microphones: Microphone
   return (
     <SettingsRow
       {...searchableSetting("voice-avoid-bluetooth")}
-      description="Keeps AirPods and other headsets out of call-quality audio when one is the system default. A microphone you choose is always used."
+      description={gt(
+        "Keeps AirPods and other headsets out of call-quality audio when one is the system default. A microphone you choose is always used.",
+      )}
       control={
         <Switch
           checked={settings.voiceAvoidBluetoothMicrophone}
           onCheckedChange={(checked) => updateSettings({ voiceAvoidBluetoothMicrophone: checked })}
-          aria-label="Use the Mac's microphone instead of Bluetooth"
+          aria-label={gt("Use the Mac's microphone instead of Bluetooth")}
         />
       }
     />
@@ -463,6 +535,8 @@ function parseHeardAs(value: string): ReadonlyArray<string> {
 }
 
 function VoiceDictionarySettingRow() {
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const dictionary = settings.transcriptionDictionary;
@@ -488,11 +562,13 @@ function VoiceDictionarySettingRow() {
       serverScoped
       settingKeys={["transcriptionDictionary"]}
       {...searchableSetting("voice-dictionary")}
-      description="Words voice input should spell your way, such as names and jargon. Add what the transcript gets instead, so it is corrected."
+      description={gt(
+        "Words voice input should spell your way, such as names and jargon. Add what the transcript gets instead, so it is corrected.",
+      )}
       resetAction={
         Equal.equals(dictionary, DEFAULT_TRANSCRIPTION_DICTIONARY) ? null : (
           <SettingResetButton
-            label="dictionary"
+            label={gt("dictionary", { $context: "setting name in a reset button label" })}
             onClick={() => save(DEFAULT_TRANSCRIPTION_DICTIONARY)}
           />
         )
@@ -504,14 +580,16 @@ function VoiceDictionarySettingRow() {
             <span className="truncate text-foreground">{entry.term}</span>
             {entry.aliases.length > 0 ? (
               <span className="truncate text-xs text-muted-foreground">
-                heard as {entry.aliases.join(", ")}
+                <T>
+                  heard as <Var>{entry.aliases.join(", ")}</Var>
+                </T>
               </span>
             ) : null}
             <Button
               className="ml-auto"
               variant="ghost-muted"
               size="icon-sm"
-              aria-label={`Remove ${entry.term}`}
+              aria-label={gt("Remove {word}", { word: entry.term })}
               onClick={() => save(dictionary.filter((existing) => existing !== entry))}
             >
               <XIcon />
@@ -522,8 +600,8 @@ function VoiceDictionarySettingRow() {
           <Input
             size="sm"
             className="w-40"
-            aria-label="Word"
-            placeholder="Word"
+            aria-label={gt("Word", { $context: "dictionary word" })}
+            placeholder={gt("Word", { $context: "dictionary word" })}
             maxLength={DICTIONARY_WORD_MAX_LENGTH}
             value={term}
             disabled={full}
@@ -532,8 +610,8 @@ function VoiceDictionarySettingRow() {
           <Input
             size="sm"
             className="min-w-40 flex-1"
-            aria-label="Heard as"
-            placeholder="Heard as, comma separated (optional)"
+            aria-label={gt("Heard as")}
+            placeholder={gt("Heard as, comma separated (optional)")}
             value={heardAs}
             disabled={full}
             onChange={(event) => setHeardAs(event.target.value)}
@@ -545,12 +623,14 @@ function VoiceDictionarySettingRow() {
             disabled={full || term.trim().length === 0}
           >
             <PlusIcon />
-            Add word
+            <T>Add word</T>
           </Button>
         </form>
         {full ? (
           <p className="text-xs text-muted-foreground">
-            Up to {TRANSCRIPTION_DICTIONARY_MAX_ENTRIES} words
+            <T>
+              Up to <Var>{TRANSCRIPTION_DICTIONARY_MAX_ENTRIES}</Var> words
+            </T>
           </p>
         ) : null}
       </div>
@@ -559,6 +639,7 @@ function VoiceDictionarySettingRow() {
 }
 
 export function VoiceSettingsPanel() {
+  const gt = useGT();
   const { environment } = useSettingsScope();
   const providersByEnvironment = useEnvironmentProviders();
   const serverProviders =
@@ -568,14 +649,14 @@ export function VoiceSettingsPanel() {
   const microphones = useMicrophoneList();
   return (
     <SettingsPageContainer>
-      <SettingsSection id="voice-input" title="Voice input">
+      <SettingsSection id="voice-input" title={gt("Voice input")}>
         <VoiceTranscriptionSettingRow providers={serverProviders} />
         <VoiceLanguageSettingRow providers={serverProviders} />
         <VoiceMicrophoneSettingRow microphones={microphones} />
         <VoiceAvoidBluetoothSettingRow microphones={microphones} />
         <VoiceHoldToTalkSettingRow />
       </SettingsSection>
-      <SettingsSection id="voice-transcript" title="Transcript">
+      <SettingsSection id="voice-transcript" title={gt("Transcript")}>
         <VoiceDictionarySettingRow />
       </SettingsSection>
     </SettingsPageContainer>

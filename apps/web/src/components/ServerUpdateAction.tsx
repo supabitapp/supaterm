@@ -4,14 +4,14 @@ import {
   type AuthSessionState,
   sessionGrantsScope,
 } from "@supaterm/contracts";
-import type { AsyncResult } from "effect/reactivity";
-import { environmentSession } from "~/state/session";
 import type {
   DesktopUpdateChannel,
   EnvironmentId,
   ServerInstallation,
   ServerSelfUpdateCapability,
 } from "@supaterm/contracts";
+import type { AsyncResult } from "effect/reactivity";
+import { environmentSession } from "~/state/session";
 import type { ServerUpdateStage, ServerUpdateState } from "@supaterm/client-runtime/state/server";
 import {
   isAtomCommandInterrupted,
@@ -34,16 +34,21 @@ import { crossesReleaseTrack } from "@supaterm/shared/cliRelease";
 import { Button } from "./ui/button";
 import { toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { msg, T, useGT, useMessages } from "gt-react";
+import { m, type MessageResolver } from "../i18n/messages";
 
 const UPDATE_STAGE_LABELS: Record<ServerUpdateStage, string> = {
-  downloading: "Downloading…",
-  installing: "Downloading…",
-  resuming: "Restarting…",
+  downloading: msg("Downloading…"),
+  installing: msg("Downloading…"),
+  resuming: msg("Restarting…"),
 };
 const pendingUpdateEnvironmentIds = new Set<EnvironmentId>();
 
-export function serverUpdateStageLabel(stage: ServerUpdateStage): string {
-  return UPDATE_STAGE_LABELS[stage];
+export function serverUpdateStageLabel(
+  stage: ServerUpdateStage,
+  resolve: MessageResolver = m,
+): string {
+  return resolve(UPDATE_STAGE_LABELS[stage]);
 }
 
 const CROSS_TRACK_NOTE = "Switch tracks in About → Update track";
@@ -70,7 +75,7 @@ function CrossTrackNote() {
 }
 
 function updateFailureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Server update failed.";
+  return error instanceof Error ? error.message : m(msg("Server update failed."));
 }
 
 export interface ServerUpdateTarget {
@@ -109,12 +114,13 @@ export function useServerUpdate() {
       readManagedPolicy(environmentId),
       selfUpdate,
       targetVersion,
+      m,
     );
     if (denial !== undefined) {
       if (!quiet) {
         toastManager.add({
           type: "error",
-          title: `${serverLabel} not updated`,
+          title: m(msg("{serverLabel} not updated", { serverLabel })),
           description: denial,
         });
       }
@@ -143,7 +149,7 @@ export function useServerUpdate() {
       if (!quiet) {
         toastManager.add({
           type: "error",
-          title: `${serverLabel} update failed`,
+          title: m(msg("{serverLabel} update failed", { serverLabel })),
           description: message,
         });
       }
@@ -152,13 +158,27 @@ export function useServerUpdate() {
     if (!quiet) {
       toastManager.add({
         type: "success",
-        title: result.value.upToDate ? `${serverLabel} is up to date` : `${serverLabel} updated`,
+        title: result.value.upToDate
+          ? m(msg("{serverLabel} is up to date", { serverLabel }))
+          : m(msg("{serverLabel} updated", { serverLabel })),
         description:
           "upToDate" in result.value && result.value.upToDate
-            ? `Desktop app is current on its release feed at ${result.value.targetVersion}.`
+            ? m(
+                msg("Desktop app is current on its release feed at {version}.", {
+                  version: result.value.targetVersion,
+                }),
+              )
             : selfUpdate === "desktop-managed"
-              ? `Desktop app relaunched on ${result.value.targetVersion}.`
-              : `Reconnected on supaterm@${result.value.targetVersion}.`,
+              ? m(
+                  msg("Desktop app relaunched on {version}.", {
+                    version: result.value.targetVersion,
+                  }),
+                )
+              : m(
+                  msg("Reconnected on supaterm@{version}.", {
+                    version: result.value.targetVersion,
+                  }),
+                ),
       });
     }
     return { status: "updated" };
@@ -167,13 +187,15 @@ export function useServerUpdate() {
 
 export function ServerUpdatesAction({
   targets,
-  label = "Update all",
+  label,
   variant = "outline",
   size = "xs",
   className,
 }: UpdateButtonProps & {
   readonly targets: ReadonlyArray<ServerUpdateTarget>;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const update = useServerUpdate();
   const serverConfigs = useServerConfigs();
   const pending = useRef(false);
@@ -186,6 +208,7 @@ export function ServerUpdatesAction({
         serverConfigs.get(target.environmentId)?.managedPolicy,
         target.selfUpdate,
         target.targetVersion,
+        messages,
       ) === undefined &&
       !refusedCrossing(target, serverConfigs.get(target.environmentId)?.environment.serverVersion),
   );
@@ -201,7 +224,10 @@ export function ServerUpdatesAction({
       if (desktopTargets.length > 0) {
         const confirmed =
           (await requestConfirmDialog(
-            `Update the Supaterm desktop apps on ${desktopTargets.map((target) => target.serverLabel).join(", ")}? They will close and relaunch on those machines.`,
+            gt(
+              "Update the Supaterm desktop apps on {servers}? They will close and relaunch on those machines.",
+              { servers: desktopTargets.map((target) => target.serverLabel).join(", ") },
+            ),
             { initialFocus: "confirm" },
           )) ?? true;
         if (!confirmed) return;
@@ -219,7 +245,7 @@ export function ServerUpdatesAction({
       disabled={isPending || eligible.length === 0}
       onClick={() => void handleUpdate()}
     >
-      {label}
+      {label ?? gt("Update all")}
     </Button>
   );
 }
@@ -236,13 +262,16 @@ export function ServerUpdateProgress({
 }: {
   readonly state: Exclude<ServerUpdateState, { status: "idle" }>;
 }) {
+  const messages = useMessages();
   if (state.status === "failed") {
     return (
       <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-destructive" role="alert">
         <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
         <Tooltip>
-          <TooltipTrigger render={<span className="min-w-0 truncate">{state.message}</span>} />
-          <TooltipPopup side="top">{state.message}</TooltipPopup>
+          <TooltipTrigger
+            render={<span className="min-w-0 truncate">{messages(state.message)}</span>}
+          />
+          <TooltipPopup side="top">{messages(state.message)}</TooltipPopup>
         </Tooltip>
       </div>
     );
@@ -250,7 +279,7 @@ export function ServerUpdateProgress({
   return (
     <div className="mt-1 flex items-center gap-2 text-xs font-medium text-foreground">
       <span className="size-1.5 shrink-0 rounded-full bg-foreground" aria-hidden="true" />
-      <span>{serverUpdateStageLabel(state.stage)}</span>
+      <span>{serverUpdateStageLabel(state.stage, messages)}</span>
     </div>
   );
 }
@@ -264,18 +293,21 @@ export function ServerUpdateAction({
   desktopAppUpdate = false,
   targetVersion,
   channel,
-  label = "Update",
+  label,
   variant = "outline",
   size = "xs",
   className,
   appearance = "button",
 }: ServerUpdateTarget & UpdateButtonProps) {
+  const gt = useGT();
+  const messages = useMessages();
   const isDesktopAppUpdate = selfUpdate === "desktop-managed";
   const serverVersion = useServerConfigs().get(environmentId)?.environment.serverVersion;
   const updatesDenial = serverUpdatePolicyDenial(
     useManagedPolicy(environmentId),
     selfUpdate,
     targetVersion,
+    messages,
   );
   const sessionStateAtom = environmentSession.sessionStateAtom(environmentId);
   const canUpdate = useAtomValue(sessionStateAtom, canUpdateServer);
@@ -287,16 +319,22 @@ export function ServerUpdateAction({
     onCopy: ({ command }) => {
       toastManager.add({
         type: "success",
-        title: updatesInstall ? "Update command copied" : "Relaunch command copied",
+        title: updatesInstall ? gt("Update command copied") : gt("Relaunch command copied"),
         description: updatesInstall
-          ? `Run \`${command}\` on ${serverLabel}, then restart supaterm with your usual options.`
-          : `Stop supaterm on ${serverLabel}, then relaunch with \`${command}\` using the same subcommand and options. This does not update an installed supaterm command.`,
+          ? gt("Run `{command}` on {serverLabel}, then restart supaterm with your usual options.", {
+              command,
+              serverLabel,
+            })
+          : gt(
+              "Stop supaterm on {serverLabel}, then relaunch with `{command}` using the same subcommand and options. This does not update an installed supaterm command.",
+              { serverLabel, command },
+            ),
       });
     },
     onError: (error) => {
       toastManager.add({
         type: "error",
-        title: "Could not copy update command",
+        title: gt("Could not copy update command"),
         description: error.message,
       });
     },
@@ -312,7 +350,10 @@ export function ServerUpdateAction({
     if (isDesktopAppUpdate) {
       const confirmed =
         (await requestConfirmDialog(
-          `Update the Supaterm desktop app that runs the ${serverLabel}? It will close and relaunch on that machine.`,
+          gt(
+            "Update the Supaterm desktop app that runs the {serverLabel}? It will close and relaunch on that machine.",
+            { serverLabel },
+          ),
           { initialFocus: "confirm" },
         )) ?? true;
       if (!confirmed) {
@@ -344,7 +385,7 @@ export function ServerUpdateAction({
   if (selfUpdate === "desktop-managed" && !desktopAppUpdate) {
     return (
       <span className="text-muted-foreground text-xs">
-        Update the desktop app on that machine to update this server.
+        <T>Update the desktop app on that machine to update this server.</T>
       </span>
     );
   }
@@ -358,9 +399,9 @@ export function ServerUpdateAction({
   const actionLabel =
     manualCommand !== null
       ? updatesInstall
-        ? "Copy update command"
-        : "Copy relaunch command"
-      : label;
+        ? gt("Copy update command")
+        : gt("Copy relaunch command")
+      : (label ?? gt("Update", { $context: "verb, updates the server" }));
   const onClick =
     manualCommand !== null
       ? () => copyToClipboard(manualCommand, { command: manualCommand })
@@ -375,7 +416,7 @@ export function ServerUpdateAction({
               size="icon-xs"
               variant="ghost-muted"
               className={className}
-              aria-label={`${actionLabel} for ${serverLabel}`}
+              aria-label={gt("{action} for {serverLabel}", { action: actionLabel, serverLabel })}
               disabled={manualCommand === null && !canUpdate}
               onClick={onClick}
             />
@@ -407,7 +448,7 @@ export function OutdatedServerUpdateAction({
   serverLabel,
   fromVersion,
   targetVersion,
-  label = "Update",
+  label,
 }: {
   readonly environmentId: EnvironmentId;
   readonly serverLabel: string;
@@ -415,6 +456,7 @@ export function OutdatedServerUpdateAction({
   readonly targetVersion: string;
   readonly label?: string;
 }) {
+  const gt = useGT();
   const update = useAtomCommand(updateOutdatedServer, { reportFailure: false });
   const handleUpdate = async () => {
     if (pendingUpdateEnvironmentIds.has(environmentId)) return;
@@ -429,18 +471,22 @@ export function OutdatedServerUpdateAction({
       if (isAtomCommandInterrupted(result)) return;
       toastManager.add({
         type: "error",
-        title: `${serverLabel} update failed`,
+        title: m(msg("{serverLabel} update failed", { serverLabel })),
         description: updateFailureMessage(squashAtomCommandFailure(result)),
       });
       return;
     }
     toastManager.add({
       type: "success",
-      title: `${serverLabel} updated`,
+      title: m(msg("{serverLabel} updated", { serverLabel })),
       description:
         "upToDate" in result.value && result.value.upToDate
-          ? `Already current on its release feed at ${result.value.targetVersion}.`
-          : `Reconnected on supaterm@${result.value.targetVersion}.`,
+          ? m(
+              msg("Already current on its release feed at {version}.", {
+                version: result.value.targetVersion,
+              }),
+            )
+          : m(msg("Reconnected on supaterm@{version}.", { version: result.value.targetVersion })),
     });
   };
   if (fromVersion !== undefined && crossesReleaseTrack(fromVersion, targetVersion)) {
@@ -448,7 +494,7 @@ export function OutdatedServerUpdateAction({
   }
   return (
     <Button size="xs" variant="outline" onClick={() => void handleUpdate()}>
-      {label}
+      {label ?? gt("Update", { $context: "verb, updates the server" })}
     </Button>
   );
 }

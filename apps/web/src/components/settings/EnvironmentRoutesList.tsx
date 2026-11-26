@@ -19,15 +19,18 @@ import { CSS } from "@dnd-kit/utilities";
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import {
+  canRemoveRoute,
   type ConnectionRoute,
   connectionRouteAddress,
   connectionRouteId,
   connectionRouteKind,
-  connectionRouteLabel,
+  connectionRouteLabelText,
   connectionRoutes,
   isLearned,
   pendingRouteOrder,
   usableRoutes,
+  connectionRouteLatencyLabel,
+  type ConnectionRouteLatency,
 } from "@supaterm/client-runtime/connection";
 import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "@supaterm/icons";
 import { useContext, useState } from "react";
@@ -40,6 +43,7 @@ import { environmentSession, usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { T, useGT, useMessages } from "gt-react";
 
 /**
  * The ways this client reaches one saved machine, preferred first. Drag to
@@ -52,6 +56,8 @@ export function EnvironmentRoutesList({
   readonly environment: EnvironmentPresentation;
   readonly onAddRoute: () => void;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const registry = useContext(RegistryContext);
   const saved = connectionRoutes(environment.entry);
   const savedIds = saved.map((route) => connectionRouteId(route.target));
@@ -81,7 +87,12 @@ export function EnvironmentRoutesList({
   const confirmRemove = async (route: ConnectionRoute) => {
     const address = connectionRouteAddress(route);
     const confirmed = await requestConfirmDialog(
-      `Remove ${connectionRouteLabel(route)} route?${address === null ? "" : `\n${address}`}`,
+      address === null
+        ? gt("Remove {route} route?", { route: connectionRouteLabelText(route, messages) })
+        : gt("Remove {route} route?\n{address}", {
+            route: connectionRouteLabelText(route, messages),
+            address,
+          }),
       { variant: "destructive" },
     );
     if (confirmed !== true) return;
@@ -113,7 +124,11 @@ export function EnvironmentRoutesList({
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
-          <ol aria-label={`Routes to ${environment.label}, preferred first`}>
+          <ol
+            aria-label={gt("Routes to {environment}, preferred first", {
+              environment: environment.label,
+            })}
+          >
             {routes.map((route, index) => {
               const unused = !usable.has(connectionRouteId(route.target));
               return (
@@ -124,10 +139,7 @@ export function EnvironmentRoutesList({
                   inUse={connectionRouteId(route.target) === activeRouteId}
                   unused={unused}
                   refused={environment.refusedRouteIds.includes(connectionRouteId(route.target))}
-                  // Learned routes are refreshed from the server and are not
-                  // removed manually unless a connect skips them; paired
-                  // routes can be removed individually.
-                  removable={routes.length > 1 && (!isLearned(route) || unused)}
+                  removable={canRemoveRoute(routes, route, unused)}
                   onRemove={() => void confirmRemove(route)}
                 />
               );
@@ -138,12 +150,12 @@ export function EnvironmentRoutesList({
       <div className="flex items-center justify-between pt-1">
         <Button size="xs" variant="ghost-muted" onClick={onAddRoute}>
           <PlusIcon className="size-3" />
-          Add route
+          <T>Add route</T>
         </Button>
         <Button
           size="xs"
           variant="ghost-muted"
-          aria-label="Refresh route latency"
+          aria-label={gt("Refresh route latency")}
           onClick={() => {
             for (const route of routes) {
               registry.refresh(environmentSession.routeLatencyAtoms(route).resultAtom);
@@ -151,14 +163,14 @@ export function EnvironmentRoutesList({
           }}
         >
           <RefreshCwIcon className="size-3" />
-          Refresh
+          <T>Refresh</T>
         </Button>
       </div>
     </div>
   );
 }
 
-const NO_LATENCY = Atom.make("");
+const NO_LATENCY = Atom.make<ConnectionRouteLatency | null>(null);
 
 function SortableRouteRow({
   route,
@@ -177,13 +189,16 @@ function SortableRouteRow({
   readonly removable: boolean;
   readonly onRemove: () => void;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const id = connectionRouteId(route.target);
-  const label = connectionRouteLabel(route);
+  const label = connectionRouteLabelText(route, messages);
   const address = connectionRouteAddress(route);
   // A route a connect skips has no speed worth measuring.
-  const latency = useAtomValue(
-    unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
+  const measured = useAtomValue(
+    unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).latencyAtom,
   );
+  const latency = unused ? "" : connectionRouteLatencyLabel(measured, messages);
   const transport = useAtomValue(environmentSession.relayRouteTransportAtom(route));
   const {
     attributes,
@@ -209,7 +224,7 @@ function SortableRouteRow({
         ref={setActivatorNodeRef}
         {...attributes}
         {...listeners}
-        aria-label={`Reorder ${label}, position ${position}`}
+        aria-label={gt("Reorder {route}, position {position}", { route: label, position })}
         className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground/70 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:cursor-grabbing"
       >
         <GripVerticalIcon aria-hidden className="size-3.5" />
@@ -229,26 +244,32 @@ function SortableRouteRow({
             <TooltipPopup side="top">{label}</TooltipPopup>
           </Tooltip>
           {inUse ? (
-            <span className="text-2xs font-normal text-success-foreground">In use</span>
+            <span className="text-2xs font-normal text-success-foreground">
+              <T>In use</T>
+            </span>
           ) : null}
           {transport === "direct" ? (
             <Tooltip>
               <TooltipTrigger
                 render={<span className="text-2xs font-normal text-muted-foreground" />}
               >
-                Direct
+                <T context="route connects straight to the host">Direct</T>
               </TooltipTrigger>
               <TooltipPopup side="top">
-                Encrypted connection straight to the host, skipping the relay server
+                <T>Encrypted connection straight to the host, skipping the relay server</T>
               </TooltipPopup>
             </Tooltip>
           ) : null}
           {refused ? (
             <span className="text-2xs font-normal text-destructive-foreground">
-              Sign-in refused
+              <T>Sign-in refused</T>
             </span>
           ) : null}
-          {unused ? <span className="text-2xs font-normal">Not used</span> : null}
+          {unused ? (
+            <span className="text-2xs font-normal">
+              <T>Not used</T>
+            </span>
+          ) : null}
         </p>
         {address !== null ? (
           <p className="flex min-w-0 items-baseline gap-2 text-2xs text-muted-foreground">
@@ -258,17 +279,21 @@ function SortableRouteRow({
               </TooltipTrigger>
               <TooltipPopup side="top">{address}</TooltipPopup>
             </Tooltip>
-            {isLearned(route) ? <span className="shrink-0">Discovered</span> : null}
+            {isLearned(route) ? (
+              <span className="shrink-0">
+                <T>Discovered</T>
+              </span>
+            ) : null}
           </p>
         ) : null}
         {refused && address !== null ? (
           <p className="text-2xs text-muted-foreground sm:col-span-2">
-            The host refused this device's sign-in. Pair this address again with Add route.
+            <T>The host refused this device's sign-in. Pair this address again with Add route.</T>
           </p>
         ) : null}
       </div>
       <span
-        aria-label={unused ? undefined : `${label} route latency: ${latency}`}
+        aria-label={unused ? undefined : gt("{label} route latency: {latency}", { label, latency })}
         className="w-20 text-right text-2xs tabular-nums text-muted-foreground"
       >
         {latency}
@@ -283,14 +308,16 @@ function SortableRouteRow({
                     type="button"
                     variant="ghost-muted"
                     size="icon-xs"
-                    aria-label={`Remove ${label} route`}
+                    aria-label={gt("Remove {route} route", { route: label })}
                     onClick={onRemove}
                   />
                 }
               >
                 <XIcon className="size-3" />
               </TooltipTrigger>
-              <TooltipPopup side="top">Remove route</TooltipPopup>
+              <TooltipPopup side="top">
+                <T>Remove route</T>
+              </TooltipPopup>
             </Tooltip>
           </div>
         ) : null}

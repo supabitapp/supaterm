@@ -1,17 +1,18 @@
 import type { useReviewHeaderPresentation as useIosReviewHeaderPresentation } from "./useReviewHeaderPresentation";
+import { useGT } from "gt-react-native";
 
-// oxlint-disable-next-line supaterm/no-hookless-use-function -- Android stub of a hook; the iOS file calls hooks.
 export function useReviewHeaderPresentation(
   props: Parameters<typeof useIosReviewHeaderPresentation>[0],
 ): ReturnType<typeof useIosReviewHeaderPresentation> {
+  const gt = useGT();
   return {
-    title: "Review changes",
-    subtitle: props.androidSubtitle || "Select a diff",
+    title: gt("Review changes"),
+    subtitle: props.androidSubtitle || gt("Select a diff"),
     gitMenu: null,
     menuIcon: "ellipsis.circle",
     refreshAction: {
       id: "refresh",
-      title: "Refresh current diff",
+      title: gt("Refresh current diff"),
       disabled: !props.selectedSection || props.selectedSection.isLoading,
       onPress: () => {
         void props.onRefresh();

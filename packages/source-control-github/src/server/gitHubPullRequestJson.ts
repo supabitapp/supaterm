@@ -137,6 +137,13 @@ interface LatestReviewFields {
   readonly isMinimized?: boolean | undefined;
 }
 
+/** Run numbers count up per workflow file, whatever its name; database ids exceed int32. */
+interface WorkflowRunFields {
+  readonly event: string;
+  readonly runNumber: number;
+  readonly workflow: { readonly id: string };
+}
+
 /**
  * A check as the rollup reports it, a check run and a commit status alike. A check run reports
  * `status` plus a `conclusion` once it has completed; a commit status a single `state`.
@@ -155,6 +162,8 @@ interface CheckFields {
    * app-provided check run, which belongs to no workflow, and absent on a commit status.
    */
   readonly workflowName?: string | null | undefined;
+  /** Absent for commit statuses and app-owned runs. */
+  readonly workflowRun?: WorkflowRunFields | null | undefined;
   readonly startedAt?: string | null | undefined;
   readonly completedAt?: string | null | undefined;
   /** Branch protection requires this check; asked for on github.com only. */
@@ -210,7 +219,7 @@ export function gitHubReactionContent(
  * viewer's own login is left out of `actors` — the page names them "You" instead, and leaving it
  * in would name them twice — but `count` still counts them along with everyone else.
  */
-function toReactions(
+export function toReactions(
   groups: ReadonlyArray<ReactionGroup> | null | undefined,
   viewer: string | null,
 ): ReadonlyArray<PullRequestReaction> {
@@ -301,12 +310,16 @@ export function isSubjectOfPullRequest(result: PullRequestSubject.Result): boole
           ? node.reviewCommentPullRequest.id
           : node.__typename === "PullRequestReview"
             ? node.reviewPullRequest.id
-            : node.id;
+            : node.__typename === "PullRequestReviewThread"
+              ? node.threadPullRequest.id
+              : node.id;
   return expected !== null && actual !== null && expected === actual;
 }
 
 /** The body of `POST /repos/{owner}/{repo}/pulls/{number}/reviews`, which sends a review whole. */
 const ReviewSubmissionSchema = Schema.Struct({
+  /** Without it GitHub records the review against whatever the head is when it arrives. */
+  commit_id: Schema.optional(Schema.String),
   event: Schema.Literals(["COMMENT", "APPROVE", "REQUEST_CHANGES"]),
   body: Schema.String,
   comments: Schema.Array(
@@ -347,8 +360,10 @@ export function buildReviewSubmission(input: {
   readonly verdict: PullRequestReviewVerdict;
   readonly body: string;
   readonly comments: ReadonlyArray<PullRequestReviewCommentDraft>;
+  readonly expectedHeadSha?: string | undefined;
 }): typeof ReviewSubmissionSchema.Type {
   return {
+    ...(input.expectedHeadSha === undefined ? {} : { commit_id: input.expectedHeadSha }),
     event: REVIEW_EVENTS[input.verdict],
     body: input.body,
     comments: input.comments.map((comment) => {
@@ -664,20 +679,41 @@ function isNamelessCheck(raw: CheckFields): boolean {
   return trimmed(raw.name) === null && trimmed(raw.context) === null;
 }
 
+const PULL_REQUEST_EVENTS = new Set(["pull_request", "pull_request_target"]);
+
 /**
- * A run that has not finished outranks any finished run of the same check: a workflow triggered
- * by both `push` and `pull_request` runs the check twice on one commit, and the run that
- * finished first must not hide the one still going.
+ * An unfinished run outranks finished runs of the same check (push and pull_request both run it).
+ * A newer pull request run supersedes an older one's cancelled checks, even renamed ones; other
+ * events can run one commit in different scopes, so their runs replace nothing.
  */
 function toCheckEntries(raw: ReadonlyArray<CheckFields> | null | undefined): ReadonlyArray<{
   readonly check: PullRequestCheck;
   readonly workflowName: string | null;
   readonly at: string | null;
 }> {
+  const lineageOf = (run: WorkflowRunFields) => `${run.workflow.id} ${run.event}`;
+  const newestRunNumber = new Map<string, number>();
+  const note = (key: string, runNumber: number) => {
+    if (runNumber > (newestRunNumber.get(key) ?? Number.NEGATIVE_INFINITY)) {
+      newestRunNumber.set(key, runNumber);
+    }
+  };
+  for (const check of raw ?? []) {
+    const run = check.workflowRun;
+    if (run == null || !PULL_REQUEST_EVENTS.has(run.event)) continue;
+    note(lineageOf(run), run.runNumber);
+    note(`${lineageOf(run)} ${trimmed(check.name) ?? ""}`, run.runNumber);
+  }
   return (raw ?? []).flatMap((check) => {
     const name = trimmed(check.name) ?? trimmed(check.context);
     if (name === null) return [];
     const status = toCheckStatus(check);
+    const run = check.workflowRun;
+    if (status === "cancelled" && run != null) {
+      // Branch protection names required checks, so only a newer same-name check replaces one.
+      const replacedBy = check.isRequired === true ? `${lineageOf(run)} ${name}` : lineageOf(run);
+      if (run.runNumber < (newestRunNumber.get(replacedBy) ?? run.runNumber)) return [];
+    }
     return [
       {
         check: {
@@ -1330,7 +1366,11 @@ export type GitHubCheckContext = CheckFields;
 function toCheckContexts(nodes: ReadonlyArray<CheckContext>): ReadonlyArray<GitHubCheckContext> {
   return nodes.map((check) =>
     check.__typename === "CheckRun"
-      ? { ...check, workflowName: check.checkSuite.workflowRun?.workflow.name ?? null }
+      ? {
+          ...check,
+          workflowName: check.checkSuite.workflowRun?.workflow.name ?? null,
+          workflowRun: check.checkSuite.workflowRun,
+        }
       : check,
   );
 }

@@ -1,4 +1,10 @@
-import { AuthSettingsWriteScope, type EnvironmentId } from "@supaterm/contracts";
+import {
+  AuthSettingsWriteScope,
+  isSecretReference,
+  type EnvironmentId,
+  type SecretReference,
+  type SettingsSecretValue,
+} from "@supaterm/contracts";
 import { ExternalLinkIcon } from "@supaterm/icons";
 import { useState } from "react";
 
@@ -12,9 +18,13 @@ import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { Button, InlineButton } from "../ui/button";
 import { Input } from "../ui/input";
-import { SecretInput } from "./SecretInput";
 import { Label } from "../ui/label";
 import { useEnvironmentScope } from "../../state/session";
+import { SecretSourceInput, useSecretSources } from "./SecretSourceInput";
+import { T, useGT, Var } from "gt-react";
+
+const hasToken = (token: SettingsSecretValue | undefined) =>
+  typeof token === "string" ? token.length > 0 : token !== undefined;
 
 export function SourceControlTokenSettings({
   environmentId,
@@ -27,6 +37,7 @@ export function SourceControlTokenSettings({
   readonly credentials: SourceControlHostCredentials;
   readonly onSaved: () => void;
 }) {
+  const gt = useGT();
   const { tokens } = useEnvironmentSettings(environmentId, (settings) =>
     readHostCredentialSettings(settings, definition.kind),
   );
@@ -35,16 +46,25 @@ export function SourceControlTokenSettings({
   });
   const defaultHost = definition.publicHost ?? "";
   const [host, setHost] = useState(defaultHost);
-  const [draft, setDraft] = useState("");
+  const secretSources = useSecretSources(environmentId);
+  const [pending, setPending] = useState<{
+    readonly key: string;
+    readonly draft: string | SecretReference;
+  } | null>(null);
   const [saving, setSaving] = useState(false);
   const canWriteSettings = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
   const normalizedHost = host.trim().toLowerCase();
-  const isSaved = (tokens[normalizedHost] ?? "").length > 0;
+  const savedToken = tokens[normalizedHost];
+  const isSaved = hasToken(savedToken);
   const savedHosts = Object.entries(tokens)
-    .filter(([, value]) => value.length > 0)
+    .filter(([, value]) => hasToken(value))
     .map(([saved]) => saved);
+  const sourceKey = JSON.stringify([normalizedHost, savedToken ?? ""]);
+  const draft =
+    pending?.key === sourceKey ? pending.draft : isSecretReference(savedToken) ? savedToken : "";
+  const submission = typeof draft === "string" ? draft.trim() : draft;
 
-  const save = async (target: string, token: string) => {
+  const save = async (target: string, token: SettingsSecretValue) => {
     setSaving(true);
     const result = await updateSettings({
       environmentId,
@@ -57,7 +77,7 @@ export function SourceControlTokenSettings({
     });
     setSaving(false);
     if (result._tag === "Success") {
-      setDraft("");
+      setPending(null);
       onSaved();
     }
   };
@@ -67,23 +87,29 @@ export function SourceControlTokenSettings({
       className="grid gap-3"
       onSubmit={(event) => {
         event.preventDefault();
-        if (normalizedHost && draft.trim()) void save(normalizedHost, draft.trim());
+        if (normalizedHost && submission !== "") void save(normalizedHost, submission);
       }}
     >
       {/* Locked while saving: a successful save clears the draft, which would drop edits made mid-request. */}
       <fieldset disabled={saving || !canWriteSettings} className="contents">
         {!canWriteSettings ? (
           <p className="text-xs text-muted-foreground">
-            This connection cannot change host settings.
+            <T>This connection cannot change host settings.</T>
           </p>
         ) : null}
         <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-          A token saved here is used before{" "}
-          <code className="rounded bg-muted px-1 py-px text-2xs">{credentials.tokenEnvVar}</code>{" "}
-          and the{" "}
-          <code className="rounded bg-muted px-1 py-px text-2xs">{credentials.cliName}</code> login,
-          so {definition.label} works without the {credentials.cliLabel}. Give it{" "}
-          {credentials.tokenAccess}.{" "}
+          <T>
+            A token saved here is used before{" "}
+            <code className="rounded bg-muted px-1 py-px text-2xs">
+              <Var>{credentials.tokenEnvVar}</Var>
+            </code>{" "}
+            and the{" "}
+            <code className="rounded bg-muted px-1 py-px text-2xs">
+              <Var>{credentials.cliName}</Var>
+            </code>{" "}
+            login, so <Var>{definition.label}</Var> works without the{" "}
+            <Var>{credentials.cliLabel}</Var>. Give it <Var>{credentials.tokenAccess}</Var>.
+          </T>{" "}
           {normalizedHost || defaultHost ? (
             <InlineButton
               render={
@@ -94,14 +120,16 @@ export function SourceControlTokenSettings({
                 />
               }
             >
-              Create a token
+              <T>Create a token</T>
               <ExternalLinkIcon aria-hidden className="size-3" />
             </InlineButton>
           ) : null}
         </p>
         <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
           <div className="grid gap-1.5">
-            <Label htmlFor={`${definition.kind}-token-host-${environmentId}`}>Host</Label>
+            <Label htmlFor={`${definition.kind}-token-host-${environmentId}`}>
+              <T>Host</T>
+            </Label>
             <Input
               id={`${definition.kind}-token-host-${environmentId}`}
               autoComplete="off"
@@ -112,21 +140,30 @@ export function SourceControlTokenSettings({
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor={`${definition.kind}-token-${environmentId}`}>Token</Label>
-            <SecretInput
+            <Label htmlFor={`${definition.kind}-token-${environmentId}`}>
+              <T>Token</T>
+            </Label>
+            <SecretSourceInput
               id={`${definition.kind}-token-${environmentId}`}
               size="sm"
-              configured={isSaved}
+              aria-label={`${definition.label} token`}
+              environmentId={environmentId}
+              configured={isSaved && !isSecretReference(savedToken)}
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              sources={secretSources}
+              onChange={(event) => setPending({ key: sourceKey, draft: event.target.value })}
+              onSecretChange={(secret) => setPending({ key: sourceKey, draft: secret ?? "" })}
             />
           </div>
         </div>
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
             {savedHosts.length === 0
-              ? `No token saved; the server uses ${credentials.tokenEnvVar} or the ${credentials.cliName} login.`
-              : `Saved for ${savedHosts.join(", ")}.`}
+              ? gt("No token saved; the server uses {envVar} or the {cliName} login.", {
+                  envVar: credentials.tokenEnvVar,
+                  cliName: credentials.cliName,
+                })
+              : gt("Saved for {hosts}.", { hosts: savedHosts.join(", ") })}
           </p>
           <div className="flex shrink-0 gap-2">
             {isSaved ? (
@@ -136,11 +173,15 @@ export function SourceControlTokenSettings({
                 disabled={saving}
                 onClick={() => void save(normalizedHost, "")}
               >
-                Remove
+                <T>Remove</T>
               </Button>
             ) : null}
-            <Button type="submit" size="xs" disabled={!normalizedHost || !draft.trim() || saving}>
-              Save
+            <Button
+              type="submit"
+              size="xs"
+              disabled={!normalizedHost || submission === "" || saving}
+            >
+              <T>Save</T>
             </Button>
           </div>
         </div>

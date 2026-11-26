@@ -31,6 +31,8 @@ import {
   attachmentUploadError,
   type AttachmentUploadError,
 } from "@supaterm/client-runtime/state/attachment-uploads";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export type UploadedMobileAttachment =
   | UploadChatImageAttachment
@@ -171,7 +173,7 @@ async function uploadFileBytes(
   const { File, Paths, UploadType } = await loadExpoFileSystem();
   if (signal.aborted) throw new Error("Upload cancelled.");
   if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
-    throw new Error("This connection cannot upload attachments.");
+    throw new Error(m(msg("This connection cannot upload attachments.")));
   }
   const fileUri = attachment.fileUri;
   const inlineDataUrl = attachment.type === "image" ? attachment.dataUrl : undefined;
@@ -214,7 +216,7 @@ async function uploadFileBytes(
 
 function requireUploadAccess(environmentId: EnvironmentId): void {
   if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) {
-    throw new Error("This connection cannot upload attachments.");
+    throw new Error(m(msg("This connection cannot upload attachments.")));
   }
 }
 
@@ -256,7 +258,7 @@ export const uploadComposerAttachment = Effect.fn("uploadComposerAttachment")(fu
       appAtomRegistry.get(environmentSession.preparedConnectionValueAtom(environmentId)),
     )
   ) {
-    return yield* attachmentUploadError(new Error("The environment is not connected."));
+    return yield* attachmentUploadError(new Error(m(msg("The environment is not connected."))));
   }
   const result = yield* runAttachmentUploadCycle({
     registry: appAtomRegistry,
@@ -289,7 +291,7 @@ export const uploadComposerAttachment = Effect.fn("uploadComposerAttachment")(fu
   return yield* attachmentUploadError(
     result.step === "resolve-url" &&
       !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)
-      ? new Error("This connection cannot upload attachments.")
+      ? new Error(m(msg("This connection cannot upload attachments.")))
       : result.error instanceof Error
         ? result.error
         : new Error(`Upload failed for '${attachment.name}'.`),

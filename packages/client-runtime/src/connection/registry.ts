@@ -59,6 +59,8 @@ import {
   routesAfterRemoving,
   upsertRoute,
 } from "./routes.ts";
+import { msg } from "gt-i18n";
+import { translatableDetail } from "../errors/translatable.ts";
 
 const isSshConnectionProfile = Schema.is(SshConnectionProfile);
 
@@ -1069,7 +1071,7 @@ export const make = Effect.gen(function* () {
         if (reordered.length !== routes.length || new Set(routeIds).size !== routes.length) {
           return yield* new ConnectionBlockedError({
             reason: "configuration",
-            detail: "The route order must list every saved route once.",
+            ...translatableDetail(msg("The route order must list every saved route once.")),
           });
         }
         if (reordered.every((route, index) => route === routes[index])) return;

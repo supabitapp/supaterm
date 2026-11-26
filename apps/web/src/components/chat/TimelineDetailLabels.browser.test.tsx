@@ -30,6 +30,7 @@ it("counts how long compaction has been running", async () => {
           awaitingUser: false,
           isPreparingWorktree: false,
           providerStartingLabel: null,
+          providerStarting: null,
           worktreeSetupLabel: null,
           latestRunId: null,
           backgroundWorktreeSetup: null,

@@ -15,6 +15,7 @@ import { environmentCatalog } from "../connection/catalog";
 import { environmentServerConfigsAtom, serverEnvironment } from "./server";
 import { environmentSession } from "./session";
 import { createThreadListEnvironmentsAtom } from "./thread-list-environments";
+import { m } from "../i18n/messages";
 
 export const environmentPresentations = createEnvironmentPresentationAtoms({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
@@ -40,11 +41,14 @@ export const environmentConnectionAddressAtom = Atom.family((environmentId: Envi
     const prepared = Option.getOrNull(
       get(environmentSession.preparedConnectionValueAtom(environmentId)),
     );
-    return environmentConnectionAddress({
-      entry: presentation.entry,
-      connectionState: presentation.connection.phase,
-      connectedTarget: prepared?.target,
-    });
+    return environmentConnectionAddress(
+      {
+        entry: presentation.entry,
+        connectionState: presentation.connection.phase,
+        connectedTarget: prepared?.target,
+      },
+      m,
+    );
   }).pipe(Atom.withLabel(`mobile:environment-connection-address:${environmentId}`)),
 );
 

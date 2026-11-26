@@ -20,6 +20,8 @@ import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { copyAdminRequest } from "./ThreadErrorBanner";
+import { T, msg, useGT } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 type RecoveryProps = {
   runId: RunId;
@@ -71,15 +73,19 @@ function limitRecoveryScheduleState(
 
 export function useUsageLimitRecoveryBannerItem(
   props: RecoveryProps | null,
+  resolve: MessageResolver = m,
 ): ComposerBannerStackItem | null {
   const displayAt = props === null ? null : limitRecoveryScheduleState(props).displayAt;
   const resetPassed = useDeadlinePassed(props === null ? null : parseEpochMs(props.resetAt));
   const displayPassed = useDeadlinePassed(parseEpochMs(displayAt));
   if (props === null) return null;
-  return usageLimitRecoveryBannerItem({ ...props, resetPassed, displayPassed });
+  return usageLimitRecoveryBannerItem({ ...props, resetPassed, displayPassed }, resolve);
 }
 
-export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
+export function usageLimitRecoveryBannerItem(
+  props: RecoveryProps,
+  resolve: MessageResolver = m,
+): ComposerBannerStackItem {
   const { runId, errorCode, resetAt, timestampFormat } = props;
   const { canSchedule, resumes, displayAt } = limitRecoveryScheduleState(props);
   const resetAtMs = parseEpochMs(resetAt);
@@ -93,17 +99,22 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
   ) : null;
   const resumesUpcoming = resumes && !displayPassed;
   const shownAt = resumesUpcoming ? displayAt : resetAt;
-  const resetDescription = shownAt
-    ? `${resumesUpcoming ? "Resumes" : resetPassed ? "Reset" : "Resets"} ${formatUpcomingTimestamp(shownAt, timestampFormat)}`
-    : "Reset time unavailable; retry manually";
+  const formattedTime = shownAt ? formatUpcomingTimestamp(shownAt, timestampFormat) : null;
+  const resetDescription =
+    formattedTime !== null
+      ? resumesUpcoming
+        ? resolve(msg("Resumes {time}", { time: formattedTime }))
+        : resetPassed
+          ? resolve(msg("Reset {time}", { time: formattedTime }))
+          : resolve(msg("Resets {time}", { time: formattedTime }))
+      : resolve(msg("Reset time unavailable; retry manually"));
   if (!chatGptLimit) {
     return {
       id: `usage-limit-recovery:${runId}`,
       variant: "warning",
-      priority: "urgent",
-      alwaysVisible: true,
+      group: "environment",
       icon: <GaugeIcon />,
-      title: "Usage limit reached",
+      title: resolve(msg("Usage limit reached")),
       description: resetDescription,
       actions: recoveryActions,
     };
@@ -112,19 +123,20 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
   return {
     id: `usage-limit-recovery:${runId}`,
     variant: "warning",
-    priority: "urgent",
-    alwaysVisible: true,
+    group: "environment",
     icon: <OpenAI aria-hidden="true" />,
-    title: "ChatGPT usage limit reached",
+    title: resolve(msg("ChatGPT usage limit reached")),
     description: workspaceLimit
-      ? "You've reached your workspace's limit for using your ChatGPT plan in other apps."
+      ? resolve(
+          msg("You've reached your workspace's limit for using your ChatGPT plan in other apps."),
+        )
       : resetDescription,
     actions: (
       <>
         {recoveryActions}
         {workspaceLimit ? (
           <Button size="xs" variant="ghost" onClick={copyAdminRequest}>
-            Copy request for admin
+            <T>Copy request for admin</T>
           </Button>
         ) : (
           <ChatGptUsageButton size="xs" variant="ghost" />
@@ -135,6 +147,7 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
 }
 
 function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: RecoveryProps) {
+  const gt = useGT();
   const [pending, setPending] = useState(false);
 
   const scheduled =
@@ -149,8 +162,8 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
     if (action === "snooze" && !snoozed && Date.parse(resetAt) <= Date.now()) {
       toastManager.add({
         type: "error",
-        title: "Could not snooze thread",
-        description: "The reset time has passed. Retry the thread manually.",
+        title: m(msg("Could not snooze thread")),
+        description: m(msg("The reset time has passed. Retry the thread manually.")),
       });
       // The deadline timer can lag after a throttled tab or sleep; disable now.
       deadlineStore(Date.parse(resetAt)).refresh();
@@ -166,8 +179,11 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
     } catch (cause) {
       toastManager.add({
         type: "error",
-        title: action === "resume" ? "Could not change auto-resume" : "Could not snooze thread",
-        description: cause instanceof Error ? cause.message : "An error occurred.",
+        title:
+          action === "resume"
+            ? m(msg("Could not change auto-resume"))
+            : m(msg("Could not snooze thread")),
+        description: cause instanceof Error ? cause.message : m(msg("An error occurred.")),
       });
     }
     setPending(false);
@@ -177,19 +193,19 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
       <InlineButton touchTarget="padded" disabled={pending} onClick={() => void toggle("resume")}>
         {pending
-          ? "Saving..."
+          ? gt("Saving...")
           : scheduled
-            ? "Cancel auto-resume"
+            ? gt("Cancel auto-resume")
             : resetPassed
-              ? "Resume now"
-              : "Resume at reset"}
+              ? gt("Resume now")
+              : gt("Resume at reset")}
       </InlineButton>
       <InlineButton
         touchTarget="padded"
         disabled={pending || (!snoozed && resetPassed)}
         onClick={() => void toggle("snooze")}
       >
-        {pending ? "Saving..." : snoozed ? "Wake now" : "Snooze until reset"}
+        {pending ? gt("Saving...") : snoozed ? gt("Wake now") : gt("Snooze until reset")}
       </InlineButton>
     </span>
   );

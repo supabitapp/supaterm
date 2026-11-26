@@ -34,7 +34,7 @@ import {
   type ServerProviderModel,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
-import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
+import { isVoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import type { TranscriptionUploadResult } from "@supaterm/contracts";
 
@@ -43,6 +43,8 @@ import { withImplicitFastModeSelection } from "../lib/providerOptions";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import type { DraftComposerAttachment } from "../lib/composerImages";
 import { resolveProviderInteractionMode } from "./provider-interaction-mode";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 const THREAD_OUTBOX_SCHEMA_VERSION = 5;
 
@@ -56,6 +58,8 @@ const QueuedThreadCreationSchema = Schema.Struct({
   worktreePath: Schema.NullOr(Schema.String),
   startFromOrigin: Schema.optional(Schema.Boolean),
   pullRequestReference: Schema.optional(Schema.String),
+  repositories: Schema.optional(Schema.Array(Schema.String)),
+  startsFromRepositoryDefaults: Schema.optional(Schema.Boolean),
 });
 
 const QueuedVoiceRecordingSchema = Schema.Struct({
@@ -99,6 +103,10 @@ export interface QueuedThreadCreation {
   readonly worktreePath: string | null;
   readonly startFromOrigin?: boolean;
   readonly pullRequestReference?: string;
+  /** Tracked repositories the new worktree takes, by path; absent leaves the choice to the server. */
+  readonly repositories?: ReadonlyArray<string>;
+  /** The project folder is no Git repository, so a new worktree needs no base branch. */
+  readonly startsFromRepositoryDefaults?: boolean;
 }
 
 /** A recording the environment transcribes and sends as the message; its text stays empty. */
@@ -227,7 +235,8 @@ export function isQueuedThreadCreationSendable(message: QueuedThreadMessage): bo
   return (
     message.creation.workspaceMode !== "worktree" ||
     Boolean(message.creation.branch) ||
-    message.creation.useDefaultBranch === true
+    message.creation.useDefaultBranch === true ||
+    message.creation.startsFromRepositoryDefaults === true
   );
 }
 
@@ -279,17 +288,17 @@ export function resolveVoiceDeliveryStep(
   };
   if ("error" in outcome) {
     const { error } = outcome;
-    if (error instanceof VoiceUploadError) {
+    if (isVoiceUploadError(error)) {
       return error.retryable ? { step: "retry" } : hold(error.message);
     }
     return shouldRetryThreadOutboxDelivery(error)
       ? { step: "retry" }
-      : hold(error instanceof Error ? error.message : "The recording couldn't be sent.");
+      : hold(error instanceof Error ? error.message : m(msg("The recording couldn't be sent.")));
   }
   const { text, submission } = outcome.result;
   if (submission?.status === "sent") return { step: "delivered", transcript: text };
   if (submission?.status === "noSpeech" || text.trim().length === 0) {
-    return hold("No speech was detected.");
+    return hold(m(msg("No speech was detected.")));
   }
-  return hold("Transcribed, but the message couldn't be sent. Edit it or try again.", text);
+  return hold(m(msg("Transcribed, but the message couldn't be sent. Edit it or try again.")), text);
 }

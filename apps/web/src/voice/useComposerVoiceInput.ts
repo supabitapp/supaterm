@@ -11,6 +11,7 @@ import {
 } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId, ProjectId, ThreadId, VoiceHoldToTalkKey } from "@supaterm/contracts";
 import { unlock } from "cuelume";
+import { useGT } from "gt-react";
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { ComposerSubmissionIntent } from "../composer-logic";
@@ -84,6 +85,7 @@ export interface ComposerVoiceAvailability {
 }
 
 function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvailability {
+  const gt = useGT();
   const source = useVoiceTranscriptionSource(options.environmentId);
   const connected = useAtomValue(threadOutboxDeliverableAtom(options.environmentId));
   if (!canRecordVoice()) {
@@ -91,7 +93,7 @@ function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvail
       canReview: false,
       canSend: false,
       label: null,
-      unavailableReason: "Voice input needs HTTPS or localhost.",
+      unavailableReason: gt("Voice input needs HTTPS or localhost."),
       opensSettings: false,
     };
   }
@@ -114,7 +116,7 @@ function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvail
     unavailableReason:
       canReview || canSend
         ? null
-        : "Reconnect to transcribe, or clear the draft to send a voice message.",
+        : gt("Reconnect to transcribe, or clear the draft to send a voice message."),
     opensSettings: false,
   };
 }

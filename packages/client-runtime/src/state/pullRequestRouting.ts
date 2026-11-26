@@ -25,11 +25,14 @@ import type { ConnectionCatalogEntry } from "../connection/catalog.ts";
 import * as ConnectionProfileStore from "../connection/profileStore.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import {
+  getInitialServerConfig,
   requestGuarded as request,
   EnvironmentRpcUnavailableError,
   type EnvironmentRpcInput,
   type EnvironmentUnaryRpcTag,
 } from "../rpc/client.ts";
+import { msg } from "gt-i18n";
+import { translatableMessage } from "../errors/translatable.ts";
 
 const reads = new Set<string>([
   WS_METHODS.pullRequestsSummary,
@@ -65,6 +68,16 @@ const hasState = Schema.is(
   Schema.Struct({ state: PullRequestState, isDraft: Schema.optional(Schema.Boolean) }),
 );
 const isInvalidation = Schema.is(PullRequestInvalidateInput);
+const hasExpectedHeadSha = Schema.is(Schema.Struct({ expectedHeadSha: Schema.String }));
+
+/** Older servers drop a review's `expectedHeadSha`, and the host then reviews its newest commit. */
+export const keepsReviewPin = (input: unknown) =>
+  hasExpectedHeadSha(input)
+    ? getInitialServerConfig().pipe(
+        Effect.map((config) => config.environment.capabilities.pullRequestReviewHeadPin === true),
+        Effect.orElseSucceed(() => false),
+      )
+    : Effect.succeed(true);
 const readTimeout = (environmentId: EnvironmentId) =>
   Effect.timeoutOrElse({
     duration: "30 seconds",
@@ -72,7 +85,7 @@ const readTimeout = (environmentId: EnvironmentId) =>
       Effect.fail(
         new EnvironmentRpcUnavailableError({
           environmentId,
-          message: "The environment did not respond to the PR request.",
+          ...translatableMessage(msg("The environment did not respond to the PR request.")),
         }),
       ),
   });
@@ -395,7 +408,7 @@ export function createPullRequestRouter() {
           isUnregistered(error)
             ? new EnvironmentRpcUnavailableError({
                 environmentId: id,
-                message: "The environment was removed.",
+                ...translatableMessage(msg("The environment was removed.")),
               })
             : error,
         ),
@@ -406,6 +419,13 @@ export function createPullRequestRouter() {
       return Effect.gen(function* () {
         if (id !== origin.target.environmentId) {
           if (!(yield* routingAllowed(registry, origin.target.environmentId, id, writes.has(tag))))
+            return yield* visit(index + 1);
+          if (
+            tag === WS_METHODS.pullRequestsSubmitReview &&
+            !(yield* registry
+              .run(id, keepsReviewPin(input))
+              .pipe(Effect.orElseSucceed(() => false)))
+          )
             return yield* visit(index + 1);
           // Route only to an environment signed in to the same account on this host.
           const alternateProbe = request(WS_METHODS.pullRequestsRoutingIdentity, {

@@ -11,8 +11,10 @@ import { useRemoteConnections } from "../../state/use-remote-environment-registr
 import { LinkedEnvironmentsSections } from "./LinkedEnvironmentsSection";
 import { LocalEnvironmentList } from "./LocalEnvironmentList";
 import { PullRequestRoutingSettings } from "./PullRequestRoutingSettings";
+import { useGT } from "gt-react-native";
 
 export function ConnectionsRouteScreen() {
+  const gt = useGT();
   const {
     connectedEnvironments,
     onReconnectEnvironment,
@@ -30,12 +32,12 @@ export function ConnectionsRouteScreen() {
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
       <AppBar
-        title="Environments"
+        title={gt("Environments")}
         onClose={() => navigation.goBack()}
-        closeAccessibilityLabel="Close environments"
+        closeAccessibilityLabel={gt("Close environments")}
         actions={[
           {
-            accessibilityLabel: "Add environment",
+            accessibilityLabel: gt("Add environment"),
             icon: "plus",
             onPress: () => navigation.navigate("ConnectionsNew"),
           },

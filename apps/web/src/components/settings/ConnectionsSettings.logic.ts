@@ -2,6 +2,7 @@ import * as DateTime from "effect/DateTime";
 
 import { resolveDesktopPairingUrl, resolveHostedPairingUrl } from "./pairingUrls";
 import { setPairingTokenOnUrl } from "@supaterm/shared/remote";
+import type { PairingRouteHints } from "@supaterm/shared/remote";
 import {
   isLoopbackHostname,
   type ServerClientSessionRecord,
@@ -26,17 +27,19 @@ import {
   normalizeRelayServerUrl,
 } from "@supaterm/contracts";
 import { createAdvertisedEndpoint } from "@supaterm/shared/advertisedEndpoint";
-import type { PairingRouteHints } from "@supaterm/shared/remote";
 
 export function createRelayPairingEndpoint(relayEndpoint: string) {
   return createAdvertisedEndpoint({
     id: "public-relay",
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- mirrors the server-advertised relay endpoint, whose labels stay English
     label: "Encrypted Relay",
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- mirrors the server-advertised relay endpoint, whose labels stay English
     provider: { id: "public-relay", label: "Encrypted Relay", kind: "tunnel", isAddon: false },
     httpBaseUrl: relayEndpoint,
     reachability: "public",
     hostedHttpsCompatibility: "compatible",
     source: "server",
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- mirrors the server-advertised relay endpoint, whose labels stay English
     description: "End-to-end encrypted access through the Encrypted Relay.",
   });
 }
@@ -63,6 +66,8 @@ import {
   getDesktopUpdateDownloadedVersion,
   resolveDesktopUpdateButtonAction,
 } from "../desktopUpdate.logic";
+import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 /**
  * Operating terminals without being able to list them leaves a client
@@ -108,21 +113,28 @@ export function isQrShareableEndpoint(endpoint: AdvertisedEndpoint): boolean {
  * The row follows the saved Serve flag rather than probe health so a failed
  * probe or a stopped Tailscale never hides the way to turn Serve off.
  */
-export function resolveTailscaleHttpsRow(input: {
-  readonly endpoint: AdvertisedEndpoint | null;
-  readonly serveEnabled: boolean;
-  readonly error?: string | null;
-}) {
+export function resolveTailscaleHttpsRow(
+  input: {
+    readonly endpoint: AdvertisedEndpoint | null;
+    readonly serveEnabled: boolean;
+    readonly error?: string | null;
+  },
+  resolve: MessageResolver = m,
+) {
   const { endpoint, serveEnabled, error } = input;
   return {
     description:
       serveEnabled && endpoint
         ? endpoint.httpBaseUrl
-        : "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
+        : resolve(msg("Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.")),
     status:
       serveEnabled && (error || endpoint?.status !== "available")
         ? (error ??
-          "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.")
+          resolve(
+            msg(
+              "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
+            ),
+          ))
         : null,
   };
 }
@@ -158,12 +170,15 @@ export function isWslSettingsRowVisible(input: {
  * Pending states follow the sidebar update control's action so the two never disagree, and a
  * recheck keeps a downloaded update's label. `state` is null outside the desktop app.
  */
-export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null): string {
-  if (!state) return "Up to date";
+export function resolveLocalVersionStatusLabel(
+  state: DesktopUpdateState | null,
+  resolve: MessageResolver = m,
+): string {
+  if (!state) return resolve(msg("Up to date"));
   if (state.status === "downloading") {
     return state.availableVersion
-      ? `Downloading update ${state.availableVersion}`
-      : "Downloading update";
+      ? resolve(msg("Downloading update {version}", { version: state.availableVersion }))
+      : resolve(msg("Downloading update"));
   }
   const action = resolveDesktopUpdateButtonAction(state);
   if (
@@ -172,14 +187,16 @@ export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null)
     (state.status === "checking" && state.downloadedVersion !== null)
   ) {
     const version = getDesktopUpdateDownloadedVersion(state);
-    return version ? `Update ${version} downloaded` : "Update downloaded";
+    return version
+      ? resolve(msg("Update {version} downloaded", { version }))
+      : resolve(msg("Update downloaded"));
   }
   if (action === "download") {
     return state.availableVersion
-      ? `Update ${state.availableVersion} available`
-      : "Update available";
+      ? resolve(msg("Update {version} available", { version: state.availableVersion }))
+      : resolve(msg("Update available"));
   }
-  return "Up to date";
+  return resolve(msg("Up to date"));
 }
 
 export type QrEndpointOption = {
@@ -297,8 +314,11 @@ export function parseManualDesktopSshTarget(input: {
   };
 }
 
-export function formatDesktopSshConnectionError(error: unknown): string {
-  const fallback = "Failed to connect SSH host.";
+export function formatDesktopSshConnectionError(
+  error: unknown,
+  resolve: MessageResolver = m,
+): string {
+  const fallback = resolve(msg("Failed to connect SSH host."));
   const rawMessage = error instanceof Error ? error.message : fallback;
   const withoutIpcPrefix = rawMessage.replace(
     /^Error invoking remote method 'desktop:ensure-ssh-environment':\s*/u,
@@ -317,11 +337,20 @@ export function sortDesktopPairingLinks(links: ReadonlyArray<ServerPairingLinkRe
 export function summarizeAuthorizedClients(
   sessions: ReadonlyArray<ServerClientSessionRecord>,
   links: ReadonlyArray<ServerPairingLinkRecord>,
+  resolve: MessageResolver = m,
 ): string {
   const parts = [
-    `${sessions.length} ${sessions.length === 1 ? "client" : "clients"}`,
+    resolve(
+      msg("{count, plural, one {{count} client} other {{count} clients}}", {
+        count: sessions.length,
+      }),
+    ),
     links.length > 0
-      ? `${links.length} ${links.length === 1 ? "pairing link" : "pairing links"}`
+      ? resolve(
+          msg("{count, plural, one {{count} pairing link} other {{count} pairing links}}", {
+            count: links.length,
+          }),
+        )
       : null,
   ];
   return parts.filter((part): part is string => part !== null).join(" · ");
@@ -455,19 +484,23 @@ export function isHostedAppPairingUrl(value: string): boolean {
   }
 }
 
-export function endpointShareHint(endpoint: AdvertisedEndpoint, url: string): string {
+export function endpointShareHint(
+  endpoint: AdvertisedEndpoint,
+  url: string,
+  resolve: MessageResolver = m,
+): string {
   if (isHostedAppPairingUrl(url)) {
-    return "Opens the hosted app, no install needed";
+    return resolve(msg("Opens the hosted app, no install needed"));
   }
   switch (endpoint.reachability) {
     case "lan":
-      return "Devices on the same network";
+      return resolve(msg("Devices on the same network"));
     case "private-network":
-      return "Devices on your private network";
+      return resolve(msg("Devices on your private network"));
     case "public":
-      return "Reachable from anywhere";
+      return resolve(msg("Reachable from anywhere"));
     case "loopback":
-      return "Clients on this machine";
+      return resolve(msg("Clients on this machine"));
   }
 }
 

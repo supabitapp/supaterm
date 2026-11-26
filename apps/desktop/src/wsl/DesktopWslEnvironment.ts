@@ -11,6 +11,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import { buildRemoteNodeEnvScript } from "@supaterm/ssh/tunnel";
 import { satisfiesSemverRange } from "@supaterm/shared/semver";
 
@@ -1123,6 +1124,40 @@ const getUserHomeImpl = (
     Effect.orElseSucceed(() => Option.none<string>()),
   );
 
+// Store/MSI WSL registers WSLService and inbox WSL registers LxssManager; either key means installed.
+const WSL_SERVICE_KEYS = [
+  "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WSLService",
+  "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LxssManager",
+] as const;
+const SERVICE_QUERY_TIMEOUT = Duration.seconds(5);
+
+const wslServiceRegistered = Effect.scoped(
+  Effect.gen(function* () {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+    const registered = yield* Effect.forEach(
+      WSL_SERVICE_KEYS,
+      (key) =>
+        spawner
+          .spawn(
+            ChildProcess.make("reg.exe", ["query", key], {
+              stdin: "ignore",
+              stdout: "ignore",
+              stderr: "ignore",
+              killSignal: "SIGTERM",
+              forceKillAfter: PROCESS_TERMINATE_GRACE,
+            }),
+          )
+          .pipe(Effect.flatMap((handle) => handle.exitCode)),
+      { concurrency: "unbounded" },
+    );
+    return registered.some((exitCode) => (exitCode as unknown as number) === 0);
+  }),
+).pipe(
+  Effect.timeoutOption(SERVICE_QUERY_TIMEOUT),
+  Effect.map(Option.getOrElse(() => false)),
+  Effect.orElseSucceed(() => false),
+);
+
 export type WslAvailability =
   | { readonly _tag: "Available" }
   | { readonly _tag: "Missing" }
@@ -1135,7 +1170,10 @@ export const resolveAvailability = Effect.fn("DesktopWslEnvironment.resolveAvail
   ): Effect.fn.Return<
     WslAvailability,
     never,
-    FileSystem.FileSystem | Path.Path | DesktopManagedPolicy.DesktopManagedPolicy
+    | FileSystem.FileSystem
+    | Path.Path
+    | DesktopManagedPolicy.DesktopManagedPolicy
+    | ChildProcessSpawner.ChildProcessSpawner
   > {
     if (platform !== "win32") return { _tag: "Missing" };
     const path = yield* Path.Path;
@@ -1144,6 +1182,8 @@ export const resolveAvailability = Effect.fn("DesktopWslEnvironment.resolveAvail
     if (!(yield* fileSystem.exists(wslExePath).pipe(Effect.orElseSucceed(() => false)))) {
       return { _tag: "Missing" };
     }
+    // System32\wsl.exe is also an install stub on Windows without WSL, so check for its service.
+    if (!(yield* wslServiceRegistered)) return { _tag: "Missing" };
     // A server in WSL reads Linux's policy, never this machine's, so a managed machine runs none.
     return yield* (yield* DesktopManagedPolicy.DesktopManagedPolicy).read.pipe(
       Effect.map((found): WslAvailability =>
@@ -1256,7 +1296,8 @@ export const layer = Layer.effect(
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const fileSystem = yield* FileSystem.FileSystem;
-    const windir = process.env.WINDIR ?? "C:\\Windows";
+    // Not Config: Windows variable names are case-insensitive only on the live process.env.
+    const windir = (yield* HostProcess.Environment).WINDIR ?? "C:\\Windows";
 
     const provideSpawner = <A, E>(
       effect: Effect.Effect<A, E, ChildProcessSpawner.ChildProcessSpawner>,
@@ -1266,6 +1307,7 @@ export const layer = Layer.effect(
     // Cache availability so synchronous IPC bootstrap can read it without yielding to filesystem I/O.
     const availability = yield* resolveAvailability(environment.platform, windir).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
       Effect.provideService(Path.Path, environment.path),
       Effect.provideService(
         DesktopManagedPolicy.DesktopManagedPolicy,

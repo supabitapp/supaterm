@@ -46,6 +46,8 @@ import {
   sshTargetKey,
 } from "./routes.ts";
 import { reachPairingServer } from "./pairing.ts";
+import { msg } from "gt-i18n";
+import { translatableDetail } from "../errors/translatable.ts";
 
 export interface PairingConnectionInput {
   readonly pairingUrl?: string;
@@ -280,7 +282,7 @@ const reachesEnvironment = Effect.fn("clientRuntime.connection.onboarding.reache
       catch: () =>
         new ConnectionBlockedError({
           reason: "configuration",
-          detail: "The environment URL is invalid.",
+          ...translatableDetail(msg("The environment URL is invalid.")),
         }),
     });
     const descriptor = yield* fetchRemoteEnvironmentDescriptor({
@@ -337,7 +339,7 @@ export const prepareBearerConnectionUpdate = Effect.fn(
   ) {
     return yield* new ConnectionBlockedError({
       reason: "configuration",
-      detail: "Only saved bearer environments can be edited.",
+      ...translatableDetail(msg("Only saved bearer environments can be edited.")),
     });
   }
 
@@ -345,7 +347,7 @@ export const prepareBearerConnectionUpdate = Effect.fn(
   if (Option.isNone(credential) || !isBearerCredential(credential.value)) {
     return yield* new ConnectionBlockedError({
       reason: "authentication",
-      detail: "The saved bearer credential is unavailable.",
+      ...translatableDetail(msg("The saved bearer credential is unavailable.")),
     });
   }
 
@@ -353,7 +355,7 @@ export const prepareBearerConnectionUpdate = Effect.fn(
   if (label === "") {
     return yield* new ConnectionBlockedError({
       reason: "configuration",
-      detail: "Environment label cannot be empty.",
+      ...translatableDetail(msg("Environment label cannot be empty.")),
     });
   }
   const httpBaseUrl = yield* Effect.try({

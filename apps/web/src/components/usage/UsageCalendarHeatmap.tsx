@@ -1,4 +1,5 @@
 import type { UsageProviderKind } from "@supaterm/contracts";
+import { T, useGT, useLocale } from "gt-react";
 import { useState } from "react";
 
 import {
@@ -19,8 +20,13 @@ const LEVEL_CLASS: Record<UsageCalendarLevel, string> = {
   4: "bg-foreground/90",
 };
 const CELL_PITCH = 32;
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const LABELED_WEEKDAYS = new Set(["Mon", "Wed", "Fri"]);
+const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+const LABELED_WEEKDAYS: ReadonlySet<string> = new Set(["mon", "wed", "fri"]);
+// 2024-01-01 was a Monday; the slot index counts days from it.
+const weekdayLabel = (slot: number, locale: string) =>
+  new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(
+    Date.UTC(2024, 0, 1 + slot),
+  );
 
 export function UsageCalendarHeatmap({
   days,
@@ -37,6 +43,8 @@ export function UsageCalendarHeatmap({
   readonly ariaLabel: string;
   readonly loading: boolean;
 }) {
+  const gt = useGT();
+  const locale = useLocale();
   const [active, setActive] = useState<number | null>(null);
   const totals = columns.map((column) => column.total);
   const calendar = buildUsageCalendar(days, totals);
@@ -51,20 +59,20 @@ export function UsageCalendarHeatmap({
       .filter((band) => band.value > 0 && providers.includes(band.provider))
       .map((band) => `${PROVIDER_PRESENTATION[band.provider].label} ${format(band.value)}`);
     return [
-      `${formatDayShort(day)}${index === lastIndex ? " so far" : ""}`,
+      index === lastIndex ? gt("{day} so far", { day: formatDayShort(day) }) : formatDayShort(day),
       format(column.total),
       ...split,
     ].join(" · ");
   };
   const { peak } = calendar;
-  const emptySummary = loading ? "" : "No activity in this window";
+  const emptySummary = loading ? "" : gt("No activity in this window");
   const summary =
     peak === null
       ? emptySummary
       : [
-          `Highest ${formatDayShort(peak.day)}`,
+          gt("Highest {day}", { day: formatDayShort(peak.day) }),
           format(peak.value),
-          average > 0 ? `${format(average)} a day on average` : undefined,
+          average > 0 ? gt("{amount} a day on average", { amount: format(average) }) : undefined,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -93,9 +101,9 @@ export function UsageCalendarHeatmap({
         onMouseLeave={() => setActive(null)}
       >
         <div className="grid grid-rows-7 gap-1 pt-5 text-3xs text-muted-foreground">
-          {WEEKDAYS.map((weekday) => (
+          {WEEKDAYS.map((weekday, slot) => (
             <span key={weekday} className="flex h-7 items-center">
-              {LABELED_WEEKDAYS.has(weekday) ? weekday : ""}
+              {LABELED_WEEKDAYS.has(weekday) ? weekdayLabel(slot, locale) : ""}
             </span>
           ))}
         </div>
@@ -138,11 +146,15 @@ export function UsageCalendarHeatmap({
         </div>
       </div>
       <div className="flex items-center gap-1 text-3xs text-muted-foreground">
-        <span className="mr-1">Less</span>
+        <span className="mr-1">
+          <T>Less</T>
+        </span>
         {([0, 1, 2, 3, 4] as const).map((level) => (
           <span key={level} className={cn("size-3 rounded-xs", LEVEL_CLASS[level])} />
         ))}
-        <span className="ml-1">More</span>
+        <span className="ml-1">
+          <T>More</T>
+        </span>
       </div>
     </div>
   );

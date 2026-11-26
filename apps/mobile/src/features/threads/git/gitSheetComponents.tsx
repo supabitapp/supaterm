@@ -3,6 +3,8 @@ import { SymbolView } from "../../../components/ui/AppSymbol";
 import type { ComponentProps } from "react";
 import { View } from "react-native";
 import { Button } from "../../../components/ui/Button";
+import { msg } from "gt-react-native";
+import type { MessageResolver } from "../../../i18n/messages";
 
 export function SheetActionButton(props: {
   readonly icon: ComponentProps<typeof SymbolView>["name"];
@@ -36,13 +38,14 @@ export function statusSummary(
     readonly pr?: { readonly state?: string; readonly number?: number } | null;
     readonly sourceControlProvider?: { readonly kind: string } | null;
   } | null,
+  resolve: MessageResolver,
 ): string {
   if (!gitStatus) {
-    return "Loading branch status\u2026";
+    return resolve(msg("Loading branch status…"));
   }
 
   if (!gitStatus.isRepo) {
-    return "Not a git repository";
+    return resolve(msg("Not a git repository"));
   }
 
   const parts: string[] = [];

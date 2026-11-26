@@ -12,17 +12,19 @@ import type {
   ServerConfig as SupatermServerConfig,
 } from "@supaterm/contracts";
 import {
-  disallowedProviderMessage,
   isManagedDriverAllowed,
   isProviderDriverKind,
   resolveProjectProviderInstanceEnabled,
 } from "@supaterm/contracts";
+import { disallowedProviderMessage } from "@supaterm/client-runtime/contract-labels";
 import {
   buildExplicitProviderOptionSelectionsFromDescriptors,
   getProviderOptionDescriptors,
 } from "@supaterm/shared/model";
 import { resolveModelShortName } from "@supaterm/client-runtime/provider-clients";
 import { resolveProvidersForCwd } from "@supaterm/client-runtime/providerSkills";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export type ModelOption = {
   readonly key: string;
@@ -214,18 +216,22 @@ export function describeUnavailableModelSelection(
       instanceId: selection.instanceId,
     });
     return {
-      title: "Provider not allowed",
-      detail: `${disallowedProviderMessage(config?.managedPolicy?.organization, label)} Choose another model.`,
+      title: m(msg("Provider not allowed")),
+      detail: m(
+        msg("{message} Choose another model.", {
+          message: disallowedProviderMessage(config?.managedPolicy?.organization, label, m),
+        }),
+      ),
     };
   }
   return isDisabledForProject(config, provider, selection.instanceId, projectId)
     ? {
-        title: "Model turned off for this project",
-        detail: "Turn it back on from web or desktop, or choose another model.",
+        title: m(msg("Model turned off for this project")),
+        detail: m(msg("Turn it back on from web or desktop, or choose another model.")),
       }
     : {
-        title: "Antigravity model unavailable",
-        detail: "Set up Antigravity on web or desktop, or choose another model.",
+        title: m(msg("Antigravity model unavailable")),
+        detail: m(msg("Set up Antigravity on web or desktop, or choose another model.")),
       };
 }
 

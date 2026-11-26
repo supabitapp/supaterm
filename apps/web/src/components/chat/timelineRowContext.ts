@@ -1,4 +1,5 @@
 import type { ToolCallDiffTarget } from "../../diffPanelStore";
+import type { ThreadRunSummary } from "@supaterm/client-runtime/state/models";
 import type { WorkGroupScrollAnchor, MessagesTimelineRow } from "./MessagesTimeline.logic";
 import type {
   ScopedThreadRef,
@@ -12,6 +13,8 @@ import type {
   ResponseContextRecord,
   TurnItemId,
   WorktreeSetupSnapshot,
+  ProviderApprovalDecision,
+  RuntimeRequestId,
 } from "@supaterm/contracts";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
 import { type MouseEvent, type ReactNode, createContext, useEffect, useRef } from "react";
@@ -25,8 +28,15 @@ import type { HandoffTimelineRun } from "./V2LifecycleRow";
 import type { PinnableProjectedItem } from "./PinnedMessages";
 import type { HtmlRenderSelectionReport } from "./HtmlRenderFrame";
 import type { TurnItemDetailSource } from "../../state/queries";
+import type { PendingApproval } from "../../session-logic";
 
 export interface TimelineRowSharedState {
+  pendingApprovals: ReadonlyMap<RuntimeRequestId, PendingApproval>;
+  respondingRequestIds: ReadonlyArray<RuntimeRequestId>;
+  canOperateThread: boolean;
+  onRespondToApproval:
+    | ((requestId: RuntimeRequestId, decision: ProviderApprovalDecision) => Promise<unknown>)
+    | undefined;
   /**
    * Draws a published HTML visual. Unset, the row loads it from the environment; a linked
    * environment's thread has no way to ask for it.
@@ -59,7 +69,6 @@ export interface TimelineRowSharedState {
   findActive: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   displayThreadKey?: string;
-  onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff: ((target: ToolCallDiffTarget) => void) | undefined;
   /** Null where this reader cannot open other threads, so no row offers to. */
   onOpenThread: ((threadId: OrchestrationV2TurnItem["threadId"]) => void) | null;
@@ -94,6 +103,7 @@ export interface TimelineRowActivityState {
   awaitingUser: boolean;
   isPreparingWorktree: boolean;
   providerStartingLabel: string | null;
+  providerStarting: NonNullable<ThreadRunSummary["providerStarting"]> | null;
   worktreeSetupLabel: "shown" | "exiting" | null;
   latestRunId: RunId | null;
   backgroundWorktreeSetup: WorktreeSetupSnapshot | null;

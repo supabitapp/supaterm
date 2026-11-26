@@ -21,6 +21,7 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import * as Option from "effect/Option";
 import * as Scope from "effect/Scope";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
@@ -55,7 +56,7 @@ import {
   type CodexAppServerProviderSnapshot,
 } from "./CodexProvider.ts";
 import { BUNDLED_CLAUDE_MODEL_CATALOG } from "./ClaudeModelCatalog.ts";
-import { checkClaudeProviderStatus } from "./ClaudeProvider.ts";
+import { checkClaudeProviderStatus, ClaudeCapabilitiesProbeSdkError } from "./ClaudeProvider.ts";
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as AntigravityInstallation from "./AntigravityInstallation.ts";
 import * as ModelManifest from "./ModelManifest.ts";
@@ -79,6 +80,7 @@ import {
 } from "./providerStatusCache.ts";
 import { COMPACT_SLASH_COMMAND } from "@supaterm/provider-core/server/snapshotProbe";
 import type {
+  AnyProviderDriver,
   ProviderInstance,
   ProviderWorkspaceSnapshot,
 } from "@supaterm/provider-core/server/driver";
@@ -88,6 +90,9 @@ import * as ProviderRegistry from "./ProviderRegistry.ts";
 import { ProviderDriverError } from "@supaterm/provider-core/server/errors";
 import { mergeProviderInstanceEnvironment } from "@supaterm/provider-core/server/instanceEnvironment";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "@supaterm/provider-core/server/maintenanceResolver";
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
+import * as ProviderHostPathWatcher from "./ProviderHostPathWatcher.ts";
+import * as DesktopTelemetryReceiver from "../resourceTelemetry/DesktopTelemetryReceiver.ts";
 vi.mock("@anthropic-ai/claude-agent-sdk", { spy: true });
 
 const decodeServerProvider = Schema.decodeSync(ServerProvider);
@@ -248,7 +253,11 @@ const makeWorkspaceRescanHarness = Effect.gen(function* () {
   const nextScan = Effect.fnUntraced(function* (cwd: string) {
     const scan = yield* Queue.take(scans);
     assert.equal(scan.cwd, cwd);
-    return (name: string) => Deferred.succeed(scan.result, snapshot(name));
+    return (name: string, workspaceModels?: ProviderWorkspaceSnapshot["workspaceModels"]) =>
+      Deferred.succeed(scan.result, {
+        ...snapshot(name),
+        ...(workspaceModels ? { workspaceModels } : {}),
+      });
   });
   const refresh = (cwd: string, fresh = false) =>
     registry.refreshWorkspaceSnapshot({ instanceId, cwd, fresh });
@@ -571,6 +580,11 @@ const layerTestNodeServices = Layer.mergeAll(
   Layer.succeed(ServerEnvironment.ServerEnvironmentIdentity, {
     getEnvironmentId: Effect.succeed(EnvironmentId.make("00000000-0000-4000-8000-000000000001")),
   }),
+  // A login shell that prints nothing, so refreshes never take PATH from the developer's profile.
+  Layer.effect(
+    HostProcess.Environment,
+    Effect.sync(() => ({ ...process.env, SHELL: "/usr/bin/true" })),
+  ),
   // An empty home, so the developer's own Claude settings never reach provider probes.
   Layer.effect(
     HostProcess.HomeDirectory,
@@ -1833,6 +1847,173 @@ it.layer(
       );
     });
 
+    it.effect.each([
+      "replay",
+      "in-flight missing",
+      "in-flight installed",
+      "installed error",
+    ] as const)("recovers a copied driver environment after late PATH (%s)", (mode) =>
+      Effect.gen(function* () {
+        // "installed error": the CLI is found on the early PATH but its check fails until the late
+        // PATH. Installed instances may hold live sessions, so it must not be rebuilt.
+        const failsEarly = mode === "installed error";
+        const replay = mode === "replay" || failsEarly;
+        const host = { PATH: "/early/bin", SUPATERM_CODEX_LAUNCH_ARGS: "hidden" };
+        const environment = host;
+        const updates = yield* DesktopTelemetryReceiver.makeDesktopShellEnvironmentUpdates(
+          host,
+          "linux",
+        );
+        const entered = yield* Deferred.make<void>();
+        const release = yield* Deferred.make<void>();
+        const finished = yield* Deferred.make<void>();
+        const paths: Array<string | undefined> = [];
+        let first = true;
+        const driverKind = ProviderDriverKind.make("pi");
+        const instanceId = ProviderInstanceId.make("late-path");
+        const driver: AnyProviderDriver = {
+          driverKind,
+          metadata: { displayName: "PATH fixture" },
+          configSchema: Schema.Unknown,
+          defaultConfig: () => ({}),
+          create: (input) =>
+            Effect.gen(function* () {
+              const copied = { ...environment };
+              paths.push(copied.PATH);
+              const late = copied.PATH?.includes("/late/bin") === true;
+              const installed = mode === "in-flight installed" || failsEarly || late;
+              const ready = failsEarly ? late : installed;
+              const snapshot: ServerProvider = {
+                instanceId,
+                driver: driverKind,
+                enabled: true,
+                installed: false,
+                status: "warning",
+                auth: { status: "unknown" },
+                version: null,
+                checkedAt: "2026-10-03T00:00:00.000Z",
+                models: [],
+                slashCommands: [],
+                skills: [],
+              };
+              const current = yield* Ref.make(snapshot);
+              return {
+                instanceId: input.instanceId,
+                driverKind,
+                enabled: true,
+                displayName: undefined,
+                continuationIdentity: { driverKind, continuationKey: `${driverKind}:late-path` },
+                snapshot: {
+                  resolveMaintenance: () =>
+                    Effect.succeed(
+                      makeManualOnlyProviderMaintenanceCapabilities({
+                        provider: driverKind,
+                        packageName: null,
+                      }),
+                    ),
+                  getSnapshot: Ref.get(current),
+                  refresh: Effect.gen(function* () {
+                    if (first && !replay) {
+                      first = false;
+                      yield* Deferred.succeed(entered, undefined);
+                      yield* Deferred.await(release);
+                    }
+                    const checked = {
+                      ...snapshot,
+                      installed,
+                      status: ready ? ("ready" as const) : ("error" as const),
+                      ...(ready
+                        ? {}
+                        : {
+                            message: "Provider probe failed: transport failed.",
+                          }),
+                    };
+                    yield* Ref.set(current, checked);
+                    return checked;
+                  }),
+                  streamChanges: Stream.empty,
+                  applyUsageLimits: () => Effect.void,
+                },
+                orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
+                textGeneration: {} as ProviderInstance["textGeneration"],
+              } satisfies ProviderInstance;
+            }),
+        };
+        const built = yield* ProviderInstanceRegistry.makeProviderInstanceRegistry({
+          drivers: [driver],
+          configMap: { [instanceId]: { driver: driverKind, enabled: true } },
+        }).pipe(Effect.provide(Layer.mock(SecretResolver.SecretResolver)({})));
+        yield* Effect.gen(function* () {
+          const registry = yield* ProviderRegistry.ProviderRegistry;
+          const running = replay ? undefined : yield* registry.refresh().pipe(Effect.forkScoped);
+          if (running) yield* Deferred.await(entered);
+          yield* updates.apply({
+            version: 1,
+            type: "shellEnvironment",
+            platform: "linux",
+            discovered: true,
+            environment: { PATH: "/early/bin:/late/bin" },
+          });
+          expect(paths).toEqual(["/early/bin"]);
+          if (replay) {
+            yield* Layer.build(
+              ProviderHostPathWatcher.layer.pipe(
+                Layer.provide(
+                  DesktopTelemetryReceiver.layerTest({ pathChanges: updates.pathChanges }),
+                ),
+                Layer.provide(
+                  Layer.succeed(ProviderRegistry.ProviderRegistry, {
+                    ...registry,
+                    rebuildMissingAndRefresh: registry.rebuildMissingAndRefresh.pipe(
+                      Effect.tap(() => Deferred.succeed(finished, undefined)),
+                    ),
+                  }),
+                ),
+              ),
+            );
+          } else {
+            yield* registry.rebuildMissingAndRefresh.pipe(
+              Effect.tap(() => Deferred.succeed(finished, undefined)),
+              Effect.forkScoped({ startImmediately: true }),
+            );
+            expect(paths).toEqual(["/early/bin"]);
+          }
+          yield* Deferred.succeed(release, undefined);
+          if (running) yield* Fiber.join(running);
+          yield* Deferred.await(finished);
+          expect(
+            (yield* registry.getProviders).find((row) => row.instanceId === instanceId)?.installed,
+          ).toBe(true);
+          expect(paths).toEqual(
+            mode === "in-flight installed" || mode === "installed error"
+              ? ["/early/bin"]
+              : ["/early/bin", "/early/bin:/late/bin"],
+          );
+        }).pipe(
+          Effect.provide(
+            ProviderRegistry.layer.pipe(
+              Layer.provide(
+                Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, built.registry),
+              ),
+              Layer.provide(
+                Layer.succeed(
+                  ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutator,
+                  built.mutator,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(
+          ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-late-path-" }).pipe(
+            Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+          ),
+        ),
+      ),
+    );
+
     describe("Codex model inventories", () => {
       const cachedProvider = {
         instanceId: ProviderInstanceId.make("codex-personal"),
@@ -2605,10 +2786,37 @@ it.layer(
         }),
     );
 
-    it.effect(
-      "rebuilds only instances missing their CLI when a refresh finds a new Windows PATH",
-      () => {
-        const env: NodeJS.ProcessEnv = { PATH: "C:\\Windows" };
+    // A login shell stand-in that prints the capture with one more PATH entry, as a profile edited
+    // after launch would.
+    const withLateLoginShell = <A, E, R>(effect: (shell: string) => Effect.Effect<A, E, R>) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const dir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-login-shell-" });
+        const shell = `${dir}/sh`;
+        yield* fs.writeFileString(
+          shell,
+          '#!/bin/sh\nPATH=/opt/late:/usr/bin exec /bin/sh -c "$2"\n',
+        );
+        yield* fs.chmod(shell, 0o755);
+        return yield* effect(shell);
+      }).pipe(Effect.scoped, Effect.provide(NodeServices.layer));
+
+    it.effect.each([
+      {
+        name: "Windows PATH",
+        platform: "win32" as const,
+        path: "C:\\Windows",
+        expectedPath: "C:\\Windows;C:\\Tools",
+      },
+      {
+        name: "login-shell PATH",
+        platform: "linux" as const,
+        path: "/usr/bin",
+        expectedPath: "/opt/late:/usr/bin",
+      },
+    ])("rebuilds only instances missing their CLI when a refresh finds a new $name", (host) =>
+      withLateLoginShell((shell) => {
+        const env: NodeJS.ProcessEnv = { PATH: host.path, SHELL: shell };
         return Effect.gen(function* () {
           const driver = ProviderDriverKind.make("codex");
           const makeInstance = (id: string, installed: boolean): ProviderInstance => {
@@ -2681,16 +2889,93 @@ it.layer(
 
           yield* registry.refresh();
 
-          assert.strictEqual(env.PATH, "C:\\Windows;C:\\Tools");
+          assert.strictEqual(env.PATH, host.expectedPath);
           assert.deepStrictEqual(rebuilt, [[ProviderInstanceId.make("missing")]]);
         }).pipe(
-          Effect.provideService(HostProcess.Platform, "win32"),
+          Effect.provideService(HostProcess.Platform, host.platform),
           Effect.provideService(HostProcess.Environment, env),
           Effect.provideService(WindowsShellEnvironment, () =>
             Effect.succeed({ PATH: "C:\\Windows;C:\\Tools" }),
           ),
         );
-      },
+      }),
+    );
+
+    it.effect("publishes a new label for an instance the registry kept live", () =>
+      Effect.gen(function* () {
+        const driver = ProviderDriverKind.make("antigravity");
+        const instanceId = ProviderInstanceId.make("account-a");
+        let displayName = "Account A";
+        const instance: ProviderInstance = {
+          instanceId,
+          driverKind: driver,
+          continuationIdentity: { driverKind: driver, continuationKey: "antigravity:account-a" },
+          get displayName() {
+            return displayName;
+          },
+          enabled: true,
+          snapshot: {
+            resolveMaintenance: () =>
+              Effect.succeed(
+                makeManualOnlyProviderMaintenanceCapabilities({
+                  provider: driver,
+                  packageName: null,
+                }),
+              ),
+            getSnapshot: Effect.sync(() => ({
+              instanceId,
+              driver,
+              displayName,
+              status: "ready" as const,
+              enabled: true,
+              installed: true,
+              auth: { status: "authenticated" as const },
+              checkedAt: "1970-01-01T00:00:00.000Z",
+              version: "1.0.0",
+              models: [],
+              slashCommands: [],
+              skills: [],
+            })),
+            refresh: Effect.die("unused"),
+            streamChanges: Stream.empty,
+            applyUsageLimits: () => Effect.void,
+          },
+          orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
+          textGeneration: {} as ProviderInstance["textGeneration"],
+        };
+        const changes = yield* PubSub.unbounded<void>();
+        const scope = yield* Scope.make();
+        yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void));
+        const services = yield* Layer.build(
+          ProviderRegistry.layer.pipe(
+            Layer.provide(layerUnusedMutator),
+            Layer.provideMerge(
+              Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
+                getInstance: () => Effect.succeed(instance),
+                listInstances: Effect.succeed([instance]),
+                listUnavailable: Effect.succeed([]),
+                streamChanges: Stream.fromPubSub(changes),
+                subscribeChanges: PubSub.subscribe(changes),
+              }),
+            ),
+            Layer.provideMerge(
+              ServerConfig.layerTest(process.cwd(), {
+                prefix: "supaterm-provider-registry-label-",
+              }),
+            ),
+            Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+          ),
+        ).pipe(Scope.provide(scope));
+        const registry = yield* ProviderRegistry.ProviderRegistry.pipe(Effect.provide(services));
+        const relabelled = yield* registry.streamChanges.pipe(
+          Stream.filter((providers) => providers[0]?.displayName === "Account B"),
+          Stream.runHead,
+          Effect.forkChild({ startImmediately: true }),
+        );
+        displayName = "Account B";
+        yield* PubSub.publish(changes, undefined);
+        assert.isTrue(Option.isSome(yield* Fiber.join(relabelled)));
+      }),
     );
 
     it.effect("rescans a requested cwd whose snapshot is still current", () =>
@@ -2728,6 +3013,21 @@ it.layer(
         yield* Fiber.join(ordinary);
         const completeRescan = yield* h.nextScan("/workspace");
         yield* completeRescan("hook");
+        yield* h.drainRescans;
+        assert.isString(yield* h.rescannedAtOf);
+      }),
+    );
+
+    it.effect("stamps a rescan that changed only the directory's models", () =>
+      Effect.gen(function* () {
+        const h = yield* makeWorkspaceRescanHarness;
+        yield* h.seed("/barrier");
+        yield* h.seed("/workspace");
+        yield* Queue.offer(h.first.rescans, "/workspace");
+        const complete = yield* h.nextScan("/workspace");
+        yield* complete("initial", [
+          { slug: "vendor/live", name: "Live", isCustom: false, capabilities: null },
+        ]);
         yield* h.drainRescans;
         assert.isString(yield* h.rescannedAtOf);
       }),
@@ -4328,7 +4628,7 @@ it.layer(
                   enabled: false,
                   config: { arbitrary: "payload" },
                 },
-              } as unknown as ContractServerSettings["providerInstances"],
+              } as unknown as (typeof ServerSettings.Encoded)["providerInstances"],
             }),
           ),
         );
@@ -5059,7 +5359,10 @@ it.layer(
         message: "Claude status check timed out. Try again when the environment is less busy.",
       },
       {
-        error: new Cause.UnknownError(new Error("secret-sdk-output")),
+        error: new ClaudeCapabilitiesProbeSdkError({
+          operation: "initialize",
+          cause: new Error("secret-sdk-output"),
+        }),
         message: "Claude status check failed. Try refreshing provider status.",
       },
     ])(

@@ -5,22 +5,28 @@ import { Pressable, View } from "react-native";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
+import { T, useGT } from "gt-react-native";
 
 export function ChatGptSharingStatus({ provider }: { provider: ServerProvider | null }) {
+  const gt = useGT();
   if (!usesChatGptSharing(provider)) return null;
   return (
     <View className="flex-row items-center justify-between gap-3 px-3 py-1">
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="ChatGPT token sharing is active"
+        accessibilityLabel={gt("ChatGPT token sharing is active")}
         className="min-h-11 flex-row items-center gap-2"
         onPress={() => {
           Dialog.alert(
-            "ChatGPT sharing is on",
+            gt("ChatGPT sharing is on"),
             [
               provider?.auth.email,
-              "Eligible usage uses your ChatGPT plan. Credit settings and limits are managed in ChatGPT.",
-              "Fast and Ultrafast are unavailable with this ChatGPT connection. Use an existing Codex CLI login for speed options your account supports.",
+              gt(
+                "Eligible usage uses your ChatGPT plan. Credit settings and limits are managed in ChatGPT.",
+              ),
+              gt(
+                "Fast and Ultrafast are unavailable with this ChatGPT connection. Use an existing Codex CLI login for speed options your account supports.",
+              ),
             ]
               .filter(Boolean)
               .join("\n\n"),
@@ -28,14 +34,18 @@ export function ChatGptSharingStatus({ provider }: { provider: ServerProvider | 
         }}
       >
         <ProviderIcon provider="codex" size={14} />
-        <Text className="text-xs text-foreground-muted">Using ChatGPT plan</Text>
+        <Text className="text-xs text-foreground-muted">
+          <T>Using ChatGPT plan</T>
+        </Text>
       </Pressable>
       <Pressable
         accessibilityRole="link"
         className="min-h-11 justify-center"
         onPress={() => void tryOpenExternalUrl(CHATGPT_USAGE_URL)}
       >
-        <Text className="text-xs font-supaterm-medium text-primary">Manage usage</Text>
+        <Text className="text-xs font-supaterm-medium text-primary">
+          <T>Manage usage</T>
+        </Text>
       </Pressable>
     </View>
   );

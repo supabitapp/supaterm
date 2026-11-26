@@ -1,4 +1,4 @@
-import type { ContextMenuItem } from "@supaterm/contracts";
+import type { ContextMenuItem, ContextMenuSource } from "@supaterm/contracts";
 import {
   type SourceControlDefinition,
   UNKNOWN_SOURCE_CONTROL_CLIENT,
@@ -8,12 +8,24 @@ import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { readLocalApi } from "~/localApi";
 
 import { toastManager } from "../ui/toast";
+import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 export type PullRequestLinkContextMenuAction = "copy-link" | "open-external" | "show-linked";
 
-export const openOnHostLabel = (host: SourceControlDefinition, number?: number): string => {
-  const verb = number === undefined ? "Open" : `Open #${number}`;
-  return host === UNKNOWN_SOURCE_CONTROL_CLIENT ? `${verb} on host` : `${verb} on ${host.label}`;
+export const openOnHostLabel = (
+  host: SourceControlDefinition,
+  number?: number,
+  resolve: MessageResolver = m,
+): string => {
+  if (host === UNKNOWN_SOURCE_CONTROL_CLIENT) {
+    return number === undefined
+      ? resolve(msg("Open on host"))
+      : resolve(msg("Open #{number} on host", { number }));
+  }
+  return number === undefined
+    ? resolve(msg("Open on {host}", { host: host.label }))
+    : resolve(msg("Open #{number} on {host}", { number, host: host.label }));
 };
 
 function pullRequestLinkContextMenuItems({
@@ -28,13 +40,18 @@ function pullRequestLinkContextMenuItems({
   const items: ContextMenuItem<PullRequestLinkContextMenuAction>[] = [
     {
       id: "copy-link",
-      label: number === undefined ? "Copy link" : `Copy link to #${number}`,
+      label:
+        number === undefined ? m(msg("Copy link")) : m(msg("Copy link to #{number}", { number })),
       icon: "copy",
     },
     { id: "open-external", label: openOnHostLabel(host, number) },
   ];
   if (showLinked) {
-    items.push({ id: "show-linked", label: "Show linked pull requests", separatorBefore: true });
+    items.push({
+      id: "show-linked",
+      label: m(msg("Show linked pull requests")),
+      separatorBefore: true,
+    });
   }
   return items;
 }
@@ -43,12 +60,14 @@ export async function showPullRequestLinkContextMenu({
   url,
   host,
   position,
+  source,
   number,
   onShowLinked,
 }: {
   readonly url: string;
   readonly host: SourceControlDefinition;
   readonly position: { readonly x: number; readonly y: number };
+  readonly source: ContextMenuSource;
   /** Names the pull request in the labels, for triggers that do not show which one they mean. */
   readonly number?: number | undefined;
   readonly onShowLinked?: (() => void) | undefined;
@@ -62,7 +81,7 @@ export async function showPullRequestLinkContextMenu({
   });
   let action: PullRequestLinkContextMenuAction | null = null;
   try {
-    action = await api.contextMenu.show(items, position);
+    action = await api.contextMenu.show(items, position, source);
   } catch {
     return;
   }
@@ -76,7 +95,10 @@ export async function showPullRequestLinkContextMenu({
   } catch {
     toastManager.add({
       type: "error",
-      title: action === "copy-link" ? "Could not copy the link" : "Could not open the link",
+      title:
+        action === "copy-link"
+          ? m(msg("Could not copy the link"))
+          : m(msg("Could not open the link")),
     });
   }
 }

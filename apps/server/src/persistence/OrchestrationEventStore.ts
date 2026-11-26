@@ -19,6 +19,7 @@ import * as Context from "effect/Context";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
 import * as Effect from "effect/Effect";
+import { identity } from "effect/Function";
 import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
 import * as Option from "effect/Option";
@@ -32,6 +33,10 @@ import {
   toPersistenceSqlError,
   type OrchestrationEventStoreError,
 } from "./Errors.ts";
+
+/** Projection metadata rows: events at or below the pruned-through sequence may be gone. */
+export const EVENT_LOG_PRUNED_THROUGH = "event-log-pruned-through";
+export const EVENT_LOG_PRUNE_MARK = "event-log-prune-mark";
 
 export type UnsequencedProjectEvent = ApplicationProjectEvent extends infer Event
   ? Event extends ApplicationProjectEvent
@@ -91,6 +96,9 @@ export class OrchestrationEventStore extends Context.Service<
     ) => Effect.Effect<number, OrchestrationEventStoreError>;
 
     readonly latestApplicationSequence: Effect.Effect<number, OrchestrationEventStoreError>;
+
+    /** Replay from a cursor below this misses pruned events; resync from a snapshot instead. */
+    readonly prunedThroughSequence: Effect.Effect<number, OrchestrationEventStoreError>;
 
     /**
      * Each project or thread with an event in the range, at its newest
@@ -184,8 +192,21 @@ interface ApplicationEventRow {
 const decodeV2EventJson = Schema.decodeUnknownEffect(OrchestrationV2DomainEventJson);
 const encodeV2EventJson = Schema.encodeEffect(OrchestrationV2DomainEventJson);
 const decodeV2StoredEvent = Schema.decodeUnknownEffect(OrchestrationV2StoredEvent);
+// decodeV2EventJson already validated the event; decoding it again here is the hot cost in replay.
+const decodeV2StoredEventHeader = Schema.decodeUnknownEffect(
+  OrchestrationV2StoredEvent.mapFields(({ event: _event, ...fields }) => fields),
+);
 const decodeJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
+// Same result as decodeJson; only malformed input pays for the schema's error.
+const parseJson = (json: string) => {
+  if (typeof json !== "string") return decodeJson(json);
+  try {
+    return Effect.succeed<unknown>(JSON.parse(json));
+  } catch {
+    return decodeJson(json);
+  }
+};
 
 function metadataForV2Event(event: OrchestrationV2DomainEvent): Record<string, unknown> {
   return {
@@ -199,11 +220,10 @@ function metadataForV2Event(event: OrchestrationV2DomainEvent): Record<string, u
   };
 }
 
-const rowToV2StoredEvent = Effect.fn("OrchestrationEventStore.rowToV2StoredEvent")(function* (
-  row: ApplicationEventRow,
-) {
-  const payload = yield* decodeJson(row.payload_json);
-  const metadata = yield* decodeJson(row.metadata_json);
+// Replay decodes rows one by one; a span per row would trace every replayed event.
+const rowToV2StoredEvent = Effect.fnUntraced(function* (row: ApplicationEventRow) {
+  const payload = yield* parseJson(row.payload_json);
+  const metadata = yield* parseJson(row.metadata_json);
   const values =
     typeof metadata === "object" && metadata !== null ? (metadata as Record<string, unknown>) : {};
   const event = yield* decodeV2EventJson({
@@ -220,16 +240,14 @@ const rowToV2StoredEvent = Effect.fn("OrchestrationEventStore.rowToV2StoredEvent
       : { providerInstanceId: values.providerInstanceId }),
     ...(values.rawEventId === undefined ? {} : { rawEventId: values.rawEventId }),
   });
-  return yield* decodeV2StoredEvent({
+  const { sequence, commandId } = yield* decodeV2StoredEventHeader({
     sequence: row.sequence,
     commandId: row.command_id,
-    event,
   });
+  return { sequence, commandId, event };
 });
 
-const rowToProjectEvent = Effect.fn("OrchestrationEventStore.rowToProjectEvent")(function* (
-  row: ApplicationEventRow,
-) {
+const rowToProjectEvent = Effect.fnUntraced(function* (row: ApplicationEventRow) {
   return yield* decodeProjectEvent({
     sequence: row.sequence,
     eventId: row.event_id,
@@ -240,8 +258,8 @@ const rowToProjectEvent = Effect.fn("OrchestrationEventStore.rowToProjectEvent")
     commandId: row.command_id,
     causationEventId: row.causation_event_id,
     correlationId: row.correlation_id,
-    payload: yield* decodeJson(row.payload_json),
-    metadata: yield* decodeJson(row.metadata_json),
+    payload: yield* parseJson(row.payload_json),
+    metadata: yield* parseJson(row.metadata_json),
   });
 });
 
@@ -252,8 +270,8 @@ function rowToApplicationStoredEvent(
 }
 
 // Only agent replay reads rows this way, and it reads thread rows alone.
-const keepReplayRow = (row: ApplicationEventRow, skipUnknownEventTypes?: boolean) =>
-  skipUnknownEventTypes !== true || isKnownOrchestrationV2EventType(row.event_type)
+const keepKnownEventTypeRow = (row: ApplicationEventRow) =>
+  isKnownOrchestrationV2EventType(row.event_type)
     ? Effect.succeed(true)
     : Effect.logWarning("Skipping an agent event row with an unknown event type", {
         sequence: row.sequence,
@@ -455,8 +473,7 @@ const makeEventStore = Effect.gen(function* () {
           const hint = promptKey === undefined ? undefined : promptHints.get(promptKey);
           const payloadJson = yield* encodeJson(encoded.payload);
           // Progress ticks repeat an unchanged prompt, so store it once and point
-          // later rows at it. ProjectionMaintenance never deletes these anchor
-          // rows.
+          // later rows at it. Pruning keeps anchors that retained rows reference.
           const storedPayload =
             hint !== undefined && subagent !== undefined
               ? sql`CASE WHEN EXISTS (
@@ -580,7 +597,9 @@ const makeEventStore = Effect.gen(function* () {
         );
       },
     ).pipe(
-      Stream.filterEffect((row) => keepReplayRow(row, input?.skipUnknownEventTypes)),
+      // Query the next page on the reader while this one decodes.
+      Stream.bufferArray({ capacity: 1 }),
+      input?.skipUnknownEventTypes === true ? Stream.filterEffect(keepKnownEventTypeRow) : identity,
       Stream.mapEffect((row) =>
         rowToV2StoredEvent(row).pipe(
           Effect.mapError(
@@ -588,6 +607,7 @@ const makeEventStore = Effect.gen(function* () {
           ),
         ),
       ),
+      Stream.withSpan("OrchestrationEventStore.readAgentEvents"),
     );
   };
 
@@ -657,6 +677,15 @@ const makeEventStore = Effect.gen(function* () {
     ),
   );
 
+  const prunedThroughSequence = sql<{ readonly last_sequence: number }>`
+    SELECT last_sequence FROM orchestration_v2_projection_metadata
+    WHERE projection_name = ${EVENT_LOG_PRUNED_THROUGH}
+  `.pipe(
+    NodeSqliteClient.readOnly,
+    Effect.map((rows) => rows[0]?.last_sequence ?? 0),
+    Effect.mapError(toPersistenceSqlError("OrchestrationEventStore.prunedThroughSequence:query")),
+  );
+
   const readChangedApplicationAggregates: OrchestrationEventStore["Service"]["readChangedApplicationAggregates"] =
     (input) =>
       sql<ChangedApplicationAggregate>`
@@ -704,6 +733,8 @@ const makeEventStore = Effect.gen(function* () {
         }),
       ),
     ).pipe(
+      // Query the next page on the reader while this one decodes.
+      Stream.bufferArray({ capacity: 1 }),
       Stream.mapEffect((row) =>
         rowToApplicationStoredEvent(row).pipe(
           Effect.mapError(
@@ -711,6 +742,7 @@ const makeEventStore = Effect.gen(function* () {
           ),
         ),
       ),
+      Stream.withSpan("OrchestrationEventStore.readApplicationEvents"),
     );
 
   const streamProjectedApplicationEvents: OrchestrationEventStore["Service"]["streamProjectedApplicationEvents"] =
@@ -750,6 +782,7 @@ const makeEventStore = Effect.gen(function* () {
     getAgentReplayStats,
     latestAgentSequence,
     latestApplicationSequence,
+    prunedThroughSequence,
     readChangedApplicationAggregates,
     readApplicationEvents: catchUpApplicationEvents,
     publishCommitted: (events) => PubSub.publishAll(committedEvents, events).pipe(Effect.asVoid),

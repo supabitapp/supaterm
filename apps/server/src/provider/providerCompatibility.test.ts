@@ -1,6 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@supaterm/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Effect from "effect/Effect";
@@ -325,6 +326,8 @@ it.effect("a remote policy refresh preserves a newer health result on the regist
           ),
         ),
       ),
+      // A login shell that prints nothing, so the refresh never takes PATH from the developer's profile.
+      Effect.provideService(HostProcess.Environment, { ...process.env, SHELL: "/usr/bin/true" }),
     );
   }),
 );

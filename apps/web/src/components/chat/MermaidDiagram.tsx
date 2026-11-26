@@ -4,6 +4,7 @@ import { use, useState } from "react";
 
 import { mountDiagram } from "../../diagrams/mountDiagram";
 import { serializeCodeBlockToMarkdown } from "../../markdown-clipboard";
+import { T, useGT, Var } from "gt-react";
 
 let mathLoad: Promise<MathResolver | null> | null = null;
 
@@ -190,6 +191,7 @@ export function MermaidDiagram({
   source: string;
   onExpand: (imageUrl: string) => void;
 }) {
+  const gt = useGT();
   // An error belongs to the source that produced it. The worker only lays out a visible target,
   // so a new source must not inherit the error that hides it.
   const [failure, setFailure] = useState<{ source: string; message: string } | null>(null);
@@ -210,7 +212,8 @@ export function MermaidDiagram({
       onError: (error) =>
         setFailure({
           source: trimmedSource,
-          message: error instanceof Error ? error.message : "The diagram could not be rendered.",
+          message:
+            error instanceof Error ? error.message : gt("The diagram could not be rendered."),
         }),
     });
     return () => mounted.destroy();
@@ -225,7 +228,7 @@ export function MermaidDiagram({
       {renderError ? <DiagramError message={renderError} source={source} /> : null}
       <button
         type="button"
-        aria-label="Expand diagram"
+        aria-label={gt("Expand diagram")}
         hidden={renderError !== null}
         className="block w-full cursor-zoom-in rounded-md focus-visible:outline-2 focus-visible:outline-ring"
         onClick={(event) => {
@@ -243,7 +246,11 @@ function DiagramError({ message, source }: { message: string; source: string }) 
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <p className="m-0 text-xs text-destructive">Unable to render diagram: {message}</p>
+        <p className="m-0 text-xs text-destructive">
+          <T>
+            Unable to render diagram: <Var>{message}</Var>
+          </T>
+        </p>
       </div>
       <pre
         data-thread-find-ignore

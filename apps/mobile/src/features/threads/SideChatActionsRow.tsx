@@ -12,6 +12,7 @@ import {
   sideChatBringBackBlockedReason,
 } from "@supaterm/client-runtime/state/thread-workflows";
 import { AuthOrchestrationOperateScope, type ThreadId } from "@supaterm/contracts";
+import { T, useGT, Var, useMessages } from "gt-react-native";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -58,7 +59,9 @@ export function SideChatActionsRow(props: {
   readonly thread: EnvironmentThreadShell;
   readonly parentThreadId: ThreadId;
 }) {
+  const messages = useMessages();
   const { thread, parentThreadId } = props;
+  const gt = useGT();
   const navigation = useNavigation();
   const parent = useQuietThreadShell(scopeThreadRef(thread.environmentId, parentThreadId));
   const mergeRun = useAtomValue(
@@ -70,11 +73,14 @@ export function SideChatActionsRow(props: {
   const promote = useAtomCommand(threadEnvironment.promoteSideChat, { reportFailure: false });
   const deleteThread = useAtomCommand(threadEnvironment.delete, { reportFailure: false });
   const [busy, setBusy] = useState(false);
-  const bringBackBlockedReason = sideChatBringBackBlockedReason({
-    canOperate,
-    parentRuntime: parent?.runtime,
-    mergeRun,
-  });
+  const bringBackBlockedReason = sideChatBringBackBlockedReason(
+    {
+      canOperate,
+      parentRuntime: parent?.runtime,
+      mergeRun,
+    },
+    messages,
+  );
 
   const run = async (
     failureTitle: string,
@@ -88,17 +94,20 @@ export function SideChatActionsRow(props: {
     if (result._tag === "Success") onSuccess?.();
     else if (!isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
-      Dialog.alert(failureTitle, error instanceof Error ? error.message : "Try again in a moment.");
+      Dialog.alert(
+        failureTitle,
+        error instanceof Error ? error.message : gt("Try again in a moment."),
+      );
     }
   };
 
   const bringBack = () => {
     if (bringBackBlockedReason !== null || mergeRun === null) {
-      Dialog.alert("Bring back is unavailable", bringBackBlockedReason ?? "");
+      Dialog.alert(gt("Bring back is unavailable"), bringBackBlockedReason ?? "");
       return;
     }
     void run(
-      "Could not bring back the side chat",
+      gt("Could not bring back the side chat"),
       () =>
         mergeBack({
           environmentId: thread.environmentId,
@@ -106,21 +115,21 @@ export function SideChatActionsRow(props: {
         }),
       () =>
         Dialog.alert(
-          "Brought back",
-          "The main thread gets this side chat with your next message there.",
+          gt("Brought back"),
+          gt("The main thread gets this side chat with your next message there."),
         ),
     );
   };
 
   const confirmDelete = () =>
     Dialog.confirm({
-      title: "Delete side chat?",
-      message: `“${thread.title}” will be permanently deleted.`,
-      confirmText: "Delete",
+      title: gt("Delete side chat?"),
+      message: gt("“{title}” will be permanently deleted.", { title: thread.title }),
+      confirmText: gt("Delete", { $context: "verb, deletes the side chat" }),
       destructive: true,
       onConfirm: () => {
         void run(
-          "Could not delete the side chat",
+          gt("Could not delete the side chat"),
           () =>
             deleteThread({ environmentId: thread.environmentId, input: { threadId: thread.id } }),
           () => {
@@ -139,26 +148,32 @@ export function SideChatActionsRow(props: {
         tintColorClassName="accent-foreground-muted"
       />
       <Text className="min-w-0 flex-1 text-xs text-foreground-muted" numberOfLines={1}>
-        Side chat of {parent?.title ?? "its main thread"}
+        {parent ? (
+          <T>
+            Side chat of <Var>{parent.title}</Var>
+          </T>
+        ) : (
+          <T>Side chat of its main thread</T>
+        )}
       </Text>
       <ActionChip
-        label="Bring back"
-        hint="Adds this side chat to the main thread's next message."
+        label={gt("Bring back")}
+        hint={gt("Adds this side chat to the main thread's next message.")}
         disabled={!canOperate || busy}
         onPress={bringBack}
       />
       <ActionChip
-        label="Promote"
-        hint="Makes this a full thread that shows in lists and can be forked."
+        label={gt("Promote", { $context: "verb, turns the side chat into a full thread" })}
+        hint={gt("Makes this a full thread that shows in lists and can be forked.")}
         disabled={!canOperate || busy}
         onPress={() =>
-          void run("Could not promote the side chat", () =>
+          void run(gt("Could not promote the side chat"), () =>
             promote({ environmentId: thread.environmentId, input: { threadId: thread.id } }),
           )
         }
       />
       <ActionChip
-        label="Delete"
+        label={gt("Delete", { $context: "verb, deletes the side chat" })}
         destructive
         disabled={!canOperate || busy}
         onPress={confirmDelete}

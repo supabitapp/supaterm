@@ -22,6 +22,9 @@ import {
 } from "@supaterm/contracts";
 import { scopedProjectKey, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import * as Schema from "effect/Schema";
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "~/i18n/messages";
 
 import {
   CODEX_MICRO_COMMAND_GROUPS,
@@ -44,77 +47,104 @@ interface CodexMicroConnectionSummary {
   readonly tone: CodexMicroTone;
 }
 
-const RETRY_SUFFIX = "Supaterm keeps trying.";
-
 export function codexMicroConnectionSummary(
   enabled: boolean,
   state: CodexMicroDeviceState | null,
+  resolve: MessageResolver = m,
 ): CodexMicroConnectionSummary {
-  if (!enabled) return { label: "Off", description: null, tone: "muted" };
+  const off = resolve(msg("Off", { $context: "Codex Micro connection status" }));
+  if (!enabled) return { label: off, description: null, tone: "muted" };
   if (state === null) return { label: null, description: null, tone: "muted" };
   switch (state.status) {
     case "disabled":
-      return { label: "Off", description: null, tone: "muted" };
+      return { label: off, description: null, tone: "muted" };
     case "not-detected":
       return {
-        label: "Not detected",
-        description: "Connect Codex Micro or Creator Micro 2 with USB.",
+        label: resolve(msg("Not detected")),
+        description: resolve(msg("Connect Codex Micro or Creator Micro 2 with USB.")),
         tone: "muted",
       };
     case "detected":
-      return { label: "Detected", description: null, tone: "muted" };
-    case "connected":
+      return {
+        label: resolve(msg("Detected", { $context: "Codex Micro connection status" })),
+        description: null,
+        tone: "muted",
+      };
+    case "connected": {
+      const connected = resolve(msg("Connected", { $context: "Codex Micro connection status" }));
       if (state.controlPlane === "unavailable") {
         return {
-          label: "Connected with limited functionality",
-          description: "Key presses still work. Lighting and battery are temporarily unavailable.",
+          label: resolve(msg("Connected with limited functionality")),
+          description: resolve(
+            msg("Key presses still work. Lighting and battery are temporarily unavailable."),
+          ),
           tone: "warning",
         };
       }
       if (state.mappedAgentKeys !== null && state.mappedAgentKeys < CODEX_MICRO_SLOT_COUNT) {
-        const mapped =
-          state.mappedAgentKeys === 0
-            ? "No keys are mapped"
-            : `Only ${state.mappedAgentKeys} of the ${CODEX_MICRO_SLOT_COUNT} agent keys are mapped`;
         return {
-          label: "Connected",
-          description: `${mapped} in the keyboard's keymap. A key follows a thread only when it is mapped to KV_OAI_AG00 through KV_OAI_AG05.`,
+          label: connected,
+          description:
+            state.mappedAgentKeys === 0
+              ? resolve(
+                  msg(
+                    "No keys are mapped in the keyboard's keymap. A key follows a thread only when it is mapped to KV_OAI_AG00 through KV_OAI_AG05.",
+                  ),
+                )
+              : resolve(
+                  msg(
+                    "Only {mapped} of the {total} agent keys are mapped in the keyboard's keymap. A key follows a thread only when it is mapped to KV_OAI_AG00 through KV_OAI_AG05.",
+                    { mapped: state.mappedAgentKeys, total: CODEX_MICRO_SLOT_COUNT },
+                  ),
+                ),
           tone: "warning",
         };
       }
-      return { label: "Connected", description: null, tone: "success" };
+      return { label: connected, description: null, tone: "success" };
+    }
     case "error":
       if (state.error === "discovery-failed") {
         return {
-          label: "Discovery failed",
-          description: `Supaterm couldn't look for Codex Micro. ${RETRY_SUFFIX}`,
+          label: resolve(msg("Discovery failed")),
+          description: resolve(
+            msg("Supaterm couldn't look for Codex Micro. Supaterm keeps trying."),
+          ),
           tone: "error",
         };
       }
       return {
-        label: "Connection problem",
-        description: `Supaterm couldn't talk to Codex Micro. ${RETRY_SUFFIX}`,
+        label: resolve(msg("Connection problem")),
+        description: resolve(msg("Supaterm couldn't talk to Codex Micro. Supaterm keeps trying.")),
         tone: "error",
       };
   }
 }
 
 /** Battery and firmware facts, only while a device is connected. */
-export function codexMicroDeviceDetails(state: CodexMicroDeviceState | null): string | null {
+export function codexMicroDeviceDetails(
+  state: CodexMicroDeviceState | null,
+  resolve: MessageResolver = m,
+): string | null {
   if (state?.status !== "connected") return null;
   const details: string[] = [];
   if (state.battery !== null) {
-    const percentage = `Battery ${Math.round(state.battery.percentage)}%`;
-    details.push(state.battery.isCharging === true ? `${percentage}, charging` : percentage);
+    const percentage = Math.round(state.battery.percentage);
+    details.push(
+      state.battery.isCharging === true
+        ? resolve(msg("Battery {percentage}%, charging", { percentage }))
+        : resolve(msg("Battery {percentage}%", { percentage })),
+    );
   }
-  if (state.firmwareVersion !== null) details.push(`Firmware ${state.firmwareVersion}`);
+  if (state.firmwareVersion !== null) {
+    details.push(resolve(msg("Firmware {version}", { version: state.firmwareVersion })));
+  }
   return details.length > 0 ? details.join(" · ") : null;
 }
 
 export const CODEX_MICRO_PERMISSION_LABELS: Readonly<Record<CodexMicroPermissionStatus, string>> = {
-  granted: "Granted",
-  denied: "Not granted",
-  unavailable: "Unavailable",
+  granted: msg("Granted", { $context: "permission status" }),
+  denied: msg("Not granted", { $context: "permission status" }),
+  unavailable: msg("Unavailable", { $context: "permission status" }),
 };
 
 const LOW_BATTERY_PERCENTAGE = 20;
@@ -135,26 +165,27 @@ function batteryTone(state: CodexMicroDeviceState | null): CodexMicroTone {
 export function codexMicroStatusLights(
   enabled: boolean,
   state: CodexMicroDeviceState | null,
+  resolve: MessageResolver = m,
 ): CodexMicroStatusLights {
-  const summary = codexMicroConnectionSummary(enabled, state);
-  const details = codexMicroDeviceDetails(state);
+  const summary = codexMicroConnectionSummary(enabled, state, resolve);
+  const details = codexMicroDeviceDetails(state, resolve);
   return {
     connection: summary.tone,
     battery: batteryTone(state),
-    label: ["Codex Micro", summary.label ?? "status unknown", details]
+    label: ["Codex Micro", summary.label ?? resolve(msg("status unknown")), details]
       .filter((part) => part !== null)
       .join(", "),
   };
 }
 
 export const CODEX_MICRO_AUTO_DIM_LABELS: Readonly<Record<CodexMicroAutoDim, string>> = {
-  off: "Off",
-  "30-seconds": "30 seconds",
-  "1-minute": "1 minute",
-  "3-minutes": "3 minutes",
-  "10-minutes": "10 minutes",
-  "30-minutes": "30 minutes",
-  "1-hour": "1 hour",
+  off: msg("Off", { $context: "auto-dim setting" }),
+  "30-seconds": msg("30 seconds"),
+  "1-minute": msg("1 minute"),
+  "3-minutes": msg("3 minutes"),
+  "10-minutes": msg("10 minutes"),
+  "30-minutes": msg("30 minutes"),
+  "1-hour": msg("1 hour"),
 };
 
 export const isCodexMicroAgentKey = Schema.is(CodexMicroAgentKey);
@@ -169,19 +200,23 @@ export const CODEX_MICRO_AGENT_SOURCE_OPTIONS: ReadonlyArray<{
 }> = [
   {
     value: "sidebar",
-    label: "Sidebar order",
-    description: "The threads the jump shortcuts open, in the same order",
+    label: msg("Sidebar order"),
+    description: msg("The threads the jump shortcuts open, in the same order"),
   },
-  { value: "pinned", label: "Pinned threads", description: "First six threads in Pinned" },
+  {
+    value: "pinned",
+    label: msg("Pinned threads"),
+    description: msg("First six threads in Pinned"),
+  },
   {
     value: "attention",
-    label: "Needs attention",
-    description: "Waiting, unread, and active threads first",
+    label: msg("Needs attention"),
+    description: msg("Waiting, unread, and active threads first"),
   },
   {
     value: "custom",
-    label: "Custom assignments",
-    description: "Choose a thread or shortcut for each key",
+    label: msg("Custom assignments"),
+    description: msg("Choose a thread or shortcut for each key"),
   },
 ];
 
@@ -192,19 +227,22 @@ export const CODEX_MICRO_ENCODER_MODE_OPTIONS: ReadonlyArray<{
 }> = [
   {
     value: "conversation-scroll",
-    label: "Conversation scrolling",
-    description:
+    label: msg("Conversation scrolling"),
+    description: msg(
       "Turn to scroll the conversation and click to jump to the latest message. Press and hold to open Codex Micro settings.",
+    ),
   },
   {
     value: "reasoning",
-    label: "Reasoning effort",
-    description: "Turn to change reasoning effort. Press and hold to open Codex Micro settings.",
+    label: msg("Reasoning effort"),
+    description: msg(
+      "Turn to change reasoning effort. Press and hold to open Codex Micro settings.",
+    ),
   },
   {
     value: "custom",
-    label: "Custom",
-    description: "Choose an action for each turn, click, and long press.",
+    label: msg("Custom", { $context: "knob mode" }),
+    description: msg("Choose an action for each turn, click, and long press."),
   },
 ];
 
@@ -215,8 +253,9 @@ export function codexMicroEncoderModeOption(mode: CodexMicroEncoderMode) {
 export function codexMicroEncoderInputLabel(
   layout: Pick<CodexMicroLayout, "encoder" | "encoderMode">,
   input: CodexMicroEncoderInput,
+  resolve: MessageResolver = m,
 ): string {
-  return codexMicroActionLabel(resolveCodexMicroEncoderAction(layout, input));
+  return codexMicroActionLabel(resolveCodexMicroEncoderAction(layout, input), resolve);
 }
 
 /**
@@ -263,13 +302,13 @@ export function codexMicroStatusColor(status: CodexMicroSlotStatus): string | nu
 }
 
 export const CODEX_MICRO_STATUS_LABELS: Readonly<Record<CodexMicroSlotStatus, string>> = {
-  off: "Off",
-  idle: "Idle",
-  working: "Working",
-  unread: "Unread",
-  "awaiting-approval": "Waiting for approval",
-  "awaiting-response": "Waiting for your response",
-  error: "Error",
+  off: msg("Off", { $context: "agent key status" }),
+  idle: msg("Idle", { $context: "agent key status" }),
+  working: msg("Working", { $context: "agent key status" }),
+  unread: msg("Unread", { $context: "agent key status" }),
+  "awaiting-approval": msg("Waiting for approval"),
+  "awaiting-response": msg("Waiting for your response"),
+  error: msg("Error", { $context: "agent key status" }),
 };
 
 export function codexMicroAgentKeyNumber(key: CodexMicroAgentKey): number {
@@ -286,13 +325,14 @@ export interface CodexMicroAgentKeyView {
 function codexMicroAssignmentLabel(
   assignment: CodexMicroAgentAssignment | null,
   threadTitles: ReadonlyMap<string, string>,
+  resolve: MessageResolver,
 ): string {
-  if (assignment === null) return "Unassigned";
-  if (assignment.type === "action") return codexMicroActionLabel(assignment.action);
+  if (assignment === null) return resolve(msg("Unassigned"));
+  if (assignment.type === "action") return codexMicroActionLabel(assignment.action, resolve);
   return (
     threadTitles.get(
       scopedThreadKey({ environmentId: assignment.environmentId, threadId: assignment.threadId }),
-    ) ?? "Unavailable thread"
+    ) ?? resolve(msg("Unavailable thread"))
   );
 }
 
@@ -305,6 +345,7 @@ export function codexMicroAgentKeyView(
   binding: Pick<CodexMicroSlotView, "title" | "status" | "action"> | null,
   assignment: CodexMicroAgentAssignment | null | undefined,
   threadTitles: ReadonlyMap<string, string>,
+  resolve: MessageResolver = m,
 ): CodexMicroAgentKeyView {
   const number = codexMicroAgentKeyNumber(key);
   if (binding !== null) {
@@ -312,14 +353,20 @@ export function codexMicroAgentKeyView(
       key,
       number,
       label:
-        binding.title ?? (binding.action ? codexMicroActionLabel(binding.action) : "No thread"),
+        binding.title ??
+        (binding.action
+          ? codexMicroActionLabel(binding.action, resolve)
+          : resolve(msg("No thread"))),
       status: binding.status,
     };
   }
   return {
     key,
     number,
-    label: assignment === undefined ? null : codexMicroAssignmentLabel(assignment, threadTitles),
+    label:
+      assignment === undefined
+        ? null
+        : codexMicroAssignmentLabel(assignment, threadTitles, resolve),
     status: "off",
   };
 }
@@ -363,13 +410,14 @@ function matchesTokens(haystack: string, tokens: ReadonlyArray<string>): boolean
 export function filterCodexMicroKeycaps(
   keycaps: ReadonlyArray<CodexMicroKeycap>,
   query: string,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<CodexMicroKeycap> {
   const tokens = searchTokens(query);
   if (tokens.length === 0) return keycaps;
   return keycaps.filter((keycap) =>
     matchesTokens(
       `${keycap.label} ${keycap.id} ${keycap.glyph ?? ""} ${
-        keycap.defaultAction ? codexMicroActionLabel(keycap.defaultAction) : ""
+        keycap.defaultAction ? codexMicroActionLabel(keycap.defaultAction, resolve) : ""
       }`,
       tokens,
     ),
@@ -378,13 +426,14 @@ export function filterCodexMicroKeycaps(
 
 export function filterCodexMicroCommandGroups(
   query: string,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<CodexMicroCommandGroup> {
   const tokens = searchTokens(query);
   if (tokens.length === 0) return CODEX_MICRO_COMMAND_GROUPS;
   return CODEX_MICRO_COMMAND_GROUPS.flatMap((group) => {
     const options = group.options.filter((option) =>
       matchesTokens(
-        `${option.label} ${group.label} ${option.action.type === "command" ? option.action.command : ""}`,
+        `${resolve(option.label)} ${resolve(group.label)} ${option.action.type === "command" ? option.action.command : ""}`,
         tokens,
       ),
     );

@@ -1,10 +1,11 @@
 import type { ClientSettings } from "@supaterm/contracts";
+import { useGT, useMessages } from "gt-react";
 
 import { useClientSettings } from "../../../hooks/useSettings";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../ui/select";
 import { Switch } from "../../ui/switch";
 import { SettingsRow, SettingsSection } from "../../settings/settingsLayout";
-import { searchableSetting } from "../../settings/settingsSearch";
+import { useSearchableSetting } from "../../settings/settingsSearch";
 import { updateCodexMicroSettings } from "../updateCodexMicroSettings";
 import {
   CODEX_MICRO_AGENT_SOURCE_OPTIONS,
@@ -31,16 +32,19 @@ function OptionLabel({ label, description }: { label: string; description: strin
 }
 
 export function CodexMicroOptionsSection() {
+  const searchableSetting = useSearchableSetting();
+  const gt = useGT();
+  const m = useMessages();
   const settings = useClientSettings(selectOptionSettings);
   const agentSource = CODEX_MICRO_AGENT_SOURCE_OPTIONS.find(
     (option) => option.value === settings.agentSource,
   );
 
   return (
-    <SettingsSection id="codex-micro-options" title="Options">
+    <SettingsSection id="codex-micro-options" title={gt("Options")}>
       <SettingsRow
         {...searchableSetting("codex-micro-agent-keys")}
-        description="Choose what the six agent keys follow or trigger"
+        description={gt("Choose what the six agent keys follow or trigger")}
         control={
           <Select
             value={settings.agentSource}
@@ -50,13 +54,13 @@ export function CodexMicroOptionsSection() {
               }
             }}
           >
-            <SelectTrigger size="sm" className="w-full sm:w-52" aria-label="Agent keys">
-              <SelectValue>{agentSource?.label}</SelectValue>
+            <SelectTrigger size="sm" className="w-full sm:w-52" aria-label={gt("Agent keys")}>
+              <SelectValue>{m(agentSource?.label)}</SelectValue>
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
               {CODEX_MICRO_AGENT_SOURCE_OPTIONS.map((option) => (
                 <SelectItem hideIndicator key={option.value} value={option.value}>
-                  <OptionLabel label={option.label} description={option.description} />
+                  <OptionLabel label={m(option.label)} description={m(option.description)} />
                 </SelectItem>
               ))}
             </SelectPopup>
@@ -65,7 +69,7 @@ export function CodexMicroOptionsSection() {
       />
       <SettingsRow
         {...searchableSetting("codex-micro-knob")}
-        description="Choose what turning the knob controls"
+        description={gt("Choose what turning the knob controls")}
         control={
           <Select
             value={settings.layout.encoderMode}
@@ -77,15 +81,15 @@ export function CodexMicroOptionsSection() {
               }
             }}
           >
-            <SelectTrigger size="sm" className="w-full sm:w-52" aria-label="Knob">
+            <SelectTrigger size="sm" className="w-full sm:w-52" aria-label={gt("Knob")}>
               <SelectValue>
-                {codexMicroEncoderModeOption(settings.layout.encoderMode).label}
+                {m(codexMicroEncoderModeOption(settings.layout.encoderMode).label)}
               </SelectValue>
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
               {CODEX_MICRO_ENCODER_MODE_OPTIONS.map((option) => (
                 <SelectItem hideIndicator key={option.value} value={option.value}>
-                  <OptionLabel label={option.label} description={option.description} />
+                  <OptionLabel label={m(option.label)} description={m(option.description)} />
                 </SelectItem>
               ))}
             </SelectPopup>
@@ -94,11 +98,11 @@ export function CodexMicroOptionsSection() {
       />
       <SettingsRow
         {...searchableSetting("codex-micro-separate-microphone-keys")}
-        description="Map the two switches beneath the wide key separately"
+        description={gt("Map the two switches beneath the wide key separately")}
         control={
           <Switch
             checked={settings.layout.separateMicrophoneKeys}
-            aria-label="Use separate microphone keys"
+            aria-label={gt("Use separate microphone keys")}
             onCheckedChange={(checked) =>
               void updateCodexMicroSettings({
                 layout: { ...settings.layout, separateMicrophoneKeys: checked },
@@ -109,11 +113,13 @@ export function CodexMicroOptionsSection() {
       />
       <SettingsRow
         {...searchableSetting("codex-micro-single-tap-focus")}
-        description="Open the assigned thread and bring Supaterm to the front with a single tap instead of a double tap"
+        description={gt(
+          "Open the assigned thread and bring Supaterm to the front with a single tap instead of a double tap",
+        )}
         control={
           <Switch
             checked={settings.singleTapFocus}
-            aria-label="Focus Supaterm with a single tap"
+            aria-label={gt("Focus Supaterm with a single tap")}
             onCheckedChange={(checked) =>
               void updateCodexMicroSettings({ singleTapFocus: checked })
             }

@@ -40,12 +40,14 @@ import {
   pullRequestAgentPrompt,
   type PullRequestAgentTask,
 } from "./pullRequestAgentTasks";
+import { useGT } from "gt-react-native";
 type LinkedThread = PullRequestLinkedThreadsResult["threads"][number];
 export function usePullRequestThreads(
   params: PullRequestParams,
   pr: PullRequestDetail | null,
   filePath?: string,
 ) {
+  const gt = useGT();
   const target = pullRequestTarget(params);
   const config = useEnvironmentServerConfig(target.environmentId);
   const supported = config != null;
@@ -156,7 +158,7 @@ export function usePullRequestThreads(
           },
         )
       )
-        throw new Error("Remove some context from this thread's draft, then try again.");
+        throw new Error(gt("Remove some context from this thread's draft, then try again."));
       const withContext = getComposerDraftSnapshot(draftKey);
       setComposerDraftText(
         draftKey,
@@ -169,13 +171,19 @@ export function usePullRequestThreads(
       );
       previousPrompts.current.set(draftKey, pullRequestAgentPrompt(task, terminology));
       if (thread) openThread(thread);
-      else openThreadRoute({ draft: { draftId: draftKey, title: `Ask about #${pr.number}` } });
+      else
+        openThreadRoute({
+          draft: { draftId: draftKey, title: gt("Ask about #{number}", { number: pr.number }) },
+        });
     });
     pending.current = false;
     setBusy(false);
     if (AsyncResult.isFailure(result)) {
       const cause = squashAtomCommandFailure(result);
-      Dialog.alert("Couldn't open a thread", cause instanceof Error ? cause.message : "Try again.");
+      Dialog.alert(
+        gt("Couldn't open a thread"),
+        cause instanceof Error ? cause.message : gt("Try again."),
+      );
     }
   };
   return {

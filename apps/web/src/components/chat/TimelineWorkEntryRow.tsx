@@ -1,3 +1,4 @@
+import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
 import {
   type TimelineRow,
   type TimelineWorkEntry,
@@ -77,6 +78,7 @@ import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { SubagentNotificationLink } from "./V2LifecycleRow";
+import { T, useGT, useMessages } from "gt-react";
 
 export function useThreadReadTarget(entry: TimelineWorkEntry, environmentId: EnvironmentId) {
   const rawThreadId = threadReadTargetId(entry);
@@ -215,6 +217,8 @@ export function ViewedImagesTimelineRow({
 }
 
 function WorkEntryLogRow(props: WorkEntryRowProps) {
+  const messages = useMessages();
+  const gt = useGT();
   const { workEntry, workspaceRoot, displayLabel } = props;
   const ctx = use(TimelineRowCtx);
   const { threadRef, timestampFormat } = ctx;
@@ -263,6 +267,11 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     setExpanded(next);
   };
   const failureItem = workEntry.projectedItem?.item;
+  const pendingApproval =
+    failureItem?.type === "approval_request"
+      ? ctx.pendingApprovals.get(failureItem.requestId)
+      : undefined;
+  if (pendingApproval) return <TimelinePendingApprovalRow approval={pendingApproval} />;
   if (failureItem?.type === "error" && failureItem.status === "failed") {
     const warning = failureItem.failure.class === "usage_limit";
     const resetAt = failureItem.failure.resetAt;
@@ -273,7 +282,9 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       ? `${formatUpcomingTimestamp(resetAt, timestampFormat, undefined, timeZone)} (${timeZone})`
       : null;
     const label = warning
-      ? `Usage limit reached.${resetTime ? ` Retry after ${resetTime}.` : ""}`
+      ? resetTime
+        ? gt("Usage limit reached. Retry after {resetTime}.", { resetTime })
+        : gt("Usage limit reached.")
       : workEntry.label;
     const retryRunId =
       failureItem.runId !== null &&
@@ -320,7 +331,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               onClick={() => onRetryWorkspacePreparation(retryRunId)}
             >
               <RotateCcwIcon aria-hidden />
-              Retry
+              <T>Retry</T>
             </Button>
           </div>
         ) : null}
@@ -347,13 +358,13 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     : "";
   const display =
     displayLabel === undefined
-      ? workEntryDisplay(workEntry, workspaceRoot)
+      ? workEntryDisplay(workEntry, workspaceRoot, messages)
       : { text: displayLabel };
   const showsReasoningHeading = isReasoning && expanded;
   const previewText = showsReasoningHeading
     ? workEntry.toolLifecycleStatus === "inProgress"
-      ? "Thinking"
-      : "Thought"
+      ? gt("Thinking")
+      : gt("Thought")
     : questionHeading || display.text;
   const pathTail = showsReasoningHeading || questionHeading ? undefined : display.tail;
   const answerPreview =
@@ -443,7 +454,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     .filter(Boolean)
     .join(": ");
   const accessibleDisplayText = showFailedIndicator
-    ? `${accessiblePreview}, tool call failed`
+    ? gt("{label}, tool call failed", { label: accessiblePreview })
     : accessiblePreview;
   const rowToggleProps = canExpandProjectedItem
     ? {
@@ -471,7 +482,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
         <span
           className={iconWrapperClass}
           role={showFailedIndicator ? "img" : undefined}
-          aria-label={showFailedIndicator ? "Tool call failed" : undefined}
+          aria-label={showFailedIndicator ? gt("Tool call failed") : undefined}
         >
           <ToolActivityIconView
             icon={entryToolIcon}
@@ -551,26 +562,30 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
             <button
               type="button"
               className="shrink-0 rounded-sm text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-              aria-label={`Open ${createdThread.title ?? "created thread"}`}
+              aria-label={
+                createdThread.title != null
+                  ? gt("Open {title}", { title: createdThread.title })
+                  : gt("Open created thread")
+              }
               onClick={(event) => {
                 event.stopPropagation();
                 openThread(createdThread.targetThreadId);
               }}
               onKeyDown={stopRowToggle}
             >
-              Open chat
+              <T>Open chat</T>
             </button>
           ) : null}
           {notifiedSubagentThreadId && openThread ? (
             <InlineButton
-              aria-label="Open subagent thread"
+              aria-label={gt("Open subagent thread")}
               onClick={(event) => {
                 event.stopPropagation();
                 openThread(notifiedSubagentThreadId);
               }}
               onKeyDown={stopRowToggle}
             >
-              Open subagent
+              <T>Open subagent</T>
             </InlineButton>
           ) : null}
           {showFailedIndicator &&
@@ -625,6 +640,7 @@ function WorkEntryLogDetails({
   viewedImagePath: string | null;
   onInitialOutputReady: () => void;
 }) {
+  const m = useMessages();
   const ctx = use(TimelineRowCtx);
   const groupViewedImages = use(WorkGroupViewCtx)?.viewedImages;
   // Images in this entry's expanded body page through the group's viewed images, like its strip.
@@ -643,6 +659,7 @@ function WorkEntryLogDetails({
           workspaceRoot,
           previewText,
           viewedImage ? viewedImagePath : null,
+          m,
         );
   return (
     // A formatting context keeps child margins inside the measured panel height.

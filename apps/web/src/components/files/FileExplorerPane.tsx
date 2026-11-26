@@ -1,3 +1,4 @@
+import { msg, useMessages } from "gt-react";
 import type { ReactNode } from "react";
 
 import {
@@ -24,24 +25,24 @@ const FILE_EXPLORER_SIZING: FileExplorerSizing = {
   storageKey: "supaterm.fileExplorerWidth",
   defaultWidth: 256,
   minWidth: 160,
-  label: "File explorer",
-  resizeLabel: "Resize file explorer",
+  label: msg("File explorer"),
+  resizeLabel: msg("Resize file explorer"),
 };
 
 export const CHANGES_FILE_TREE_SIZING: FileExplorerSizing = {
   storageKey: "supaterm:diff-file-tree-width",
   defaultWidth: 256,
   minWidth: 160,
-  label: "Changes files",
-  resizeLabel: "Resize Changes files",
+  label: msg("Changes files"),
+  resizeLabel: msg("Resize Changes files"),
 };
 
 export const PR_CODE_FILE_TREE_SIZING: FileExplorerSizing = {
   storageKey: "supaterm:pr-code-file-tree-width",
   defaultWidth: 320,
   minWidth: 192,
-  label: "PR Code files",
-  resizeLabel: "Resize PR Code files",
+  label: msg("PR Code files"),
+  resizeLabel: msg("Resize PR Code files"),
 };
 
 /**
@@ -93,6 +94,7 @@ function FileExplorerPanel({
   sizing: FileExplorerSizing;
   children: ReactNode;
 }) {
+  const m = useMessages();
   const { panelProps, handleProps } = useCollapsiblePanel({
     storageKey: sizing.storageKey,
     defaultWidth: sizing.defaultWidth,
@@ -103,13 +105,13 @@ function FileExplorerPanel({
   return (
     <>
       <ResizableHandle
-        aria-label={sizing.resizeLabel}
+        aria-label={m(sizing.resizeLabel)}
         {...handleProps}
         disabled={handleProps.disabled || !resizable}
       />
       <ResizablePanel
         {...panelProps}
-        aria-label={sizing.label}
+        aria-label={m(sizing.label)}
         className="flex"
         data-file-explorer=""
       >

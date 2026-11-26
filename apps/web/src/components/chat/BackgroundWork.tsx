@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
 import { commandDisplayText } from "@supaterm/client-runtime/work-log/command-label";
 import type { EnvironmentId, PullRequestRef, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
@@ -5,7 +6,6 @@ import type { AsyncResult } from "effect/reactivity";
 import type { ReactElement } from "react";
 
 import { usePullRequestChecksRefresh } from "~/hooks/usePullRequestChecksRefresh";
-import { cn } from "~/lib/utils";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useEnvironmentQueryRefresh, useEnvironmentQuerySelector } from "~/state/query";
@@ -21,28 +21,18 @@ export interface WatchedPullRequest {
   readonly reference: PullRequestRef;
 }
 
-/**
- * The background-work banner's dot. Only work that will wake the agent shows at full strength,
- * since a dev server can run for hours after the agent is done. A watched PR shows its checks
- * ring instead, which opens the checks.
- */
+/** The background-work line's icon. A watched PR shows its checks ring instead, which opens the checks. */
 export function BackgroundWorkIcon({
-  waiting,
+  icon,
   watchedPullRequest,
 }: {
-  waiting: boolean;
+  icon: ReactElement;
   watchedPullRequest: WatchedPullRequest | null;
 }) {
-  const dot = (
-    <span
-      className={cn("size-1.5 rounded-full", waiting ? "bg-foreground" : "bg-muted-foreground")}
-      aria-hidden="true"
-    />
-  );
   return watchedPullRequest === null ? (
-    dot
+    icon
   ) : (
-    <WatchedPullRequestChecks watched={watchedPullRequest} fallback={dot} />
+    <WatchedPullRequestChecks watched={watchedPullRequest} fallback={icon} />
   );
 }
 
@@ -99,20 +89,30 @@ const titleTriggerClassName =
  * the root stays outside that text, which measures itself for overflow.
  */
 export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTaskOutputHandle }) {
+  const gt = useGT();
   return (
     <Popover handle={handle}>
       {({ payload }) =>
         payload === undefined ? null : (
-          <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${payload.label}`}>
+          <PopoverPopup
+            side="top"
+            align="start"
+            width="xl"
+            aria-label={gt("Output: {label}", { label: payload.label })}
+          >
             <div className="mb-2 flex items-baseline justify-between gap-3 text-xs">
               <span className="min-w-0 font-medium break-words">
                 {payload.command !== undefined &&
                 commandDisplayText(payload.command) === payload.label
-                  ? "Command"
+                  ? gt("Command", { $context: "a background shell command" })
                   : payload.label}
               </span>
               <span className="shrink-0 text-muted-foreground">
-                {payload.awaited ? "Waiting" : "Running"}
+                {payload.awaited ? (
+                  <T context="background task status">Waiting</T>
+                ) : (
+                  <T context="background task status">Running</T>
+                )}
               </span>
             </div>
             {payload.command !== undefined ? (
@@ -127,7 +127,7 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
                   environmentId: payload.environmentId,
                   input: { threadId: payload.threadId, taskId: payload.taskId },
                 })}
-                waitingLabel="No output yet."
+                waitingLabel={gt("No output yet.")}
               />
             </div>
           </PopoverPopup>

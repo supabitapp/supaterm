@@ -84,7 +84,8 @@ export function parseGitHubAuth(
       ...providerAuth({
         status: "unauthenticated",
         host: fallback.host,
-        detail: "Every GitHub host gh is signed in to is turned off in Settings → Source Control.",
+        detail:
+          "Every GitHub host gh is signed in to is turned off in Settings → Source control & issues.",
       }),
       ...accounts,
     };
@@ -166,7 +167,7 @@ function discoveryTokenHosts(
 ): ReadonlyArray<DiscoveryTokenHost> {
   const enabledSavedHosts = Object.entries(settings.tokens)
     .flatMap(([host, token]) =>
-      token.trim() !== "" && settings.hosts[host]?.enabled !== false
+      (typeof token !== "string" || token.trim() !== "") && settings.hosts[host]?.enabled !== false
         ? [{ host, source: "settings" as const }]
         : [],
     )
@@ -219,7 +220,7 @@ export const make = Effect.gen(function* () {
       yield* credentials.invalidateAll;
       const settings = readSourceControlHostSettings(
         GitHubClient.settings,
-        yield* sourceControlHost.settings.get.pipe(
+        yield* sourceControlHost.settings.getWithSecrets(GitHubClient.definition.kind).pipe(
           Effect.map((current) => current.sourceControlHosts[GitHubClient.definition.kind]),
           Effect.orElseSucceed(() => undefined),
         ),
@@ -237,6 +238,9 @@ export const make = Effect.gen(function* () {
 
       let firstInvalid: DiscoveryTokenHost | undefined;
       let firstUnknown:
+        | { readonly candidate: DiscoveryTokenHost; readonly detail: string }
+        | undefined;
+      let firstUnreadable:
         | { readonly candidate: DiscoveryTokenHost; readonly detail: string }
         | undefined;
       for (const candidate of tokenHosts) {
@@ -271,6 +275,8 @@ export const make = Effect.gen(function* () {
         }
         if (viewer.failure._tag === "GitHubApiAuthenticationError") {
           firstInvalid ??= candidate;
+        } else if (viewer.failure._tag === "SettingsSecretUnresolvedError") {
+          firstUnreadable ??= { candidate, detail: viewer.failure.message };
         } else {
           // Only a refusal says the token is bad; a network error or pause says nothing.
           firstUnknown ??= { candidate, detail: viewer.failure.message };
@@ -278,7 +284,10 @@ export const make = Effect.gen(function* () {
       }
 
       const accounts = discoveryTokenAuthAccounts(cli);
+      // A saved reference that cannot be read is a sign-in problem, never a reason to fall back.
+      const unknown = firstUnreadable === undefined ? firstUnknown : undefined;
       const failed =
+        firstUnreadable ??
         firstUnknown ??
         (firstInvalid === undefined
           ? undefined
@@ -286,7 +295,7 @@ export const make = Effect.gen(function* () {
               candidate: firstInvalid,
               detail:
                 firstInvalid.source === "settings"
-                  ? `GitHub refused the token saved for ${firstInvalid.host}. Replace or remove it in Settings → Source Control.`
+                  ? `GitHub refused the token saved for ${firstInvalid.host}. Replace or remove it in Settings → Source control & issues.`
                   : `GitHub refused the token in ${firstInvalid.environmentVariable}. Replace it, or unset it to use \`gh auth login\`.`,
             });
       if (failed === undefined) return cli;
@@ -303,10 +312,10 @@ export const make = Effect.gen(function* () {
         status: "available" as const,
         auth: {
           ...providerAuth({
-            status: firstUnknown === undefined ? "unauthenticated" : "unknown",
+            status: unknown === undefined ? "unauthenticated" : "unknown",
             host: failed.candidate.host,
             detail:
-              firstUnknown === undefined
+              unknown === undefined
                 ? failed.detail
                 : `Could not check the token for ${failed.candidate.host}: ${failed.detail}`,
           }),

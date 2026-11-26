@@ -1,4 +1,4 @@
-import { SourceControlProviderKind } from "@supaterm/contracts";
+import { SecretProviderId, SourceControlProviderKind } from "@supaterm/contracts";
 import { assert, it, vi } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as ConfigProvider from "effect/ConfigProvider";
@@ -21,6 +21,7 @@ import type * as SourceControlHost from "@supaterm/source-control-core/server/So
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
 
 import * as BitbucketApi from "./BitbucketApi.ts";
+import { userFacingSourceControlDetail } from "@supaterm/source-control-core/server/SourceControlProvider";
 
 type HostGit = SourceControlHost.SourceControlHost["Service"]["git"];
 
@@ -725,6 +726,24 @@ it.effect("prefers credentials saved in settings over the environment, without a
     });
     yield* bitbucket.probeAuth;
     assert.strictEqual(lastAuthorization(), basic("user@example.com", "token"));
+
+    // A reference left in place by getWithSecrets is one its secret provider could not read.
+    const requests = execute.mock.calls.length;
+    yield* settings.update({
+      sourceControlHosts: {
+        bitbucket: {
+          accessToken: { provider: SecretProviderId.make("vault"), reference: "bb#token" },
+        },
+      },
+    });
+    const auth = yield* bitbucket.probeAuth;
+    assert.strictEqual(auth.status, "unauthenticated");
+    assert.include(Option.getOrThrow(auth.detail), '"vault"');
+    const error = yield* Effect.flip(
+      bitbucket.listPullRequests({ cwd: "/repo", headSelector: "feature", state: "open" }),
+    );
+    assert.strictEqual(error._tag, "SettingsSecretUnresolvedError");
+    assert.strictEqual(execute.mock.calls.length, requests);
   }).pipe(Effect.provide(layer));
 });
 
@@ -772,6 +791,26 @@ it.effect("reports saved credentials as configured when Bitbucket cannot confirm
       host: Option.some("bitbucket.org"),
       detail: Option.some("An access token is configured."),
     });
+  }).pipe(Effect.provide(layer));
+});
+
+it.effect.each([404, 403])("exposes repository lookup details only for HTTP 404 (%s)", (status) => {
+  const { layer } = makeLayer({
+    response: () => new Response("raw upstream response must not be shown", { status }),
+  });
+  return Effect.gen(function* () {
+    const bitbucket = yield* BitbucketApi.BitbucketApi;
+    for (const repository of ["team/project", "https://bitbucket.org/team/project.git"]) {
+      const error = yield* bitbucket
+        .getRepositoryCloneUrls({ cwd: "/repo", repository })
+        .pipe(Effect.flip);
+      assert.strictEqual(
+        userFacingSourceControlDetail(error),
+        status === 404
+          ? "Repository team/project was not found. Check the owner and name and try again."
+          : undefined,
+      );
+    }
   }).pipe(Effect.provide(layer));
 });
 

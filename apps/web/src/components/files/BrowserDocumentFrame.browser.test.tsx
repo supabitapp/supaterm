@@ -5,6 +5,8 @@ import {
   injectHtmlRenderBootstrap,
   readFilePreviewScroll,
 } from "@supaterm/shared/htmlRender";
+import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
@@ -12,6 +14,26 @@ import "~/index.css";
 import { render } from "../../../test/render";
 
 import { BrowserDocumentFrame, HtmlRenderDocument } from "./BrowserDocumentFrame";
+
+const links = vi.hoisted(() => ({
+  openLink: vi.fn(async () => undefined),
+  openChangeRequestLink: vi.fn(() => false),
+  openIssueLink: vi.fn((..._args: ReadonlyArray<unknown>) => true),
+  trackers: { connections: [{ tracker: "linear", label: "Linear" }] },
+}));
+vi.mock("~/browser/useOpenLink", () => ({ useOpenLink: () => links.openLink }));
+vi.mock(import("~/state/entities"), async (original) => ({
+  ...(await original()),
+  useServerConfigs: (() =>
+    new Map([["local", { environment: { capabilities: { issues: true } } }]])) as never,
+}));
+vi.mock("~/state/use-atom-query-runner", () => ({
+  useAtomQueryRunner: () => async () => ({ _tag: "Success", value: links.trackers }),
+}));
+vi.mock("~/lib/openPullRequestLink", () => ({
+  useOpenChangeRequestLink: () => links.openChangeRequestLink,
+}));
+vi.mock("~/lib/openIssueLink", () => ({ useOpenIssueLink: () => links.openIssueLink }));
 
 const sizeChanged = (height: number) => ({
   jsonrpc: "2.0",
@@ -145,6 +167,38 @@ describe("HtmlRenderDocument", () => {
     await expect.element(viewer.getByRole("button", { name: "Next media" })).toBeVisible();
     await expect.element(viewer.getByRole("button", { name: "Previous media" })).toBeVisible();
   });
+
+  it.each([
+    { issueUrl: "https://github.com/supabitapp/supaterm/issues/41939", trackers: undefined },
+    { issueUrl: "https://linear.app/acme/issue/ENG-12/fix-it", trackers: links.trackers },
+  ])(
+    "opens a clicked issue link beside the thread, as chat Markdown does ($issueUrl)",
+    async ({ issueUrl, trackers }) => {
+      links.openIssueLink.mockClear();
+      const html = injectHtmlRenderBootstrap(
+        `<!doctype html><html><body><a href="${issueUrl}">Issue #41939</a></body></html>`,
+      );
+      const src = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+      using _url = { [Symbol.dispose]: () => URL.revokeObjectURL(src) };
+      const threadRef = scopeThreadRef(EnvironmentId.make("local"), ThreadId.make("thread"));
+      await using screen = await render(
+        <HtmlRenderDocument src={src} title="Links" threadRef={threadRef} />,
+      );
+
+      await page.frameLocator(screen.getByTitle("Links")).getByRole("link").click();
+
+      // The frame tries the pull request handler first, then settles the click in the same call.
+      await vi.waitFor(() => expect(links.openChangeRequestLink).toHaveBeenCalled());
+      await vi.waitFor(() => expect(links.openIssueLink).toHaveBeenCalled());
+      const [, url, environmentId, passedTrackers] = links.openIssueLink.mock.calls[0]!;
+      expect([url, environmentId, passedTrackers]).toEqual([
+        issueUrl,
+        threadRef.environmentId,
+        trackers,
+      ]);
+      expect(links.openLink).not.toHaveBeenCalled();
+    },
+  );
 });
 
 it("keeps the chat in place when a label far from its hidden radio is clicked", async () => {

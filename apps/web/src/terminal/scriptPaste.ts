@@ -1,10 +1,13 @@
 import type { ScopedThreadRef } from "@supaterm/contracts";
 import type { GhosttyTerminalSurface } from "./ghostty/surface";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export const SCRIPT_PASTE_READY_TIMEOUT_MS = 5_000;
-export const SCRIPT_PASTE_UNSUPPORTED_MESSAGE =
-  "This terminal can't run multi-line scripts. Copy the script instead.";
-export const SCRIPT_PASTE_CLOSED_MESSAGE = "The terminal closed before the script ran.";
+export const SCRIPT_PASTE_UNSUPPORTED_MESSAGE = msg(
+  "This terminal can't run multi-line scripts. Copy the script instead.",
+);
+export const SCRIPT_PASTE_CLOSED_MESSAGE = msg("The terminal closed before the script ran.");
 
 type ScriptPasteTarget = ScopedThreadRef & { terminalId: string };
 type ScriptPasteSurface = Pick<GhosttyTerminalSurface, "encodeScriptPaste" | "subscribeOutput">;
@@ -36,7 +39,8 @@ export function registerTerminalScriptPasteSurface(
     if (surfaces.get(key) !== surface) return;
     surfaces.delete(key);
     // A session reopened under the same id is not the one the user confirmed the script for.
-    for (const pending of pendingByKey.get(key) ?? []) pending.reject(SCRIPT_PASTE_CLOSED_MESSAGE);
+    for (const pending of pendingByKey.get(key) ?? [])
+      pending.reject(m(SCRIPT_PASTE_CLOSED_MESSAGE));
   };
 }
 
@@ -71,7 +75,7 @@ export function encodeTerminalScriptPaste(
       },
     };
     const timeout = setTimeout(
-      () => pending.reject(SCRIPT_PASTE_UNSUPPORTED_MESSAGE),
+      () => pending.reject(m(SCRIPT_PASTE_UNSUPPORTED_MESSAGE)),
       SCRIPT_PASTE_READY_TIMEOUT_MS,
     );
     pendingForKey.add(pending);

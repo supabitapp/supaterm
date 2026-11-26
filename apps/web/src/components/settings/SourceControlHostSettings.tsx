@@ -1,3 +1,4 @@
+import * as Equal from "effect/Equal";
 import { AuthSettingsWriteScope, type EnvironmentId } from "@supaterm/contracts";
 import type { SourceControlDefinition } from "@supaterm/client-runtime/source-control-clients";
 import { useState } from "react";
@@ -10,6 +11,7 @@ import { ProviderSettingsForm, deriveProviderSettingsFields } from "./ProviderSe
 import { useManagedPolicy } from "../../state/managedPolicy";
 import { managedByMessage, managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { useEnvironmentScope } from "../../state/session";
+import { T, useGT, useMessages } from "gt-react";
 
 export function SourceControlHostSettings({
   environmentId,
@@ -22,6 +24,7 @@ export function SourceControlHostSettings({
   };
   readonly onSaved: () => void;
 }) {
+  const gt = useGT();
   const saved = useEnvironmentSettings(
     environmentId,
     (settings) => settings.sourceControlHosts[definition.kind],
@@ -33,6 +36,7 @@ export function SourceControlHostSettings({
   const canWriteSettings = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
   const formDefinition = { settingsSchema: definition.settings };
   const hasSaved = Object.values(saved ?? {}).some((value) => value !== "");
+  const messages = useMessages();
   const policy = useManagedPolicy(environmentId);
   const lockedKeys = new Set(
     deriveProviderSettingsFields(formDefinition, saved ?? {})
@@ -45,7 +49,7 @@ export function SourceControlHostSettings({
   );
   const managed =
     policy !== undefined && lockedKeys.size > 0
-      ? { keys: lockedKeys, reason: managedByMessage(policy.organization) }
+      ? { keys: lockedKeys, reason: managedByMessage(policy.organization, messages) }
       : undefined;
 
   const save = async (fields: Record<string, unknown>) => {
@@ -63,7 +67,7 @@ export function SourceControlHostSettings({
     <fieldset disabled={saving || !canWriteSettings} className="contents">
       {!canWriteSettings ? (
         <p className="text-xs text-muted-foreground">
-          This connection cannot change host settings.
+          <T>This connection cannot change host settings.</T>
         </p>
       ) : null}
       <ProviderSettingsForm
@@ -71,11 +75,12 @@ export function SourceControlHostSettings({
         value={saved ?? {}}
         idPrefix={`source-control-${definition.kind}-${environmentId}`}
         variant="settings"
+        environmentId={environmentId}
         managed={managed}
         onChange={(next) => {
           const fields = next ?? {};
           const changed = Object.fromEntries(
-            Object.entries(fields).filter(([key, value]) => saved?.[key] !== value),
+            Object.entries(fields).filter(([key, value]) => !Equal.equals(saved?.[key], value)),
           );
           const cleared = Object.keys(saved ?? {}).filter((key) => !(key in fields));
           void save({ ...changed, ...Object.fromEntries(cleared.map((key) => [key, ""])) });
@@ -87,10 +92,12 @@ export function SourceControlHostSettings({
             size="xs"
             variant="outline"
             disabled={saving || managed !== undefined}
-            label="Remove"
-            confirmLabel="Confirm remove"
-            tooltip={`Remove the saved ${definition.label} settings`}
-            confirmTooltip={`Click again to remove the saved ${definition.label} settings and credentials.`}
+            label={gt("Remove")}
+            confirmLabel={gt("Confirm remove")}
+            tooltip={gt("Remove the saved {host} settings", { host: definition.label })}
+            confirmTooltip={gt("Click again to remove the saved {host} settings and credentials.", {
+              host: definition.label,
+            })}
             onConfirm={() =>
               void save(Object.fromEntries(Object.keys(saved ?? {}).map((key) => [key, ""])))
             }

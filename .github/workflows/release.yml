@@ -989,6 +989,8 @@ jobs:
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel != 'preview' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # The npm trusted publisher names this environment, so only this job's token can publish.
+    environment: release
     permissions:
       contents: read
       id-token: write
@@ -1184,6 +1186,8 @@ jobs:
       - name: Deploy site
         run: vp dlx wrangler@4.147.0 deploy --config apps/marketing/wrangler.json
 
+  # Commits the version bump as the Release App. It installs nothing and runs no
+  # dependency code, so that token never shares a runner with any.
   finalize:
     name: Finalize release
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && needs.preflight.outputs.release_channel == 'stable' }}
@@ -1237,33 +1241,19 @@ jobs:
           echo "name=${APP_SLUG}[bot]" >> "$GITHUB_OUTPUT"
           echo "email=${user_id}+${APP_SLUG}[bot]@users.noreply.github.com" >> "$GITHUB_OUTPUT"
 
-      - name: Setup Mise
-        uses: ./.github/actions/setup-mise
-        with:
-          cache: false
-      - name: Install workspace dependencies
-        run: mise exec -- vp install --filter=@supaterm/scripts... --filter=@supaterm/oxlint-plugin-supaterm...
-      - id: update_versions
-        name: Update version strings
+      # Rewrites the version string in place: the manifests stay formatted, and
+      # the lockfile records no workspace package version.
+      - name: Update version strings
         env:
           RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
-        run: node scripts/update-release-package-versions.ts "$RELEASE_VERSION" --github-output
-
-      - name: Format package.json files
-        if: steps.update_versions.outputs.changed == 'true'
-        run: vp fmt apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json
-
-      - name: Refresh lockfile
-        if: steps.update_versions.outputs.changed == 'true'
-        run: vp install --lockfile-only --ignore-scripts
+        run: node .github/scripts/set-release-version.cjs "$RELEASE_VERSION"
 
       - name: Commit and push version bump
-        if: steps.update_versions.outputs.changed == 'true'
         shell: bash
         env:
           RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
         run: |
-          if git diff --quiet -- apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json pnpm-lock.yaml; then
+          if git diff --quiet -- apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json; then
             echo "No version changes to commit."
             exit 0
           fi
@@ -1271,7 +1261,7 @@ jobs:
           git config user.name "${{ steps.app_bot.outputs.name }}"
           git config user.email "${{ steps.app_bot.outputs.email }}"
 
-          git add apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json pnpm-lock.yaml
+          git add apps/server/package.json apps/desktop/package.json apps/web/package.json packages/contracts/package.json
           git commit --no-verify -m "chore(release): prepare $RELEASE_TAG"
 
           # main moves while this job runs, so a rejected push rebases and retries.

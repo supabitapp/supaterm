@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import { ChildProcessSpawner } from "effect/process";
 
-import { DEFAULT_SERVER_SETTINGS } from "@supaterm/contracts";
+import { DEFAULT_SERVER_SETTINGS, SecretProviderId, SecretProviderKind } from "@supaterm/contracts";
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import { applyServerSettingsPatch } from "@supaterm/shared/serverSettings";
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
@@ -150,9 +150,31 @@ describe("GitHubCredentials", () => {
     const { layer, calls } = harness({}, [], { "github.com": "saved-token" });
     return Effect.gen(function* () {
       const credentials = yield* GitHubCredentials.GitHubCredentials;
+      const settings = yield* TestSourceControlHost.TestSourceControlHostSettings;
       const credential = yield* credentials.get("github.com");
       expect(Redacted.value(credential.token)).toBe("saved-token");
       expect(credential.source).toBe("settings");
+
+      // A reference left in place by getWithSecrets is one its secret provider could not read.
+      yield* settings.update({
+        secretProviders: {
+          [SecretProviderId.make("vault")]: {
+            kind: SecretProviderKind.make("one_password"),
+            label: "Work vault",
+            config: {},
+          },
+        },
+        sourceControlHosts: {
+          github: {
+            tokens: {
+              "github.com": { provider: SecretProviderId.make("vault"), reference: "gh#token" },
+            },
+          },
+        },
+      });
+      const error = yield* Effect.flip(credentials.get("github.com"));
+      expect(error._tag).toBe("SettingsSecretUnresolvedError");
+      expect(error.message).toContain('"Work vault"');
       expect(calls).toEqual([]);
     }).pipe(Effect.provide(layer));
   });

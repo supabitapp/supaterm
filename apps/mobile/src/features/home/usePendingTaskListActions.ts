@@ -13,6 +13,8 @@ import {
   holdDeletingQueuedMessage,
   releaseDeletingQueuedMessage,
 } from "../../state/use-thread-outbox";
+import { msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 export function usePendingTaskListActions(
   selectThreadRoute: (params: ReactNavigation.RootParamList["Thread"]) => void,
@@ -45,34 +47,42 @@ export function usePendingTaskListActions(
   const confirmDeletePendingTask = useCallback(
     (pendingTask: PendingNewTask) => {
       if (pendingTask.kind === "draft") {
-        Dialog.alert("Discard draft?", `“${pendingTask.title}” will be removed.`, [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Discard",
-            style: "destructive",
-            onPress: () => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              void withThreadDismissal(
-                pendingTask.key,
-                async () => {
-                  clearComposerDraftContent(pendingTask.draftKey, {
-                    clearModelSelection: true,
-                    clearWorkspaceSelection: true,
-                  });
-                  return true;
-                },
-                (result) => result,
-              );
+        Dialog.alert(
+          m(msg("Discard draft?")),
+          m(msg("“{title}” will be removed.", { title: pendingTask.title })),
+          [
+            { text: m(msg("Cancel")), style: "cancel" },
+            {
+              text: m(msg("Discard", { $context: "verb, discards a draft" })),
+              style: "destructive",
+              onPress: () => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                void withThreadDismissal(
+                  pendingTask.key,
+                  async () => {
+                    clearComposerDraftContent(pendingTask.draftKey, {
+                      clearModelSelection: true,
+                      clearWorkspaceSelection: true,
+                    });
+                    return true;
+                  },
+                  (result) => result,
+                );
+              },
             },
-          },
-        ]);
+          ],
+        );
         return;
       }
       Dialog.alert(
-        "Delete pending task?",
-        `“${pendingTask.title}” has not been sent yet and will be removed from the outbox.`,
+        m(msg("Delete pending task?")),
+        m(
+          msg("“{title}” has not been sent yet and will be removed from the outbox.", {
+            title: pendingTask.title,
+          }),
+        ),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: m(msg("Cancel")), style: "cancel" },
           {
             text: "Delete",
             style: "destructive",
@@ -80,8 +90,8 @@ export function usePendingTaskListActions(
               const messageId = pendingTask.message.messageId;
               if (!holdDeletingQueuedMessage(messageId)) {
                 Dialog.alert(
-                  "Pending task is open",
-                  "Close the pending task editor before deleting it.",
+                  m(msg("Pending task is open")),
+                  m(msg("Close the pending task editor before deleting it.")),
                 );
                 return;
               }
@@ -113,8 +123,10 @@ export function usePendingTaskListActions(
               ).catch((error) => {
                 releaseDeletingQueuedMessage(messageId, false);
                 Dialog.alert(
-                  "Could not delete pending task",
-                  error instanceof Error ? error.message : "The pending task could not be removed.",
+                  m(msg("Could not delete pending task")),
+                  error instanceof Error
+                    ? error.message
+                    : m(msg("The pending task could not be removed.")),
                 );
               });
             },

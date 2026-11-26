@@ -4,11 +4,11 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
+import { AuthMcpClientAccess } from "@supaterm/contracts";
 import {
-  AuthMcpClientAccess,
   managedCapabilityDenial,
   managedRuntimeModeDenial,
-} from "@supaterm/contracts";
+} from "@supaterm/client-runtime/contract-labels";
 import { CheckIcon, CopyIcon, PlugIcon } from "@supaterm/icons";
 import { useState } from "react";
 
@@ -35,6 +35,7 @@ import {
 } from "../ui/dialog";
 import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
+import { useGT, T, useMessages } from "gt-react";
 
 const APPROVAL_CODE_LABEL = "App sign-in";
 
@@ -46,6 +47,8 @@ export function UseInAnotherAppDialog({
 }: {
   readonly environment: EnvironmentPresentation;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const environmentId = environment.environmentId;
   const createPairingCredential = useAtomCommand(authEnvironment.createPairingCredential, {
     reportFailure: false,
@@ -62,9 +65,10 @@ export function UseInAnotherAppDialog({
   const [error, setError] = useState<string | null>(null);
   const policy = useManagedPolicy(environmentId);
   // The server refuses codes for any level when its policy keeps remote clients out.
-  const remoteDenial = managedCapabilityDenial(policy, "remoteClients");
+  const remoteDenial = managedCapabilityDenial(policy, "remoteClients", messages);
   const levelDenial = (level: AuthMcpClientAccess) =>
-    remoteDenial ?? (level === "read-only" ? undefined : managedRuntimeModeDenial(policy, level));
+    remoteDenial ??
+    (level === "read-only" ? undefined : managedRuntimeModeDenial(policy, level, messages));
 
   const mint = async () => {
     setPending(true);
@@ -84,7 +88,9 @@ export function UseInAnotherAppDialog({
       setError(
         failure instanceof Error
           ? failure.message
-          : `Could not get a code from ${environment.label}. Try again.`,
+          : gt("Could not get a code from {environment}. Try again.", {
+              environment: environment.label,
+            }),
       );
     }
   };
@@ -106,23 +112,25 @@ export function UseInAnotherAppDialog({
         render={
           <Button size="xs" variant="outline">
             <PlugIcon aria-hidden />
-            Use in another app (MCP)
+            <T>Use in another app (MCP)</T>
           </Button>
         }
       />
       <DialogPopup className="max-w-md" showCloseButton={!pending}>
         <DialogHeader>
-          <DialogTitle>Use Supaterm in another app (MCP)</DialogTitle>
+          <DialogTitle>{gt("Use Supaterm in another app (MCP)")}</DialogTitle>
           <DialogDescription>
-            Add the URL to the app, then enter the code on the sign-in page it opens. The code
-            approves one sign-in at the level you pick.
+            <T>
+              Add the URL to the app, then enter the code on the sign-in page it opens. The code
+              approves one sign-in at the level you pick.
+            </T>
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
           {mcpUrl ? <CopyRow label="URL" value={mcpUrl} /> : null}
           <div className="space-y-2">
             <span id="mcp-approval-access-label" className="block text-sm font-medium">
-              What can the app do?
+              {gt("What can the app do?")}
             </span>
             <RadioGroup
               aria-labelledby="mcp-approval-access-label"
@@ -155,7 +163,7 @@ export function UseInAnotherAppDialog({
             disabled={pending}
             onClick={() => setOpen(false)}
           >
-            Done
+            <T>Done</T>
           </Button>
           <Button
             size="comfortable"
@@ -164,7 +172,7 @@ export function UseInAnotherAppDialog({
             onClick={() => void mint()}
           >
             {pending ? <Spinner /> : null}
-            {pending ? "Getting code…" : code ? "New code" : "Get code"}
+            {pending ? gt("Getting code…") : code ? gt("New code") : gt("Get code")}
           </Button>
         </DialogFooter>
       </DialogPopup>
@@ -182,6 +190,8 @@ function LinkedLine({
   readonly environment: EnvironmentPresentation;
   readonly access: AuthMcpClientAccess;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const offered = supportsPeerLinks(environment.serverConfig);
   const links = useEnvironmentQuery(
     offered
@@ -196,9 +206,13 @@ function LinkedLine({
       link.label;
     // A forwarded call keeps the lower of the app's level and the link's own.
     const level = levelRank(link.access) < levelRank(access) ? link.access : access;
-    return `${name} · ${link.status === "expired" ? "Expired" : accessConfig[level].label}`;
+    return `${name} · ${link.status === "expired" ? gt("Expired") : m(accessConfig[level].label)}`;
   });
-  return <p className="text-xs text-muted-foreground">Linked: {named.join(", ")}</p>;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {gt("Linked: {environments}", { environments: named.join(", ") })}
+    </p>
+  );
 }
 
 function ApprovalCode({
@@ -208,21 +222,32 @@ function ApprovalCode({
   readonly code: MintedCode;
   readonly access: AuthMcpClientAccess;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const now = useNowSecond();
   const left = Math.max(0, Math.floor((code.expiresAt - now) / 1000));
-  if (left === 0) return <p className="text-xs text-muted-foreground">The code expired.</p>;
+  if (left === 0)
+    return (
+      <p className="text-xs text-muted-foreground">
+        <T>The code expired.</T>
+      </p>
+    );
   return (
     <div className="space-y-1.5">
-      <CopyRow label="Code" value={code.credential} />
+      <CopyRow label={gt("Code", { $context: "approval code" })} value={code.credential} />
       <p className="text-xs text-muted-foreground">
-        Approves {accessConfig[access].label} · one use · expires {Math.floor(left / 60)}:
-        {String(left % 60).padStart(2, "0")}
+        {gt("Approves {level} · one use · expires {minutes}:{seconds}", {
+          level: m(accessConfig[access].label),
+          minutes: Math.floor(left / 60),
+          seconds: String(left % 60).padStart(2, "0"),
+        })}
       </p>
     </div>
   );
 }
 
 function CopyRow({ label, value }: { readonly label: string; readonly value: string }) {
+  const gt = useGT();
   const { copyToClipboard, isCopied } = useCopyToClipboard({ timeout: 1500, target: label });
   const Icon = isCopied ? CheckIcon : CopyIcon;
   return (
@@ -232,7 +257,7 @@ function CopyRow({ label, value }: { readonly label: string; readonly value: str
       <Button
         size="icon-xs"
         variant="ghost"
-        aria-label={`Copy ${label}`}
+        aria-label={gt("Copy {label}", { label })}
         onClick={() => copyToClipboard(value, undefined)}
       >
         <Icon className="size-3.5" />

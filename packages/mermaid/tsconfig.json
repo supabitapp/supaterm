@@ -1,7 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node", "vite-plus/client"]
+    "types": ["node", "vite-plus/client"],
+    "plugins": [
+      { "name": "@effect/language-service", "diagnosticSeverity": { "globalDate": "off" } }
+    ]
   },
   "include": ["src"]
 }

@@ -1,10 +1,13 @@
 import { runAtomCommand, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { PreviewViewportSetting, ScopedThreadRef } from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 
 import { toastManager } from "~/components/ui/toast";
 import { updatePreviewServerSnapshot } from "~/previewStateStore";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { previewEnvironment } from "~/state/preview";
+import { m } from "~/i18n/messages";
+import { msg } from "gt-react";
 
 /** One browser tab as both the server (thread + tab id) and this window's runtime know it. */
 export interface BrowserViewportTarget {
@@ -15,11 +18,12 @@ export interface BrowserViewportTarget {
 
 const BROWSER_VIEWPORT_COMMIT_TIMEOUT_MS = 15_000;
 
-class BrowserViewportCommitTimeoutError extends Error {
-  override readonly name = "BrowserViewportCommitTimeoutError";
-
-  constructor(readonly tabId: string) {
-    super(`Timed out committing the browser viewport for tab ${tabId}`);
+class BrowserViewportCommitTimeoutError extends Schema.TaggedError<BrowserViewportCommitTimeoutError>()(
+  "BrowserViewportCommitTimeoutError",
+  { tabId: Schema.String },
+) {
+  override get message(): string {
+    return `Timed out committing the browser viewport for tab ${this.tabId}`;
   }
 }
 
@@ -53,7 +57,7 @@ const runHandlerWithTimeout = (tabId: string, operation: Promise<void>): Promise
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timeoutId = setTimeout(
-      () => reject(new BrowserViewportCommitTimeoutError(tabId)),
+      () => reject(new BrowserViewportCommitTimeoutError({ tabId })),
       BROWSER_VIEWPORT_COMMIT_TIMEOUT_MS,
     );
   });
@@ -79,8 +83,8 @@ async function resizeBrowserViewport(
     const error = squashAtomCommandFailure(result);
     toastManager.add({
       type: "error",
-      title: "Unable to resize browser viewport",
-      description: error instanceof Error ? error.message : "An error occurred.",
+      title: m(msg("Unable to resize browser viewport")),
+      description: error instanceof Error ? error.message : m(msg("An error occurred.")),
     });
     throw error;
   }

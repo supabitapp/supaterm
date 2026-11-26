@@ -1,6 +1,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "@supaterm/icons";
-import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { getCommandPaletteOpener } from "../commandPaletteStore";
 import { useNativeTitlebarHeight } from "../lib/windowControlsOverlay";
@@ -9,6 +10,7 @@ import { useCloseAppModal } from "./sidebar/mainAppLocation";
 import { Button } from "./ui/button";
 import { DialogBackdrop } from "./ui/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { T, useGT } from "gt-react";
 
 /**
  * Large modal for the Settings and Usage routes. Esc, the close button, or a press on the
@@ -33,6 +35,22 @@ export function AppRouteModal({ label, children }: { label: string; children: Re
   // buttons). Below sm the modal fills the window and leaves that strip empty; up to lg its
   // 1.5rem inset is shorter than the strip.
   const nativeTitlebarHeight = useNativeTitlebarHeight();
+  const router = useRouter();
+  // Leaving the page without closing (Navigation: Back) unmounts a focused field during a
+  // commit, when React no longer delivers its blur, so commit-on-blur rows would drop what was
+  // typed. Blur text fields before the navigation renders; other controls keep their focus.
+  // Not onBeforeNavigate: the router skips it while a past redirect is still recorded.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- router listener that blurs a field before navigation unmounts it
+  useEffect(
+    () =>
+      router.subscribe("onBeforeLoad", ({ pathChanged }) => {
+        const focused = document.activeElement;
+        if (pathChanged && focused?.matches("input, textarea, [contenteditable]")) {
+          blurFocusedWithin(popupRef.current);
+        }
+      }),
+    [router],
+  );
 
   return (
     <DialogPrimitive.Root
@@ -43,8 +61,7 @@ export function AppRouteModal({ label, children }: { label: string; children: Re
         if (nextOpen) return;
         // Closing unmounts a focused field without a blur, so commit-on-blur rows would
         // drop what was typed. Blur first so they commit.
-        const focused = document.activeElement;
-        if (focused instanceof HTMLElement && popupRef.current?.contains(focused)) focused.blur();
+        blurFocusedWithin(popupRef.current);
         setOpen(false);
       }}
       onOpenChangeComplete={(nextOpen) => {
@@ -103,20 +120,28 @@ export function AppRouteModal({ label, children }: { label: string; children: Re
   );
 }
 
+function blurFocusedWithin(container: HTMLElement | null) {
+  const focused = document.activeElement;
+  if (focused instanceof HTMLElement && container?.contains(focused)) focused.blur();
+}
+
 export function AppRouteModalClose() {
+  const gt = useGT();
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <DialogPrimitive.Close
-            aria-label="Close"
+            aria-label={gt("Close")}
             render={<Button size="icon-sm" variant="ghost" />}
           />
         }
       >
         <XIcon />
       </TooltipTrigger>
-      <TooltipPopup side="bottom">Close (Esc)</TooltipPopup>
+      <TooltipPopup side="bottom">
+        <T>Close (Esc)</T>
+      </TooltipPopup>
     </Tooltip>
   );
 }

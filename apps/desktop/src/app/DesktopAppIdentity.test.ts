@@ -41,6 +41,7 @@ const layerElectronApp = (calls: ElectronAppCalls) =>
     metadata: Effect.die("unexpected metadata read"),
     name: Effect.succeed("Supaterm"),
     systemLocale: Effect.succeed("en-US"),
+    preferredSystemLanguages: Effect.succeed(["en-US"]),
     environmentMachineIcons: Effect.succeed({}),
     whenReady: Effect.void,
     requestSingleInstanceLock: Effect.succeed(true),

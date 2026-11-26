@@ -58,6 +58,9 @@ async function loadHooks(
   return handlers;
 }
 
+const WORKSPACE_FOLDERS =
+  "<workspace_folders>\n- api (Git repository): /work/api\n</workspace_folders>";
+
 describe("Pi orchestration prompt section", () => {
   it.each([
     {
@@ -78,7 +81,7 @@ describe("Pi orchestration prompt section", () => {
       ],
     },
   ])("appends guidance $name", async ({ events }) => {
-    const bridge = await loadMcpBridge();
+    const bridge = await loadMcpBridge({ workspaceInstructions: WORKSPACE_FOLDERS });
     const hook = bridge.handlers.get("before_agent_start")!;
     for (const event of events) {
       const result = await hook(event, { ui: { notify: assert.fail } });
@@ -86,11 +89,12 @@ describe("Pi orchestration prompt section", () => {
       assert.isTrue(result!.systemPrompt.startsWith(`${event.systemPrompt}\n\n`));
       assert.include(result!.systemPrompt, "orchestrator_capabilities");
       assert.include(result!.systemPrompt, PULL_REQUEST_LINKING_INSTRUCTIONS);
+      assert.include(result!.systemPrompt, WORKSPACE_FOLDERS);
     }
   });
 
   it("sets the guidance section on Pi builds with prompt sections", async () => {
-    const bridge = await loadMcpBridge();
+    const bridge = await loadMcpBridge({ workspaceInstructions: WORKSPACE_FOLDERS });
     const sections: Record<string, string> = {};
     const result = await bridge.handlers.get("before_agent_start")!(
       { systemPrompt: "base", systemPromptOptions: { sections } },
@@ -99,6 +103,7 @@ describe("Pi orchestration prompt section", () => {
     assert.isUndefined(result);
     assert.include(sections.supaterm_code_orchestration, "orchestrator_capabilities");
     assert.include(sections.supaterm_code_orchestration, PULL_REQUEST_LINKING_INSTRUCTIONS);
+    assert.include(sections.supaterm_code_orchestration, WORKSPACE_FOLDERS);
   });
 });
 

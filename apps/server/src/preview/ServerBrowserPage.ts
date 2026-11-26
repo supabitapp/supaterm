@@ -22,10 +22,13 @@ import {
 } from "@supaterm/contracts";
 import { constVoid } from "effect/Function";
 import { MousePointer, MousePointerFilled } from "@supaterm/icons/nodes";
+import * as Schema from "effect/Schema";
 import type { CDPSession, ConsoleMessage, Frame, Locator, Page } from "playwright-core";
 import * as NodeCrypto from "node:crypto";
 import * as NodeUtil from "node:util";
 import { BrowserControlInterrupted } from "./SessionControl.ts";
+
+const isBrowserControlInterrupted = Schema.is(BrowserControlInterrupted);
 
 const MAX_EVALUATION_BYTES = 64_000;
 const MAX_VISIBLE_TEXT_LENGTH = 20_000;
@@ -35,44 +38,54 @@ const SCREENSHOT_TIMEOUT_MS = 3_000;
 const WAIT_POLL_MS = 100;
 export const DIAGNOSTIC_BUFFER_LIMIT = 200;
 
-export class ServerBrowserOperationError extends Error {
-  readonly tag: string;
-  readonly detail: unknown;
+export class ServerBrowserOperationError extends Schema.TaggedError<ServerBrowserOperationError>()(
+  "ServerBrowserOperationError",
+  {
+    tag: Schema.String,
+    message: Schema.String,
+    detail: Schema.optional(Schema.Unknown),
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {}
 
-  constructor(tag: string, message: string, detail?: unknown, options?: ErrorOptions) {
-    super(message, options);
-    this.tag = tag;
-    this.detail = detail;
-  }
-}
+const isServerBrowserOperationError = Schema.is(ServerBrowserOperationError);
 
 export const toOperationError = (
   cause: unknown,
   timeoutMs?: number,
 ): ServerBrowserOperationError => {
-  if (cause instanceof BrowserControlInterrupted)
-    return new ServerBrowserOperationError(
-      "PreviewAutomationControlInterruptedError",
-      cause.message,
-      cause.reason,
-    );
-  if (cause instanceof ServerBrowserOperationError) return cause;
+  if (isBrowserControlInterrupted(cause))
+    return new ServerBrowserOperationError({
+      tag: "PreviewAutomationControlInterruptedError",
+      message: cause.message,
+      detail: cause.reason,
+    });
+  if (isServerBrowserOperationError(cause)) return cause;
   const message = cause instanceof Error ? cause.message : String(cause);
   const firstLine = message.split("\n")[0] ?? message;
   if (cause instanceof Error && cause.name === "TimeoutError") {
-    return new ServerBrowserOperationError(
-      "PreviewAutomationTimeoutError",
-      withActionabilityReason(firstLine, cause),
-      timeoutMs === undefined ? undefined : { timeoutMs },
-    );
+    return new ServerBrowserOperationError({
+      tag: "PreviewAutomationTimeoutError",
+      message: withActionabilityReason(firstLine, cause),
+      detail: timeoutMs === undefined ? undefined : { timeoutMs },
+    });
   }
   if (/while parsing selector|Unknown engine|Unexpected token/i.test(message)) {
-    return new ServerBrowserOperationError("PreviewAutomationInvalidSelectorError", firstLine);
+    return new ServerBrowserOperationError({
+      tag: "PreviewAutomationInvalidSelectorError",
+      message: firstLine,
+    });
   }
   if (/not an <input>|not editable|not an editable/i.test(message)) {
-    return new ServerBrowserOperationError("PreviewAutomationTargetNotEditableError", firstLine);
+    return new ServerBrowserOperationError({
+      tag: "PreviewAutomationTargetNotEditableError",
+      message: firstLine,
+    });
   }
-  return new ServerBrowserOperationError("PreviewAutomationExecutionError", firstLine);
+  return new ServerBrowserOperationError({
+    tag: "PreviewAutomationExecutionError",
+    message: firstLine,
+  });
 };
 
 /** Playwright puts why an element was not actionable in its call log, below the first line. */
@@ -131,11 +144,12 @@ const targetLocator = (
     const ref = /^\s*aria-ref\s*=\s*(\S+)\s*$/.exec(selector)?.[1];
     const nativeRef = ref === undefined ? undefined : pageRefs.get(page)?.refs.get(ref);
     if (nativeRef === undefined) {
-      throw new ServerBrowserOperationError(
-        "PreviewAutomationInvalidSelectorError",
-        "This element ref is stale or belongs to another tab. Take a fresh snapshot and use its locator.",
-        { staleRef: true },
-      );
+      throw new ServerBrowserOperationError({
+        tag: "PreviewAutomationInvalidSelectorError",
+        message:
+          "This element ref is stale or belongs to another tab. Take a fresh snapshot and use its locator.",
+        detail: { staleRef: true },
+      });
     }
     return page.locator(`aria-ref=${nativeRef}`);
   }
@@ -186,7 +200,6 @@ const SNAPSHOT_SCRIPT = `(() => {
     title: document.title,
     loading: document.readyState !== "complete",
     visibleText: document.body?.innerText || "",
-    interactiveElements: [],
   };
 })()`;
 
@@ -264,10 +277,10 @@ const DOTTED_SCRIPT = `(() => {
 })()`;
 
 const pageChanged = () =>
-  new ServerBrowserOperationError(
-    "PreviewAutomationExecutionError",
-    "The page changed while capturing its snapshot. Take another snapshot.",
-  );
+  new ServerBrowserOperationError({
+    tag: "PreviewAutomationExecutionError",
+    message: "The page changed while capturing its snapshot. Take another snapshot.",
+  });
 
 type SnapshotStage = typeof PreviewAutomationSnapshotStage.Type;
 
@@ -281,21 +294,21 @@ interface SnapshotStages {
 }
 
 const snapshotTimedOut = (stages?: SnapshotStages) =>
-  new ServerBrowserOperationError(
-    "PreviewAutomationTimeoutError",
-    `Snapshot capture timed out after ${SNAPSHOT_TIMEOUT_MS}ms. Try the snapshot again.`,
-    {
+  new ServerBrowserOperationError({
+    tag: "PreviewAutomationTimeoutError",
+    message: `Snapshot capture timed out after ${SNAPSHOT_TIMEOUT_MS}ms. Try the snapshot again.`,
+    detail: {
       timeoutMs: SNAPSHOT_TIMEOUT_MS,
       pendingStages: stages ? [...new Set([...stages.timedOut, ...stages.running.keys()])] : [],
     },
-  );
+  });
 
 const frameUnanswered = () =>
-  new ServerBrowserOperationError(
-    "PreviewAutomationTimeoutError",
-    `A frame on the page didn't answer within ${FRAME_ANSWER_MS}ms, so its content couldn't be checked for hidden values. Try the snapshot again.`,
-    { timeoutMs: FRAME_ANSWER_MS, pendingStages: ["frames"] },
-  );
+  new ServerBrowserOperationError({
+    tag: "PreviewAutomationTimeoutError",
+    message: `A frame on the page didn't answer within ${FRAME_ANSWER_MS}ms, so its content couldn't be checked for hidden values. Try the snapshot again.`,
+    detail: { timeoutMs: FRAME_ANSWER_MS, pendingStages: ["frames"] },
+  });
 
 const isTimeout = (cause: unknown) => cause instanceof Error && cause.name === "TimeoutError";
 
@@ -454,7 +467,10 @@ const dottedPattern = (values: ReadonlyArray<string>) => {
     pattern.test("");
     pattern.test("\u2022");
   } catch {
-    throw new ServerBrowserOperationError("PreviewAutomationExecutionError", VALUE_TOO_LONG);
+    throw new ServerBrowserOperationError({
+      tag: "PreviewAutomationExecutionError",
+      message: VALUE_TOO_LONG,
+    });
   }
   return pattern;
 };
@@ -570,10 +586,11 @@ export const captureViewport = async (
     timer = setTimeout(
       () =>
         reject(
-          new ServerBrowserOperationError(
-            "PreviewAutomationExecutionError",
-            "The browser is not producing screenshot frames. For a desktop tab, show or restore the Supaterm window and try again.",
-          ),
+          new ServerBrowserOperationError({
+            tag: "PreviewAutomationExecutionError",
+            message:
+              "The browser is not producing screenshot frames. For a desktop tab, show or restore the Supaterm window and try again.",
+          }),
         ),
       SCREENSHOT_TIMEOUT_MS,
     );
@@ -705,10 +722,7 @@ const capture = async (
       "page state",
       () =>
         input.page.evaluate(SNAPSHOT_SCRIPT) as Promise<
-          Pick<
-            PreviewAutomationSnapshot,
-            "url" | "title" | "loading" | "visibleText" | "interactiveElements"
-          >
+          Pick<PreviewAutomationSnapshot, "url" | "title" | "loading" | "visibleText">
         >,
     ),
     // A cheap real frame still sizes the screenshot; computing it from metrics drifted from the PNG.
@@ -874,12 +888,12 @@ const namedTargetTimeout = async (
         ? `The click may have happened and removed its target or navigated; check the page before retrying. No element matches ${target} after the timeout; take a fresh snapshot and use its locator.`
         : `The click may have happened; check the page before retrying. ${target} still matches an element after the timeout.`;
   const message = withActionabilityReason(reason, cause);
-  return new ServerBrowserOperationError(
-    "PreviewAutomationTimeoutError",
+  return new ServerBrowserOperationError({
+    tag: "PreviewAutomationTimeoutError",
     message,
-    { reason: message },
-    { cause },
-  );
+    detail: { reason: message },
+    cause,
+  });
 };
 
 const clickTarget = async (
@@ -958,51 +972,107 @@ const focusTextTarget = (target: FocusCandidate | null) => {
   return active != null && (active === element || element.contains(active));
 };
 
-// A `*:focus` locator needs Playwright's utility world, which some desktop tabs never get.
-const focusedTextField = async (page: Page, timeout: number) => {
+// Playwright's own timeout covers finding the element, not a page that stops answering the evaluation.
+const pageAnswer = async <A>(answer: Promise<A>, timeout: number) => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_, reject) => {
     timer = setTimeout(
       () =>
         reject(
-          new ServerBrowserOperationError(
-            "PreviewAutomationTimeoutError",
-            `The page did not report its focused element within ${timeout}ms, so no text was typed.`,
-            { timeoutMs: timeout },
-          ),
+          new ServerBrowserOperationError({
+            tag: "PreviewAutomationTimeoutError",
+            message: `The page did not answer within ${timeout}ms, so no text was typed.`,
+            detail: { timeoutMs: timeout },
+          }),
         ),
       timeout,
     );
   });
-  return await Promise.race([page.evaluate(focusTextTarget, null), expired]).finally(() =>
-    clearTimeout(timer),
+  return await Promise.race([answer, expired]).finally(() => clearTimeout(timer));
+};
+
+// Serialized into the page's main world, so it must not reference module scope.
+const valueOnlyInput = (
+  target: FocusCandidate & {
+    closest(selector: string): { readonly control: FocusCandidate | null } | null;
+  },
+) => {
+  // As fill does, a target that is not a control stands for its label's control.
+  const element = target.tagName === "INPUT" ? target : target.closest("label")?.control;
+  return (
+    element?.tagName === "INPUT" &&
+    ["color", "date", "datetime-local", "month", "range", "time", "week"].includes(
+      element.type ?? "",
+    )
   );
 };
 
+// Keys reach pages that build their value from keydown. Line breaks stay text: Enter would submit the form.
+const typeKeys = async (page: Page, text: string, timeoutMs: number, deadline: number) => {
+  let typed = 0;
+  for (const [index, part] of text.split(/([\r\n]+)/u).entries()) {
+    // Keys cost about a millisecond each, so long text is sent in pieces that stop at the deadline.
+    const pieces = index % 2 === 1 ? [part] : (part.match(/[^]{1,64}/gu) ?? []);
+    for (const piece of pieces) {
+      if (Date.now() >= deadline) {
+        const reason = `Typing stopped after ${typed} of ${text.length} characters, which the field now holds. Type the rest in another call or raise timeoutMs.`;
+        throw new ServerBrowserOperationError({
+          tag: "PreviewAutomationTimeoutError",
+          message: reason,
+          detail: {
+            timeoutMs,
+            reason,
+          },
+        });
+      }
+      if (index % 2 === 1) await page.keyboard.insertText(piece);
+      else await page.keyboard.type(piece);
+      typed += piece.length;
+    }
+  }
+};
+
 export const type = async (page: Page, input: PreviewAutomationTypeInput) => {
-  const timeout = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // One deadline across steps keeps the reply inside the broker's grace; Playwright reads 0 as none.
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
+  const remaining = () => Math.max(1, deadline - Date.now());
   const locator = targetLocator(page, input);
   if (locator !== null && input.clear) {
-    await locator.fill(input.text, { timeout });
+    // Pickers and sliders take a value such as 2026-01-31 only from fill, and some reject an empty one.
+    const timeout = remaining();
+    if (
+      await pageAnswer(
+        locator.evaluate(valueOnlyInput as (target: unknown) => boolean, undefined, { timeout }),
+        timeout,
+      )
+    ) {
+      await locator.fill(input.text, { timeout: remaining() });
+      return;
+    }
+    // fill follows a label to its control and leaves that control focused for the keys.
+    await locator.fill("", { timeout: remaining() });
+    await typeKeys(page, input.text, timeoutMs, deadline);
     return;
   }
   const focused =
     locator === null
-      ? await focusedTextField(page, timeout)
+      ? // A `*:focus` locator needs Playwright's utility world, which some desktop tabs never get.
+        await pageAnswer(page.evaluate(focusTextTarget, null), remaining())
       : await locator.evaluate(focusTextTarget as (target: unknown) => boolean, undefined, {
-          timeout,
+          timeout: remaining(),
         });
   if (focused !== true) {
-    throw new ServerBrowserOperationError(
-      "PreviewAutomationTargetNotEditableError",
-      "The target is not an enabled text field, so no text was typed.",
-    );
+    throw new ServerBrowserOperationError({
+      tag: "PreviewAutomationTargetNotEditableError",
+      message: "The target is not an enabled text field, so no text was typed.",
+    });
   }
   if (input.clear) {
     await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.press("Delete");
   }
-  await page.keyboard.insertText(input.text);
+  await typeKeys(page, input.text, timeoutMs, deadline);
 };
 
 export const hover = async (
@@ -1049,10 +1119,10 @@ export const select = async (
         )?.value ?? entry,
     );
   if (values === null)
-    throw new ServerBrowserOperationError(
-      "PreviewAutomationTargetNotEditableError",
-      "This element is not a <select>. Click a custom dropdown, then click its option.",
-    );
+    throw new ServerBrowserOperationError({
+      tag: "PreviewAutomationTargetNotEditableError",
+      message: "This element is not a <select>. Click a custom dropdown, then click its option.",
+    });
   return { selected: await locator.selectOption(values, { timeout }) };
 };
 
@@ -1132,10 +1202,10 @@ export const evaluate = async (
       timedOut = true;
       void cdp.send("Runtime.terminateExecution").catch(constVoid);
       reject(
-        new ServerBrowserOperationError(
-          "PreviewAutomationTimeoutError",
-          `Evaluation did not finish within ${timeoutMs}ms and was stopped.`,
-        ),
+        new ServerBrowserOperationError({
+          tag: "PreviewAutomationTimeoutError",
+          message: `Evaluation did not finish within ${timeoutMs}ms and was stopped.`,
+        }),
       );
     }, timeoutMs);
   });
@@ -1160,20 +1230,20 @@ export const evaluate = async (
   void evaluation.catch(constVoid);
   const result = await Promise.race([evaluation, expired]).finally(() => clearTimeout(timer));
   if (result.exceptionDetails) {
-    throw new ServerBrowserOperationError(
-      "PreviewAutomationExecutionError",
-      result.exceptionDetails.exception?.description ?? result.exceptionDetails.text,
-    );
+    throw new ServerBrowserOperationError({
+      tag: "PreviewAutomationExecutionError",
+      message: result.exceptionDetails.exception?.description ?? result.exceptionDetails.text,
+    });
   }
   const value =
     "value" in result.result ? result.result.value : (result.result.description ?? null);
   const actualBytes = Buffer.byteLength(JSON.stringify(value ?? null), "utf8");
   if (actualBytes > MAX_EVALUATION_BYTES) {
-    throw new ServerBrowserOperationError(
-      "PreviewAutomationResultTooLargeError",
-      `Evaluation result is ${actualBytes} bytes; the limit is ${MAX_EVALUATION_BYTES}.`,
-      { maximumBytes: MAX_EVALUATION_BYTES },
-    );
+    throw new ServerBrowserOperationError({
+      tag: "PreviewAutomationResultTooLargeError",
+      message: `Evaluation result is ${actualBytes} bytes; the limit is ${MAX_EVALUATION_BYTES}.`,
+      detail: { maximumBytes: MAX_EVALUATION_BYTES },
+    });
   }
   return value;
 };
@@ -1200,10 +1270,10 @@ export const waitFor = async (page: Page, input: PreviewAutomationWaitForInput) 
     timer = setTimeout(
       () =>
         reject(
-          new ServerBrowserOperationError(
-            "PreviewAutomationTimeoutError",
-            `Waited ${timeoutMs}ms without every condition holding.`,
-          ),
+          new ServerBrowserOperationError({
+            tag: "PreviewAutomationTimeoutError",
+            message: `Waited ${timeoutMs}ms without every condition holding.`,
+          }),
         ),
       timeoutMs,
     );

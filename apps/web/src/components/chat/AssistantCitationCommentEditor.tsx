@@ -6,6 +6,7 @@ import { textDirection } from "~/textDirection";
 import { Button } from "../ui/button";
 import { TextFieldVoiceInput } from "./TextFieldVoiceInput";
 import { isImeComposing } from "~/lib/imeComposition";
+import { T, useGT, Var } from "gt-react";
 
 export function AssistantCitationCommentEditor({
   citation,
@@ -22,6 +23,7 @@ export function AssistantCitationCommentEditor({
   onCancel: () => void;
   onDraftChange?: (comment: string) => void;
 }) {
+  const gt = useGT();
   const [comment, setComment] = useState(citation.comment ?? "");
   const threadRef = useThreadRouteRef();
   const [voiceBusy, setVoiceBusy] = useState(false);
@@ -56,10 +58,12 @@ export function AssistantCitationCommentEditor({
     >
       <textarea
         ref={inputRef}
-        aria-label="Comment on selected text"
-        aria-description="Enter to save the citation comment; Command/Ctrl+Enter to save and send; Shift+Enter for a new line."
+        aria-label={gt("Comment on selected text")}
+        aria-description={gt(
+          "Enter to save the citation comment; Command/Ctrl+Enter to save and send; Shift+Enter for a new line.",
+        )}
         aria-invalid={commentTooLong || undefined}
-        placeholder="Add an optional comment..."
+        placeholder={gt("Add an optional comment...")}
         rows={2}
         dir={textDirection(comment)}
         className="field-sizing-content block max-h-40 min-h-16 w-full resize-none bg-transparent px-1 py-1.5 text-base outline-none placeholder:text-muted-foreground sm:text-sm"
@@ -84,8 +88,10 @@ export function AssistantCitationCommentEditor({
       />
       {commentTooLong ? (
         <p role="status" className="pt-1 text-xs text-destructive">
-          Comments can contain up to {ASSISTANT_CITATION_MAX_COMMENT_LENGTH.toLocaleString()}{" "}
-          characters.
+          <T>
+            Comments can contain up to{" "}
+            <Var>{ASSISTANT_CITATION_MAX_COMMENT_LENGTH.toLocaleString()}</Var> characters.
+          </T>
         </p>
       ) : null}
       <div className="mt-2 flex items-center justify-end gap-2">
@@ -108,7 +114,7 @@ export function AssistantCitationCommentEditor({
           onPointerDown={(event) => event.preventDefault()}
           onClick={onCancel}
         >
-          Cancel
+          <T>Cancel</T>
         </Button>
         <Button
           size="xs"
@@ -116,7 +122,9 @@ export function AssistantCitationCommentEditor({
           onPointerDown={(event) => event.preventDefault()}
           onClick={submit}
         >
-          {commentTooLong ? "Shorten comment" : "Save"}
+          {commentTooLong
+            ? gt("Shorten comment")
+            : gt("Save", { $context: "verb, saves the comment" })}
         </Button>
       </div>
     </div>

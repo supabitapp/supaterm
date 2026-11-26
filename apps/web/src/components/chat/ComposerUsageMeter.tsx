@@ -1,9 +1,7 @@
+import { formatResetsIn } from "@supaterm/shared/usageLimitsCopy";
+import { T, useGT, useMessages, Var } from "gt-react";
 import type { ServerProviderUsageWindow } from "@supaterm/contracts";
-import {
-  formatResetsIn,
-  type headlineUsageWindows,
-  remainingPercent,
-} from "@supaterm/shared/usageLimits";
+import { type headlineUsageWindows, remainingPercent } from "@supaterm/shared/usageLimits";
 import { memo } from "react";
 
 import { useNowMinuteMs } from "../../hooks/useNowMinute";
@@ -33,6 +31,7 @@ function UsageWindowMeter({
   readonly label: string;
   readonly window: ServerProviderUsageWindow;
 }) {
+  const gt = useGT();
   const remaining = remainingPercent(window);
   return (
     <Tooltip>
@@ -44,7 +43,7 @@ function UsageWindowMeter({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={remaining}
-            aria-valuetext={`${remaining}% left`}
+            aria-valuetext={gt("{remaining}% left", { remaining })}
             className="flex cursor-default items-center gap-1.5"
           />
         }
@@ -59,12 +58,12 @@ function UsageWindowMeter({
             }}
           />
         </span>
-        <span className="text-muted-foreground">{remaining}% left</span>
+        <span className="text-muted-foreground">{gt("{remaining}% left", { remaining })}</span>
       </TooltipTrigger>
       <TooltipPopup side="top">
         <div className="flex flex-col gap-0.5">
           <span className="text-foreground">
-            {window.label}: {remaining}% left
+            {gt("{label}: {remaining}% left", { label: window.label, remaining })}
           </span>
           {window.resetsAt ? <WindowReset window={window} resetsAt={window.resetsAt} /> : null}
         </div>
@@ -80,12 +79,15 @@ function WindowReset({
   readonly window: ServerProviderUsageWindow;
   readonly resetsAt: string;
 }) {
+  const messages = useMessages();
   const now = useNowMinuteMs();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
-  const resetsIn = formatResetsIn(window, now);
+  const resetsIn = formatResetsIn(window, now, messages);
   return (
     <span className="text-muted-foreground">
-      Resets {formatUpcomingTimestamp(resetsAt, timestampFormat, now)}
+      <T>
+        Resets <Var>{formatUpcomingTimestamp(resetsAt, timestampFormat, now)}</Var>
+      </T>
       {resetsIn ? ` · ${resetsIn}` : ""}
     </span>
   );

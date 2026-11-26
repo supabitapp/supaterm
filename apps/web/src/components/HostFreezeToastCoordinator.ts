@@ -4,6 +4,7 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentSummaries } from "../state/presentation";
 import { environmentServerConfigsAtom } from "../state/server";
 import { toastManager } from "./ui/toast";
+import { m } from "../i18n/messages";
 
 /** Tells the user why a host dropped, once per stall, when it reports one on reconnect. */
 export function startHostFreezeToasts(): () => void {
@@ -22,7 +23,7 @@ export function startHostFreezeToasts(): () => void {
             .get(environmentSummaries.identitiesAtom)
             .find((identity) => identity.environmentId === environmentId)?.label ??
           config.environment.label;
-        const notice = hostFreezeNotice(label, stall);
+        const notice = hostFreezeNotice(label, stall, m);
         if (notice !== null) {
           toastManager.add({ type: "warning", ...notice });
         }

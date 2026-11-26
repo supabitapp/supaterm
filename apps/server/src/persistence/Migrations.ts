@@ -36,6 +36,13 @@ import Migration0026 from "./Migrations/026_BackgroundRecoveryIndexes.ts";
 import Migration0027 from "./Migrations/027_TurnStartReadIndexes.ts";
 import Migration0028 from "./Migrations/028_DelegatedTaskReadIndexes.ts";
 import Migration0029 from "./Migrations/029_ThreadItemCounts.ts";
+import Migration0030 from "./Migrations/030_WorktreePathKeyIndex.ts";
+import Migration0031 from "./Migrations/031_DeferredSlashCommandIndex.ts";
+import Migration0032 from "./Migrations/032_SupersededRunAttemptIndex.ts";
+import Migration0033 from "./Migrations/033_ProjectionProjectsTrackedFolders.ts";
+import Migration0034 from "./Migrations/034_TaskFolders.ts";
+import Migration0035 from "./Migrations/035_IssueTrackers.ts";
+import Migration0036 from "./Migrations/036_RemoteTaskIndexJsonGuard.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -72,6 +79,13 @@ const migrationEntries = [
   [27, "TurnStartReadIndexes", Migration0027],
   [28, "DelegatedTaskReadIndexes", Migration0028],
   [29, "ThreadItemCounts", Migration0029],
+  [30, "WorktreePathKeyIndex", Migration0030],
+  [31, "DeferredSlashCommandIndex", Migration0031],
+  [32, "SupersededRunAttemptIndex", Migration0032],
+  [33, "ProjectionProjectsTrackedFolders", Migration0033],
+  [34, "TaskFolders", Migration0034],
+  [35, "IssueTrackers", Migration0035],
+  [36, "RemoteTaskIndexJsonGuard", Migration0036],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

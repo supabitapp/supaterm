@@ -21,7 +21,7 @@ type DraftThreadRouteState = {
   promotedTo?: ScopedThreadRef | null;
 };
 
-export type ThreadRouteRenderState = "loading" | "ready" | "missing";
+export type ThreadRouteRenderState = "loading" | "ready" | "missing" | "unreachable";
 
 export function isThreadRouteSnapshotAuthoritative(
   status: EnvironmentShellStatus | null | undefined,
@@ -37,10 +37,15 @@ export function resolveThreadRouteRenderState(input: {
   draftThreadExists: boolean;
   pendingThreadExists?: boolean;
   outboxLoaded?: boolean;
+  /** The app has no enabled connection to the thread's environment, so its shell never goes live. */
+  environmentUnreachable?: boolean;
 }): ThreadRouteRenderState {
   if (input.pendingThreadExists) return "ready";
   if (input.draftThreadExists || (input.serverThreadExists && !input.serverThreadDeleted)) {
     return "ready";
+  }
+  if (input.environmentUnreachable) {
+    return "unreachable";
   }
   if (!input.bootstrapComplete || input.outboxLoaded === false) {
     return "loading";

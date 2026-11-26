@@ -1,6 +1,7 @@
 import { type StaticScreenProps, useNavigation } from "@react-navigation/native";
 import { PREVIEW_ZOOM, stepPreviewZoom } from "@supaterm/client-runtime/preview-zoom";
 import { SourceText } from "@supaterm/mobile-source-text";
+import { useGT } from "gt-react-native";
 import { useEffect, useState } from "react";
 import { Platform, ScrollView, View } from "react-native";
 
@@ -19,6 +20,7 @@ type MermaidDiagramRouteParams = {
 export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRouteParams>) {
   const { source } = props.route.params;
   const navigation = useNavigation();
+  const gt = useGT();
   const codeText = useUniwindTheme()["--color-md-code-text"];
   const { codeSurface } = useAppearanceCodeSurface();
   const [zoom, setZoom] = useState(1);
@@ -67,21 +69,21 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
         onBack={() => navigation.goBack()}
         actions={[
           {
-            accessibilityLabel: "Zoom out",
+            accessibilityLabel: gt("Zoom out"),
             icon: "minus.magnifyingglass",
             disabled: zoom <= PREVIEW_ZOOM.min,
             separateBackground: false,
             onPress: () => setZoom(stepPreviewZoom(zoom, -1)),
           },
           {
-            accessibilityLabel: "Reset zoom",
+            accessibilityLabel: gt("Reset zoom"),
             icon: "arrow.uturn.backward",
             disabled: zoom === 1,
             separateBackground: false,
             onPress: () => setZoom(1),
           },
           {
-            accessibilityLabel: "Zoom in",
+            accessibilityLabel: gt("Zoom in"),
             icon: "plus.magnifyingglass",
             disabled: zoom >= PREVIEW_ZOOM.max,
             separateBackground: false,

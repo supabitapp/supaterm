@@ -50,6 +50,7 @@
         "graphql.config.ts",
         "src/bin.ts!",
         "src/claude-history-worker.ts!",
+        "src/process-launcher.ts!",
         "scripts/cli.ts",
         "scripts/desktop-launch-fixture.ts",
         "scripts/evaluate-thread-titles.ts",
@@ -78,6 +79,7 @@
       // Electron loads these bundles by filename rather than importing them.
       "entry": [
         "gnome-extension/extension.js!",
+        "src/backend/DesktopBackendRecoveryWorker.ts!",
         "src/electron/WindowsForegroundFocusWorker.ts!",
         "src/snapShot/GlobalShiftShortcutWorker.ts!",
         "src/snapShot/RegionSnapShotWorker.ts!",
@@ -102,7 +104,11 @@
       // UI component modules are copied and adapted as cohesive sets. Keep their
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
-      "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
+      "ignoreIssues": {
+        "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
+        // Upstream's runtime keeps helpers (useFormattingLocale, getActiveLocale) the fork does not call yet.
+        "src/i18n/{I18nProvider.tsx,messages.ts}": ["exports"],
+      },
     },
     "apps/marketing": {
       // scripts/lib/studio-icon-render.ts bundles this module and calls its exports by name
@@ -130,6 +136,8 @@
         "@supaterm/mobile-review-diff-native",
         "@supaterm/mobile-terminal-native",
       ],
+      // Upstream's runtime keeps helpers (useFormattingLocale, keepMarked) the fork does not call yet.
+      "ignoreIssues": { "src/i18n/{I18nProvider.tsx,messages.ts}": ["exports"] },
     },
     "apps/mobile/modules/supaterm-highlights": {
       // Nitrogen discovers HybridObject specifications by filename.
@@ -142,6 +150,11 @@
     "packages/*": {
       // These workspace packages are private to this monorepo.
       "includeEntryExports": true,
+    },
+    "packages/client-runtime": {
+      "includeEntryExports": true,
+      // Upstream's marked-error helpers; the fork's errors do not carry i18nMessage yet.
+      "ignoreIssues": { "src/errors/translatable.ts": ["exports"] },
     },
     "packages/effect-acp": {
       "includeEntryExports": true,
@@ -159,6 +172,11 @@
       // The generator writes a component and node data for every manifest entry, and each
       // surface draws an icon from only one of the two.
       "ignoreIssues": { "src/generated/{components,nodes}.ts": ["exports"] },
+    },
+    "packages/issue-tracker-linear": {
+      // graphqlgen reads its config; the generated operations export every selection's class.
+      "entry": ["graphql.config.ts"],
+      "ignoreIssues": { "**/*.graphql.ts": ["exports", "types", "namespaceMembers"] },
     },
     "packages/source-control-github": {
       // graphqlgen reads its config; the generated operations export every selection's class.

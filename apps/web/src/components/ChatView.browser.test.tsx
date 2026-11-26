@@ -1,12 +1,13 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
-import { RunId, ThreadId } from "@supaterm/contracts";
+import { NodeId, ProviderSessionId, RunId, RuntimeRequestId, ThreadId } from "@supaterm/contracts";
 import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts/settings";
 import {
   compileResolvedKeybindingsConfig,
   mergeWithDefaultKeybindings,
 } from "@supaterm/shared/keybindings";
 import type * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
 import { expect, it, vi } from "vite-plus/test";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
 
@@ -24,10 +25,12 @@ import { environmentThreadDetails } from "~/state/threads";
 import {
   ENVIRONMENT_ID,
   PROJECT_ID,
+  approvalRequestItem,
   assistantItem,
   dispatchedCommands,
   emitThreadEvent,
   installFakeEnvironment,
+  runningRun,
   threadWithHistory,
   type FakeDriver,
 } from "../../test/fakeEnvironment";
@@ -201,6 +204,115 @@ it("a shortcut conditioned on rightPanelOpen sees the thread's open right panel"
   await expect.element(toggle).toHaveAttribute("aria-pressed", "true");
 });
 
+it("the approve shortcut answers the approval the timeline shows first", async () => {
+  const history = threadWithHistory("approvals", 1);
+  const runId = history.runs[0]!.id;
+  const olderRequest = RuntimeRequestId.make("older-approval");
+  const newerRequest = RuntimeRequestId.make("newer-approval");
+  const pendingRequest = (id: RuntimeRequestId, createdAt: string) => ({
+    id,
+    nodeId: NodeId.make("approvals-node"),
+    providerTurnId: null,
+    nativeRequestRef: null,
+    kind: "command" as const,
+    status: "pending" as const,
+    responseCapability: {
+      type: "live" as const,
+      providerSessionId: ProviderSessionId.make("approvals-session"),
+    },
+    createdAt: DateTime.makeUnsafe(createdAt),
+    resolvedAt: null,
+  });
+  // The older request's item is paged out of the loaded history, so it shows below the newer one.
+  const thread = {
+    ...history,
+    items: [
+      ...history.items,
+      approvalRequestItem(history.id, runId, "newer-approval-item", 2, newerRequest, "pnpm test"),
+    ],
+    runtimeRequests: [
+      pendingRequest(olderRequest, "2026-03-17T19:12:29.000Z"),
+      pendingRequest(newerRequest, "2026-03-17T19:12:30.000Z"),
+    ],
+  };
+  using _environment = installFakeEnvironment([thread], {
+    acceptCommands: true,
+    keybindings: mergeWithDefaultKeybindings(
+      compileResolvedKeybindingsConfig([{ key: "ctrl+y", command: "thread.approve" }]),
+    ),
+  });
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${thread.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  const approvals = page.getByRole("group", { name: "Command approval" });
+  await expect.element(approvals.nth(1)).toBeVisible();
+  expect(approvals.first().element().textContent).toContain("pnpm test");
+
+  await userEvent.click(page.getByTestId("composer-editor"));
+  await userEvent.keyboard("{Control>}y{/Control}");
+
+  await vi.waitFor(() =>
+    expect(
+      dispatchedCommands().flatMap((command) =>
+        command.type === "runtime-request.respond" ? [[command.requestId, command.decision]] : [],
+      ),
+    ).toEqual([[newerRequest, "accept"]]),
+  );
+});
+
+it("a queued message sending on one thread leaves the next thread's queue usable in the same pane", async () => {
+  const withQueuedRun = (name: string) => {
+    const history = threadWithHistory(name, 1);
+    const queued = runningRun(history.id, `${name}-queued`, 2, `${name}-queued`);
+    return { ...history, runs: [...history.runs, { ...queued, status: "queued" as const }] };
+  };
+  const first = withQueuedRun("queue-first");
+  const second = withQueuedRun("queue-second");
+  using _environment = installFakeEnvironment([first, second]);
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${second.id}`] }),
+  );
+  await router.load();
+  using consoleError = vi.spyOn(console, "error");
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  const open = async (threadId: ThreadId) => {
+    await act(() =>
+      router.navigate({
+        to: "/$environmentId/$threadId",
+        params: { environmentId: ENVIRONMENT_ID, threadId },
+      }),
+    );
+    await expect.element(page.getByText(`Answer 0 for ${threadId}.`)).toBeVisible();
+  };
+  const sendNow = page.getByRole("button", { name: "Send now" });
+  await expect.element(sendNow).toBeEnabled();
+  await open(first.id);
+  await sendNow.click();
+  await expect.element(sendNow).toBeDisabled();
+
+  await open(second.id);
+  await expect.element(sendNow).toBeEnabled();
+  expect(consoleError.mock.calls.map(([message]) => String(message))).not.toContainEqual(
+    expect.stringContaining("Encountered two children with the same key"),
+  );
+});
+
 it("a stashed prompt ending in a file chip restores with the chip", async () => {
   using _environment = installFakeEnvironment([]);
   __setClientSettingsForTests({
@@ -359,4 +471,47 @@ it("a mounted thread view lets go of the thread structures it has replaced", asy
   // The thread keeps its latest structure, and the timeline may remember the one before it.
   const kept = shown.slice(0, -2).flatMap((structure, round) => (structure.deref() ? [round] : []));
   expect(kept).toEqual([]);
+});
+
+it("opening Settings without a page event closes the composer model picker and permissions menu", async () => {
+  await page.viewport(1400, 900);
+  using _environment = installFakeEnvironment([]);
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const draftId = DraftId.make("draft-29219");
+  useComposerDraftStore
+    .getState()
+    .setProjectDraftThreadId(scopeProjectRef(ENVIRONMENT_ID, PROJECT_ID), draftId, {
+      threadId: ThreadId.make("thread-29219"),
+    });
+
+  const router = getRouter(createMemoryHistory({ initialEntries: [`/draft/${draftId}`] }));
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  await expect.element(page.getByTestId("composer-editor")).toBeVisible();
+  const trigger = document.querySelector<HTMLElement>("[data-chat-provider-model-picker]");
+  if (!trigger) throw new Error("composer model picker trigger missing");
+  await userEvent.click(trigger);
+  const search = page.getByPlaceholder("Search models...");
+  await expect.element(search).toBeVisible();
+
+  // The desktop menu's open-settings accelerator navigates with no key or pointer event in the page.
+  await act(() => router.navigate({ to: "/settings" }));
+  await expect.element(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect.element(search).not.toBeInTheDocument();
+
+  await act(() => router.navigate({ to: "/draft/$draftId", params: { draftId } }));
+  await page.getByRole("button", { name: "More composer controls" }).click();
+  const permissions = page.getByRole("menuitemradio", { name: "Full access" });
+  await expect.element(permissions).toBeVisible();
+  // The modal Settings dialog aria-hides everything outside it, so watch the item itself, not its role.
+  const permissionsItem = permissions.element();
+  await act(() => router.navigate({ to: "/settings" }));
+  await expect.element(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await vi.waitFor(() => expect(permissionsItem.isConnected).toBe(false));
 });

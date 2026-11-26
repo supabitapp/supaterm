@@ -22,6 +22,7 @@ import {
 } from "./ReadOnlyComposerBar";
 import { ReadOnlyThreadTimeline } from "./ReadOnlyThreadTimeline";
 import { toastManager } from "../ui/toast";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 /**
  * Stands where a composer would: the thread takes no messages from here. `action` is the one way
@@ -37,6 +38,7 @@ function LinkedThreadComposer(props: {
   readonly notice?: ReactNode;
 }) {
   const { label, via } = props;
+  const gt = useGT();
   return (
     <div className="flex shrink-0 flex-col gap-1 px-3 pb-3">
       {props.notice}
@@ -46,10 +48,14 @@ function LinkedThreadComposer(props: {
             <ReadOnlyComposerBar actions={props.action}>
               <ReadOnlyComposerLead>
                 <EyeIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 truncate font-medium text-foreground">Read-only</span>
+                <span className="min-w-0 truncate font-medium text-foreground">
+                  <T>Read-only</T>
+                </span>
               </ReadOnlyComposerLead>
               <ReadOnlyComposerStatus role="status">
-                {`On ${label} via ${via}${props.working ? " · Working" : ""}`}
+                {props.working
+                  ? gt("On {label} via {via} · Working", { label, via })
+                  : gt("On {label} via {via}", { label, via })}
               </ReadOnlyComposerStatus>
             </ReadOnlyComposerBar>
           </div>
@@ -73,6 +79,8 @@ export function LinkedThreadPane(props: {
   /** Whether the tab is showing; the stream runs only while it is. */
   readonly visible: boolean;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const { surface, panelRef } = props;
   const via = useEnvironment(surface.viaEnvironmentId)?.label ?? "this environment";
   const { view, error, retry } = useLinkedThreadView(panelRef, surface, props.visible);
@@ -87,8 +95,8 @@ export function LinkedThreadPane(props: {
     if (outcome.type === "connected") {
       toastManager.add({
         type: "success",
-        title: `Connected to ${label}`,
-        description: "This device is paired with it and can use its threads.",
+        title: gt("Connected to {label}", { label }),
+        description: gt("This device is paired with it and can use its threads."),
       });
     }
   };
@@ -96,23 +104,28 @@ export function LinkedThreadPane(props: {
     connectState.phase === "connecting" ? (
       <Alert variant="info">
         <PlugIcon />
-        <AlertTitle>Connecting to {label}…</AlertTitle>
+        <AlertTitle>{gt("Connecting to {label}…", { label })}</AlertTitle>
       </Alert>
     ) : connectState.phase === "unreachable" ? (
       <Alert variant="warning">
         <PlugIcon />
-        <AlertTitle>{connectState.label} is not reachable from this device</AlertTitle>
+        <AlertTitle>
+          {gt("{label} is not reachable from this device", { label: connectState.label })}
+        </AlertTitle>
         <AlertDescription>
-          Join a network it is on, such as its Tailscale network, and try again. You can keep
-          reading here.
+          {gt(
+            "Join a network it is on, such as its Tailscale network, and try again. You can keep reading here.",
+          )}
         </AlertDescription>
       </Alert>
     ) : connectState.phase === "manual" ? (
       <Alert variant="info">
         <PlugIcon />
-        <AlertTitle>{connectState.prefill.label} needs a pairing code</AlertTitle>
+        <AlertTitle>
+          {gt("{label} needs a pairing code", { label: connectState.prefill.label })}
+        </AlertTitle>
         <AlertDescription>
-          Create one on it, then add it to this device as an environment.
+          {gt("Create one on it, then add it to this device as an environment.")}
         </AlertDescription>
         <AlertAction>
           <Button
@@ -120,7 +133,7 @@ export function LinkedThreadPane(props: {
             variant="ghost"
             onClick={() => connection.addWithCode(connectState.prefill)}
           >
-            Enter code
+            <T>Enter code</T>
           </Button>
         </AlertAction>
       </Alert>
@@ -128,21 +141,23 @@ export function LinkedThreadPane(props: {
   const connectAction = (
     <Button size="sm" variant="outline" disabled={connecting} onClick={() => void connect()}>
       <PlugIcon aria-hidden />
-      <span className="@max-[320px]/composer-surface:sr-only">Connect to interact</span>
+      <span className="@max-[320px]/composer-surface:sr-only">
+        <T>Connect to interact</T>
+      </span>
     </Button>
   );
-  const failure = error === null ? null : linkedThreadFailure(error, { via, label });
+  const failure = error === null ? null : linkedThreadFailure(error, { via, label }, messages);
   const retryAction = failure?.retryable ? (
     <AlertAction>
       <Button size="sm" variant="outline" onClick={retry}>
-        Try again
+        <T>Try again</T>
       </Button>
     </AlertAction>
   ) : null;
   // A file or visual lives on the linked environment, which this client has no way to ask.
   const renderHtmlRender = useStableCallback(() => (
     <p className="chat-content-lane text-xs text-muted-foreground">
-      Open this thread on {label} to see this visual.
+      {gt("Open this thread on {label} to see this visual.", { label })}
     </p>
   ));
   const working = projection !== null && isLinkedThreadWorking(projection);
@@ -153,7 +168,7 @@ export function LinkedThreadPane(props: {
           historyCursor: view.thread.historyCursor,
           hasMoreHistory: true,
           loading: view.history.loading,
-          error: view.history.failed ? "Could not load earlier turns. Try again." : null,
+          error: view.history.failed ? gt("Could not load earlier turns. Try again.") : null,
           onLoadEarlier: view.loadEarlier,
         };
   return (
@@ -161,14 +176,18 @@ export function LinkedThreadPane(props: {
       <h2 className="shrink-0 truncate border-b border-border px-3 py-2 text-sm font-medium">
         {linkedThreadTitle(
           { title: projection?.thread.title || surface.title },
-          `Thread on ${label}`,
+          gt("Thread on {label}", { label }),
         )}
       </h2>
       {projection === null ? (
         <>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {failure === null ? (
-              <p className="text-sm text-muted-foreground">Reading from {label}…</p>
+              <p className="text-sm text-muted-foreground">
+                <T>
+                  Reading from <Var>{label}</Var>…
+                </T>
+              </p>
             ) : (
               <Alert variant="error">
                 <AlertTitle>{failure.title}</AlertTitle>
@@ -199,7 +218,9 @@ export function LinkedThreadPane(props: {
             <div className="shrink-0 px-3 pb-2">
               <Alert variant="warning">
                 <AlertTitle>{failure.title}</AlertTitle>
-                <AlertDescription>{failure.detail} Showing what was read before.</AlertDescription>
+                <AlertDescription>
+                  {failure.detail} <T>Showing what was read before.</T>
+                </AlertDescription>
                 {retryAction}
               </Alert>
             </div>

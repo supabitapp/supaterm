@@ -9,15 +9,31 @@ import { formatModelSlugName, resolveSelectableModel } from "@supaterm/shared/mo
 import { fileDisplayName } from "@supaterm/shared/path";
 import { resolveModelShortName } from "../providerClients.ts";
 import { isTerminalSubagentStatus } from "./subagentRuntime.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export function subagentGroupSummary(
   members: ReadonlyArray<{ readonly status: OrchestrationV2TurnItemStatus }>,
+  resolve: MFunctionType = mFallback,
 ) {
   const active = members.some(
     ({ status }) => status === "pending" || status === "running" || status === "waiting",
   );
   return {
-    label: `${active ? "Kicked off" : "Ran"} ${members.length} ${members.length === 1 ? "subagent" : "subagents"}`,
+    label: active
+      ? resolve(
+          msg(
+            "{count, plural, one {Kicked off {count} subagent} other {Kicked off {count} subagents}}",
+            {
+              count: members.length,
+            },
+          ),
+        )
+      : resolve(
+          msg("{count, plural, one {Ran {count} subagent} other {Ran {count} subagents}}", {
+            count: members.length,
+          }),
+        ),
     active,
     failed: members.some(({ status }) => status === "failed"),
   };
@@ -49,24 +65,27 @@ export function formatSubagentDisplayTitle(title: string): string {
   return name.replace(/(^|\s)\S/gu, (letter) => letter.toUpperCase()) || displayTitle;
 }
 
-export function resolveSubagentMetadata(input: {
-  readonly model: string | null;
-  readonly modelSelection?: Pick<ModelSelection, "model"> | undefined;
-  readonly provider?: Pick<ServerProvider, "driver" | "models"> | null | undefined;
-  readonly parentThread?:
-    | Pick<OrchestrationV2ThreadShell, "projectId" | "worktreePath">
-    | null
-    | undefined;
-  readonly childThread?:
-    | Pick<OrchestrationV2ThreadShell, "branch" | "worktreePath">
-    | null
-    | undefined;
-  readonly parentProject?: Pick<OrchestrationProjectShell, "workspaceRoot"> | null | undefined;
-  readonly childProject?:
-    | Pick<OrchestrationProjectShell, "id" | "title" | "workspaceRoot">
-    | null
-    | undefined;
-}) {
+export function resolveSubagentMetadata(
+  input: {
+    readonly model: string | null;
+    readonly modelSelection?: Pick<ModelSelection, "model"> | undefined;
+    readonly provider?: Pick<ServerProvider, "driver" | "models"> | null | undefined;
+    readonly parentThread?:
+      | Pick<OrchestrationV2ThreadShell, "projectId" | "worktreePath">
+      | null
+      | undefined;
+    readonly childThread?:
+      | Pick<OrchestrationV2ThreadShell, "branch" | "worktreePath">
+      | null
+      | undefined;
+    readonly parentProject?: Pick<OrchestrationProjectShell, "workspaceRoot"> | null | undefined;
+    readonly childProject?:
+      | Pick<OrchestrationProjectShell, "id" | "title" | "workspaceRoot">
+      | null
+      | undefined;
+  },
+  resolve: MFunctionType = mFallback,
+) {
   const model = input.model?.trim() || input.modelSelection?.model.trim();
   const slug = input.provider
     ? resolveSelectableModel(input.provider.driver, model, input.provider.models)
@@ -76,7 +95,7 @@ export function resolveSubagentMetadata(input: {
     ? (resolveModelShortName(catalogModel, input.provider?.driver) ?? catalogModel.name)
     : model
       ? formatModelSlugName(model)
-      : "Not reported";
+      : resolve(msg("Not reported"));
   const qualifier = catalogModel?.subProvider?.trim();
   const modelLabel = qualifier
     ? reportedLabel
@@ -95,16 +114,21 @@ export function resolveSubagentMetadata(input: {
     ...(input.parentThread &&
     input.childProject &&
     input.childProject.id !== input.parentThread.projectId
-      ? [{ label: "Project", value: input.childProject.title }]
+      ? [
+          {
+            label: resolve(msg("Project", { $context: "field label" })),
+            value: input.childProject.title,
+          },
+        ]
       : []),
     ...(parentWorkspace && childWorkspace && parentWorkspace !== childWorkspace
       ? [
           {
             label: input.childThread?.branch
-              ? "Branch"
+              ? resolve(msg("Branch", { $context: "field label" }))
               : input.childThread?.worktreePath
-                ? "Worktree"
-                : "Workspace",
+                ? resolve(msg("Worktree", { $context: "field label" }))
+                : resolve(msg("Workspace", { $context: "field label" })),
             value: input.childThread?.branch ?? fileDisplayName(childWorkspace),
           },
         ]

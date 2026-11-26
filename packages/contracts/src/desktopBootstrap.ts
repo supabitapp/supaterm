@@ -18,6 +18,8 @@ export const DesktopBackendBootstrap = Schema.Struct({
   host: Schema.String,
   desktopBootstrapToken: Schema.String,
   desktopBootstrapSecret: Schema.String,
+  // Fresh per launch. A backend without a control channel proves it holds this before it counts as ready; see @supaterm/shared/desktopReadinessProof.
+  desktopReadinessSecret: Schema.optionalKey(Schema.String),
   // Set only when the desktop already merged the user's shell environment into
   // the environment it hands this backend. Absent means the backend hydrates
   // PATH itself, which WSL relies on.

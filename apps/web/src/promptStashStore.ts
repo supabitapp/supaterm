@@ -7,6 +7,8 @@ import {
   PersistedComposerImageAttachment,
 } from "./composerDraftStore";
 import { createMemoryStorage, type StateStorage } from "./lib/storage";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export const PROMPT_STASH_STORAGE_KEY = "supaterm:prompt-stash:v2";
 const PROMPT_STASH_STORAGE_VERSION = 2;
@@ -43,9 +45,8 @@ function clearOrphanedPendingImages(entry: PromptStashEntry): PromptStashEntry {
     pendingImageCount: 0,
     unreadableImageNames: [
       ...(entry.unreadableImageNames ?? []),
-      ...Array.from(
-        { length: entry.pendingImageCount },
-        (_, index) => `image ${index + 1} (not saved before reload)`,
+      ...Array.from({ length: entry.pendingImageCount }, (_, index) =>
+        m(msg("image {index} (not saved before reload)", { index: index + 1 })),
       ),
     ],
   };

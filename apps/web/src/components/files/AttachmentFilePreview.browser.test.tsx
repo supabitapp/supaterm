@@ -49,6 +49,7 @@ vi.mock(import("./office/WordDocument"), async () => {
   };
 });
 
+import { __setClientSettingsForTests, getClientSettings } from "~/hooks/useSettings";
 import { AttachmentFilePreview } from "./AttachmentFilePreview";
 import LargeTextViewer from "./LargeTextViewer";
 import VirtualTablePreview from "./VirtualTablePreview";
@@ -201,44 +202,60 @@ describe("bounded binary previews", () => {
       ]);
       expect(await request({ type: "entry", path: "replaced.txt" })).toEqual({
         type: "error",
-        message: "This archive entry is unavailable.",
+        code: "archive-entry-unavailable",
+        message: "archive-entry-unavailable",
       });
     } finally {
       worker.terminate();
     }
   });
 
-  it("can leave an archive folder with a repeated separator", async () => {
+  it("names archive folders whose paths have leading or repeated slashes", async () => {
     const bytes = new Uint8Array(2048);
     const write = (offset: number, value: string) =>
       bytes.set(new TextEncoder().encode(value), offset);
-    write(0, "a//hello.txt");
-    write(124, "00000000014\0");
-    bytes.fill(32, 148, 156);
-    write(156, "0");
-    write(
-      148,
-      bytes
-        .subarray(0, 512)
-        .reduce((sum, byte) => sum + byte, 0)
-        .toString(8)
-        .padStart(6, "0") + "\0 ",
-    );
-    write(512, "nested hello");
+    const member = (offset: number, name: string, content: string) => {
+      write(offset, name);
+      write(offset + 124, content.length.toString(8).padStart(11, "0") + "\0");
+      bytes.fill(32, offset + 148, offset + 156);
+      write(offset + 156, "0");
+      write(
+        offset + 148,
+        bytes
+          .subarray(offset, offset + 512)
+          .reduce((sum, byte) => sum + byte, 0)
+          .toString(8)
+          .padStart(6, "0") + "\0 ",
+      );
+      write(offset + 512, content);
+    };
+    member(0, "/a//hello.txt", "nested hello");
+    member(1024, "a/hello.txt", "plain hello");
     const src = URL.createObjectURL(new Blob([bytes]));
     try {
       await using screen = await render(<BinaryViewer src={src} name="paths.tar" kind="archive" />);
-      const child = () => screen.container.querySelector<HTMLButtonElement>("tbody button");
-      await vi.waitFor(() => expect(child()?.textContent).toBe("a"), 10_000);
-      await act(() => child()!.click());
-      await act(() => child()!.click());
-      await vi.waitFor(() => expect(child()?.textContent).toBe("hello.txt"));
+      const buttons = () => [
+        ...screen.container.querySelectorAll<HTMLButtonElement>("tbody button"),
+      ];
+      const rows = () => buttons().map((button) => button.textContent);
+      const back = () =>
+        screen.container.querySelector<HTMLButtonElement>('[aria-label="Back to archive"]')!;
+      const preview = () => screen.container.querySelector("pre")?.textContent;
+      await vi.waitFor(() => expect(rows()).toEqual(["a"]), 10_000);
+      await act(() => buttons()[0]!.click());
+      await vi.waitFor(() => expect(rows()).toEqual(["hello.txt", "hello.txt"]));
+      await act(() => buttons()[0]!.click());
+      await vi.waitFor(() => expect(preview()).toContain("nested hello"), 10_000);
+      await act(() => back().click());
+      await act(() => buttons()[1]!.click());
+      await vi.waitFor(() => expect(preview()).toContain("plain hello"), 10_000);
+      await act(() => back().click());
+      await vi.waitFor(() => expect(rows()).toEqual(["hello.txt", "hello.txt"]));
       const parent = () =>
         screen.container.querySelector<HTMLButtonElement>('[aria-label="Parent folder"]')!;
       await act(() => parent().click());
-      await act(() => parent().click());
       expect(parent().disabled).toBe(true);
-      expect(child()?.textContent).toBe("a");
+      expect(rows()).toEqual(["a"]);
     } finally {
       URL.revokeObjectURL(src);
     }
@@ -469,59 +486,88 @@ describe("bounded binary previews", () => {
     }
   });
 
-  it("keeps WhiteIsZero TIFF brightness and rejects oversized metadata before decoding", async () => {
-    const tags = [
-      [256, 2],
-      [257, 1],
-      [258, 8],
-      [259, 1],
-      [262, 0],
-      [273, 134],
-      [277, 1],
-      [278, 1],
-      [279, 2],
-      [284, 1],
-    ];
-    const bytes = new ArrayBuffer(136);
-    const view = new DataView(bytes);
-    view.setUint16(0, 0x4949);
-    view.setUint16(2, 42, true);
-    view.setUint32(4, 8, true);
-    view.setUint16(8, tags.length, true);
-    tags.forEach(([tag, value], index) => {
-      const offset = 10 + index * 12;
-      view.setUint16(offset, tag!, true);
-      view.setUint16(offset + 2, 4, true);
-      view.setUint32(offset + 4, 1, true);
-      view.setUint32(offset + 8, value!, true);
-    });
-    view.setUint8(135, 255);
-    const src = URL.createObjectURL(new Blob([bytes]));
-    try {
-      const blob = await decodeImagePreview(src, false, new AbortController().signal);
-      const bitmap = await createImageBitmap(blob);
-      const canvas = new OffscreenCanvas(2, 1);
-      const context = canvas.getContext("2d")!;
-      context.drawImage(bitmap, 0, 0);
-      expect([...context.getImageData(0, 0, 2, 1).data]).toEqual([
-        255, 255, 255, 255, 0, 0, 0, 255,
-      ]);
-      bitmap.close();
-    } finally {
-      URL.revokeObjectURL(src);
+  it("keeps WhiteIsZero TIFF brightness and alpha with SubIFDs and type-13 ExifIFD pointers and rejects invalid metadata before decoding", async () => {
+    let bytes = new ArrayBuffer(0);
+    let exifEntry = 0;
+    for (const { pixels, expected } of [
+      { pixels: [0, 255], expected: [255, 255, 255, 255, 0, 0, 0, 255] },
+      { pixels: [0, 255, 255, 0], expected: [255, 255, 255, 255, 0, 0, 0, 0] },
+    ]) {
+      const samples = pixels.length / 2;
+      const start = samples === 2 ? 170 : 158;
+      const exif = start + pixels.length;
+      const tags = [
+        [256, 2],
+        [257, 1],
+        [258, 8],
+        [259, 1],
+        [262, 0],
+        [273, start],
+        [277, samples],
+        [278, 1],
+        [279, pixels.length],
+        [284, 1],
+        [330, 0, 13],
+        ...(samples === 2 ? [[338, 2]] : []),
+        [34665, exif, 13],
+      ];
+      exifEntry = 10 + (tags.length - 1) * 12;
+      bytes = new ArrayBuffer(exif + 8);
+      const view = new DataView(bytes);
+      view.setUint16(0, 0x4949);
+      view.setUint16(2, 42, true);
+      view.setUint32(4, 8, true);
+      view.setUint16(8, tags.length, true);
+      tags.forEach(([tag, value, type = 4], index) => {
+        const offset = 10 + index * 12;
+        view.setUint16(offset, tag!, true);
+        view.setUint16(offset + 2, type, true);
+        view.setUint32(offset + 4, 1, true);
+        view.setUint32(offset + 8, value!, true);
+      });
+      new Uint8Array(bytes, start).set(pixels);
+      const src = URL.createObjectURL(new Blob([bytes]));
+      try {
+        const blob = await decodeImagePreview(src, false, new AbortController().signal);
+        const bitmap = await createImageBitmap(blob);
+        const canvas = new OffscreenCanvas(2, 1);
+        const context = canvas.getContext("2d")!;
+        context.drawImage(bitmap, 0, 0);
+        expect([...context.getImageData(0, 0, 2, 1).data]).toEqual(expected);
+        bitmap.close();
+      } finally {
+        URL.revokeObjectURL(src);
+      }
     }
-    view.setUint32(14, 1_000_000, true);
-    const invalid = URL.createObjectURL(new Blob([bytes]));
-    try {
-      await expect(
-        decodeImagePreview(invalid, false, new AbortController().signal),
-      ).rejects.toThrow("metadata");
-    } finally {
-      URL.revokeObjectURL(invalid);
+    for (const [mutate, message] of [
+      [
+        (view: DataView) => view.setUint16(exifEntry + 2, 3, true),
+        "Invalid TIFF metadata pointer.",
+      ],
+      [
+        (view: DataView) => view.setUint32(exifEntry + 4, 2, true),
+        "Invalid TIFF metadata pointer.",
+      ],
+      [
+        (view: DataView) => view.setUint32(14, 1_000_000, true),
+        "This TIFF has too much or truncated metadata.",
+      ],
+    ] as const) {
+      const copy = bytes.slice(0);
+      mutate(new DataView(copy));
+      const invalid = URL.createObjectURL(new Blob([copy]));
+      try {
+        await expect(
+          decodeImagePreview(invalid, false, new AbortController().signal),
+        ).rejects.toThrow(message);
+      } finally {
+        URL.revokeObjectURL(invalid);
+      }
     }
   });
 });
 import { OFFICE_PREVIEW_MAX_COLUMNS, type OfficeWorkerResult } from "./officePreviewProtocol";
+import { previewFailureText } from "./previewFailureMessages";
 import { WORD_LIMITS } from "./officeArchive";
 
 describe("large text preview recovery", () => {
@@ -554,8 +600,14 @@ describe("large text preview recovery", () => {
           environmentId={EnvironmentId.make("test")}
           threadRef={{ environmentId: EnvironmentId.make("test"), threadId: ThreadId.make("test") }}
           absolutePath="/repo/large.txt"
+          draftCwd={null}
           name="large.txt"
           delimiter={null}
+          markdownCwd={null}
+          copyContents={{ current: null }}
+          preview=""
+          // Past the highlighted-source cap, so the worker-backed viewer under test renders.
+          sizeBytes={128 * 1024 * 1024}
           workspaceMutationId={mutation}
           revealLine={null}
           revealRequestId={0}
@@ -810,6 +862,112 @@ describe("large text preview recovery", () => {
     });
     await vi.waitFor(check);
     expect(screen.container.textContent).toContain("C19");
+  });
+
+  it("keeps row height and vertical position stable across horizontal scroll, fresh row arrays, resize, and typography changes", async () => {
+    const columns = 35;
+    const header = Array.from({ length: columns }, (_, i) => `Col ${i}`);
+    const forcedEightLines = Array.from({ length: 8 }, (_, i) => `L${i + 1}`).join("\n");
+    const wrappedTwelveWords = Array.from({ length: 12 }, (_, i) => `segment${i + 1}`).join(" ");
+    const makeRows = () => [
+      header,
+      ...Array.from({ length: 24 }, (_, rowIndex) =>
+        Array.from({ length: columns }, (_, columnIndex) => {
+          if (rowIndex === 0) {
+            if (columnIndex >= 10 && columnIndex < 28) return forcedEightLines;
+            if (columnIndex === 34) return wrappedTwelveWords;
+          }
+          if (columnIndex === 33 && rowIndex % 3 === 1) return forcedEightLines;
+          // Wide lowercase glyphs that wrap without spaces or newlines.
+          if (rowIndex === 2 && columnIndex === 34) return "m".repeat(11);
+          return `r${rowIndex + 1}-c${columnIndex}`;
+        }),
+      ),
+    ];
+    const view = (width: number) => (
+      <div style={{ display: "flex", height: 320, width }}>
+        <VirtualTablePreview
+          name="wide-wrapped.csv"
+          count={25}
+          columns={columns}
+          header={header}
+          // Fresh arrays per call must not loop or lose measured row heights.
+          getRows={(page) => (page === 0 ? makeRows() : undefined)}
+        />
+      </div>
+    );
+    const previousSettings = getClientSettings();
+    const previousRootFontSize = document.documentElement.style.fontSize;
+    try {
+      await using screen = await render(view(420));
+      const horizontal = () => screen.container.querySelector('[role="table"]')!.parentElement!;
+      const vertical = () => screen.container.querySelector<HTMLElement>('[tabindex="0"]')!;
+      const row = (index: number) =>
+        screen.container.querySelector<HTMLElement>(`[data-preview-row="${index}"]`)!;
+
+      await vi.waitFor(() => {
+        expect(row(1)).not.toBeNull();
+        expect(row(1).getBoundingClientRect().height).toBeGreaterThan(150);
+      });
+
+      const initialRow1Height = row(1).getBoundingClientRect().height;
+      const initialRow2Height = row(2).getBoundingClientRect().height;
+      const initialRow3Height = row(3).getBoundingClientRect().height;
+      const initialRow4Top = row(4).getBoundingClientRect().top;
+
+      // Scroll to the far right where the word-wrapped column 34 mounts after 18 newline cells.
+      await act(() => {
+        horizontal().scrollLeft = horizontal().scrollWidth;
+        horizontal().dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+      await vi.waitFor(() => expect(screen.container.textContent).toContain("segment12"));
+
+      expect(Math.abs(row(1).getBoundingClientRect().height - initialRow1Height)).toBeLessThan(1);
+      expect(Math.abs(row(2).getBoundingClientRect().height - initialRow2Height)).toBeLessThan(1);
+      expect(row(3).getBoundingClientRect().height).toBeGreaterThan(40);
+      expect(Math.abs(row(3).getBoundingClientRect().height - initialRow3Height)).toBeLessThan(1);
+      expect(Math.abs(row(4).getBoundingClientRect().top - initialRow4Top)).toBeLessThan(1);
+
+      // Scroll vertically into the table, then sweep horizontally back to the left edge.
+      await act(() => {
+        vertical().scrollTop = 120;
+        vertical().dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+      await vi.waitFor(() => expect(row(5)).not.toBeNull());
+      const scrolledRow5Top = row(5).getBoundingClientRect().top;
+      const scrolledRow5Height = row(5).getBoundingClientRect().height;
+
+      await act(() => {
+        horizontal().scrollLeft = 0;
+        horizontal().dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+      await vi.waitFor(() => expect(screen.container.textContent).toContain("r6-c0"));
+
+      expect(Math.abs(row(5).getBoundingClientRect().height - scrolledRow5Height)).toBeLessThan(1);
+      expect(Math.abs(row(5).getBoundingClientRect().top - scrolledRow5Top)).toBeLessThan(1);
+
+      // Widening the container widens each uniform column, reducing wrapped line count.
+      await screen.rerender(view(1600));
+      await vi.waitFor(() =>
+        expect(row(1).getBoundingClientRect().height).toBeLessThan(initialRow1Height),
+      );
+      const widenedRow1Height = row(1).getBoundingClientRect().height;
+
+      // Typography changes invalidate cached minimums even at the same container width.
+      await act(() => {
+        document.documentElement.style.fontSize = "20px";
+        __setClientSettingsForTests({
+          ...previousSettings,
+          fontSizeInterface: previousSettings.fontSizeInterface + 4,
+        });
+      });
+      await vi.waitFor(() =>
+        expect(row(1).getBoundingClientRect().height).toBeGreaterThan(widenedRow1Height),
+      );
+    } finally {
+      document.documentElement.style.fontSize = previousRootFontSize;
+      __setClientSettingsForTests(previousSettings);
+    }
   });
 
   it("reveals and highlights requested source lines again for a new request", async () => {
@@ -1240,6 +1398,8 @@ it("preserves merged text across tile clears", async () => {
     context,
     {
       viewport: { x: 0, y: 0, width: 400, height: 80 },
+      behind: { x: 0, y: 0 },
+      panes: { width: 0, height: 0 },
       list: { width: 400, height: 80, commands: [] },
       tiles: [
         {
@@ -1326,10 +1486,7 @@ it.each([
         scenario === "renamed XML" ||
         scenario === "oversized section"
       ) {
-        expect(result).toMatchObject({
-          type: "error",
-          message: expect.stringContaining("Preview limited"),
-        });
+        expect(failureText(result)).toContain("Preview limited");
       } else {
         expect(result.type).toBe("docx");
         if (result.type !== "docx") throw new Error("Expected a Word prefix");
@@ -1408,10 +1565,7 @@ it.each([
       );
       worker.postMessage({ type: "open", kind: "docx", bytes }, [bytes]);
     });
-    expect(result).toMatchObject({
-      type: "error",
-      message: expect.stringContaining("Preview limited"),
-    });
+    expect(failureText(result)).toContain("Preview limited");
   } finally {
     worker.terminate();
   }
@@ -1805,10 +1959,7 @@ it.each(["repeated binary", "XML relationship alias", "duplicate relationship ID
         );
         worker.postMessage({ type: "open", kind: "docx", bytes }, [bytes]);
       });
-      expect(result).toMatchObject({
-        type: "error",
-        message: expect.stringContaining("expanded markup"),
-      });
+      expect(failureText(result)).toContain("expanded markup");
     } finally {
       worker.terminate();
     }
@@ -1847,10 +1998,7 @@ it.each(["XFD200", "XFD300", "XFD1048576", "AX500", "AZ9999999"])(
         worker.postMessage({ type: "open", kind: "xlsx", bytes }, [bytes]);
       });
       if (ref === "AZ9999999" || ref === "XFD1048576") {
-        expect(result).toMatchObject({
-          type: "error",
-          message: expect.stringContaining(ref === "AZ9999999" ? "invalid" : "preview limit"),
-        });
+        expect(failureText(result)).toContain(ref === "AZ9999999" ? "invalid" : "preview limit");
       } else {
         expect(result.type).toBe("xlsx");
         if (result.type !== "xlsx") throw new Error("Expected workbook values");
@@ -1923,7 +2071,7 @@ it.each(['<u val="double"/>', '<u val="double"></u>'])(
     archive.file("xl/styles.xml", "<styleSheet><numFmts/><numFmts/></styleSheet>");
     await expect(
       prepareOffice(await archive.generateAsync({ type: "arraybuffer" }), "xlsx"),
-    ).rejects.toThrow("duplicate stylesheet blocks");
+    ).rejects.toMatchObject({ code: "workbook-duplicate-styles" });
   },
 );
 
@@ -2126,3 +2274,6 @@ it("keeps an unchanged workspace HTML page loaded across commands and renews its
   await screen.rerender(preview("fourth"));
   expect(shownSrc(screen)).toMatch(/^data:text\/html,edited/);
 });
+
+const failureText = (result: OfficeWorkerResult) =>
+  result.type === "error" ? previewFailureText(result) : null;

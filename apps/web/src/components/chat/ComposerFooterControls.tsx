@@ -1,3 +1,4 @@
+import { useGT, useMessages } from "gt-react";
 import type {
   ModelSelection,
   ProviderInstanceId,
@@ -37,6 +38,8 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
   hidden?: boolean;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const size = props.size ?? "sm";
   const composerFloatingLayerProps = useComposerMenuProps();
   const [open, setOpen] = useComposerMenuState(props.hidden);
@@ -61,12 +64,12 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
               <ComposerSelectControl
                 data-composer-shortcut="composer.mode"
                 size={size}
-                aria-label="Runtime mode"
+                aria-label={gt("Runtime mode")}
               />
             }
           >
             <ComposerControlIcon icon={RuntimeModeIcon} size={size} />
-            <SelectValue data-composer-control-label>{runtimeModeOption.label}</SelectValue>
+            <SelectValue data-composer-control-label>{m(runtimeModeOption.label)}</SelectValue>
           </TooltipTrigger>
           <SelectPopup alignItemWithTrigger={false} {...composerFloatingLayerProps}>
             {props.runtimeModeOptions.map((option) => {
@@ -83,10 +86,10 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
                     <div className="grid min-w-0 flex-1 gap-0.5">
                       <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
                         <OptionIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                        {option.label}
+                        {m(option.label)}
                       </span>
                       <span className="text-muted-foreground text-xs leading-4">
-                        {option.disabledReason ?? option.description}
+                        {option.disabledReason ?? m(option.description)}
                       </span>
                     </div>
                   </div>
@@ -96,7 +99,7 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
           </SelectPopup>
         </Select>
         <TooltipPopup side="top" shortcut={runtimeModeShortcut}>
-          {runtimeModeOption.description}
+          {m(runtimeModeOption.description)}
         </TooltipPopup>
       </Tooltip>
     </>

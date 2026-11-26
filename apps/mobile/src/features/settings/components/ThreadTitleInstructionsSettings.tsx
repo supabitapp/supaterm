@@ -4,31 +4,33 @@ import { View } from "react-native";
 import { AppText as Text, AppTextInput } from "../../../components/ui/AppText";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingTextDrafts } from "./useSettingTextDrafts";
+import { T, useGT } from "gt-react-native";
 
 export function ThreadTitleInstructionsSettings(props: {
   instructions: string | null;
   disabled: boolean;
   onChange: (patch: ServerSettingsPatch) => void;
 }) {
+  const gt = useGT();
   const { edit, save } = useSettingTextDrafts(
     { threadTitleInstructions: props.instructions },
     props.onChange,
   );
   return (
-    <SettingsSection title="Thread titles">
+    <SettingsSection title={gt("Thread titles")}>
       <View className="gap-2 px-4 py-3">
         <Text className="text-sm text-foreground-muted">
-          Appended to the prompt for new and regenerated thread titles.
+          <T>Appended to the prompt for new and regenerated thread titles.</T>
         </Text>
         <AppTextInput
           key={props.instructions}
-          accessibilityLabel="Thread title instructions"
+          accessibilityLabel={gt("Thread title instructions")}
           onChangeText={(text) => edit("threadTitleInstructions", text)}
           defaultValue={props.instructions ?? ""}
           placeholder={
             props.instructions === null
-              ? "Mixed. Enter instructions for all selected targets."
-              : "Keep titles to a few words. Lead with the main subject."
+              ? gt("Mixed. Enter instructions for all selected targets.")
+              : gt("Keep titles to a few words. Lead with the main subject.")
           }
           editable={!props.disabled}
           multiline

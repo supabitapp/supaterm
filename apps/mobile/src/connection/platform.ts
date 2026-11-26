@@ -3,7 +3,6 @@ import { ConnectionBlockedError, Connectivity, Wakeups } from "@supaterm/client-
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import Constants from "expo-constants";
@@ -127,7 +126,7 @@ const layerWakeups = Wakeups.layer({
 const layerCapabilities = Layer.succeedContext(
   Context.make(
     ClientCapabilities.PrimaryEnvironmentAuth,
-    ClientCapabilities.PrimaryEnvironmentAuth.of({ bearerToken: Effect.succeed(Option.none()) }),
+    ClientCapabilities.PrimaryEnvironmentAuth.of({ bearerToken: Effect.succeedNone }),
   ).pipe(
     Context.add(
       ClientCapabilities.ClientPresentation,
@@ -138,21 +137,25 @@ const layerCapabilities = Layer.succeedContext(
     Context.add(
       ClientCapabilities.SshEnvironmentGateway,
       ClientCapabilities.SshEnvironmentGateway.of({
-        provision: () =>
+        provision: Effect.fn("ClientCapabilities.SshEnvironmentGateway.provision")(() =>
           Effect.fail(
             new ConnectionBlockedError({
               reason: "unsupported",
               detail: "SSH environments are only available in the desktop app.",
             }),
           ),
-        prepare: () =>
+        ),
+        prepare: Effect.fn("ClientCapabilities.SshEnvironmentGateway.prepare")(() =>
           Effect.fail(
             new ConnectionBlockedError({
               reason: "unsupported",
               detail: "SSH environments are only available in the desktop app.",
             }),
           ),
-        disconnect: () => Effect.void,
+        ),
+        disconnect: Effect.fn("ClientCapabilities.SshEnvironmentGateway.disconnect")(
+          () => Effect.void,
+        ),
       }),
     ),
   ),

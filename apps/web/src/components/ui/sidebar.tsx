@@ -28,6 +28,7 @@ import { getLocalStorageItem, writeLocalStorageValue } from "~/hooks/useLocalSto
 import { resolveSidebarState, type ResponsiveSidebarState } from "./sidebarState";
 import * as Schema from "effect/Schema";
 import { announceSidebarVisibility } from "~/lib/accessibilityAnnouncements";
+import { useGT, T } from "gt-react";
 
 const SIDEBAR_WIDTH = 16 * 16;
 const SIDEBAR_WIDTH_MOBILE = "calc(100vw - var(--spacing) * 3)";
@@ -219,6 +220,7 @@ function Sidebar({
   /** Omit for a fixed-width sidebar. */
   resizable?: SidebarResizableOptions;
 }) {
+  const gt = useGT();
   const { isMobile, open, setOpen, state, openMobile, setOpenMobile, setMobileSheetMounted } =
     useSidebar();
   const defaultWidth = resizable?.defaultWidth ?? SIDEBAR_WIDTH;
@@ -260,8 +262,10 @@ function Sidebar({
           }
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>{props["aria-label"] ?? "Sidebar"}</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>{props["aria-label"] ?? gt("Sidebar")}</SheetTitle>
+            <SheetDescription>
+              <T>Displays the mobile sidebar.</T>
+            </SheetDescription>
           </SheetHeader>
           <div
             className={cn(
@@ -309,7 +313,7 @@ function Sidebar({
     </ResizablePanel>
   );
   const handle = resizable ? (
-    <ResizableHandle aria-label="Resize sidebar" {...handleProps} />
+    <ResizableHandle aria-label={gt("Resize sidebar")} {...handleProps} />
   ) : null;
   return side === "left" ? (
     <>
@@ -353,7 +357,9 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
           !isOpen && "[&>path[opacity]]:scale-x-0",
         )}
       />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">
+        <T>Toggle Sidebar</T>
+      </span>
     </Button>
   );
 }

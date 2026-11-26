@@ -28,17 +28,31 @@ const acceptedInstall: DesktopUpdateActionResult = {
   state: downloadedState,
 };
 
+const onUpdateState = () => () => {};
+
+function acceptingInstaller(onCall: () => void = () => {}) {
+  let reached!: () => void;
+  const called = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  const installUpdate = vi.fn(async () => {
+    onCall();
+    reached();
+    return acceptedInstall;
+  });
+  return { installUpdate, called };
+}
+
 describe("desktop update restart", () => {
   it("shows feedback before invoking the installer and retains it until the app closes", async () => {
     const controller = createDesktopUpdateRestartController();
-    const installUpdate = vi.fn(async () => {
-      expect(controller.store.getState().isRestarting).toBe(true);
-      return acceptedInstall;
-    });
+    const { installUpdate, called } = acceptingInstaller(() =>
+      expect(controller.store.getState().isRestarting).toBe(true),
+    );
 
-    const install = controller.install({ installUpdate });
+    void controller.install({ installUpdate, onUpdateState });
     expect(controller.store.getState().isRestarting).toBe(true);
-    await install;
+    await called;
 
     expect(controller.store.getState().isRestarting).toBe(true);
     expect(installUpdate).toHaveBeenCalledOnce();
@@ -46,12 +60,12 @@ describe("desktop update restart", () => {
 
   it("shares a restart request across entry points, including after acceptance", async () => {
     const controller = createDesktopUpdateRestartController();
-    const installUpdate = vi.fn(async () => acceptedInstall);
-    const bridge = { installUpdate };
+    const { installUpdate, called } = acceptingInstaller();
+    const bridge = { installUpdate, onUpdateState };
 
     const install = controller.install(bridge);
     expect(controller.install(bridge)).toBe(install);
-    await install;
+    await called;
     expect(controller.install(bridge)).toBe(install);
     expect(installUpdate).toHaveBeenCalledOnce();
   });
@@ -62,6 +76,7 @@ describe("desktop update restart", () => {
     await expect(
       controller.install({
         installUpdate: async () => ({ ...acceptedInstall, accepted: false }),
+        onUpdateState,
       }),
     ).rejects.toThrow("The update could not start. Try again.");
 
@@ -84,6 +99,7 @@ describe("desktop update restart", () => {
               message: "Could not launch the installer.",
             },
           }),
+          onUpdateState,
         }),
       ).rejects.toThrow("Could not launch the installer.");
 
@@ -94,16 +110,15 @@ describe("desktop update restart", () => {
   it("allows another restart after a rejected request", async () => {
     const controller = createDesktopUpdateRestartController();
     const error = new Error("IPC unavailable");
-    const installUpdate = vi
-      .fn<() => Promise<DesktopUpdateActionResult>>()
-      .mockRejectedValueOnce(error)
-      .mockResolvedValueOnce(acceptedInstall);
+    const failing = vi.fn<() => Promise<DesktopUpdateActionResult>>().mockRejectedValueOnce(error);
 
-    await expect(controller.install({ installUpdate })).rejects.toBe(error);
+    await expect(controller.install({ installUpdate: failing, onUpdateState })).rejects.toBe(error);
     expect(controller.store.getState().isRestarting).toBe(false);
 
-    await controller.install({ installUpdate });
+    const { installUpdate, called } = acceptingInstaller();
+    void controller.install({ installUpdate, onUpdateState });
+    await called;
     expect(controller.store.getState().isRestarting).toBe(true);
-    expect(installUpdate).toHaveBeenCalledTimes(2);
+    expect(installUpdate).toHaveBeenCalledOnce();
   });
 });

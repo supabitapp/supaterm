@@ -124,7 +124,7 @@ const readTimeline = Effect.fn("cli.thread.readTimeline")(function* (
   view: "messages" | "activity",
 ) {
   const items: Array<OrchestratorMcpThreadTimelineItem> = [];
-  let afterPosition: number | undefined;
+  let afterPosition: number | null = -1;
   let page: OrchestratorMcpThreadReadResult;
   do {
     page = yield* tools.call(
@@ -135,13 +135,13 @@ const readTimeline = Effect.fn("cli.thread.readTimeline")(function* (
         limit: READ_PAGE_LIMIT,
         maxCharsPerItem: READ_ITEM_MAX_CHARS,
         runLimit: 1,
-        ...(afterPosition === undefined ? {} : { afterPosition }),
+        afterPosition,
       },
       OrchestratorMcpThreadReadResult,
     );
     items.push(...page.items);
-    afterPosition = page.nextPosition ?? undefined;
-  } while (page.hasMore && afterPosition !== undefined);
+    afterPosition = page.nextPosition;
+  } while (page.hasMore && afterPosition !== null);
   return { thread: page.thread, items };
 });
 
@@ -181,7 +181,7 @@ export const readLatestMessages = Effect.fn("cli.thread.readLatestMessages")(fun
           limit: READ_PAGE_LIMIT,
           maxCharsPerItem: READ_ITEM_MAX_CHARS,
           runLimit: 1,
-          ...(afterPosition < 0 ? {} : { afterPosition }),
+          afterPosition,
         },
         OrchestratorMcpThreadReadResult,
       );
@@ -194,7 +194,8 @@ export const readLatestMessages = Effect.fn("cli.thread.readLatestMessages")(fun
       );
       afterPosition = page.nextPosition ?? Number.POSITIVE_INFINITY;
     } while (page.hasMore && afterPosition < (end ?? Number.POSITIVE_INFINITY) - 1);
-    thread = page.thread;
+    // Only the first read carries pull request previews; later pages omit them.
+    thread = Object.assign({}, thread, page.thread);
     // A window can hold the whole --messages count, too many to spread as arguments.
     messages = window.concat(messages);
     before = start;
@@ -544,10 +545,12 @@ const threadListCommand = Command.make("list", {
         while (cursor !== null) {
           const page: OrchestratorMcpThreadListResult = yield* tools.call(
             "supaterm_thread_list",
-            { projectId: project.id, includeSubagents: false, limit: 100, cursor },
+            { projectId: project.id, includeSubagents: true, limit: 100, cursor },
             OrchestratorMcpThreadListResult,
           );
-          threads.push(...page.threads);
+          threads.push(
+            ...page.threads.filter((thread) => thread.relationshipToParent !== "subagent"),
+          );
           cursor = page.nextCursor;
         }
         if (flags.json) {
@@ -587,7 +590,7 @@ const threadStartCommand = Command.make("start", {
   ),
   option: Flag.String("option").pipe(
     Flag.withDescription(
-      "Model option as id=value, such as effort=high. Repeat for more. Needs --provider and --model.",
+      "Model option as id=value (Codex: reasoningEffort=high; Claude: effort=high). Ids depend on the model. Repeat for more. Needs --provider and --model.",
     ),
     Flag.atLeast(0),
   ),

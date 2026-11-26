@@ -1,3 +1,4 @@
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
   isActiveSubagentStatus,
@@ -10,7 +11,7 @@ import {
   type OrchestrationV2Subagent,
   type ServerProvider,
 } from "@supaterm/contracts";
-import { deriveSubagentElapsedMs, formatDuration } from "@supaterm/shared/orchestrationTiming";
+import { deriveSubagentElapsedMs } from "@supaterm/shared/orchestrationTiming";
 import { useState, type ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 
@@ -33,6 +34,7 @@ import {
   type WorkflowRailTone,
 } from "./threadAgentsPresentation";
 import { useVisibleSecondClock } from "./use-visible-second-clock";
+import { T, useMessages, useGT } from "gt-react-native";
 
 const RAIL_ICON = {
   working: "circle.inset.filled",
@@ -48,15 +50,17 @@ export function ThreadWorkflowGroup(props: {
   readonly group: SubagentWorkflowGroup;
   readonly onOpen: (threadId: ThreadId) => void;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const { group } = props;
   const provider = useEnvironmentServerConfig(props.environmentId)?.providers.find(
     (candidate) => candidate.instanceId === props.subagent.providerInstanceId,
   );
   const [selected, setSelected] = useState<string | null>(null);
-  const rail = workflowRail(group);
+  const rail = workflowRail(group, messages);
   const open = rail.find((item) => item.key === selected);
   const label = group.workflow.workflowName ?? group.workflow.title;
-  const statusLabel = resolveSubagentRowPresentation(props.subagent).statusLabel;
+  const statusLabel = resolveSubagentRowPresentation(props.subagent, false, messages).statusLabel;
 
   return (
     <View className="my-2">
@@ -64,8 +68,8 @@ export function ThreadWorkflowGroup(props: {
         <View className="flex-row items-center">
           <RowPressable
             accessibilityRole="button"
-            accessibilityLabel={`${label} workflow, ${statusLabel}`}
-            accessibilityHint={open ? "Collapses the workflow" : "Opens the current phase"}
+            accessibilityLabel={gt("{label} workflow, {status}", { label, status: statusLabel })}
+            accessibilityHint={open ? gt("Collapses the workflow") : gt("Opens the current phase")}
             accessibilityState={{ expanded: open !== undefined }}
             disabled={rail.length === 0}
             onPress={() => setSelected(nextWorkflowSelection(rail, selected))}
@@ -109,7 +113,24 @@ export function ThreadWorkflowGroup(props: {
                   icon={RAIL_ICON[item.tone]}
                   label={count ? `${count} ${item.title}` : item.title}
                   selected={item.key === selected}
-                  accessibilityLabel={`${item.title} phase, ${item.tone}${count ? `, ${count} completed` : ""}`}
+                  accessibilityLabel={
+                    count
+                      ? gt(
+                          "{title} phase, {tone, select, working {working} completed {completed} failed {failed} stopped {stopped} other {queued}}, {count} completed",
+                          {
+                            title: item.title,
+                            tone: item.tone,
+                            count,
+                          },
+                        )
+                      : gt(
+                          "{title} phase, {tone, select, working {working} completed {completed} failed {failed} stopped {stopped} other {queued}}",
+                          {
+                            title: item.title,
+                            tone: item.tone,
+                          },
+                        )
+                  }
                   onPress={() => setSelected(nextWorkflowSelection(rail, selected, item.key))}
                 />
               );
@@ -121,7 +142,7 @@ export function ThreadWorkflowGroup(props: {
             textRole="footnote"
             className="border-t border-border-subtle px-4 py-3 text-foreground-muted"
           >
-            No agents yet
+            <T>No agents yet</T>
           </Text>
         ) : (
           open.members.map((member) => (
@@ -145,19 +166,25 @@ function WorkflowMemberRow(props: {
   readonly provider: ServerProvider | undefined;
   readonly onOpen: (threadId: ThreadId) => void;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const { member } = props;
   const threadId = member.childThreadId === null ? null : ThreadId.make(member.childThreadId);
   const shell = useThreadShell(
     threadId === null ? null : scopeThreadRef(props.environmentId, threadId),
   );
   const canOpen = threadId !== null && shell !== null;
-  const presentation = resolveSubagentRowPresentation({
-    title: member.title,
-    prompt: "",
-    status: member.status,
-    result: null,
-    childThreadId: threadId,
-  });
+  const presentation = resolveSubagentRowPresentation(
+    {
+      title: member.title,
+      prompt: "",
+      status: member.status,
+      result: null,
+      childThreadId: threadId,
+    },
+    false,
+    messages,
+  );
   const { detail, error } = workflowMemberDetail(member);
   const metadata = workflowMemberMetadata(member, props.provider);
   const labels = [metadata.model, metadata.effort].filter((value) => value !== null);
@@ -171,7 +198,9 @@ function WorkflowMemberRow(props: {
         ...(metadata.speed === null ? [] : [metadata.speed]),
         ...(error === null ? [] : [error]),
       ].join(", ")}
-      accessibilityHint={canOpen ? "Opens this agent's thread" : "Its thread is not available yet"}
+      accessibilityHint={
+        canOpen ? gt("Opens this agent's thread") : gt("Its thread is not available yet")
+      }
       disabled={!canOpen}
       onPress={() => threadId !== null && props.onOpen(threadId)}
       className="min-h-11 flex-row gap-3 border-t border-border-subtle px-4 py-3 active:opacity-70"
@@ -285,7 +314,8 @@ function WorkflowElapsed(props: { readonly timing: ElapsedTiming }) {
 type ElapsedTiming = Parameters<typeof deriveSubagentElapsedMs>[0];
 
 function useElapsedLabel(timing: ElapsedTiming): string | null {
+  const messages = useMessages();
   const nowMs = useVisibleSecondClock(isActiveSubagentStatus(timing.status));
   const elapsedMs = deriveSubagentElapsedMs(timing, nowMs);
-  return elapsedMs === null || elapsedMs === 0 ? null : formatDuration(elapsedMs);
+  return elapsedMs === null || elapsedMs === 0 ? null : formatDuration(elapsedMs, messages);
 }

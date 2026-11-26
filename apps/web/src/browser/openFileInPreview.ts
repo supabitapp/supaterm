@@ -12,7 +12,7 @@ import {
   mapAtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
-import * as Data from "effect/Data";
+import * as Schema from "effect/Schema";
 import { AsyncResult } from "effect/reactivity";
 
 import { resolveAssetUrl } from "~/assets/assetUrls";
@@ -27,23 +27,27 @@ import {
 import { selectSelectedRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 
 import { resolveBrowserDefaults } from "./browserDefaults";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export const isBrowserPreviewFile = (path: string): boolean =>
   /\.(?:html?|pdf)$/i.test(path.split(/[?#]/, 1)[0] ?? "");
 
-export class BrowserPreviewUnavailableError extends Data.TaggedError(
+export class BrowserPreviewUnavailableError extends Schema.TaggedError<BrowserPreviewUnavailableError>()(
   "BrowserPreviewUnavailableError",
-)<{
-  readonly message: string;
-}> {}
+  { message: Schema.String },
+) {}
 
-export class BrowserSettingsReadError extends Data.TaggedError("BrowserSettingsReadError")<{
-  readonly cause: unknown;
-}> {
+export class BrowserSettingsReadError extends Schema.TaggedError<BrowserSettingsReadError>()(
+  "BrowserSettingsReadError",
+  { cause: Schema.Defect() },
+) {
   override get message(): string {
-    return "Saved browser settings could not be loaded.";
+    return m(msg("Saved browser settings could not be loaded."));
   }
 }
+
+export const isBrowserSettingsReadError = Schema.is(BrowserSettingsReadError);
 
 export type OpenPreviewMutation<E = unknown> = (input: {
   readonly environmentId: EnvironmentId;
@@ -63,7 +67,7 @@ export async function openUrlInPreview<E>(input: {
   const defaults = await resolveBrowserDefaults().catch(
     (cause: unknown) => new BrowserSettingsReadError({ cause }),
   );
-  if (defaults instanceof BrowserSettingsReadError) {
+  if (isBrowserSettingsReadError(defaults)) {
     return AsyncResult.failure(Cause.fail(defaults));
   }
   const runtime = previewRuntimeFor(input.threadRef.environmentId);
@@ -127,7 +131,7 @@ export async function openFileInPreview<AssetError, PreviewError>(input: {
     return AsyncResult.failure(
       Cause.fail(
         new BrowserPreviewUnavailableError({
-          message: "The integrated browser is unavailable in this runtime.",
+          message: m(msg("The integrated browser is unavailable in this runtime.")),
         }),
       ),
     );

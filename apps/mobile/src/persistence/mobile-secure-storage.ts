@@ -26,7 +26,7 @@ export class MobileSecureStorage extends Context.Service<
     readonly setItem: (key: string, value: string) => Effect.Effect<void, MobileSecureStorageError>;
     readonly removeItem: (key: string) => Effect.Effect<void, MobileSecureStorageError>;
   }
->()("@supaterm/mobile/persistence/MobileSecureStorage") {}
+>()("@supaterm/mobile/persistence/mobile-secure-storage/MobileSecureStorage") {}
 
 const make = MobileSecureStorage.of({
   getItem: Effect.fn("MobileSecureStorage.getItem")((key) =>

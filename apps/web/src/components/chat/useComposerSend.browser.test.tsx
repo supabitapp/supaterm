@@ -1,6 +1,7 @@
 import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
   EnvironmentId,
+  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   RuntimeRequestId,
@@ -11,6 +12,7 @@ import { useLayoutEffect } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
+import { setWorktreeBaseBranch } from "../../worktreeRepositoryChoiceStore";
 import type { ChatComposerHandle } from "./ChatComposer";
 import { disarmFreshSession, readFreshSessionArm } from "./freshSessionArms";
 import { useComposerSend } from "./useComposerSend";
@@ -125,6 +127,7 @@ function sendInput(
     runtimeMode: "full-access",
     sendEnvMode: "local",
     startFromOrigin: false,
+    worktreeRepositories: undefined,
     worktreeBaseRefsSettled: true,
     localCheckoutBranchMismatch: null,
     logicalProjectEnvironments: [],
@@ -284,7 +287,7 @@ describe("useComposerSend with /clear", () => {
 
     expect(send.enqueued).toMatchObject([
       { input: { message: { text: prompt }, dispatchMode: "queue", freshContext: true } },
-      { input: { message: { text: prompt }, dispatchMode: "auto" } },
+      { input: { message: { text: prompt }, dispatchMode: "steer" } },
     ]);
     expect(send.enqueued[1]).not.toHaveProperty("input.freshContext");
     expect(readFreshSessionArm(routeThreadKey)).toBeUndefined();
@@ -332,13 +335,63 @@ describe("useComposerSend during worktree setup", () => {
   );
 });
 
+describe("useComposerSend in a plain folder that tracks repositories", () => {
+  it.each([
+    ["", "HEAD"],
+    ["develop", "develop"],
+  ])(
+    "launches a new worktree from base %j as %s without a project ref lookup",
+    async (chosenBase, baseBranch) => {
+      send.events = [];
+      send.enqueued = [];
+      const project = { id: ProjectId.make("project"), environmentId, workspaceRoot: "/repo" };
+      setWorktreeBaseBranch(project, chosenBase);
+      const repositories = [{ path: "/repo/api" }, { path: "/repo/web" }];
+      let onSend: ReturnType<typeof useComposerSend>["onSend"] | undefined;
+      function Probe() {
+        const current = useComposerSend({
+          ...sendInput(async () => AsyncResult.success({ sequence: 1 })),
+          activeProject: project as never,
+          isServerThread: false,
+          isLocalDraftThread: true,
+          isGitRepo: false,
+          phase: "ready",
+          sendEnvMode: "worktree",
+          worktreeRepositories: repositories,
+          pendingApprovals: [],
+        });
+        useLayoutEffect(() => {
+          onSend = current.onSend;
+        });
+        return null;
+      }
+      await using _screen = await render(<Probe />);
+      await act(async () => {
+        await onSend?.();
+      });
+
+      expect(send.enqueued).toMatchObject([
+        {
+          input: {
+            bootstrap: {
+              prepareWorktree: { projectCwd: "/repo", baseBranch, repositories },
+              runSetupScript: true,
+            },
+          },
+        },
+      ]);
+      expect(send.enqueued[0]).not.toHaveProperty("pendingWorktree");
+    },
+  );
+});
+
 describe("useComposerSend over a pending approval", () => {
   it("declines the shown approval before the message enters the outbox", async () => {
     await sendOverApproval("Success");
 
     expect(send.events).toEqual([`decline:${approvalId}`, "enqueue"]);
     expect(send.enqueued).toMatchObject([
-      { input: { threadId, message: { text: prompt }, dispatchMode: "auto" } },
+      { input: { threadId, message: { text: prompt }, dispatchMode: "steer" } },
     ]);
   });
 

@@ -16,6 +16,8 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { NewThreadSettingsSection } from "./ThreadSettingsSections";
+import { LanguageSettingsSection } from "./SettingsLanguageRouteScreen";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const GROUPING_OPTIONS: ReadonlyArray<{
   readonly mode: SidebarProjectGroupingMode;
@@ -24,22 +26,24 @@ const GROUPING_OPTIONS: ReadonlyArray<{
 }> = [
   {
     mode: "repository",
-    label: "Group by repository",
-    description: "Matching repositories appear as one project.",
+    label: msg("Group by repository"),
+    description: msg("Matching repositories appear as one project."),
   },
   {
     mode: "repository_path",
-    label: "Group by repository path",
-    description: "Keep monorepo paths separate.",
+    label: msg("Group by repository path"),
+    description: msg("Keep monorepo paths separate."),
   },
   {
     mode: "separate",
-    label: "Keep separate",
-    description: "Show every workspace as its own project.",
+    label: msg("Keep separate"),
+    description: msg("Show every workspace as its own project."),
   },
 ];
 
 export function SettingsProjectGroupingRouteScreen() {
+  const m = useMessages();
+  const gt = useGT();
   const insets = useSafeAreaInsets();
   const { grouping, setGrouping, loaded } = useMobileThreadGrouping();
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
@@ -50,7 +54,7 @@ export function SettingsProjectGroupingRouteScreen() {
     : null;
 
   return (
-    <SettingsScreen title="General">
+    <SettingsScreen title={gt("General")}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -58,11 +62,12 @@ export function SettingsProjectGroupingRouteScreen() {
         contentContainerClassName="gap-3 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
-        <SettingsSection title="Thread grouping">
+        <LanguageSettingsSection />
+        <SettingsSection title={gt("Thread grouping")}>
           {THREAD_GROUPING_OPTIONS.map((option, index) => (
             <SettingsChoiceRow
               key={option.value}
-              label={option.label}
+              label={m(option.label)}
               selected={grouping === option.value}
               separated={index > 0}
               disabled={!loaded}
@@ -70,12 +75,12 @@ export function SettingsProjectGroupingRouteScreen() {
             />
           ))}
         </SettingsSection>
-        <SettingsSection title="Project grouping">
+        <SettingsSection title={gt("Project grouping")}>
           {GROUPING_OPTIONS.map((option, index) => (
             <SettingsChoiceRow
               key={option.mode}
-              label={option.label}
-              description={option.description}
+              label={m(option.label)}
+              description={m(option.description)}
               selected={selectedMode === option.mode}
               separated={index > 0}
               disabled={!preferencesReady}

@@ -1,5 +1,7 @@
 // Must stay first: the render counter wraps the DevTools hook before any React commit.
 import "./src/features/development/render-counter-entry";
+// Crash reporting loads preferences, which can load GT and capture Hermes's Intl constructors.
+import "./src/i18n/intl-polyfills";
 import { registerRootComponent } from "expo";
 import "react-native-gesture-handler";
 import { LogBox } from "react-native";

@@ -17,6 +17,7 @@ import {
   openOnProviderLabel,
   pullRequestActionLabel,
 } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { scopedPullRequestListKey, type EnvironmentPullRequestListEntry } from "./pullRequestList";
 import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";
@@ -24,6 +25,7 @@ import { pullRequestTarget } from "./usePullRequestDiff";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { useOpenWorkspaceDetail } from "../layout/useOpenWorkspaceDetail";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import { useGT, useMessages } from "gt-react-native";
 export function usePullRequestListActions(
   environmentIds: readonly EnvironmentId[],
   onChanged: (
@@ -31,6 +33,8 @@ export function usePullRequestListActions(
     patch: Partial<EnvironmentPullRequestListEntry>,
   ) => void,
 ) {
+  const gt = useGT();
+  const m = useMessages();
   const registry = use(RegistryContext);
   const selectDetail = useSelectWorkspaceDetail();
   const openDetail = useOpenWorkspaceDetail();
@@ -117,8 +121,11 @@ export function usePullRequestListActions(
       playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(result);
       Dialog.alert(
-        `Couldn't update this ${terminology.singular}`,
-        cause instanceof Error ? cause.message : "Try again.",
+        gt(
+          "Couldn't update this {term, select, mr {merge request} cr {change request} other {pull request}}",
+          { term: changeRequestTermKind(terminology) },
+        ),
+        cause instanceof Error ? cause.message : gt("Try again."),
       );
     }
   };
@@ -150,9 +157,10 @@ export function usePullRequestListActions(
     const label = pullRequestActionLabel(
       supported,
       sourceControlClients.get(entry.provider).changeRequest,
+      m,
     );
     Dialog.alert(`${label}?`, `#${entry.number} · ${entry.title}`, [
-      { text: "Cancel", style: "cancel" },
+      { text: gt("Cancel"), style: "cancel" },
       {
         text: label,
         style: supported === "close" ? "destructive" : "default",
@@ -165,24 +173,27 @@ export function usePullRequestListActions(
     return [
       {
         id: "open",
-        title: `Open ${terminology.singular}`,
+        title: gt(
+          "Open {term, select, mr {merge request} cr {change request} other {pull request}}",
+          { term: changeRequestTermKind(terminology) },
+        ),
         image: "arrow.up.right",
       },
       ...(writableEnvironments.has(entry.environmentId) && entry.state === "open"
         ? [
             {
               id: "request-review",
-              title: "Request review",
+              title: gt("Request review"),
               image: "person.badge.plus",
             },
             {
               id: entry.isDraft ? "ready" : "draft",
-              title: entry.isDraft ? "Mark ready for review" : "Convert to draft",
+              title: entry.isDraft ? gt("Mark ready for review") : gt("Convert to draft"),
               image: "pencil",
             },
             {
               id: "close",
-              title: pullRequestActionLabel("close", terminology),
+              title: pullRequestActionLabel("close", terminology, m),
               image: "xmark",
               attributes: { destructive: true },
             },
@@ -191,20 +202,20 @@ export function usePullRequestListActions(
           ? [
               {
                 id: "reopen",
-                title: pullRequestActionLabel("reopen", terminology),
+                title: pullRequestActionLabel("reopen", terminology, m),
                 image: "arrow.clockwise",
               },
             ]
           : []),
       {
         id: "share",
-        title: "Share…",
+        title: gt("Share…"),
         image: "square.and.arrow.up",
       },
-      { id: "copy", title: "Copy link", image: "link" },
+      { id: "copy", title: gt("Copy link"), image: "link" },
       {
         id: "provider",
-        title: openOnProviderLabel(entry.provider),
+        title: openOnProviderLabel(entry.provider, m),
         image: "safari",
       },
     ];

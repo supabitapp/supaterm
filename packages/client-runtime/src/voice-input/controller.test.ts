@@ -275,7 +275,7 @@ describe("VoiceInputController", () => {
     const tap = createHarness();
     await tap.controller.start();
     await tap.controller.send(async () => {
-      throw new VoiceTranscriptionError("tooShort", "too short");
+      throw new VoiceTranscriptionError({ code: "tooShort", message: "too short" });
     });
     expect(tap.controller.currentState).toEqual({ phase: "idle", error: null, errorAction: null });
     expect(tap.deleted).toEqual(["file:///voice.m4a"]);
@@ -311,7 +311,7 @@ describe("VoiceInputController", () => {
           transcribe: async () => {
             if (typeof answer !== "string") return answer;
             const message = new TranscriptionError({ reason: answer }).message;
-            throw new VoiceUploadError(answer, message, false);
+            throw new VoiceUploadError({ reason: answer, message, retryable: false });
           },
         }),
     });

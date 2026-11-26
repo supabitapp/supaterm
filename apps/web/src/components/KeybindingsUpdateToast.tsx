@@ -4,6 +4,8 @@ import { primaryServerConfigAtom, primaryServerConfigEventAtom } from "../state/
 import { KeybindingsConfigWarning } from "./KeybindingsConfigWarning";
 import { createKeybindingsUpdateToastController } from "./KeybindingsUpdateToast.logic";
 import { stackedThreadToast, toastManager } from "./ui/toast";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
 export function startKeybindingsUpdateToasts(): () => void {
   const controller = createKeybindingsUpdateToastController({});
@@ -17,7 +19,7 @@ export function startKeybindingsUpdateToasts(): () => void {
     toastManager.add(
       stackedThreadToast({
         type: "warning",
-        title: "Invalid keybindings configuration",
+        title: m(msg("Invalid keybindings configuration")),
         description: (
           <KeybindingsConfigWarning
             message={decision.message}

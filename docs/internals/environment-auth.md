@@ -10,11 +10,22 @@ that grant but cannot widen it. The default grant includes access management:
 can start a full-access agent, and either can mint a session with every scope
 through `supaterm auth session issue`, so withholding management from the
 default would not be a boundary. A narrower client gets explicit scopes.
-Creating another pairing link requires both `access:write` and every scope being
-delegated. The [auth handlers](../../apps/server/src/auth/http.ts) enforce this
+Every route that returns a credential to the caller requires `access:write` and
+every scope that credential carries: a pairing link, an MCP sign-in approval, and
+a link code from a linked environment. The [auth handlers](../../apps/server/src/auth/http.ts) enforce this
 at issuance; client labels and device metadata have no authorization role.
 Unknown scope strings, whether requested or stored, are dropped rather than
 rejected, so clients and records from other versions keep working.
+
+Project scripts need `orchestration:operate`. The host runs a saved project
+script itself, on worktree creation and on done, so saving one needs
+`orchestration:operate` on top of `settings:write`, whether it arrives in a
+settings patch or a project update. Clients resend a project's whole override
+entry when they change any of its settings, so the server compares a patch's
+scripts with the saved ones and charges only for a change. Dropping a project's
+override is a change, because the project then runs the environment's scripts.
+The socket's check reads settings before the write takes its lock, so the write
+repeats the comparison against the settings it replaces.
 
 The access read model contains pairing metadata, never recoverable pairing
 secrets. Only the creation response returns the raw credential. Otherwise read
@@ -85,6 +96,8 @@ pairing's. A person starts it: the linking environment exposes it as a WebSocket
 RPC behind `access:write`, and the linked side as an HTTP route that accepts only
 a link's session. It is not an MCP tool, because a tool is reachable by whatever
 holds a thread credential, and hiding one from tool listings is only discovery.
+The same route mints a code that links another environment at a chosen access
+level, and the linking side's RPC requires the caller to hold that level's scopes.
 
 Issuer and resource URLs come from the request's Host and
 `X-Forwarded-Proto`, so one server answers over loopback and Tailscale Serve. A proxy that rewrites Host or drops the protocol header
@@ -100,6 +113,13 @@ authenticate the upgrade with their cookie. A successful handshake grants no
 extra authority: [every RPC declares a required
 scope](../../apps/server/src/auth/RpcAuthorization.ts), and the WebSocket RPC
 group's `RpcScopeAuthorization` middleware checks it before any handler runs.
+
+A request that names a secret for the server to read needs `providers:manage` on top of its
+method's scope, whether the secret reference is saved in settings or used once, as in a secret
+request answered with a reference. A reference can name any secret the provider's account holds,
+and the server sends what it reads wherever the field points, such as a source control host.
+Typed values need only the method's scope. Clients hide the secret provider picker from sessions
+without it.
 
 Scope changes must not prevent older clients from connecting. Token exchange
 intersects recognized requests with the pairing grant; retired and unknown names

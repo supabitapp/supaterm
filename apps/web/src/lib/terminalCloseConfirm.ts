@@ -1,5 +1,7 @@
 import { ensureClientSettingsHydrated, getClientSettings } from "~/hooks/useSettings";
 import { readLocalApi } from "~/localApi";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 let pendingConfirmations = 0;
 
@@ -55,14 +57,20 @@ export async function confirmTerminalClose(
   return confirmClose(
     runningTargets.length === 1
       ? [
-          `Close terminal "${runningTargets[0]!.label}"?`,
-          "This stops the running process and clears its history.",
+          m(msg('Close terminal "{label}"?', { label: runningTargets[0]!.label })),
+          m(msg("This stops the running process and clears its history.")),
         ].join("\n")
       : [
-          `Close ${runningTargets.length} terminals?`,
-          `This stops their running processes and clears their histories: ${runningTargets
-            .map((target) => `"${target.label}"`)
-            .join(", ")}.`,
+          m(
+            msg("Close {count, plural, one {{count} terminal} other {{count} terminals}}?", {
+              count: runningTargets.length,
+            }),
+          ),
+          m(
+            msg("This stops their running processes and clears their histories: {labels}.", {
+              labels: runningTargets.map((target) => `"${target.label}"`).join(", "),
+            }),
+          ),
         ].join("\n"),
   );
 }

@@ -5,7 +5,9 @@ import {
   type VoiceRecorderStatus,
 } from "@supaterm/client-runtime/voice-input";
 import { TRANSCRIPTION_MIN_DURATION_MS, TranscriptionError } from "@supaterm/contracts";
+import { msg } from "gt-react";
 
+import { m } from "../i18n/messages";
 import { type MicrophonePreference, openMicrophone } from "./microphone";
 import pcmCaptureWorkletUrl from "./pcmCapture.worklet.ts?worker&url";
 import { PCM_CAPTURE_PROCESSOR, VOICE_SAMPLE_RATE, wavFromPcm } from "./wav";
@@ -48,7 +50,7 @@ export function readVoiceRecording(uri: string): VoiceRecording {
   if (!recording) throw new Error("The recording is no longer available.");
   if (recording.durationMs < TRANSCRIPTION_MIN_DURATION_MS) {
     const { message } = new TranscriptionError({ reason: "audioTooShort" });
-    throw new VoiceTranscriptionError("tooShort", message);
+    throw new VoiceTranscriptionError({ code: "tooShort", message });
   }
   return recording;
 }
@@ -138,7 +140,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
         return {
           granted: false,
           canAskAgain: true,
-          reason: "No microphone was found. Connect one, then record again.",
+          reason: m(msg("No microphone was found. Connect one, then record again.")),
         };
       }
       throw error;
@@ -182,7 +184,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
             this.onStatus({
               isFinished: false,
               hasError: true,
-              error: "The microphone was disconnected.",
+              error: m(msg("The microphone was disconnected.")),
               url: this.uri,
             }),
           );

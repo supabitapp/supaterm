@@ -7,11 +7,13 @@ import {
 } from "./MessagesTimeline.logic";
 import { type TimelineMinimapItem, resolveTimelineMinimapPreview } from "./timelineMinimapItems";
 import { useState, useRef, type MouseEvent } from "react";
+import { createStore, useStore, type StoreApi } from "zustand";
 import { ChevronDownIcon, ChevronUpIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
 import { usePresence } from "~/hooks/usePresence";
+import { T, useGT } from "gt-react";
 
 // A release outside the window can skip `mouseup`, so the next button-free
 // `mousemove` also counts.
@@ -30,11 +32,19 @@ function onMouseButtonsReleased(onRelease: () => void): () => void {
   return stop;
 }
 
+interface TimelineMinimapPosition {
+  readonly currentIndex: number | null;
+  readonly atEnd: boolean;
+}
+
+/** Where the timeline is scrolled; only the minimap re-renders when it moves. */
+export const createTimelineMinimapPosition = () =>
+  createStore<TimelineMinimapPosition>(() => ({ currentIndex: null, atEnd: false }));
+
 export function TimelineMinimap({
   hasPersistentGutter,
   hitStripWidth,
-  currentIndex,
-  atEnd,
+  position,
   items,
   stripMap,
   onWheel,
@@ -43,14 +53,16 @@ export function TimelineMinimap({
 }: {
   hasPersistentGutter: boolean;
   hitStripWidth: number;
-  currentIndex: number | null;
-  atEnd: boolean;
+  position: StoreApi<TimelineMinimapPosition>;
   items: ReadonlyArray<TimelineMinimapItem>;
   stripMap: Map<string, HTMLSpanElement>;
   onWheel: (event: WheelEvent) => void;
   onSelect: (item: TimelineMinimapItem) => void;
   onStep: (item: TimelineMinimapItem) => void;
 }) {
+  const gt = useGT();
+  const currentIndex = useStore(position, (state) => state.currentIndex);
+  const atEnd = useStore(position, (state) => state.atEnd);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const wheelTargetRef = (node: HTMLDivElement | null) => {
     if (!node) return;
@@ -155,8 +167,10 @@ export function TimelineMinimap({
           <button
             aria-label={
               activeItem?.pin
-                ? `Jump to pinned message: ${activeItem.pin.preview}`
-                : `Jump to message: ${activeItem?.userText ?? "User message"}`
+                ? gt("Jump to pinned message: {preview}", { preview: activeItem.pin.preview })
+                : gt("Jump to message: {text}", {
+                    text: activeItem?.userText ?? gt("User message"),
+                  })
             }
             className="absolute inset-y-0 left-0 w-full cursor-pointer bg-transparent before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
             onBlur={() => setActiveIndex(null)}
@@ -251,7 +265,7 @@ export function TimelineMinimap({
                   className="dropdown-glass block origin-left rounded-xl p-3 text-left text-popover-foreground shadow-xl shadow-black/25 transition-[opacity,scale] duration-150 ease-drawer data-enter:starting:scale-98 data-enter:starting:opacity-0 data-ending-style:scale-98 data-ending-style:opacity-0 data-ending-style:duration-100 data-ending-style:ease-in motion-reduce:transition-none"
                 >
                   <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium leading-5">
-                    {preview.value.item.userText ?? "User message"}
+                    {preview.value.item.userText ?? <T>User message</T>}
                   </span>
                   {preview.value.item.assistantText ? (
                     <span
@@ -294,8 +308,9 @@ function TimelineMinimapNavigationButton({
   interactive: boolean;
   onClick: () => void;
 }) {
+  const gt = useGT();
   const previous = direction === "previous";
-  const label = previous ? "Previous turn" : "Next turn";
+  const label = previous ? gt("Previous turn") : gt("Next turn");
   const Icon = previous ? ChevronUpIcon : ChevronDownIcon;
 
   return (

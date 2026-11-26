@@ -30,12 +30,14 @@ import { Menu } from "../../components/ui/Menu";
 import { useProjects } from "../../state/entities";
 import { useEnvironments } from "../../state/environments";
 import { serverEnvironment } from "../../state/server";
+import { T, useGT } from "gt-react-native";
 
 export function SettingsAboutRouteScreen() {
+  const gt = useGT();
   const insets = useSafeAreaInsets();
 
   return (
-    <SettingsScreen title="About">
+    <SettingsScreen title={gt("About")}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -50,6 +52,7 @@ export function SettingsAboutRouteScreen() {
 }
 
 function AppSettingsSection() {
+  const gt = useGT();
   const [checkState, setCheckState] = useState<{
     readonly state: AppUpdateCheckState;
     // "Up to date" is a confirmation that fades back to idle.
@@ -81,7 +84,7 @@ function AppSettingsSection() {
     await settlePromise(() =>
       runAppUpdateCheck({
         applyMode: "immediate",
-        onFailure: (message) => Dialog.alert("Update failed", message),
+        onFailure: (message) => Dialog.alert(gt("Update failed"), message),
         onStateChange: (state) =>
           setCheckState({
             state,
@@ -103,15 +106,15 @@ function AppSettingsSection() {
 
   const statusLabel =
     updateState === "checking"
-      ? "Checking…"
+      ? gt("Checking…")
       : updateState === "downloading"
-        ? "Downloading…"
+        ? gt("Downloading…")
         : updateState === "ready"
-          ? "Update ready"
+          ? gt("Update ready")
           : updateState === "restarting"
-            ? "Restarting…"
+            ? gt("Restarting…")
             : updateState === "current"
-              ? "Up to date"
+              ? gt("Up to date")
               : null;
 
   const versionRow = (
@@ -123,7 +126,9 @@ function AppSettingsSection() {
         type="monochrome"
         weight="regular"
       />
-      <Text className="flex-1 text-lg text-foreground">Version</Text>
+      <Text className="flex-1 text-lg text-foreground">
+        <T>Version</T>
+      </Text>
       <View className="items-end">
         <Text className="text-lg text-foreground-muted">{versionLabel}</Text>
         {statusLabel ? (
@@ -134,19 +139,23 @@ function AppSettingsSection() {
   );
 
   return (
-    <SettingsSection title="App">
+    <SettingsSection title={gt("App", { $context: "settings section about this mobile app" })}>
       <FeedbackSettingsAction />
-      <SettingsRow icon="internaldrive" label="Client Storage" target="SettingsClientStorage" />
-      <SettingsRow icon="stethoscope" label="Diagnostics" target="SettingsDiagnostics" />
+      <SettingsRow
+        icon="internaldrive"
+        label={gt("Client Storage")}
+        target="SettingsClientStorage"
+      />
+      <SettingsRow icon="stethoscope" label={gt("Diagnostics")} target="SettingsDiagnostics" />
       <SettingsRow
         icon="doc.on.doc"
-        label="Open source licenses"
+        label={gt("Open source licenses")}
         target="SettingsOpenSourceLicenses"
       />
-      <SettingsRow icon="doc.text" label="Legal" fullScreenTarget="SettingsLegal" />
+      <SettingsRow icon="doc.text" label={gt("Legal")} fullScreenTarget="SettingsLegal" />
       {updateCheckAvailable ? (
         <Pressable
-          accessibilityLabel={`Version ${versionLabel}`}
+          accessibilityLabel={gt("Version {version}", { version: versionLabel })}
           accessibilityRole="text"
           disabled={busy}
           onPress={handleVersionPress}
@@ -171,6 +180,7 @@ const triagePermittedEnvironmentsAtom = Atom.family((environmentIdsJson: string)
 );
 
 function FeedbackSettingsAction() {
+  const gt = useGT();
   const projects = useProjects();
   const { environments } = useEnvironments();
   const { startTriage, isPending } = useStartTriage();
@@ -196,7 +206,7 @@ function FeedbackSettingsAction() {
   const row = (
     <SettingsActionRow
       icon="text.bubble"
-      label="Send feedback"
+      label={gt("Send feedback")}
       loading={isPending}
       disabled={eligibleTargets.length === 0 || isPending}
       pointerEvents={eligibleTargets.length > 1 ? "none" : "auto"}
@@ -210,8 +220,8 @@ function FeedbackSettingsAction() {
     <Menu
       accessible
       accessibilityRole="button"
-      accessibilityLabel="Send feedback"
-      title="Choose an environment"
+      accessibilityLabel={gt("Send feedback")}
+      title={gt("Choose an environment")}
       actions={eligibleTargets.map((target) => ({
         id: target.environmentId,
         title: target.label,

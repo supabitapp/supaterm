@@ -1,5 +1,6 @@
 import type { CodexMicroAction } from "@supaterm/contracts";
 import type { IconComponent } from "@supaterm/icons";
+import { T, useGT, useMessages } from "gt-react";
 import { useState, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -18,6 +19,7 @@ import { CodexMicroActionPicker } from "./CodexMicroActionPicker";
 export interface CodexMicroInputRow<Value extends string> {
   readonly value: Value;
   readonly label: string;
+  readonly assignLabel: string;
   readonly icon: IconComponent;
 }
 
@@ -42,9 +44,11 @@ export function CodexMicroInputDialog<Value extends string>({
   onClose: () => void;
   children?: ReactNode;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const [selected, setSelected] = useState<Value>(rows[0].value);
   const selectedRow = rows.find((row) => row.value === selected)!;
-  const assignLabel = `Assign ${selectedRow.label.toLowerCase()}`;
+  const assignLabel = m(selectedRow.assignLabel);
 
   return (
     <Dialog
@@ -75,7 +79,7 @@ export function CodexMicroInputDialog<Value extends string>({
                   onClick={() => setSelected(row.value)}
                 >
                   <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 font-medium">{row.label}</span>
+                  <span className="flex-1 font-medium">{m(row.label)}</span>
                   <span className="min-w-0 truncate text-xs text-muted-foreground">
                     {getAssignmentLabel(row.value)}
                   </span>
@@ -94,13 +98,15 @@ export function CodexMicroInputDialog<Value extends string>({
               key={selected}
               label={assignLabel}
               selected={getAction(selected)}
-              clearLabel="Clear assignment"
+              clearLabel={gt("Clear assignment")}
               onSelect={(action) => onAssign(selected, action)}
             />
           </div>
         </DialogPanel>
         <DialogFooter>
-          <Button onClick={onClose}>Done</Button>
+          <Button onClick={onClose}>
+            <T>Done</T>
+          </Button>
         </DialogFooter>
       </DialogPopup>
     </Dialog>

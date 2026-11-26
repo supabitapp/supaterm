@@ -17,6 +17,8 @@ import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
 const PREVIEW_PARTITION_PREFIX = "persist:supaterm-preview-";
 /**
@@ -91,9 +93,9 @@ const permissionOrigin = (rawUrl: string | undefined): string | null => {
  * prompt shows. Every other error keeps Electron's denial.
  */
 const OVERRIDABLE_CERTIFICATE_ERRORS: ReadonlyMap<string, string> = new Map([
-  ["net::ERR_CERT_AUTHORITY_INVALID", "No trusted authority issued this certificate."],
-  ["net::ERR_CERT_COMMON_NAME_INVALID", "This certificate is not for this address."],
-  ["net::ERR_CERT_DATE_INVALID", "This certificate has expired or is not valid yet."],
+  ["net::ERR_CERT_AUTHORITY_INVALID", msg("No trusted authority issued this certificate.")],
+  ["net::ERR_CERT_COMMON_NAME_INVALID", msg("This certificate is not for this address.")],
+  ["net::ERR_CERT_DATE_INVALID", msg("This certificate has expired or is not valid yet.")],
 ]);
 
 /**
@@ -464,20 +466,29 @@ export const make = Effect.gen(function* BrowserSessionMake() {
         .showMessageBox(
           {
             type: "warning",
-            buttons: ["Trust and Remember", "Cancel"],
+            buttons: [m(msg("Trust and Remember")), m(msg("Cancel"))],
             defaultId: 1,
             cancelId: 1,
             signal: dismiss.signal,
-            message: `${host} has an untrusted certificate`,
+            message: m(msg("{host} has an untrusted certificate"), { host }),
             detail: [
-              reason,
+              m(reason),
               "",
-              `Issued to: ${promptCertificateName(certificate.subjectName)}`,
-              `Issued by: ${promptCertificateName(certificate.issuerName)}`,
-              `Valid: ${promptCertificateDate(certificate.validStart)} – ${promptCertificateDate(certificate.validExpiry)}`,
-              `Fingerprint: ${approval.fingerprint}`,
+              m(msg("Issued to: {name}"), {
+                name: promptCertificateName(certificate.subjectName),
+              }),
+              m(msg("Issued by: {name}"), { name: promptCertificateName(certificate.issuerName) }),
+              m(msg("Valid: {start} – {end}"), {
+                start: promptCertificateDate(certificate.validStart),
+                end: promptCertificateDate(certificate.validExpiry),
+              }),
+              m(msg("Fingerprint: {fingerprint}"), { fingerprint: approval.fingerprint }),
               "",
-              "Trust it only if you know this certificate belongs to the site. Clearing this browser profile's cookies forgets it.",
+              m(
+                msg(
+                  "Trust it only if you know this certificate belongs to the site. Clearing this browser profile's cookies forgets it.",
+                ),
+              ),
             ].join("\n"),
           },
           // In the reporter's Windows test, a box owned by the host window
@@ -492,8 +503,12 @@ export const make = Effect.gen(function* BrowserSessionMake() {
                     Effect.logWarning("Failed to save a certificate approval.", { cause }).pipe(
                       Effect.andThen(
                         electronDialog.showErrorBox(
-                          `Could not trust the certificate for ${host}`,
-                          "Supaterm could not save this approval, so the page stays blocked. Check that the disk is not full and its data folder is writable, then try again.",
+                          m(msg("Could not trust the certificate for {host}"), { host }),
+                          m(
+                            msg(
+                              "Supaterm could not save this approval, so the page stays blocked. Check that the disk is not full and its data folder is writable, then try again.",
+                            ),
+                          ),
                         ),
                       ),
                       Effect.as(false),
@@ -621,7 +636,10 @@ export const make = Effect.gen(function* BrowserSessionMake() {
             promptPermission(
               requester,
               {
-                buttons: ["Allow", "Block"],
+                buttons: [
+                  m(msg("Allow", { $context: "button, grants a site permission" })),
+                  m(msg("Block", { $context: "button, denies a site permission" })),
+                ],
                 message:
                   permission === "geolocation"
                     ? `${truncateForPrompt(origin)} wants to know your location`

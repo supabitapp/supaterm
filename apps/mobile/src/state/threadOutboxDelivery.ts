@@ -17,13 +17,13 @@ import {
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
-  managedRuntimeModeDenial,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   TranscriptionError,
   type EnvironmentId,
   type MessageId,
   type ModelSelection,
 } from "@supaterm/contracts";
+import { managedRuntimeModeDenial } from "@supaterm/client-runtime/contract-labels";
 import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { buildTemporaryWorktreeBranchName } from "@supaterm/shared/git";
@@ -116,6 +116,8 @@ import {
 } from "./use-thread-outbox";
 import { clearThreadComposerError, setThreadComposerError } from "./thread-composer-error";
 import { workspaceConnections } from "./workspace";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 const threadOutboxDebug = createDebugLogger("thread-outbox");
 
@@ -267,6 +269,15 @@ const storage = <A>(
     try: write,
     catch: (cause) => new ThreadOutboxStorageError({ operation, messageId, cause }),
   });
+
+class OutboxDeliveryStepError extends Schema.TaggedError<OutboxDeliveryStepError>()(
+  "OutboxDeliveryStepError",
+  { step: Schema.Literals(["voice-upload", "branch-resolution"]), cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return `Queued message ${this.step} failed.`;
+  }
+}
 
 /** The head was not handled; back off and try it again. */
 export class DeliveryRetry extends Schema.TaggedError<DeliveryRetry>()("DeliveryRetry", {}) {}
@@ -497,7 +508,12 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
       if (existingAttachmentIds.size + addedAttachmentCount > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
         setThreadComposerError(
           threadKey,
-          `Remove attachments from the draft before restoring this message. Messages can contain at most ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} attachments.`,
+          m(
+            msg(
+              "Remove attachments from the draft before restoring this message. Messages can contain at most {max} attachments.",
+              { max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS },
+            ),
+          ),
           queuedMessage.messageId,
         );
         return "blocked" as const;
@@ -532,6 +548,9 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
                   pullRequestReference: queuedMessage.creation.pullRequestReference,
                   ...(queuedMessage.creation.startFromOrigin !== undefined
                     ? { startFromOrigin: queuedMessage.creation.startFromOrigin }
+                    : {}),
+                  ...(queuedMessage.creation.repositories !== undefined
+                    ? { repositories: queuedMessage.creation.repositories }
                     : {}),
                 },
               }
@@ -606,7 +625,7 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
             threadKey,
             error.cause instanceof Error
               ? error.cause.message
-              : "The unsent message could not be restored.",
+              : m(msg("The unsent message could not be restored.")),
             queuedMessage.messageId,
           );
           return "retry" as const;
@@ -736,32 +755,34 @@ export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMes
   const file = yield* Effect.promise(() => queuedVoiceRecordingFile(queuedMessage.messageId));
   const outcome: Parameters<typeof resolveVoiceDeliveryStep>[1] = !file.exists
     ? {
-        error: new VoiceUploadError(
-          "audioMissing",
-          new TranscriptionError({ reason: "audioMissing" }).message,
-          false,
-        ),
-      }
-    : yield* Effect.tryPromise(() =>
-        uploadEnvironmentVoiceRecording({
-          environmentId: queuedMessage.environmentId,
-          uri: file.uri,
-          request: {
-            sizeBytes: voice.sizeBytes,
-            language: voice.language,
-            submit: {
-              threadId: queuedMessage.threadId,
-              commandId: queuedMessage.commandId,
-              messageId: queuedMessage.messageId,
-              modelSelection,
-              delivery: queuedMessage.dispatchMode ?? "auto",
-              creationSource: "mobile",
-              ...(queuedMessage.freshContext ? { freshContext: true } : {}),
-            },
-          },
-          ...(voice.streamedUploadId === queuedMessage.commandId ? { streamed: true } : {}),
+        error: new VoiceUploadError({
+          reason: "audioMissing",
+          message: new TranscriptionError({ reason: "audioMissing" }).message,
+          retryable: false,
         }),
-      ).pipe(
+      }
+    : yield* Effect.tryPromise({
+        try: () =>
+          uploadEnvironmentVoiceRecording({
+            environmentId: queuedMessage.environmentId,
+            uri: file.uri,
+            request: {
+              sizeBytes: voice.sizeBytes,
+              language: voice.language,
+              submit: {
+                threadId: queuedMessage.threadId,
+                commandId: queuedMessage.commandId,
+                messageId: queuedMessage.messageId,
+                modelSelection,
+                delivery: queuedMessage.dispatchMode ?? "auto",
+                creationSource: "mobile",
+                ...(queuedMessage.freshContext ? { freshContext: true } : {}),
+              },
+            },
+            ...(voice.streamedUploadId === queuedMessage.commandId ? { streamed: true } : {}),
+          }),
+        catch: (cause) => new OutboxDeliveryStepError({ step: "voice-upload", cause }),
+      }).pipe(
         Effect.map((result) => ({ result })),
         Effect.catch((error) => Effect.succeed({ error: error.cause })),
       );
@@ -885,7 +906,7 @@ function reportCommandFailure(
   });
   return {
     action,
-    message: error instanceof Error ? error.message : "The message could not be sent.",
+    message: error instanceof Error ? error.message : m(msg("The message could not be sent.")),
   };
 }
 
@@ -1026,6 +1047,7 @@ export function createThreadOutboxDelivery(): {
     const runtimeModeDenial = managedRuntimeModeDenial(
       serverConfig.managedPolicy,
       settings.runtimeMode,
+      m,
     );
     if (runtimeModeDenial !== undefined) {
       if (queuedMessage.voice) {
@@ -1100,7 +1122,7 @@ export function createThreadOutboxDelivery(): {
       if (!shouldRetryThreadOutboxDelivery(error)) {
         return yield* restoreQueuedMessage(
           queuedMessage,
-          error instanceof Error ? error.message : "An attachment could not upload.",
+          error instanceof Error ? error.message : m(msg("An attachment could not upload.")),
         );
       }
       return yield* retryDelivery;
@@ -1152,10 +1174,10 @@ export function createThreadOutboxDelivery(): {
           attachments: prepared.attachments,
         },
         modelSelection: sendSettings.modelSelection,
-        titleSeed: deriveThreadTitleSeed({
-          text: queuedMessage.text,
-          attachments: queuedMessage.attachments,
-        }),
+        titleSeed: deriveThreadTitleSeed(
+          { text: queuedMessage.text, attachments: queuedMessage.attachments },
+          m,
+        ),
         runtimeMode: sendSettings.runtimeMode,
         interactionMode: sendSettings.interactionMode,
         createdAt: queuedMessage.createdAt,
@@ -1189,11 +1211,13 @@ export function createThreadOutboxDelivery(): {
     const hasAccess = () =>
       readEnvironmentScope(initialMessage.environmentId, AuthOrchestrationOperateScope);
     if (!hasAccess()) return;
-    const workspaceResult = yield* Effect.tryPromise(() =>
-      prepareQueuedThreadCreation(initialMessage, projectCwd, (target) =>
-        runAtomCommand(appAtomRegistry, fetchVcsRefs, target, { reportFailure: false }),
-      ),
-    ).pipe(
+    const workspaceResult = yield* Effect.tryPromise({
+      try: () =>
+        prepareQueuedThreadCreation(initialMessage, projectCwd, (target) =>
+          runAtomCommand(appAtomRegistry, fetchVcsRefs, target, { reportFailure: false }),
+        ),
+      catch: (cause) => new OutboxDeliveryStepError({ step: "branch-resolution", cause }),
+    }).pipe(
       Effect.catch((error) =>
         Effect.sync(() =>
           threadOutboxDebug.log("could not persist the queued task's base branch; retrying", {
@@ -1243,6 +1267,7 @@ export function createThreadOutboxDelivery(): {
     const runtimeModeDenial = managedRuntimeModeDenial(
       serverConfig.managedPolicy,
       settings.runtimeMode,
+      m,
     );
     if (runtimeModeDenial !== undefined) {
       return yield* restoreQueuedMessage(queuedMessage, runtimeModeDenial);
@@ -1259,7 +1284,7 @@ export function createThreadOutboxDelivery(): {
       if (!shouldRetryThreadOutboxDelivery(error)) {
         return yield* restoreQueuedMessage(
           queuedMessage,
-          error instanceof Error ? error.message : "An attachment could not upload.",
+          error instanceof Error ? error.message : m(msg("An attachment could not upload.")),
         );
       }
       return yield* retryDelivery;
@@ -1314,7 +1339,12 @@ export function createThreadOutboxDelivery(): {
         ).changeRequest;
         return yield* restoreQueuedMessage(
           persistedMessage,
-          `The ${shortLabel} worktree has local changes and could not update to the ${shortLabel} head. Resolve them before trying again.`,
+          m(
+            msg(
+              "The {label} worktree has local changes and could not update to the {label} head. Resolve them before trying again.",
+              { label: shortLabel },
+            ),
+          ),
         );
       }
       workspace = {
@@ -1352,6 +1382,9 @@ export function createThreadOutboxDelivery(): {
         branch: workspace.branch,
         worktreePath: workspace.worktreePath,
         startFromOrigin: workspace.startFromOrigin ?? false,
+        ...(workspace.repositories === undefined
+          ? {}
+          : { worktreeRepositories: workspace.repositories }),
         worktreeBranchName: buildTemporaryWorktreeBranchName(randomHex),
       }),
     });
@@ -1502,6 +1535,7 @@ export function createThreadOutboxDelivery(): {
       return { _tag: "Wait" };
     }
     const dispatchStep = resolveThreadOutboxDispatchStep({
+      resolve: m,
       deliveryAction,
       fileAttachments: nextQueuedMessage.attachments.filter(
         (attachment) => attachment.type === "file",
@@ -1756,11 +1790,15 @@ function loadThreadOutbox(isActive: () => boolean): void {
     }
     if (!isActive()) return;
     Dialog.alert(
-      "Some queued messages could not be loaded",
-      "Unreadable records and attachment files are still saved. Other messages can still be sent.",
+      m(msg("Some queued messages could not be loaded")),
+      m(
+        msg(
+          "Unreadable records and attachment files are still saved. Other messages can still be sent.",
+        ),
+      ),
       [
-        { text: "Dismiss", style: "cancel" },
-        { text: "Retry", onPress: () => loadThreadOutbox(isActive) },
+        { text: m(msg("Dismiss")), style: "cancel" },
+        { text: m(msg("Retry")), onPress: () => loadThreadOutbox(isActive) },
       ],
     );
   });

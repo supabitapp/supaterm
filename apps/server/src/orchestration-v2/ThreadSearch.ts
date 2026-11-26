@@ -200,7 +200,8 @@ export function buildSearchSnippet(text: string, matchStart: number): string {
   // Cut between characters, not inside an emoji's surrogate pair.
   if (isLowSurrogate(text.charCodeAt(start))) start++;
   // Collapsing whitespace shortens the text, so read more of it.
-  const rawEnd = Math.min(text.length, start + SNIPPET_LENGTH * 2);
+  let rawEnd = Math.min(text.length, start + SNIPPET_LENGTH * 2);
+  if (isLowSurrogate(text.charCodeAt(rawEnd))) rawEnd++;
   // Emphasis and code marks do not show in a thread either.
   const shown = text
     .slice(start, rawEnd)
@@ -291,9 +292,17 @@ export const messageHitsQuery = (
               runs.status = 'cancelled'
               AND NOT EXISTS (
                 SELECT 1 FROM orchestration_v2_projection_turn_items AS items
-                WHERE items.run_id = runs.run_id
-                  AND json_extract(items.payload_json, '$.messageId') = messages.message_id
-                  AND json_extract(items.payload_json, '$.inputIntent') IS NOT 'queued_turn'
+                -- Seeks migration 20's message index rather than reading every item of
+                -- the run; + drops the column's affinity, which would stop the seek.
+                WHERE items.thread_id = messages.thread_id
+                  AND items.type IN ('user_message', 'assistant_message')
+                  AND json_valid(items.payload_json)
+                  AND json_extract(items.payload_json, '$.messageId') = +messages.message_id
+                  AND items.run_id = runs.run_id
+                  AND (
+                    json_extract(items.payload_json, '$.inputIntent') IS NOT 'queued_turn'
+                    OR json_extract(runs.payload_json, '$.startedAt') IS NOT NULL
+                  )
               )
             )
           )

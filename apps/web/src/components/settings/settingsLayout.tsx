@@ -1,9 +1,9 @@
 import { SettingsGroup } from "./SettingsGroup";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
+import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@supaterm/contracts";
 import { usePrimaryEnvironmentId, usePrimaryEnvironment } from "../../state/environments";
 import { useEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
 import { BuildingIcon, InfoIcon, UndoIcon } from "@supaterm/icons";
-import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@supaterm/contracts";
 import * as Equal from "effect/Equal";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { createContext, type ComponentPropsWithoutRef, type ReactNode, useContext } from "react";
@@ -36,6 +36,7 @@ import {
   type SettingInheritanceState,
   type SettingOverridingProject,
 } from "./SettingInheritance";
+import { useGT, useMessages } from "gt-react";
 
 const EMPTY_SETTING_KEYS: readonly (keyof ServerSettings)[] = [];
 const EMPTY_MANAGED_PATHS: readonly string[] = [];
@@ -185,12 +186,17 @@ export function SettingsSearchTarget({
 export const SETTINGS_PICKER_TRIGGER_CLASSNAME = "min-w-0 max-w-none shrink-0";
 
 export function PolicyTooltip({ children }: { readonly children: string }) {
+  const gt = useGT();
   return (
     <Tooltip>
       <TooltipTrigger
         delay={200}
         render={
-          <Button size="icon-micro" variant="ghost-muted" aria-label="Background policy details">
+          <Button
+            size="icon-micro"
+            variant="ghost-muted"
+            aria-label={gt("Background policy details")}
+          >
             <InfoIcon className="size-3.5" />
           </Button>
         }
@@ -341,6 +347,8 @@ export function SettingsRow({
   managed?: string | undefined;
   children?: ReactNode;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const targetRef = useSettingsSearchTarget<HTMLDivElement>(rowProps.id);
   const primarySettingsAvailable = usePrimarySettingsAvailable();
   const context = useOptionalSettingsScope();
@@ -393,7 +401,7 @@ export function SettingsRow({
       source === "project" || source === "mixed" ? (
         <SettingResetButton
           label={typeof title === "string" ? title : "override"}
-          tooltip="Reset to inherited value"
+          tooltip={gt("Reset to inherited value")}
           onClick={() => (onResetOverride ? onResetOverride() : clearOverrides(scopedKeys))}
         />
       ) : null
@@ -420,25 +428,32 @@ export function SettingsRow({
       <TooltipPopup side="top">{message}</TooltipPopup>
     </Tooltip>
   );
-  const unavailableReason = () => {
-    if (canWriteSettings) {
-      return context
-        ? "Reconnect the selected environment to change this setting."
-        : PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE;
-    }
-    const deniedLabels = context
+  const lackingPermissionMessage = () => {
+    const environments = context
       ? context.connectedEnvironments
           .filter((target) => !writableIds.has(target.environmentId))
           .map((target) => target.label)
-          .join(", ") || "the selected environment"
-      : (primaryEnvironment?.label ?? "the primary environment");
-    return `This connection lacks permission to change settings on ${deniedLabels}.`;
+          .join(", ")
+      : primaryEnvironment?.label;
+    return environments
+      ? gt("This connection lacks permission to change settings on {environments}.", {
+          environments,
+        })
+      : context
+        ? gt("This connection lacks permission to change settings on the selected environment.")
+        : gt("This connection lacks permission to change settings on the primary environment.");
+  };
+  const unavailableReason = () => {
+    if (!canWriteSettings) return lackingPermissionMessage();
+    return context
+      ? gt("Reconnect the selected environment to change this setting.")
+      : messages(PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE);
   };
   const lockedReason = () => {
     if (managedReason !== undefined) return managedReason;
     if (unavailable) return unavailableReason();
-    if (environmentWide) return "Environment-wide setting. Select an environment to change it.";
-    if (deviceReadOnly) return "Saved on this device. Select All projects to change it.";
+    if (environmentWide) return gt("Environment-wide setting. Select an environment to change it.");
+    if (deviceReadOnly) return gt("Saved on this device. Select All projects to change it.");
     return undefined;
   };
   const controlLockedReason = control ? lockedReason() : undefined;
@@ -456,16 +471,19 @@ export function SettingsRow({
       }),
     );
   const inheritance: { state: SettingInheritanceState; summary: string } = mixed
-    ? { state: "mixed", summary: "Mixed across selected environments" }
+    ? { state: "mixed", summary: gt("Mixed across selected environments") }
     : source === "project"
-      ? { state: "overridden", summary: "Overridden for this project" }
+      ? { state: "overridden", summary: gt("Overridden for this project") }
       : source === "supaterm.json"
-        ? { state: "inherited", summary: "Inherited from the repository's supaterm.json" }
+        ? { state: "inherited", summary: gt("Inherited from the repository's supaterm.json") }
         : source === "environment" && scopedKeys.length > 0
-          ? { state: "inherited", summary: `Inherited from ${inheritedFrom}` }
+          ? {
+              state: "inherited",
+              summary: gt("Inherited from {environment}", { environment: inheritedFrom }),
+            }
           : customized
-            ? { state: "environment", summary: "Set on the environment" }
-            : { state: "default", summary: "Built-in default" };
+            ? { state: "environment", summary: gt("Set on the environment") }
+            : { state: "default", summary: gt("Built-in default") };
   const renderedInheritance =
     context && serverScoped && settingKeys.length > 0 ? (
       <SettingInheritance
@@ -538,7 +556,7 @@ export function SettingsRow({
 
 export function SettingResetButton({
   label,
-  tooltip = "Reset to default",
+  tooltip,
   confirmTooltip,
   disabled = false,
   onClick,
@@ -549,6 +567,7 @@ export function SettingResetButton({
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const gt = useGT();
   if (confirmTooltip !== undefined) {
     return (
       <InlineConfirmButton
@@ -556,9 +575,9 @@ export function SettingResetButton({
         variant="ghost-muted"
         disabled={disabled}
         icon={<UndoIcon className="size-3" />}
-        label={`Reset ${label} to default`}
-        confirmLabel={`Confirm reset ${label}`}
-        tooltip={tooltip}
+        label={gt("Reset {title} to default", { title: label })}
+        confirmLabel={gt("Confirm reset {title}", { title: label })}
+        tooltip={tooltip ?? gt("Reset to default")}
         confirmTooltip={confirmTooltip}
         onConfirm={onClick}
       />
@@ -571,7 +590,7 @@ export function SettingResetButton({
           <Button
             size="icon-micro"
             variant="ghost-muted"
-            aria-label={`Reset ${label} to default`}
+            aria-label={gt("Reset {title} to default", { title: label })}
             disabled={disabled}
             onClick={(event) => {
               event.stopPropagation();
@@ -587,7 +606,7 @@ export function SettingResetButton({
           </Button>
         }
       />
-      <TooltipPopup side="top">{tooltip}</TooltipPopup>
+      <TooltipPopup side="top">{tooltip ?? gt("Reset to default")}</TooltipPopup>
     </Tooltip>
   );
 }

@@ -10,6 +10,7 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 import Animated from "react-native-reanimated";
 import { useNoticeMotion } from "../../lib/useNoticeMotion";
+import { useGT, useMessages } from "gt-react-native";
 
 export function ComposerFeedback({
   submission,
@@ -18,8 +19,10 @@ export function ComposerFeedback({
   readonly submission: CodexFeedbackSubmission;
   readonly onDismiss: () => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const motion = useNoticeMotion();
-  const notice = codexFeedbackNotice(submission);
+  const notice = codexFeedbackNotice(submission, m);
   if (!notice) return null;
   return (
     <Animated.View {...motion} collapsable={false} className="px-4 pb-3">
@@ -30,7 +33,7 @@ export function ComposerFeedback({
           </Text>
           {submission.status !== "uploading" ? (
             <Pressable
-              accessibilityLabel="Dismiss feedback notice"
+              accessibilityLabel={gt("Dismiss feedback notice")}
               accessibilityRole="button"
               hitSlop={12}
               onPress={onDismiss}
@@ -52,7 +55,7 @@ export function ComposerFeedback({
         ) : null}
         {submission.status === "sent" ? (
           <Button
-            label="Copy ID"
+            label={gt("Copy ID")}
             tone="text"
             onPress={() =>
               copyTextWithHaptic(submission.feedbackId, { target: "Codex feedback thread ID" })

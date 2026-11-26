@@ -163,7 +163,7 @@ it.effect("routes peer reads to readers and sees uncommitted link updates", () =
         expect((yield* links.list)[0]?.label).toBe("Uncommitted box");
       }),
     );
-    expect(yield* links.unlink(box.environmentId)).toBe(true);
+    expect(yield* links.unlink(box.environmentId)).toEqual({ removed: true, endedThere: false });
     expect(yield* links.list).toEqual([]);
   }),
 );
@@ -200,7 +200,7 @@ it.effect("links, calls and forgets a peer through its relay tunnel", () => {
       );
       expect(outside.status).toBe(404);
 
-      expect(yield* a.links.unlink(box.environmentId)).toBe(true);
+      expect(yield* a.links.unlink(box.environmentId)).toEqual({ removed: true, endedThere: true });
       // Forgetting the link closed its tunnel, so its loopback port answers nothing.
       const closed = yield* HttpClient.get(`${resolved.url}/.well-known/supaterm/environment`).pipe(
         Effect.provide(FetchHttpClient.layer),
@@ -349,6 +349,20 @@ it.effect("links with a pairing code, and the peer holds its agents to the limit
       // A refusal keeps the peer's reason.
       const notFound = yield* probe(a, undefined, "refuse").pipe(Effect.flip);
       expect(notFound).toMatchObject({ code: "thread_not_found", message: "No such thread." });
+
+      // Unlinking ends the session on B too, instead of leaving a live credential behind.
+      expect(yield* a.links.unlink(box.environmentId)).toEqual({ removed: true, endedThere: true });
+      expect(yield* linkedSessions(b)).toEqual([]);
+
+      // An address that now answers as another environment never receives the token.
+      const other = yield* serveApart(descriptorOf("environment-other", "Other"));
+      const relink = yield* b.auth.issuePairingCredential({ access: "auto", purpose: "peer-link" });
+      yield* a.links.link({ url: b.url, pairingCode: relink.credential, access: "auto" });
+      yield* a.sql`UPDATE peer_environment_links SET urls_json = ${JSON.stringify([other.url])}`;
+      expect(yield* a.links.unlink(box.environmentId)).toEqual({
+        removed: true,
+        endedThere: false,
+      });
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
@@ -974,10 +988,9 @@ it.effect("linking a picked machine that answers nowhere names it and links noth
 it.live("linking an address with nothing listening says so, unlike one that is not Supaterm", () =>
   Effect.scoped(
     Effect.gen(function* () {
-      const closed = yield* Effect.scoped(
-        serveRaw(() => Effect.succeed(HttpServerResponse.empty({ status: 404 }))),
-      );
-      const notT3 = yield* serveRaw(() =>
+      // Any test worker can reuse a closed ephemeral port; port 2 is privileged and outside that range.
+      const closed = "http://127.0.0.1:2";
+      const notSupaterm = yield* serveRaw(() =>
         Effect.succeed(
           HttpServerResponse.text("<h1>Not Found</h1>", { status: 404, contentType: "text/html" }),
         ),
@@ -986,8 +999,8 @@ it.live("linking an address with nothing listening says so, unlike one that is n
       const linking = (url: string) =>
         a.links.link({ url, pairingCode: "unused", access: "auto" }).pipe(Effect.flip);
       expect((yield* linking(closed)).message).toBe(`${closed} did not answer (ECONNREFUSED).`);
-      expect((yield* linking(notT3)).message).toBe(
-        `${notT3} answered, but not as a Supaterm environment this version understands.`,
+      expect((yield* linking(notSupaterm)).message).toBe(
+        `${notSupaterm} answered, but not as a Supaterm environment this version understands.`,
       );
       expect(yield* a.links.list).toEqual([]);
     }),

@@ -1,3 +1,4 @@
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import { WebSocket } from "@effect/platform-node/NodeWS";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Bind an isolated WebSocket negotiation fixture.
@@ -10,6 +11,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
   AuthAccessReadScope,
+  type AuthEnvironmentScope,
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   AuthProvidersManageScope,
@@ -17,6 +19,7 @@ import {
   AuthSettingsWriteScope,
   type ManagedPolicySummary,
   AuthSourceControlWriteScope,
+  AuthTerminalOperateScope,
   ORCHESTRATION_PROTOCOL_VERSION,
   ORCHESTRATION_PROTOCOL_QUERY_PARAM,
   EnvironmentId,
@@ -72,6 +75,7 @@ import * as Ws from "./ws.ts";
 import { RpcGroup, RpcMessage, RpcServer } from "effect/rpc";
 import * as RpcTest from "effect/rpc/RpcTest";
 import * as SqlClient from "effect/sql/SqlClient";
+import * as Statement from "effect/sql/Statement";
 import { vi } from "vite-plus/test";
 
 import * as AssetSigner from "./assets/AssetSigner.ts";
@@ -125,6 +129,9 @@ import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner
 import * as ProviderRegistry from "./provider/ProviderRegistry.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
+import * as IssueService from "./issue/IssueService.ts";
+import * as ThreadIssueService from "./orchestration-v2/ThreadIssueService.ts";
+import * as IssueTrackerConnections from "./issue/IssueTrackerConnections.ts";
 import * as Transcription from "./transcription/Transcription.ts";
 import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
@@ -152,6 +159,8 @@ import * as UsageService from "./usage/UsageService.ts";
 import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
 import * as VcsStatusBroadcaster from "./vcs/VcsStatusBroadcaster.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
+import * as WorkspaceFolders from "./workspace/WorkspaceFolders.ts";
+import * as TaskFolders from "./workspace/TaskFolders.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
 import * as WorktreeSetupTracker from "./project/WorktreeSetupTracker.ts";
 import * as ProjectFaviconResolver from "./project/ProjectFaviconResolver.ts";
@@ -190,6 +199,7 @@ import {
   relayAdvertisementUpdates,
 } from "./ws.ts";
 import * as SecretRequests from "./secrets/SecretRequests.ts";
+import * as SecretCheck from "./secrets/SecretCheck.ts";
 
 const snapshotConfig = (fields: Partial<ServerConfig>) =>
   ({ availableEditors: [], settings: {}, ...fields }) as unknown as ServerConfig;
@@ -485,10 +495,12 @@ const resumeSkipsUnknownTypes = (scope: "thread" | "shell") =>
             .pipe(Stream.filter((event): event is OrchestrationV2StoredEvent => "event" in event));
         },
       } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-      Effect.provideService(ProjectStore.ProjectStoreV2, {
-        listShells: () => Effect.succeed([]),
-      } as unknown as ProjectStore.ProjectStoreV2["Service"]),
+      Effect.provideService(
+        ProjectStore.ProjectStoreV2,
+        {} as unknown as ProjectStore.ProjectStoreV2["Service"],
+      ),
       Effect.provideService(ProjectService.ProjectService, {
+        listShells: () => Effect.succeed([]),
         getShell: () => Effect.succeedSome(project),
       } as unknown as ProjectService.ProjectService["Service"]),
       Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
@@ -744,10 +756,12 @@ it.effect("shell snapshots omit idle children and older done threads only on req
               }),
             ),
         } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-        Effect.provideService(ProjectStore.ProjectStoreV2, {
-          listShells: () => Effect.succeed([]),
-        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
+        Effect.provideService(
+          ProjectStore.ProjectStoreV2,
+          {} as unknown as ProjectStore.ProjectStoreV2["Service"],
+        ),
         Effect.provideService(ProjectService.ProjectService, {
+          listShells: () => Effect.succeed([]),
           getShell: () => Effect.succeedNone,
         } as unknown as ProjectService.ProjectService["Service"]),
         Effect.provideServiceEffect(
@@ -840,6 +854,9 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({}),
   Layer.mock(PullRequestReviewGuideService.PullRequestReviewGuideService)({}),
   Layer.mock(PullRequestService.PullRequestService)({}),
+  Layer.mock(IssueService.IssueService)({}),
+  Layer.mock(ThreadIssueService.ThreadIssueService)({}),
+  Layer.mock(IssueTrackerConnections.IssueTrackerConnections)({}),
   Layer.mock(PullRequestSyncReactor.PullRequestSyncReactor)({}),
 
   Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),
@@ -847,6 +864,8 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ReviewService.ReviewService)({}),
   Layer.mock(ScheduledTasks.ScheduledTaskService)({}),
   Layer.mock(SecretRequests.SecretRequests)({}),
+  Layer.mock(SecretResolver.SecretResolver)({}),
+  Layer.mock(SecretCheck.SecretCheck)({}),
   Layer.mock(Transcription.Transcription)({}),
   Layer.mock(TranscriptionUploads.TranscriptionUploads)({}),
 
@@ -877,6 +896,8 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(VcsProvisioningService.VcsProvisioningService)({}),
   Layer.mock(VcsStatusBroadcaster.VcsStatusBroadcaster)({}),
   Layer.mock(WorkspaceEntries.WorkspaceEntries)({}),
+  Layer.mock(WorkspaceFolders.WorkspaceFolders)({}),
+  Layer.mock(TaskFolders.TaskFolders)({}),
   Layer.mock(WorkspaceFileSystem.WorkspaceFileSystem)({}),
   Layer.mock(WorktreeSetupTracker.WorktreeSetupTracker)({}),
 );
@@ -1035,8 +1056,7 @@ it.effect.each([
               Effect.andThen(Deferred.await(finishDiscovery)),
               Effect.as([]),
             ),
-          // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-          resolveFileManagerRevealKind: () => Effect.succeed(undefined),
+          resolveFileManagerRevealKind: () => Effect.undefined,
         }),
         Layer.mock(ProviderRegistry.ProviderRegistry)({
           getProviders: Effect.succeed([]),
@@ -1130,6 +1150,7 @@ it.effect.each([
             },
             yield* ServerBrowser.ServerBrowser,
             () => Effect.void,
+            { secretReferences: true, gitRefNames: true },
           ).pipe(Layer.provide(configRpcServices)),
         ),
       );
@@ -1175,8 +1196,8 @@ it.effect.each([
         key: "mod+alt+z",
         command: "terminal.split",
       });
-      const expectedSettings = [duringDiscovery, latestSettings].map(
-        ServerSettings.redactServerSettingsForClient,
+      const expectedSettings = [duringDiscovery, latestSettings].map((value) =>
+        ServerSettings.redactServerSettingsForClient(value, { secretReferences: true }),
       );
       const expectedKeybindings = [duringAck.keybindings, latestKeybindings.keybindings];
       // The two sources can interleave, but each must retain its own publication order.
@@ -1204,7 +1225,7 @@ it.effect.each([
         assert.deepEqual(resolved.config.remoteOpenTargets, targets);
         assert.deepEqual(
           resolved.config.settings,
-          ServerSettings.redactServerSettingsForClient(latestSettings),
+          ServerSettings.redactServerSettingsForClient(latestSettings, { secretReferences: true }),
         );
         assert.deepEqual(resolved.config.keybindings, latestKeybindings.keybindings);
         yield* acknowledge;
@@ -1219,7 +1240,9 @@ it.effect.each([
           assert.deepEqual(resolved.config.directEndpoints, endpoints);
           assert.deepEqual(
             resolved.config.settings,
-            ServerSettings.redactServerSettingsForClient(latestSettings),
+            ServerSettings.redactServerSettingsForClient(latestSettings, {
+              secretReferences: true,
+            }),
           );
           assert.deepEqual(resolved.config.keybindings, latestKeybindings.keybindings);
           yield* acknowledge;
@@ -1256,37 +1279,48 @@ const settingsUpdateRpcs = WsRpcGroup.omit(
   ),
 );
 
+const settingsUpdateClient = Effect.fnUntraced(function* (
+  scopes: ReadonlyArray<AuthEnvironmentScope>,
+  readSaved?: Parameters<typeof RpcAuthorization.layer>[1],
+) {
+  const services = Layer.mergeAll(
+    layerUnusedConfigRpcServices,
+    Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+    Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+    Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
+    Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+    Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
+    Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
+    Layer.mock(ServerEnvironment.ServerEnvironment)({}),
+    Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
+  );
+  return yield* RpcTest.makeClient(settingsUpdateRpcs).pipe(
+    Effect.provide(
+      layerWsRpc(
+        {
+          sessionId: AuthSessionId.make("settings-test"),
+          subject: "settings-test",
+          method: "browser-session-cookie",
+          scopes: [...scopes],
+        },
+        yield* ServerBrowser.ServerBrowser,
+        () => Effect.void,
+        { secretReferences: true, gitRefNames: true },
+      ).pipe(Layer.provide(services), Layer.merge(RpcAuthorization.layer(scopes, readSaved))),
+    ),
+  );
+});
+
+const layerSettingsUpdate = Layer.mergeAll(
+  Layer.fresh(layerConfigSources),
+  Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
+  Layer.mock(ServerBrowser.ServerBrowser)({}),
+);
+
 it.effect("a client's settings update never turns the legacy Linked environments switch off", () =>
   Effect.gen(function* () {
     const settings = yield* ServerSettings.ServerSettingsService;
-    const services = Layer.mergeAll(
-      layerUnusedConfigRpcServices,
-      Layer.mock(ExternalLauncher.ExternalLauncher)({}),
-      Layer.mock(ProviderRegistry.ProviderRegistry)({}),
-      Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
-      Layer.mock(DirectEndpoints.DirectEndpoints)({}),
-      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
-      Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
-      Layer.mock(ServerEnvironment.ServerEnvironment)({}),
-      Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
-    );
-    const client = yield* RpcTest.makeClient(settingsUpdateRpcs).pipe(
-      Effect.provide(
-        layerWsRpc(
-          {
-            sessionId: AuthSessionId.make("settings-test"),
-            subject: "settings-test",
-            method: "browser-session-cookie",
-            scopes: [],
-          },
-          yield* ServerBrowser.ServerBrowser,
-          () => Effect.void,
-        ).pipe(
-          Layer.provide(services),
-          Layer.merge(RpcAuthorization.layer([AuthSettingsWriteScope])),
-        ),
-      ),
-    );
+    const client = yield* settingsUpdateClient([AuthSettingsWriteScope]);
 
     const updated = yield* client[WS_METHODS.serverUpdateSettings]({
       patch: { linkedEnvironmentsEnabled: false, defaultAutoPull: true },
@@ -1294,15 +1328,42 @@ it.effect("a client's settings update never turns the legacy Linked environments
     assert.isTrue(updated.defaultAutoPull);
     assert.isTrue(updated.linkedEnvironmentsEnabled);
     assert.isTrue((yield* settings.getSettings).linkedEnvironmentsEnabled);
-  }).pipe(
-    Effect.provide(
-      Layer.mergeAll(
-        Layer.fresh(layerConfigSources),
-        Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
-        Layer.mock(ServerBrowser.ServerBrowser)({}),
-      ),
-    ),
-  ),
+  }).pipe(Effect.provide(layerSettingsUpdate)),
+);
+
+it.effect("a settings-only write cannot restore a project script removed after its check", () =>
+  Effect.gen(function* () {
+    const settings = yield* ServerSettings.ServerSettingsService;
+    const projectId = ProjectId.make("project-1");
+    const scripts = [
+      {
+        id: "setup",
+        name: "Setup",
+        command: "pnpm install",
+        icon: "play" as const,
+        runOnWorktreeCreate: true,
+      },
+    ];
+    const checked = yield* settings.updateSettings({
+      projectSettingsOverrides: { [projectId]: { defaultProjectScripts: scripts } },
+    });
+    yield* settings.updateSettings({
+      projectSettingsOverrides: { [projectId]: { defaultProjectScripts: [] } },
+    });
+    const client = yield* settingsUpdateClient([AuthSettingsWriteScope], Effect.succeed(checked));
+
+    const error = yield* client[WS_METHODS.serverUpdateSettings]({
+      patch: {
+        projectSettingsOverrides: {
+          [projectId]: { defaultProjectScripts: scripts, defaultAutoPull: true },
+        },
+      },
+    }).pipe(Effect.flip);
+    assert.include(error, { requiredScope: AuthOrchestrationOperateScope });
+    const saved = (yield* settings.getSettings).projectSettingsOverrides[projectId];
+    assert.deepEqual(saved?.defaultProjectScripts, []);
+    assert.isUndefined(saved?.defaultAutoPull);
+  }).pipe(Effect.provide(layerSettingsUpdate)),
 );
 
 it.effect("access changes made while the snapshot loads reach the client after it", () =>
@@ -1342,6 +1403,7 @@ it.effect("access changes made while the snapshot loads reach the client after i
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true, gitRefNames: true },
         ).pipe(
           Layer.merge(RpcAuthorization.layer([AuthAccessReadScope])),
           Layer.provide(
@@ -1454,8 +1516,7 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
       layerUnusedConfigRpcServices,
       Layer.mock(ExternalLauncher.ExternalLauncher)({
         resolveAvailableEditors: () => Effect.succeed([]),
-        // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
-        resolveFileManagerRevealKind: () => Effect.succeed(undefined),
+        resolveFileManagerRevealKind: () => Effect.undefined,
       }),
       Layer.mock(ProviderRegistry.ProviderRegistry)({
         getProviders: Effect.sync(() => registryProviders),
@@ -1538,6 +1599,7 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true, gitRefNames: true },
         ).pipe(Layer.provide(configRpcServices)),
       ),
     );
@@ -1895,6 +1957,7 @@ it.effect("a missing thread worktree gets its project's skills in the cwd snapsh
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true, gitRefNames: true },
         ).pipe(Layer.provide(services)),
       ),
     );
@@ -1926,6 +1989,94 @@ it.effect("a missing thread worktree gets its project's skills in the cwd snapsh
       ),
     ),
   ),
+);
+
+it.effect(
+  "worktree requests run a project's layout commands only for a session that may run commands",
+  () =>
+    Effect.gen(function* () {
+      const browser = yield* ServerBrowser.ServerBrowser;
+      const requested = Effect.fnUntraced(function* (scopes: ReadonlyArray<AuthEnvironmentScope>) {
+        const seen: boolean[] = [];
+        const exits = yield* Queue.unbounded<string>();
+        const services = Layer.mergeAll(
+          layerUnusedConfigRpcServices,
+          Layer.mock(TaskFolders.TaskFolders)({
+            createWorktree: (_input, options) =>
+              Effect.sync(() => seen.push(options.projectCommands)).pipe(
+                Effect.as({ worktree: { path: "/repo-worktrees/feature", refName: "feature" } }),
+              ),
+            removeWorktree: (_input, options) =>
+              Effect.sync(() => seen.push(options.projectCommands)),
+          }),
+          Layer.mock(VcsStatusBroadcaster.VcsStatusBroadcaster)({
+            refreshStatus: () => Effect.die("unused"),
+          }),
+          Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+          Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+          Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
+          Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+          Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
+          Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
+          Layer.mock(ServerEnvironment.ServerEnvironment)({}),
+          Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
+        );
+        const server = yield* RpcServer.makeNoSerialization(WsRpcGroup, {
+          ...WS_RPC_SERVER_OPTIONS,
+          onFromServer: (response) =>
+            response._tag === "Exit" ? Queue.offer(exits, response.exit._tag) : Effect.void,
+        }).pipe(
+          Effect.provide(
+            layerWsRpc(
+              {
+                sessionId: AuthSessionId.make("worktree-test"),
+                subject: "worktree-test",
+                method: "browser-session-cookie",
+                scopes: [...scopes],
+              },
+              browser,
+              () => Effect.void,
+              { secretReferences: true, gitRefNames: true },
+            ).pipe(Layer.provide(services), Layer.merge(RpcAuthorization.layer(scopes))),
+          ),
+        );
+        yield* server.write(0, {
+          _tag: "Request",
+          id: RpcMessage.RequestId("create"),
+          tag: WS_METHODS.vcsCreateWorktree,
+          payload: { cwd: "/repo", refName: "main", newRefName: "feature", path: null },
+          headers: Headers.empty,
+        });
+        assert.equal(yield* Queue.take(exits), "Success");
+        yield* server.write(0, {
+          _tag: "Request",
+          id: RpcMessage.RequestId("remove"),
+          tag: WS_METHODS.vcsRemoveWorktree,
+          payload: { cwd: "/repo", path: "/repo-worktrees/feature" },
+          headers: Headers.empty,
+        });
+        assert.equal(yield* Queue.take(exits), "Success");
+        return seen;
+      }, Effect.scoped);
+
+      assert.deepEqual(yield* requested([AuthSourceControlWriteScope]), [false, false]);
+      assert.deepEqual(
+        yield* requested([AuthSourceControlWriteScope, AuthOrchestrationOperateScope]),
+        [true, true],
+      );
+      assert.deepEqual(yield* requested([AuthSourceControlWriteScope, AuthTerminalOperateScope]), [
+        true,
+        true,
+      ]);
+    }).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Layer.fresh(layerConfigSources),
+          Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
+          Layer.mock(ServerBrowser.ServerBrowser)({}),
+        ),
+      ),
+    ),
 );
 
 it.effect("a git action that fails partway still refreshes the repository status", () =>
@@ -1971,6 +2122,7 @@ it.effect("a git action that fails partway still refreshes the repository status
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true, gitRefNames: true },
         ).pipe(
           Layer.provide(services),
           Layer.merge(RpcAuthorization.layer([AuthSourceControlWriteScope])),
@@ -2048,6 +2200,7 @@ it.effect("a publish whose push fails still refreshes the new remote", () =>
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true, gitRefNames: true },
         ).pipe(
           Layer.provide(services),
           Layer.merge(RpcAuthorization.layer([AuthSourceControlWriteScope])),
@@ -2100,13 +2253,13 @@ it.effect.each([false, true])(
           readShellSnapshot: () => Effect.die("snapshot"),
           listActiveSubagentThreadIds: () => Effect.die("replay"),
         } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-        Effect.provideService(ProjectStore.ProjectStoreV2, {
-          listShells: () => Effect.succeed([]),
-        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
         Effect.provideService(
-          ProjectService.ProjectService,
-          {} as ProjectService.ProjectService["Service"],
+          ProjectStore.ProjectStoreV2,
+          {} as unknown as ProjectStore.ProjectStoreV2["Service"],
         ),
+        Effect.provideService(ProjectService.ProjectService, {
+          listShells: () => Effect.succeed([]),
+        } as unknown as ProjectService.ProjectService["Service"]),
         Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
           subscribeChanges: PubSub.subscribe(yield* PubSub.unbounded()),
         } as ProjectEnrichment.ProjectEnrichmentService["Service"]),
@@ -2117,6 +2270,61 @@ it.effect.each([false, true])(
         httpSnapshotFallback ? [{ kind: "snapshot-required" }] : "snapshot",
       );
     }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
+);
+
+it.effect("thread resume replays a deleted thread's deletion and nothing recorded before it", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const threadId = ThreadId.make("thread:deleted-resume");
+    const insert = (version: number, type: string, payload: object) => sql`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        ${`deleted-resume:${version}`}, 'thread', ${threadId}, ${version}, ${type},
+        ${now}, 'server', ${JSON.stringify(payload)}, '{}', 2
+      )
+    `;
+    const detached = { providerSessionId: "session:deleted-resume", detachedAt: now };
+    yield* insert(0, "provider-session.detached", detached);
+    yield* insert(1, "provider-session.detached", detached);
+    yield* insert(2, "thread.deleted", {
+      createdBy: "user",
+      creationSource: "web",
+      id: threadId,
+      projectId: "project:deleted-resume",
+      title: "Deleted",
+      providerInstanceId: "codex",
+      modelSelection: { instanceId: "codex", model: "default" },
+      runtimeMode: "approval-required",
+      interactionMode: "default",
+      branch: null,
+      worktreePath: null,
+      activeProviderThreadId: null,
+      lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
+      forkedFrom: null,
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null,
+      deletedAt: now,
+      doneOverride: null,
+      doneAt: null,
+      lastVisitedAt: null,
+    });
+
+    const items = yield* subscribeOrchestrationV2Thread({ threadId, afterSequence: 0 }).pipe(
+      Effect.flatMap(Stream.runCollect),
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        streamStoredEventsFrom: () => Stream.empty,
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+    );
+    assert.deepEqual(
+      Array.from(items).map((item) => item.kind === "event" && item.event.type),
+      ["thread.deleted"],
+    );
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
 // Compaction keeps the oldest and newest event per message, so a cursor older
@@ -2200,14 +2408,238 @@ it.effect("thread resume across compacted history keeps message order and final 
         ["synchronized"],
       ],
     );
-  }).pipe(
-    Effect.provide(
-      ProjectionMaintenance.layer.pipe(
-        Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
-        Layer.provideMerge(ReplayTestLayer),
+  }).pipe(Effect.provide(ProjectionMaintenance.layer.pipe(Layer.provideMerge(ReplayTestLayer)))),
+);
+
+// Pruned history cannot be replayed: a cursor below the boundary must resync from a snapshot.
+it.effect("thread resume from a cursor below the pruned boundary loads a snapshot", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const threadId = ThreadId.make("thread:pruned");
+    const insert = (version: number) => sql<{ sequence: number }>`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        ${`pruned:${version}`}, 'thread', ${threadId}, ${version}, 'provider-session.detached',
+        ${now}, 'server', ${JSON.stringify({ providerSessionId: "session:pruned", detachedAt: now })},
+        '{}', 2
+      ) RETURNING sequence
+    `;
+    const [first] = yield* insert(0);
+    const [second] = yield* insert(1);
+    yield* insert(2);
+    yield* sql`
+      INSERT INTO orchestration_v2_projection_metadata (
+        projection_name, schema_version, last_sequence, updated_at
+      ) VALUES (${OrchestrationEventStore.EVENT_LOG_PRUNED_THROUGH}, 2, ${second!.sequence}, ${now})
+    `;
+    const exit = yield* subscribeOrchestrationV2Thread({
+      threadId,
+      afterSequence: first!.sequence,
+    }).pipe(
+      Effect.flatMap(Stream.runCollect),
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        getThreadSnapshot: () => Effect.die("snapshot"),
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.exit,
+    );
+    assert.deepEqual(Exit.isFailure(exit) ? Cause.squash(exit.cause) : exit, "snapshot");
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
+);
+
+// A prune pass can delete replayed rows after the boundary check; the read must not be trusted.
+it.effect("thread resume loads a snapshot when pruning advances during the replay read", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const threadId = ThreadId.make("thread:prune-race");
+    const insert = (version: number) => sql<{ sequence: number }>`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        ${`prune-race:${version}`}, 'thread', ${threadId}, ${version}, 'provider-session.detached',
+        ${now}, 'server', ${JSON.stringify({ providerSessionId: "session:race", detachedAt: now })},
+        '{}', 2
+      ) RETURNING sequence
+    `;
+    const [first] = yield* insert(0);
+    const [second] = yield* insert(1);
+    yield* insert(2);
+
+    const readStarted = yield* Deferred.make<void>();
+    const releaseRead = yield* Deferred.make<void>();
+    let gated = false;
+    const gateReplayRead: Statement.Transformer = (statement) => {
+      const [query] = statement.compile();
+      // The paged replay read (readApplicationRows), not the stats or high-water queries.
+      if (!gated && /^\s*SELECT\s+sequence,\s+event_id,/.test(query)) {
+        gated = true;
+        return Deferred.succeed(readStarted, undefined).pipe(
+          Effect.andThen(Deferred.await(releaseRead)),
+          Effect.as(statement),
+        );
+      }
+      return Effect.succeed(statement);
+    };
+    const fiber = yield* subscribeOrchestrationV2Thread({
+      threadId,
+      afterSequence: first!.sequence,
+    }).pipe(
+      Effect.provideService(Statement.CurrentTransformer, gateReplayRead),
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        getThreadSnapshot: () => Effect.die("snapshot"),
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.exit,
+      Effect.forkChild,
+    );
+    yield* Deferred.await(readStarted);
+    // A pass publishes its boundary, then deletes the rows it covers.
+    yield* sql`
+      INSERT INTO orchestration_v2_projection_metadata (
+        projection_name, schema_version, last_sequence, updated_at
+      ) VALUES (${OrchestrationEventStore.EVENT_LOG_PRUNED_THROUGH}, 2, ${second!.sequence}, ${now})
+    `;
+    yield* sql`DELETE FROM orchestration_events WHERE sequence = ${second!.sequence}`;
+    yield* Deferred.succeed(releaseRead, undefined);
+    const exit = yield* Fiber.join(fiber);
+    assert.deepEqual(Exit.isFailure(exit) ? Cause.squash(exit.cause) : exit, "snapshot");
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
+);
+
+// A thread idle since before the boundary missed nothing; resuming must not resend its body.
+it.effect("thread resume at its own high-water below the pruned boundary skips the snapshot", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const threadId = ThreadId.make("thread:idle");
+    const [last] = yield* sql<{ sequence: number }>`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        'idle:0', 'thread', ${threadId}, 0, 'provider-session.detached',
+        ${now}, 'server', ${JSON.stringify({ providerSessionId: "session:idle", detachedAt: now })},
+        '{}', 2
+      ) RETURNING sequence
+    `;
+    yield* sql`
+      INSERT INTO orchestration_v2_projection_metadata (
+        projection_name, schema_version, last_sequence, updated_at
+      ) VALUES (${OrchestrationEventStore.EVENT_LOG_PRUNED_THROUGH}, 2, ${last!.sequence + 10}, ${now})
+    `;
+    const exit = yield* subscribeOrchestrationV2Thread({
+      threadId,
+      afterSequence: last!.sequence,
+    }).pipe(
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        getThreadSnapshot: () => Effect.die("snapshot"),
+        streamStoredEventsFrom: () => Stream.empty,
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.exit,
+    );
+    // A snapshot load dies with "snapshot", so success means the resume replayed nothing.
+    assert.isTrue(Exit.isSuccess(exit));
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
+);
+
+// Shell resume reads which aggregates changed, not their events, and pruning keeps each stream's
+// newest row: every aggregate that changed after a cursor below the boundary still resumes.
+it.effect("shell resume from a cursor below the pruned boundary resumes without a snapshot", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const insert = (
+      aggregateKind: "project" | "thread",
+      streamId: string,
+      version: number,
+      eventType: string,
+    ) => sql<{ sequence: number }>`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        ${`${streamId}:${version}`}, ${aggregateKind}, ${streamId}, ${version}, ${eventType},
+        ${now}, 'server', '{}', '{}', 2
+      ) RETURNING sequence
+    `;
+    const [cursor] = yield* insert("thread", "thread:unchanged", 0, "provider-session.detached");
+    const [prunedProject] = yield* insert("project", "project:pruned", 0, "project.meta-updated");
+    const [projectHead] = yield* insert("project", "project:pruned", 1, "project.meta-updated");
+    const [prunedLive] = yield* insert("thread", "thread:live", 0, "provider-session.detached");
+    const [prunedDeleted] = yield* insert("thread", "thread:gone", 0, "provider-session.detached");
+    const [deletedHead] = yield* insert("thread", "thread:gone", 1, "thread.deleted");
+    const [liveHead] = yield* insert("thread", "thread:live", 1, "provider-session.detached");
+    yield* sql`
+      INSERT INTO orchestration_v2_projection_metadata (
+        projection_name, schema_version, last_sequence, updated_at
+      ) VALUES (
+        ${OrchestrationEventStore.EVENT_LOG_PRUNED_THROUGH}, 2, ${deletedHead!.sequence}, ${now}
+      )
+    `;
+    yield* sql`DELETE FROM orchestration_events WHERE sequence IN ${sql.in([
+      prunedProject!.sequence,
+      prunedLive!.sequence,
+      prunedDeleted!.sequence,
+    ])}`;
+    const liveShell = {
+      id: ThreadId.make("thread:live"),
+      archivedAt: null,
+    } as unknown as OrchestrationV2ThreadShell;
+    const items = yield* subscribeOrchestrationV2Shell({
+      afterSequence: cursor!.sequence,
+      requestCompletionMarker: true,
+    }).pipe(
+      Effect.flatMap((stream) =>
+        stream.pipe(
+          Stream.takeUntil((item) => item.kind === "synchronized"),
+          Stream.filter((item) => item.kind !== "snapshot"),
+          Stream.runCollect,
+        ),
       ),
-    ),
-  ),
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        getThreadSnapshot: () => Effect.die("snapshot"),
+        listActiveShellIndex: () => Effect.die("snapshot"),
+        readShellSnapshot: () => Effect.die("snapshot"),
+        getShellSnapshot: () => Effect.succeed({ threads: [liveShell], archivedThreads: [] }),
+        listActiveSubagentThreadIds: () => Effect.succeed([]),
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.provideService(
+        ProjectStore.ProjectStoreV2,
+        {} as unknown as ProjectStore.ProjectStoreV2["Service"],
+      ),
+      Effect.provideService(ProjectService.ProjectService, {
+        listShells: () => Effect.succeed([]),
+        getShell: () => Effect.succeedNone,
+      } as unknown as ProjectService.ProjectService["Service"]),
+      Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
+        subscribeChanges: PubSub.subscribe(yield* PubSub.unbounded()),
+      } as ProjectEnrichment.ProjectEnrichmentService["Service"]),
+    );
+    assert.deepEqual(
+      Array.from(items, (item) =>
+        item.kind === "synchronized"
+          ? [item.kind]
+          : [
+              item.kind,
+              "sequence" in item ? item.sequence : null,
+              "threadId" in item ? item.threadId : "thread" in item ? item.thread.id : null,
+            ],
+      ),
+      [
+        ["project.removed", projectHead!.sequence, null],
+        ["thread.removed", deletedHead!.sequence, "thread:gone"],
+        ["thread.updated", liveHead!.sequence, "thread:live"],
+        ["synchronized"],
+      ],
+    );
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
 // A shell cursor at the high-water missed nothing; resuming must not resend a snapshot. A client
@@ -2280,13 +2712,13 @@ it.effect.each([
           listActiveSubagentThreadIds: () => Effect.succeed([]),
           streamStoredEventsFrom: () => Stream.empty,
         } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-        Effect.provideService(ProjectStore.ProjectStoreV2, {
-          listShells: () => Effect.succeed([project]),
-        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
         Effect.provideService(
-          ProjectService.ProjectService,
-          {} as ProjectService.ProjectService["Service"],
+          ProjectStore.ProjectStoreV2,
+          {} as unknown as ProjectStore.ProjectStoreV2["Service"],
         ),
+        Effect.provideService(ProjectService.ProjectService, {
+          listShells: () => Effect.succeed([project]),
+        } as unknown as ProjectService.ProjectService["Service"]),
         Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
           subscribeChanges: PubSub.subscribe(yield* PubSub.unbounded()),
           getAvailable: () =>
@@ -2430,6 +2862,84 @@ const seedAcpThread = Effect.fn(function* (
   return threadId;
 });
 
+it.effect("listing ACP sessions reaches only an agent that advertises listing", () =>
+  Effect.gen(function* () {
+    const calls: Array<string> = [];
+    const input = { instanceId: acpInstanceId, projectId: acpProjectId };
+    const makeClient = (nativeSessions: { readonly canList: boolean } | undefined) =>
+      Effect.gen(function* () {
+        const instance = {
+          driverKind: acpDriver,
+          snapshot: { getSnapshot: Effect.succeed({ nativeSessions }) },
+        } as unknown as ProviderInstance;
+        const services = Layer.mergeAll(
+          layerUnusedConfigRpcServices,
+          Layer.fresh(layerConfigSources),
+          Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+          Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+          Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
+          Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+          Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
+          Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
+          Layer.mock(ServerEnvironment.ServerEnvironment)({}),
+          Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
+          Layer.mock(AcpRegistrySessions.AcpRegistrySessions)({
+            project: () => Effect.succeed({ workspaceRoot: "/workspace/acp" } as never),
+            sessionManager: () =>
+              Effect.succeed({
+                instance,
+                manager: {
+                  listSessions: () =>
+                    Effect.sync(() => calls.push("listSessions")).pipe(
+                      Effect.as({ sessions: [], nextCursor: null }),
+                    ),
+                } as unknown as NonNullable<ProviderInstance["acpSessionManagement"]>,
+              }),
+          }),
+        );
+        return yield* RpcTest.makeClient(acpSessionRpcs).pipe(
+          Effect.provide(
+            layerWsRpc(
+              {
+                sessionId: AuthSessionId.make("acp-test"),
+                subject: "acp-test",
+                method: "browser-session-cookie",
+                scopes: [],
+              },
+              yield* ServerBrowser.ServerBrowser,
+              () => Effect.void,
+              { secretReferences: true, gitRefNames: true },
+            ).pipe(
+              Layer.provide(services),
+              Layer.merge(RpcAuthorization.layer([AuthOrchestrationReadScope])),
+            ),
+          ),
+        );
+      });
+
+    const unprobed = yield* makeClient(undefined);
+    const refused = yield* unprobed[WS_METHODS.serverListAcpRegistrySessions](input).pipe(
+      Effect.flip,
+    );
+    assert.strictEqual(
+      refused._tag === "AcpRegistryOperationError" ? refused.reason : refused._tag,
+      "session_list_unsupported",
+    );
+    assert.deepEqual(calls, []);
+
+    const probed = yield* makeClient({ canList: true });
+    yield* probed[WS_METHODS.serverListAcpRegistrySessions](input);
+    assert.deepEqual(calls, ["listSessions"]);
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
+        Layer.mock(ServerBrowser.ServerBrowser)({}),
+      ),
+    ),
+  ),
+);
+
 it.effect("ACP session RPCs list a thread missing its history and repair it on import", () =>
   Effect.gen(function* () {
     const projections = yield* ProjectionStore.ProjectionStoreV2;
@@ -2455,7 +2965,9 @@ it.effect("ACP session RPCs list a thread missing its history and repair it on i
     const instance = {
       driverKind: acpDriver,
       snapshot: {
-        getSnapshot: Effect.succeed({ nativeSessions: { canLoad: true, canDelete: true } }),
+        getSnapshot: Effect.succeed({
+          nativeSessions: { canList: true, canLoad: true, canDelete: true },
+        }),
       },
       acpSessionManagement: {
         listSessions: () =>
@@ -2532,6 +3044,7 @@ it.effect("ACP session RPCs list a thread missing its history and repair it on i
           },
           yield* ServerBrowser.ServerBrowser,
           () => Effect.void,
+          { secretReferences: true, gitRefNames: true },
         ).pipe(
           Layer.provide(services),
           Layer.merge(
@@ -2646,6 +3159,7 @@ it.effect("preparing an ACP Registry agent follows the policy's allowed provider
               },
               yield* ServerBrowser.ServerBrowser,
               () => Effect.void,
+              { secretReferences: true, gitRefNames: true },
             ).pipe(Layer.provide(services), Layer.merge(RpcAuthorization.layer(scopes))),
           ),
         );

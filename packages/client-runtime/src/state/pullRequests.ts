@@ -30,7 +30,6 @@ import {
   PullRequestSummary,
   type VcsStatusResult,
 } from "@supaterm/contracts";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { persistPullRequestStats } from "./pullRequestStatsPersistence.ts";
@@ -49,14 +48,17 @@ import {
   queryPersistenceKey,
   type QueryAnswerHandler,
 } from "./runtime.ts";
-import { createPullRequestRouter } from "./pullRequestRouting.ts";
+import { createPullRequestRouter, keepsReviewPin } from "./pullRequestRouting.ts";
 import * as PullRequestDiffLoader from "./pullRequestDiffHttp.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
+import { EnvironmentRpcUnavailableError } from "../rpc/client.ts";
 import { isStalePullRequestReply } from "../pullRequestReply.ts";
 import { parsePullRequestQuery } from "../pullRequestQuery.ts";
 import { reuseUnchanged } from "./serverConfigProjection.ts";
 import { createEnvironmentSessionAtoms } from "./session.ts";
+import { msg } from "gt-i18n";
+import { translatableMessage } from "../errors/translatable.ts";
 
 export {
   type PullRequestDiffLoadError,
@@ -65,9 +67,10 @@ export {
 export * as PullRequestDiffLoader from "./pullRequestDiffHttp.ts";
 
 /** @public Required to name the error in consumers' inferred pull request results. */
-export class EnvironmentHttpConnectionNotReadyError extends Data.TaggedError(
+export class EnvironmentHttpConnectionNotReadyError extends Schema.TaggedError<EnvironmentHttpConnectionNotReadyError>()(
   "EnvironmentHttpConnectionNotReadyError",
-)<{ readonly message: string }> {}
+  { message: Schema.String },
+) {}
 
 const LINKED_PULL_REQUEST_IDLE_TTL_MS = 5_000;
 
@@ -1085,7 +1088,7 @@ export function createPullRequestEnvironmentAtoms<R, E>(
     const prepared = yield* SubscriptionRef.get(supervisor.prepared);
     if (Option.isNone(prepared)) {
       return yield* new EnvironmentHttpConnectionNotReadyError({
-        message: "The environment HTTP connection is not ready.",
+        ...translatableMessage(msg("The environment HTTP connection is not ready.")),
       });
     }
     return yield* loader.load(prepared.value, input);
@@ -1130,7 +1133,14 @@ export function createPullRequestEnvironmentAtoms<R, E>(
             detail: cause instanceof Error ? cause.message : "Could not choose a merge method.",
           }),
       });
-      preparedInput = { ...actionInput, mergeMethod };
+      // Without a head the caller showed, pin to the one this read judged mergeable.
+      preparedInput = {
+        ...actionInput,
+        mergeMethod,
+        ...(actionInput.expectedHeadSha === undefined && detail.headSha !== undefined
+          ? { expectedHeadSha: detail.headSha }
+          : {}),
+      };
     }
     return yield* routedRequest(WS_METHODS.pullRequestsRunAction, {
       ...preparedInput,
@@ -1422,7 +1432,21 @@ export function createPullRequestEnvironmentAtoms<R, E>(
     submitReview: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:pull-requests:submit-review",
       tag: WS_METHODS.pullRequestsSubmitReview,
-      execute: (input) => routedRequest(WS_METHODS.pullRequestsSubmitReview, input),
+      execute: Effect.fn("PullRequests.submitReview")(function* (input) {
+        if (!(yield* keepsReviewPin(input))) {
+          const { target } = yield* EnvironmentSupervisor.EnvironmentSupervisor;
+          return yield* new EnvironmentRpcUnavailableError({
+            environmentId: target.environmentId,
+            ...translatableMessage(
+              msg(
+                "Update Supaterm on {environment} to submit this review. Its version cannot keep a review on the commits you read.",
+                { environment: target.label },
+              ),
+            ),
+          });
+        }
+        return yield* routedRequest(WS_METHODS.pullRequestsSubmitReview, input);
+      }),
       scheduler: commandScheduler,
       concurrency: serialPerEnvironment,
     }),

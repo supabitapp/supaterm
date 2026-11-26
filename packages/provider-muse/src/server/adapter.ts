@@ -70,6 +70,7 @@ import {
 } from "./usageLimits.ts";
 import {
   createMuseSdkHostEffect,
+  MuseSdkError,
   museApprovalMode,
   museCanonicalPath,
   musePermissionProfile,
@@ -441,6 +442,22 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
           // lastError is the thread banner, so it gets the failure item's bounded, redacted text.
           lastError:
             lastError === null ? null : makeProviderFailure({ message: lastError }).message,
+          updatedAt: yield* DateTime.now,
+        };
+        yield* emit({
+          type: "provider_session.updated",
+          driver: MUSE_PROVIDER,
+          providerSession: session,
+        });
+      });
+      const reportStartupPhase = Effect.fn("MuseAdapterV2.reportStartupPhase")(function* (
+        phase: string | undefined,
+      ) {
+        if (session.startupPhase === phase) return;
+        const { startupPhase: _reported, ...current } = session;
+        session = {
+          ...current,
+          ...(phase === undefined ? {} : { startupPhase: phase }),
           updatedAt: yield* DateTime.now,
         };
         yield* emit({
@@ -1159,7 +1176,10 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         }
         yield* settleObservedChildren("failed");
         if (turn) yield* Queue.fail(events, protocolError(detail, cause));
-        yield* Effect.tryPromise(() => failed.close()).pipe(Effect.ignore, Effect.forkIn(scope));
+        yield* Effect.tryPromise({
+          try: () => failed.close(),
+          catch: (cause) => new MuseSdkError({ operation: "close", cause }),
+        }).pipe(Effect.ignore, Effect.forkIn(scope));
       });
       const owns = (turn: ActiveTurn, turnId: string) =>
         turnId === turn.nativeId || turn.joined.has(turnId);
@@ -1826,7 +1846,10 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
                 closed = true;
                 hostEpoch++;
               }
-              yield* Effect.tryPromise(() => created.close()).pipe(Effect.ignore);
+              yield* Effect.tryPromise({
+                try: () => created.close(),
+                catch: (cause) => new MuseSdkError({ operation: "close", cause }),
+              }).pipe(Effect.ignore);
             }),
           { interruptible: true },
         ).pipe(Effect.provideService(Scope.Scope, scope));
@@ -1938,6 +1961,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
             : undefined;
           const startModel = yield* resolveModel(args.modelSelection);
           const permissionProfile = musePermissionProfile(args.runtimePolicy.runtimeMode);
+          if (requestedId) yield* reportStartupPhase("resume");
           const result = yield* request(
             requestedId ? "session/resume" : "session/start",
             requestedId
@@ -1959,6 +1983,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
               return Effect.fail(error);
             }),
             Effect.flatMap((value) => decode(MuseSessionResult, value)),
+            Effect.ensuring(Effect.suspend(() => reportStartupPhase(undefined))),
           );
           if (result.session.sessionId !== nativeSessionId)
             return yield* protocolError("Muse returned a different session identity");
@@ -2171,6 +2196,10 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
             if (declined !== undefined)
               yield* eventPermit.withPermits(1)(finish(turn, "failed", declined));
           } else {
+            const extraWorkspaceRoots = yield* Effect.forEach(
+              turnInput.runtimePolicy.workspace?.extraRoots ?? [],
+              (root) => museCanonicalPath(root).pipe(Effect.flatMap(museWorkspaceRoot)),
+            );
             const result = yield* request(
               "turn/start",
               {
@@ -2181,12 +2210,13 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
                       harness: "Muse Code",
                       model: session.model ?? undefined,
                       reasoningEffort: effort,
+                      runtimePolicy: turnInput.runtimePolicy,
                     }),
                   },
                   ...parts,
                 ],
                 displayText: turnInput.message.text || "Image attachment",
-                workspaceRoots: [workspaceRoot],
+                workspaceRoots: [workspaceRoot, ...extraWorkspaceRoots],
                 ifBusy: "queue",
                 ...(effort ? { reasoningEffort: effort } : {}),
               },
@@ -2228,7 +2258,6 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         const now = yield* DateTime.now;
         return {
           providerThread: current,
-          providerTurns: [],
           messages: items.flatMap((item): OrchestrationV2ConversationMessage[] =>
             item.kind === "agentMessage" || item.kind === "userMessage"
               ? [
@@ -2371,10 +2400,10 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
                 Effect.gen(function* () {
                   if (active !== turn) return;
                   hostEpoch++;
-                  yield* Effect.tryPromise(() => host.close()).pipe(
-                    Effect.mapError((cause) => protocolError("Cannot stop Muse compaction", cause)),
-                    Effect.onError(failHost),
-                  );
+                  yield* Effect.tryPromise({
+                    try: () => host.close(),
+                    catch: (cause) => protocolError("Cannot stop Muse compaction", cause),
+                  }).pipe(Effect.onError(failHost));
                   broken = true;
                   wake = undefined;
                   yield* finish(turn, "interrupted", undefined, "broken");

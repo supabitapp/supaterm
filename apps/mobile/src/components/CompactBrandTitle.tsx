@@ -7,6 +7,7 @@ import { AppText as Text } from "./ui/AppText";
 import { IPAD_HOME_TITLE_OFFSET } from "../lib/layoutMetrics";
 import { resolveMobileStageLabel } from "../lib/mobileBranding";
 import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 /**
  * Horizontal correction applied to content rendered in the brand title slot,
@@ -14,6 +15,11 @@ import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
  */
 // The brand may grow with Dynamic Type, but not enough to crowd the header bar.
 const BRAND_MAX_FONT_SCALE = 1.4;
+
+const STAGE_LABELS = {
+  Dev: msg("Dev", { $context: "app release stage badge" }),
+  Nightly: msg("Nightly", { $context: "app release stage badge" }),
+} as const;
 
 export function brandTitleOffset(): number {
   if (Platform.OS !== "ios") return 0;
@@ -31,6 +37,8 @@ export function CompactBrandTitle(
     readonly fit?: boolean;
   } = {},
 ) {
+  const gt = useGT();
+  const messages = useMessages();
   const stageLabel = resolveMobileStageLabel(Constants.expoConfig?.extra?.appVariant);
   const titleOffset = brandTitleOffset();
   const { scale } = useAndroidControlSizing();
@@ -49,7 +57,7 @@ export function CompactBrandTitle(
         props.fit && showStage ? (event) => setFullWidth(event.nativeEvent.layout.width) : undefined
       }
       aria-level={1}
-      accessibilityLabel={props.accessibilityLabel ?? "Supaterm, Threads"}
+      accessibilityLabel={props.accessibilityLabel ?? gt("Supaterm, Threads")}
       accessible
       role="heading"
       className="flex-row items-center gap-1.5"
@@ -86,7 +94,7 @@ export function CompactBrandTitle(
             className="font-supaterm-bold text-foreground-muted uppercase"
             style={{ fontSize: 9 * scale, letterSpacing: 0.9 * scale }}
           >
-            {stageLabel}
+            {messages(STAGE_LABELS[stageLabel])}
           </Text>
         </View>
       ) : null}

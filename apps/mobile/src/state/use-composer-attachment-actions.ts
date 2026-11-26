@@ -22,12 +22,15 @@ import {
   type ComposerDraftInsertion,
 } from "./use-composer-drafts";
 import { startComposerDraftOperation } from "./composerDraftOperations";
+import { msg, useGT } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export function useComposerAttachmentActions(props: {
   readonly draftKey: string | null;
   readonly serverConfig: ServerConfig | null | undefined;
   readonly locked?: boolean;
 }) {
+  const gt = useGT();
   const reservedNames = useRef(new Map<string, Set<string>>());
   const maxUploadBytes =
     props.serverConfig?.environment.capabilities.fileAttachments?.maxUploadBytes;
@@ -61,7 +64,11 @@ export function useComposerAttachmentActions(props: {
     const problems = [
       ...(error ? [error] : []),
       ...(rejected
-        ? [`You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} attachments per message.`]
+        ? [
+            gt("You can attach up to {max} attachments per message.", {
+              max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+            }),
+          ]
         : []),
       ...(skipped ? [skipped] : []),
     ];
@@ -77,7 +84,7 @@ export function useComposerAttachmentActions(props: {
         maxVideoBytes: maxUploadBytes,
       });
       report(
-        "Could not attach photo or video",
+        m(msg("Could not attach photo or video")),
         result.error,
         await append(key, signal, result.attachments, insertion),
       );
@@ -87,7 +94,10 @@ export function useComposerAttachmentActions(props: {
     const key = props.draftKey;
     if (!key || props.locked) return;
     if (maxUploadBytes === undefined) {
-      Dialog.alert("Could not attach file", "This server does not support file attachments.");
+      Dialog.alert(
+        m(msg("Could not attach file")),
+        m(msg("This server does not support file attachments.")),
+      );
       return;
     }
     const insertion = captureComposerDraftInsertion(key);
@@ -97,7 +107,7 @@ export function useComposerAttachmentActions(props: {
         maxBytes: maxUploadBytes,
       });
       report(
-        "Could not attach file",
+        m(msg("Could not attach file")),
         result.error,
         await append(key, signal, result.files, insertion),
       );
@@ -111,15 +121,15 @@ export function useComposerAttachmentActions(props: {
       try {
         const result = await convertPastedImagesToAttachments({ uris });
         const appended = await append(key, signal, result.attachments, insertion);
-        report("Could not paste images", result.error, appended);
+        report(gt("Could not paste images"), result.error, appended);
         if (signal.aborted) return false;
         if (result.error) return false;
         if (appended.rejected > 0) return false;
         return result.attachments.length > 0;
       } catch (error) {
         Dialog.alert(
-          "Could not paste images",
-          error instanceof Error ? error.message : "Try again.",
+          m(msg("Could not paste images")),
+          error instanceof Error ? error.message : m(msg("Try again.")),
         );
         return false;
       }
@@ -145,11 +155,11 @@ export function useComposerAttachmentActions(props: {
           ...paste.selection,
         });
         if (appended.rejected) await removePersistedComposerAttachmentFile(attachment.fileUri);
-        report("Could not attach pasted text", null, appended);
+        report(gt("Could not attach pasted text"), null, appended);
       } catch (error) {
         Dialog.alert(
-          "Could not attach pasted text",
-          error instanceof Error ? error.message : "Try again.",
+          m(msg("Could not attach pasted text")),
+          error instanceof Error ? error.message : m(msg("Try again.")),
         );
       }
     });

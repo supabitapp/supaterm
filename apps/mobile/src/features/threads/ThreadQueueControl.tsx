@@ -8,8 +8,10 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
+import { isSlashCommand } from "@supaterm/shared/composerTrigger";
 import {
   AuthOrchestrationOperateScope,
+  parseGoalCommand,
   type EnvironmentId,
   type RunId,
   type ThreadId,
@@ -33,6 +35,7 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useEnvironmentServerConfig } from "../../state/entities";
+import { appAtomRegistry } from "../../state/atom-registry";
 import { beginQueuedRunEdit, useQueuedRunEdit } from "../../state/queued-run-edit";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -43,6 +46,7 @@ import {
   resolveThreadQueueRowControls,
 } from "./threadQueueControlPresentation";
 import { ThreadQueueMessage, type QueueMessageAction } from "./ThreadQueueMessage";
+import { useMessages, msg, T, useGT } from "gt-react-native";
 
 const QUEUE_ACTION_WIDTH = 76;
 
@@ -56,6 +60,8 @@ function useThreadQueueWorkflow(target: QueueTarget) {
 }
 
 export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
+  const m = useMessages();
+  const gt = useGT();
   const target = route.params;
   const canOperate = useEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope);
   const navigation = useNavigation();
@@ -68,9 +74,12 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const threadKey = scopedThreadKey(target.environmentId, target.threadId);
   const editing = useQueuedRunEdit(threadKey);
   const pendingRequests = useAtomValue(environmentThreadDetails.pendingRequestsAtom(target));
-  const editBlockedReason = queuedRunEditBlockedReason({
-    openQuestionCount: pendingRequests?.userInputs.length ?? 0,
-  });
+  const editBlockedReason = queuedRunEditBlockedReason(
+    {
+      openQuestionCount: pendingRequests?.userInputs.length ?? 0,
+    },
+    m,
+  );
   const promote = useAtomCommand(threadEnvironment.promoteQueuedRun, "promote queued message");
   const cancel = useAtomCommand(threadEnvironment.cancelQueuedRun, "remove queued message");
   const resume = useAtomCommand(threadEnvironment.resumeThreadQueue, "resume queue");
@@ -130,6 +139,11 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           runId,
           messageId: entry.messageId,
           originalText: entry.text,
+          modelSelection: entry.message?.followsThreadSelection
+            ? (appAtomRegistry.get(environmentThreadDetails.quietThreadAtom(target))?.projection
+                .thread.modelSelection ?? entry.run.modelSelection)
+            : entry.run.modelSelection,
+          followsThreadSelection: entry.message?.followsThreadSelection === true,
           existingAttachments: entry.attachments,
           ...(entry.context ? { context: entry.context } : {}),
         },
@@ -169,8 +183,8 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
     if (action === "steer" && result?._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
       Dialog.alert(
-        "Could not send queued message",
-        error instanceof Error ? error.message : "Try again.",
+        m(msg("Could not send queued message")),
+        error instanceof Error ? error.message : m(msg("Try again.")),
       );
     }
   };
@@ -192,7 +206,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
               accessibilityRole="header"
               className="shrink text-lg font-supaterm-bold text-foreground"
             >
-              Queued
+              {gt("Queued", { $context: "title of the queued messages sheet" })}
             </Text>
             <Text className="text-base tabular-nums text-foreground-muted">
               {queuedRuns.length}
@@ -202,14 +216,14 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
             <Text className="text-sm text-foreground-muted">
               {editBlockedReason ??
                 (canSendQueuedMessages
-                  ? "Tap to edit · Send now or swipe for more"
-                  : "Tap to edit · Swipe for actions")}
+                  ? gt("Tap to edit · Send now or swipe for more")
+                  : gt("Tap to edit · Swipe for actions"))}
             </Text>
           ) : null}
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Close message queue"
+          accessibilityLabel={gt("Close message queue")}
           onPress={() => navigation.goBack()}
           className="size-11 items-center justify-center rounded-full bg-subtle active:opacity-70"
         >
@@ -219,14 +233,17 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
       {queuedRuns.length === 0 ? (
         <View className="gap-2 py-6">
           <Text className="text-center text-base font-supaterm-medium text-foreground">
-            Your queue is empty
+            <T>Your queue is empty</T>
           </Text>
           <Text className="text-center text-sm text-foreground-muted">
-            Messages you queue during a turn will appear here.
+            <T>Messages you queue during a turn will appear here.</T>
           </Text>
         </View>
       ) : null}
       {queuedRuns.map(({ run, text, attachments, message }) => {
+        // The server decides on the agent's text, and a goal command can stop the turn.
+        const sentText = { text: message?.text ?? text, attachments };
+        const movesCommandFirst = isSlashCommand(sentText) && parseGoalCommand(sentText) === null;
         const controls = resolveThreadQueueRowControls({
           canOperate,
           busy: busyRunId !== null,
@@ -241,7 +258,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
         });
         const title =
           controls.displayText.trim() ||
-          (attachments.length > 0 ? "Attachments" : "Queued message");
+          (attachments.length > 0 ? gt("Attachments") : gt("Queued message"));
         return (
           <Reanimated.View
             key={run.id}
@@ -272,6 +289,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                     canSend={controls.canSend}
                     sendsNow={canSendNow}
                     skipsCompaction={workflow?.promoteSkipsCompaction === true}
+                    movesCommandFirst={movesCommandFirst}
                     onPress={() => void act(run.id, "steer")}
                   />
                 ) : null}
@@ -295,9 +313,11 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
             className="gap-3 bg-sheet-solid px-5 pt-3"
             style={{ paddingBottom: Math.max(insets.bottom, 16) + 12 }}
           >
-            <Text className="text-center text-sm text-foreground-muted">Paused after restart</Text>
+            <Text className="text-center text-sm text-foreground-muted">
+              <T>Paused after restart</T>
+            </Text>
             <Button
-              label={resuming ? "Resuming…" : "Resume queue"}
+              label={resuming ? gt("Resuming…") : gt("Resume queue")}
               tone="primary"
               fullWidth
               loading={resuming}
@@ -320,8 +340,8 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                 if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
                   const error = squashAtomCommandFailure(result);
                   Dialog.alert(
-                    "Could not resume queue",
-                    error instanceof Error ? error.message : "Try again.",
+                    gt("Could not resume queue"),
+                    error instanceof Error ? error.message : gt("Try again."),
                   );
                 }
               }}
@@ -340,6 +360,8 @@ function QueueRowSwipeable(props: {
   readonly onRemove: () => void;
   readonly children: React.ReactNode;
 }) {
+  const m = useMessages();
+  const gt = useGT();
   const swipeableRef = useRef<SwipeableMethods | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the open swipeable through its imperative handle when swiping becomes disabled
@@ -368,7 +390,7 @@ function QueueRowSwipeable(props: {
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL}
+            accessibilityLabel={m(REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL)}
             disabled={!props.enabled}
             onPress={() => {
               swipeableRef.current?.close();
@@ -379,7 +401,7 @@ function QueueRowSwipeable(props: {
           >
             <SymbolView name="trash" size={16} tintColorClassName="accent-danger-foreground" />
             <Text className="pt-1 text-2xs font-supaterm-medium text-danger-foreground">
-              Remove
+              {gt("Remove", { $context: "verb, menu action" })}
             </Text>
           </Pressable>
         </View>
@@ -394,18 +416,22 @@ function QueueSendButton(props: {
   readonly canSend: boolean;
   readonly sendsNow: boolean;
   readonly skipsCompaction: boolean;
+  readonly movesCommandFirst: boolean;
   readonly onPress: () => void;
 }) {
+  const gt = useGT();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Send queued message now"
+      accessibilityLabel={gt("Send queued message now")}
       accessibilityHint={
         props.sendsNow
-          ? "Start a turn with this message"
+          ? gt("Start a turn with this message")
           : props.skipsCompaction
-            ? "Skip compaction and send this message"
-            : "Send into the current turn"
+            ? gt("Skip compaction and send this message")
+            : props.movesCommandFirst
+              ? gt("Move this command to the front of the queue")
+              : gt("Send into the current turn")
       }
       accessibilityState={{ disabled: !props.canSend }}
       disabled={!props.canSend}
@@ -425,7 +451,7 @@ function QueueSendButton(props: {
             : "pt-1 text-2xs font-supaterm-medium text-foreground-muted"
         }
       >
-        Send now
+        <T>Send now</T>
       </Text>
     </Pressable>
   );

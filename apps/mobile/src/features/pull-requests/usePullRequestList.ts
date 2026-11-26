@@ -34,6 +34,8 @@ import {
   type EnvironmentPullRequestListEntry,
   type PullRequestListPages,
 } from "./pullRequestList";
+import { msg, useMessages } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 type ListTarget = { readonly environmentId: EnvironmentId; readonly input: PullRequestListInput };
 type Read = <A>(atom: Atom.Atom<A>) => A;
@@ -118,7 +120,7 @@ async function loadNextPages(
         JSON.stringify(Object.entries(input.cursors).sort()) ===
           JSON.stringify(Object.entries(next.nextCursors).sort())
       )
-        throw new Error("Couldn't advance the list. Try again.");
+        throw new Error(m(msg("Couldn't advance the list. Try again.")));
     }),
   );
   return requestErrors(responses);
@@ -160,16 +162,18 @@ async function refreshHeads(
 
 // One load of each kind per list scope. The atoms are not kept alive, so leaving a scope (a
 // filter change, unmount) interrupts its load and aborts the requests.
-const pageLoadFamily = Atom.family((scopeKey: string) =>
-  Atom.fn((retry: boolean, get) =>
-    Effect.promise((signal) => loadNextPages(get.registry, JSON.parse(scopeKey), retry, signal)),
-  ),
-);
-const refreshLoadFamily = Atom.family((scopeKey: string) =>
-  Atom.fn((_: void, get) =>
-    Effect.promise((signal) => refreshHeads(get.registry, JSON.parse(scopeKey), signal)),
-  ),
-);
+const pageLoadFamily = Atom.family((scopeKey: string) => {
+  const targets: readonly ListTarget[] = JSON.parse(scopeKey);
+  return Atom.fn((retry: boolean, get) =>
+    Effect.promise((signal) => loadNextPages(get.registry, targets, retry, signal)),
+  );
+});
+const refreshLoadFamily = Atom.family((scopeKey: string) => {
+  const targets: readonly ListTarget[] = JSON.parse(scopeKey);
+  return Atom.fn((_: void, get) =>
+    Effect.promise((signal) => refreshHeads(get.registry, targets, signal)),
+  );
+});
 
 // Changes when any of the scope's environments brings up a new session.
 const sessionsFamily = Atom.family((scopeKey: string) =>
@@ -184,6 +188,7 @@ const settledError = (result: AsyncResult.AsyncResult<string | null, never>) =>
   AsyncResult.isSuccess(result) && !result.waiting ? result.value : null;
 
 export function usePullRequestList(targets: readonly ListTarget[]) {
+  const messages = useMessages();
   const registry = use(RegistryContext);
   const scopeKey = JSON.stringify(targets);
   const sources = useAtomValue(sourcesFamily(scopeKey));
@@ -337,11 +342,14 @@ export function usePullRequestList(targets: readonly ListTarget[]) {
           {
             environmentId: target.environmentId,
             projectTitle: "",
-            message: cause instanceof Error ? cause.message : "Couldn't load pull requests.",
+            message:
+              cause instanceof Error
+                ? cause.message
+                : messages(msg("Couldn't load pull requests.")),
           },
         ];
       }),
-    [sources],
+    [sources, messages],
   );
   const listing = useMemo(
     () => ({ ...data, entries, errors: [...data.errors, ...errors] }),
@@ -374,7 +382,7 @@ function requestErrors(results: readonly PromiseSettledResult<unknown>[]) {
           ? [
               result.reason instanceof Error
                 ? result.reason.message
-                : "Couldn't load pull requests.",
+                : m(msg("Couldn't load pull requests.")),
             ]
           : [],
       )

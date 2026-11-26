@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { m, type MessageResolver } from "../../i18n/messages";
 import { filterSettingsSections } from "./settings-search";
 
 const SECTIONS = [
@@ -14,6 +15,7 @@ const SECTIONS = [
   {
     title: "Interface",
     rows: [
+      { id: "SettingsOrganization", label: "General" },
       { id: "SettingsAppearance", label: "Appearance" },
       { id: "SettingsKeyboard", label: "Keyboard" },
     ],
@@ -22,7 +24,7 @@ const SECTIONS = [
     title: "Server settings",
     rows: [
       { id: "SettingsProviderAccounts", label: "Provider accounts" },
-      { id: "SettingsEnvironmentSourceControl", label: "Source control" },
+      { id: "SettingsEnvironmentSourceControl", label: "Source control & issues" },
     ],
   },
 ];
@@ -47,19 +49,29 @@ describe("filterSettingsSections", () => {
     { query: "appear", expected: [["Interface", ["Appearance"]]] },
     { query: "KEYBOARD", expected: [["Interface", ["Keyboard"]]] },
     { query: "dark mode", expected: [["Interface", ["Appearance"]]] },
-    { query: "agent credits", expected: [["Server settings", ["Source control"]]] },
+    { query: "agent credits", expected: [["Server settings", ["Source control & issues"]]] },
     {
       query: "server settings",
-      expected: [["Server settings", ["Provider accounts", "Source control"]]],
+      expected: [["Server settings", ["Provider accounts", "Source control & issues"]]],
     },
     {
       query: "accounts",
       expected: [["Server settings", ["Provider accounts"]]],
     },
     { query: "usage", expected: [[null, ["Usage"]]] },
+    { query: "language", expected: [["Interface", ["General"]]] },
     { query: "zzzz", expected: [] },
   ])("$query", ({ query, expected }) => {
     expect(visible(query)).toEqual(expected);
+  });
+
+  it("finds General by the word for Language in the language shown", () => {
+    const german = (message: string) => (m(message) === "Language" ? "Sprache" : m(message));
+    expect(
+      filterSettingsSections(SECTIONS, "sprache", german as MessageResolver).map((section) =>
+        section.rows.map((row) => row.label),
+      ),
+    ).toEqual([["General"]]);
   });
 
   it("drops sections that start empty", () => {

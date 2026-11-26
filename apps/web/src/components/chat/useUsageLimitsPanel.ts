@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { toastManager } from "../ui/toast";
 import { usageLimitsBannerItem } from "./ComposerUsageLimits";
+import { m } from "~/i18n/messages";
+import { msg, useMessages } from "gt-react";
 
 /**
  * Only the open moment is stored, so rows read live provider data. Anything that spends quota
@@ -18,6 +20,7 @@ export function useUsageLimitsPanel(input: {
   readonly providerDriver: ServerProvider["driver"] | null;
   readonly providers: readonly ServerProvider[];
 }) {
+  const messages = useMessages();
   const { environmentId, threadKey, panelKey, providerInstanceId, providerDriver, providers } =
     input;
   const [panel, setPanel] = useState<{
@@ -36,8 +39,12 @@ export function useUsageLimitsPanel(input: {
   const banner =
     report !== null && panel !== null
       ? // A fresh id per opening: the stack keeps the last dismissed id as "exiting".
-        usageLimitsBannerItem(`usage-limits:${panel.key}:${panel.now}`, report, environmentId, () =>
-          setPanel(null),
+        usageLimitsBannerItem(
+          `usage-limits:${panel.key}:${panel.now}`,
+          report,
+          environmentId,
+          () => setPanel(null),
+          messages,
         )
       : null;
   // Supaterm owns /usage-limits only where Limits has data for the selected provider;
@@ -56,7 +63,10 @@ export function useUsageLimitsPanel(input: {
       return true;
     }
     setPanel(null);
-    toastManager.add({ type: "info", title: "Usage limits are unavailable for this provider" });
+    toastManager.add({
+      type: "info",
+      title: m(msg("Usage limits are unavailable for this provider")),
+    });
     return false;
   });
   // Responses can resolve after navigating away; only the originating thread's panel clears.

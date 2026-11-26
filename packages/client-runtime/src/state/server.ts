@@ -62,6 +62,7 @@ import {
   type ServerConfigProjection,
   withoutEnvironmentThemes,
 } from "./serverConfigProjection.ts";
+import { msg } from "gt-i18n";
 
 export type { ServerConfigProjection } from "./serverConfigProjection.ts";
 
@@ -74,6 +75,8 @@ export type ServerUpdateState =
       readonly stage: ServerUpdateStage;
       readonly fromVersion: string;
       readonly targetVersion: string;
+      /** The service launcher's id for an accepted update, used to find its outcome later. */
+      readonly updateId?: string;
     }
   | {
       readonly status: "failed";
@@ -304,6 +307,9 @@ export function serverUpdateStateForProgressEvent(
           : "resuming",
     fromVersion,
     targetVersion,
+    ...(event.type === "complete" && event.result.updateId !== undefined
+      ? { updateId: event.result.updateId }
+      : {}),
   };
 }
 
@@ -320,7 +326,7 @@ export function serverUpdateStateForServerVersion(
 }
 
 export function serverUpdateFailureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Server update failed.";
+  return error instanceof Error ? error.message : msg("Server update failed.");
 }
 
 function isRpcSocketError(error: unknown): boolean {
@@ -1127,6 +1133,7 @@ export function createServerEnvironmentAtoms<R, E>(
               stage: currentStage,
               fromVersion,
               targetVersion,
+              ...(updateResult.updateId === undefined ? {} : { updateId: updateResult.updateId }),
             });
             return updateResult;
           }),
@@ -1311,6 +1318,20 @@ export function createServerEnvironmentAtoms<R, E>(
       ),
     );
   });
+  // Keyed like the recommendations; machines with pruning off open no storage subscription.
+  const databasePruneBackupFailures = Atom.family((environmentIdsKey: string) => {
+    const environmentIds = JSON.parse(environmentIdsKey) as EnvironmentId[];
+    return Atom.make((get) =>
+      environmentIds.flatMap((environmentId) => {
+        if (get(configValueAtom(environmentId))?.settings.pruneEventHistory !== true) return [];
+        const result = get(databaseStorage({ environmentId, input: {} }));
+        const failure = result._tag === "Success" ? result.value?.pruneBackupFailure : undefined;
+        return failure === undefined ? [] : [{ environmentId, failure }];
+      }),
+    ).pipe(
+      Atom.withLabel(`environment-data:server:database-prune-backup-failures:${environmentIdsKey}`),
+    );
+  });
   const welcome = (target: {
     readonly environmentId: EnvironmentId;
     readonly input: EnvironmentRpcInput<typeof WS_METHODS.subscribeServerLifecycle>;
@@ -1336,6 +1357,7 @@ export function createServerEnvironmentAtoms<R, E>(
     }),
     databaseStorage,
     databaseCompactionRecommendations,
+    databasePruneBackupFailures,
     reclaimDatabaseSpace: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:reclaim-database-space",
       tag: WS_METHODS.serverReclaimDatabaseSpace,
@@ -1532,6 +1554,18 @@ export function createServerEnvironmentAtoms<R, E>(
     }),
     configProjection,
     welcome,
+    updateOutcome: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+      label: "environment-data:server:update-outcome",
+      tag: WS_METHODS.subscribeServerLifecycle,
+      transform: (stream) =>
+        stream.pipe(
+          Stream.filterMap((event) =>
+            event.type === "ready" && event.payload.updateOutcome !== undefined
+              ? Result.succeed(event.payload.updateOutcome)
+              : Result.failVoid,
+          ),
+        ),
+    }),
     consumeResetCredit: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:consume-reset-credit",
       tag: WS_METHODS.providerConsumeResetCredit,
@@ -1769,6 +1803,10 @@ export function createServerEnvironmentAtoms<R, E>(
     checkOtlpEndpoint: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:check-otlp-endpoint",
       tag: WS_METHODS.serverCheckOtlpEndpoint,
+    }),
+    checkSecretSource: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:check-secret-source",
+      tag: WS_METHODS.serverCheckSecretSource,
     }),
     retryResourceTelemetry: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:retry-resource-telemetry",

@@ -28,6 +28,7 @@ import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { cn } from "../../lib/cn";
 import type { VoiceComposerPresentation } from "./voiceInputPresentation";
 import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
+import { useGT } from "gt-react-native";
 
 const DICTATION_TIMING = {
   duration: 220,
@@ -358,6 +359,7 @@ export function ComposerDictationStatus(props: {
   readonly presentation: VoiceComposerPresentation;
   readonly onDismissError: () => void;
 }) {
+  const gt = useGT();
   const recording = props.phase === "recording";
   const waveformStyle = useAnimatedStyle(() => ({
     opacity: withTiming(recording ? 1 : 0, DICTATION_TIMING),
@@ -379,7 +381,7 @@ export function ComposerDictationStatus(props: {
             {props.presentation.statusLabel}
           </Text>
           <Pressable
-            accessibilityLabel="Dismiss voice input error"
+            accessibilityLabel={gt("Dismiss voice input error")}
             accessibilityRole="button"
             className="size-7 items-center justify-center active:opacity-70"
             hitSlop={8}
@@ -426,11 +428,14 @@ export function ComposerDictationLeadingAction(props: {
   readonly onStop: () => void;
   readonly onCancel: () => void;
 }) {
+  const gt = useGT();
   const action = props.presentation.leadingAction;
   if (!action) return null;
   return (
     <SessionCapsuleButton
-      accessibilityLabel={action === "stop" ? "Stop dictation and review" : "Cancel dictation"}
+      accessibilityLabel={
+        action === "stop" ? gt("Stop dictation and review") : gt("Cancel dictation")
+      }
       icon={action === "stop" ? "stop.fill" : "xmark"}
       onPress={action === "stop" ? props.onStop : props.onCancel}
       variant="secondary"
@@ -444,13 +449,16 @@ export function ComposerDictationConfirmAction(props: {
   readonly onConfirm: () => void;
   readonly submitsMessage?: boolean;
 }) {
-  const confirmationLabel = props.submitsMessage ? "Transcribe and send" : "Finish dictation";
+  const gt = useGT();
+  const confirmationLabel = props.submitsMessage
+    ? gt("Transcribe and send")
+    : gt("Finish dictation");
   return (
     <SessionCapsuleButton
       accessibilityLabel={
         props.presentation.confirmationEnabled
           ? confirmationLabel
-          : (props.presentation.statusLabel ?? "Preparing voice input")
+          : (props.presentation.statusLabel ?? gt("Preparing voice input"))
       }
       disabled={props.disabled || !props.presentation.confirmationEnabled}
       icon={props.submitsMessage ? "arrow.up" : "checkmark"}
@@ -512,11 +520,12 @@ export function ComposerDictationStartAction(props: {
   readonly onStart: () => void;
   readonly onCancel: () => void;
 }) {
+  const gt = useGT();
   if (!props.isAvailable) return null;
   const openSettings = props.state.phase === "error" && props.state.errorAction === "settings";
   return (
     <Pressable
-      accessibilityLabel={openSettings ? "Open microphone settings" : "Start dictation"}
+      accessibilityLabel={openSettings ? gt("Open microphone settings") : gt("Start dictation")}
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled }}
       className="shrink-0 items-center justify-center active:opacity-70"

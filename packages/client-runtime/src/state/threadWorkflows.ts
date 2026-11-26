@@ -9,11 +9,14 @@ import {
 import { latestForkableRun } from "@supaterm/contracts";
 import { copySorted } from "@supaterm/shared/Array";
 
+import { compactionBlocksSteering } from "./composerDispatch.ts";
 import {
   type ThreadStructure,
   type ThreadStructureRuntime,
   threadRuntimeIsUnsettled,
 } from "./models.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 type Projection = ThreadStructure;
 type Run = Projection["runs"][number];
@@ -86,16 +89,19 @@ export function resolveLatestMergeBackRun(projection: Projection): Run | null {
   return hasNewerActiveRun ? null : latestProviderFinishedRun;
 }
 
-export function sideChatBringBackBlockedReason(input: {
-  readonly canOperate: boolean;
-  readonly parentRuntime: ThreadStructureRuntime | null | undefined;
-  readonly mergeRun: Run | null;
-}) {
-  if (!input.canOperate) return "This connection cannot change threads.";
+export function sideChatBringBackBlockedReason(
+  input: {
+    readonly canOperate: boolean;
+    readonly parentRuntime: ThreadStructureRuntime | null | undefined;
+    readonly mergeRun: Run | null;
+  },
+  resolve: MFunctionType = mFallback,
+) {
+  if (!input.canOperate) return resolve(msg("This connection cannot change threads."));
   // A pending merge-back would fail the main thread's queued message, so the server refuses it.
   if (threadRuntimeIsUnsettled(input.parentRuntime))
-    return "Available when the main thread is idle.";
-  return input.mergeRun === null ? "Available after a finished reply." : null;
+    return resolve(msg("Available when the main thread is idle."));
+  return input.mergeRun === null ? resolve(msg("Available after a finished reply.")) : null;
 }
 
 function resolveThreadProviderSession(projection: Projection): ProviderSession | null {
@@ -128,6 +134,33 @@ export function threadSteersDuringCompaction(projection: Projection | null | und
     resolveThreadProviderSession(projection)?.capabilities.turns.activeSteeringDuringCompaction ===
     true
   );
+}
+
+function supportsSteering(turns: OrchestrationV2ProviderCapabilities["turns"]): boolean {
+  return (
+    turns.supportsActiveSteering ||
+    (turns.supportsInterrupt && turns.supportsSteeringByInterruptRestart)
+  );
+}
+
+export function threadCanSteer(
+  projection: Projection | null,
+  input: {
+    readonly compactCommandIsActive: boolean;
+    readonly compactionRunning: boolean;
+    readonly activeRunId: Run["id"] | null | undefined;
+  },
+): boolean {
+  const turns = projection && resolveThreadProviderSession(projection)?.capabilities.turns;
+  // A steer submitted before the session attaches can wait for its provider turn.
+  if (turns && !supportsSteering(turns)) return false;
+  return !compactionBlocksSteering({
+    compactCommandIsActive: input.compactCommandIsActive,
+    compactionRunning: input.compactionRunning,
+    steersDuringCompaction: turns?.activeSteeringDuringCompaction === true,
+    run: projection?.runs.find((run) => run.id === input.activeRunId),
+    messages: projection?.messages,
+  });
 }
 
 export function threadSupportsProviderHandoff(projection: Projection | null | undefined): boolean {
@@ -174,10 +207,12 @@ export function deriveThreadQueueWorkflowState(
     /** The server advertises `deferredSteering`; older servers reject a steer during setup. */
     readonly deferredSteering?: boolean;
   },
+  resolve: MFunctionType = mFallback,
 ): ThreadQueueWorkflowState {
   const activeRun = resolveActiveThreadRun(projection);
   const session = resolveThreadProviderSession(projection);
   const capabilities = session?.capabilities.turns;
+  const canSteer = capabilities !== undefined && supportsSteering(capabilities);
   const activeMessage = projection.messages.find(
     (message) => message.id === activeRun?.userMessageId,
   );
@@ -198,7 +233,7 @@ export function deriveThreadQueueWorkflowState(
     const message = projection.messages.find((candidate) => candidate.id === run.userMessageId);
     return {
       run,
-      text: message?.text ?? "Queued message",
+      text: message?.text ?? resolve(msg("Queued message")),
       attachments: message?.attachments ?? [],
       messageId: run.userMessageId,
       ...(message?.context ? { context: message.context } : {}),
@@ -218,12 +253,8 @@ export function deriveThreadQueueWorkflowState(
       promoteSkipsCompaction ||
       (options?.deferredSteering === true &&
         (activeRun?.status === "preparing" || activeRun?.status === "starting") &&
-        (capabilities === undefined ||
-          capabilities.supportsActiveSteering ||
-          capabilities.supportsSteeringByInterruptRestart)) ||
-      (hasSteerableProviderTurn &&
-        (capabilities?.supportsActiveSteering === true ||
-          capabilities?.supportsSteeringByInterruptRestart === true)),
+        (capabilities === undefined || canSteer)) ||
+      (hasSteerableProviderTurn && canSteer),
     promoteSkipsCompaction,
   };
 }

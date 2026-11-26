@@ -578,6 +578,38 @@ describe("parseResolvedPath", () => {
   });
 });
 
+// Path.layer joins with POSIX separators here, so the test windir is a POSIX path.
+const WSL_EXE = "/windows/System32/wsl.exe";
+const STORE_SERVICE = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\WSLService";
+const INBOX_SERVICE = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\LxssManager";
+
+const registrySpawner = (keys: ReadonlyArray<string>) =>
+  ChildProcessSpawner.make((command) =>
+    Effect.succeed(
+      ChildProcessSpawner.makeHandle({
+        pid: ChildProcessSpawner.ProcessId(1),
+        stdout: Stream.empty,
+        stderr: Stream.empty,
+        all: Stream.empty,
+        exitCode: Effect.succeed(
+          ChildProcessSpawner.ExitCode(
+            command._tag === "StandardCommand" &&
+              command.command === "reg.exe" &&
+              keys.some((key) => command.args.includes(key))
+              ? 0
+              : 1,
+          ),
+        ),
+        isRunning: Effect.succeed(false),
+        kill: () => Effect.void,
+        stdin: Sink.drain,
+        getInputFd: () => Sink.drain,
+        getOutputFd: () => Stream.empty,
+        unref: Effect.succeed(Effect.void),
+      }),
+    ),
+  );
+
 describe("windowsToWslPathImpl", () => {
   it.effect("runs wslpath without a shell so folder names stay one literal argument", () =>
     Effect.gen(function* () {
@@ -623,12 +655,10 @@ describe("windowsToWslPathImpl", () => {
   );
 });
 
-// Path.layer joins with POSIX separators here, so the test windir is a POSIX path.
-const WSL_EXE = "/windows/System32/wsl.exe";
-
 const availability = (
   policy?: Parameters<typeof DesktopManagedPolicy.layerTest>[0],
   wslExe = WSL_EXE,
+  serviceKeys: ReadonlyArray<string> = [STORE_SERVICE],
 ) =>
   resolveAvailability("win32", "/windows").pipe(
     Effect.provide(
@@ -638,9 +668,22 @@ const availability = (
         DesktopManagedPolicy.layerTest(policy),
       ),
     ),
+    Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, registrySpawner(serviceKeys)),
   );
 
 describe("resolveAvailability", () => {
+  it.effect("needs a registered WSL service, not just the System32 install stub", () =>
+    Effect.gen(function* () {
+      assert.deepEqual(yield* availability(undefined, WSL_EXE, []), { _tag: "Missing" });
+      assert.deepEqual(yield* availability(undefined, WSL_EXE, [STORE_SERVICE]), {
+        _tag: "Available",
+      });
+      assert.deepEqual(yield* availability(undefined, WSL_EXE, [INBOX_SERVICE]), {
+        _tag: "Available",
+      });
+    }),
+  );
+
   it.effect("turns WSL off on a machine with a managed policy, even an invalid one", () =>
     Effect.gen(function* () {
       const managed = { schemaVersion: 1, organization: "Example Corp" } as const;

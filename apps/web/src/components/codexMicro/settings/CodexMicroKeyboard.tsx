@@ -1,4 +1,5 @@
 import type { CodexMicroActionSlot, CodexMicroLayout } from "@supaterm/contracts";
+import { useGT, useMessages } from "gt-react";
 import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -91,12 +92,18 @@ function AgentKey({
   pressed: boolean;
   onSelect: (id: CodexMicroKeyId) => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const color = codexMicroStatusColor(view.status);
-  const status = view.status === "off" ? null : CODEX_MICRO_STATUS_LABELS[view.status];
+  const status = view.status === "off" ? null : m(CODEX_MICRO_STATUS_LABELS[view.status]);
   return (
     <KeyboardKey
       id={view.key}
-      label={`Agent key ${view.number}${view.label ? `: ${view.label}` : ""}`}
+      label={
+        view.label
+          ? gt("Agent key {number}: {label}", { number: view.number, label: view.label })
+          : gt("Agent key {number}", { number: view.number })
+      }
       hint={[status, hint].filter(Boolean).join(" · ") || undefined}
       pressed={pressed}
       className="w-14 rounded-xl border-border/70 bg-background"
@@ -126,13 +133,18 @@ function ActionKey({
   pressed: boolean;
   onSelect: (id: CodexMicroKeyId) => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const keySlot = layout.slots[slot];
   const keycap = codexMicroKeycap(keySlot.keycapId);
   const Icon = keycap.icon;
   return (
     <KeyboardKey
       id={slot}
-      label={`${keycap.label} keycap: ${codexMicroActionLabel(resolveCodexMicroSlotAction(keySlot))}`}
+      label={gt("{keycap} keycap: {action}", {
+        keycap: keycap.label,
+        action: codexMicroActionLabel(resolveCodexMicroSlotAction(keySlot), m),
+      })}
       pressed={pressed}
       className={cn(
         "rounded-xl border-border/70 bg-card text-foreground/80",
@@ -180,6 +192,7 @@ export function CodexMicroKeyboard({
   pressedKey: CodexMicroKeyId | null;
   onSelect: (id: CodexMicroKeyId) => void;
 }) {
+  const gt = useGT();
   const slots = codexMicroVisibleSlots(layout);
   const commandSlots = slots.filter((slot) => COMMAND_ROW_SLOTS.has(slot));
   const bottomSlots = slots.filter((slot) => !COMMAND_ROW_SLOTS.has(slot));
@@ -206,7 +219,7 @@ export function CodexMicroKeyboard({
     <div className="grid grid-cols-4 gap-2 rounded-2xl border border-border/60 bg-muted/60 p-2.5 shadow-xs/5">
       <KeyboardKey
         id="knob"
-        label={`Knob: ${knobLabel}`}
+        label={gt("Knob: {mode}", { mode: knobLabel })}
         pressed={pressedKey === "knob"}
         className="w-14 rounded-full border-border/70 bg-background"
         onSelect={onSelect}
@@ -216,8 +229,8 @@ export function CodexMicroKeyboard({
       {agentKeys.slice(0, 2).map(agentKey)}
       <KeyboardKey
         id="stick"
-        label="Analog stick"
-        hint="Choose what each direction triggers"
+        label={gt("Analog stick")}
+        hint={gt("Choose what each direction triggers")}
         pressed={pressedKey === "stick"}
         className="w-14 rounded-xl border-border/70 bg-muted"
         onSelect={onSelect}

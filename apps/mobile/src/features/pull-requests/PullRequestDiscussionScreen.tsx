@@ -34,6 +34,7 @@ import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import { PullRequestCompletionSuggestions } from "./PullRequestCompletionSuggestions";
 import { usePullRequestCompletions } from "./usePullRequestCompletions";
+import { T, useGT, useMessages } from "gt-react-native";
 
 export function PullRequestDiscussionScreen({
   route,
@@ -47,6 +48,8 @@ export function PullRequestDiscussionScreen({
 }
 
 function Discussion({ params }: { params: PullRequestParams & { readonly discussionId: string } }) {
+  const messages = useMessages();
+  const gt = useGT();
   const target = pullRequestTarget(params);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -103,7 +106,7 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
     if (result && AsyncResult.isFailure(result)) {
       const cause = squashAtomCommandFailure(result);
       setError(
-        cause instanceof Error ? cause.message : "The provider could not complete this action.",
+        cause instanceof Error ? cause.message : gt("The provider could not complete this action."),
       );
     }
   };
@@ -118,7 +121,7 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
       playOutcomeHaptic(AsyncResult.isSuccess(response));
       if (AsyncResult.isFailure(response)) return response;
       setBody((current) => (current === submitted ? "" : current));
-      setNotice("Reply posted.");
+      setNotice(gt("Reply posted."));
       refresh();
       return response;
     });
@@ -160,7 +163,9 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
       ? resolvePullRequestReviewAnchor(location.anchor, [], [{ comments }])
       : null;
   const canReply = permissions.canReply && Boolean(thread);
-  const resolveLabel = thread?.isResolved ? "Unresolve" : "Resolve";
+  const resolveLabel = thread?.isResolved
+    ? gt("Unresolve", { $context: "review thread" })
+    : gt("Resolve", { $context: "review thread" });
   return (
     <PullRequestMarkdownRepository params={params} changeRequest={detail.data}>
       <KeyboardAvoidingView
@@ -173,7 +178,7 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
         }}
       >
         <AppBar
-          title="Discussion"
+          title={gt("Discussion")}
           subtitle={`#${params.number}`}
           onBack={() => navigation.goBack()}
           actions={
@@ -215,12 +220,16 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
                   </Text>
                 )}
                 <Text className="text-xs text-foreground-muted">
-                  {thread.isResolved ? "Resolved" : "Unresolved"}
-                  {thread.isOutdated ? " · Outdated" : ""}
+                  {thread.isResolved
+                    ? gt("Resolved", { $context: "review thread state" })
+                    : gt("Unresolved", { $context: "review thread state" })}
+                  {thread.isOutdated
+                    ? ` · ${gt("Outdated", { $context: "review thread state" })}`
+                    : ""}
                 </Text>
                 {filePath === null ? null : (
                   <Button
-                    label="View file diff"
+                    label={gt("View file diff")}
                     onPress={() =>
                       navigation.navigate("PullRequestFile", { ...params, path: filePath })
                     }
@@ -228,7 +237,9 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
                 )}
               </View>
             ) : !activity.isPending ? (
-              <Text>This discussion is no longer available.</Text>
+              <Text>
+                <T>This discussion is no longer available.</T>
+              </Text>
             ) : null}
             {comments.map((comment) => (
               <View
@@ -253,10 +264,10 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
                 <View className="flex-row items-center gap-2">
                   <PullRequestAvatar actor={comment.author} size={28} />
                   <Text className="min-w-0 flex-1 text-sm font-supaterm-medium">
-                    {comment.author?.login ?? "Unknown author"}
+                    {comment.author?.login ?? gt("Unknown author")}
                   </Text>
                   <Text className="text-2xs text-foreground-muted">
-                    {relativeTime(comment.createdAt)}
+                    {relativeTime(comment.createdAt, undefined, messages)}
                   </Text>
                 </View>
                 <PullRequestMarkdown markdown={comment.body} />
@@ -274,7 +285,7 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
             ))}
             {nextCursor ? (
               <Button
-                label={busy ? "Loading…" : "Load more replies"}
+                label={busy ? gt("Loading…") : gt("Load more replies")}
                 disabled={busy}
                 onPress={() => void more()}
               />
@@ -299,13 +310,13 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
               className="flex-row items-end gap-1 p-1"
             >
               <TextInput
-                accessibilityLabel="Discussion reply"
+                accessibilityLabel={gt("Discussion reply")}
                 selection={completions.selection}
                 onSelectionChange={completions.onSelectionChange}
                 onBlur={completions.onBlur}
                 multiline
                 maxLength={65536}
-                placeholder="Reply…"
+                placeholder={gt("Reply…")}
                 placeholderTextColorClassName="accent-foreground-muted"
                 value={body}
                 onChangeText={setBody}
@@ -314,7 +325,7 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
               />
               <View>
                 <Button
-                  label={busy ? "Posting…" : "Reply"}
+                  label={busy ? gt("Posting…") : gt("Reply", { $context: "verb, button" })}
                   tone="contrast"
                   disabled={busy || !body.trim()}
                   onPress={() => void post()}

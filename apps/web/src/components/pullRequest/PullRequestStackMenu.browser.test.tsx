@@ -3,17 +3,19 @@ import { EnvironmentId, ProjectId } from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
-const state = vi.hoisted(() => ({ detail: "" }));
+const state = vi.hoisted(() => ({ detail: "", sent: [] as unknown[] }));
 
 vi.mock(import("~/state/use-atom-command"), async () => {
   const { PullRequestOperationError } = await import("@supaterm/contracts");
   const { Cause } = await import("effect");
   const { AsyncResult } = await import("effect/reactivity");
   return {
-    useAtomCommand: (() => async () =>
-      AsyncResult.failure(
+    useAtomCommand: (() => async (call: { readonly input: unknown }) => {
+      state.sent.push(call.input);
+      return AsyncResult.failure(
         Cause.fail(new PullRequestOperationError({ operation: "runAction", detail: state.detail })),
-      )) as never,
+      );
+    }) as never,
   };
 });
 
@@ -25,18 +27,25 @@ import { PullRequestStackMenu } from "./PullRequestStackMenu";
 
 function setup(detail: string) {
   state.detail = detail;
+  state.sent = [];
 }
 
 const HEAD_MOVED = "The stack head moved. Refresh the stack before trying again.";
 
 it.each([
   { label: "Merge stack", detail: HEAD_MOVED, description: HEAD_MOVED },
+  { label: "Auto-merge stack", detail: HEAD_MOVED, description: HEAD_MOVED },
   { label: "Rebase stack", detail: HEAD_MOVED, description: HEAD_MOVED },
   {
     label: "Rebase stack",
     detail: "GitHub CLI command failed.",
     description:
       "The host refused the rebase. A rebase stops at the first commit that does not apply cleanly.",
+  },
+  {
+    label: "Cancel stack auto-merge",
+    detail: "GitHub CLI command failed.",
+    description: "The host refused to cancel auto-merge. Refresh and try again.",
   },
 ])("$label refused with $detail shows $description", async (row) => {
   setup(row.detail);
@@ -59,8 +68,13 @@ it.each([
           layers: [{ number: 2, headBranch: "feature", headSha: "abc123", state: "open" }],
         }}
         canMerge
+        shownHeadSha="shown"
         stale={false}
         canRebase
+        canAutoMerge
+        preferAutoMerge={row.label === "Auto-merge stack"}
+        autoMergeArmed={row.label === "Cancel stack auto-merge"}
+        canCancelAutoMerge
         mergeMethod="squash"
         onActed={() => {}}
       />
@@ -70,9 +84,31 @@ it.each([
     await screen.getByRole("button", { name: "Stack 1, layer 1 of 1" }).click();
     await page.getByRole("menuitem", { name: row.label }).click();
     await pressAgain(page.getByRole("menuitem", { name: "Confirm rebase" }).element());
+  } else if (row.label === "Cancel stack auto-merge") {
+    await screen.getByRole("button", { name: "Stack 1, layer 1 of 1" }).click();
+    await page.getByRole("menuitem", { name: row.label }).click();
   } else {
+    const confirmLabel = row.label === "Merge stack" ? "Confirm merge" : "Confirm auto-merge";
     await screen.getByRole("button", { name: row.label, exact: true }).click();
-    await pressAgain(screen.getByRole("button", { name: "Confirm merge", exact: true }).element());
+    await pressAgain(screen.getByRole("button", { name: confirmLabel, exact: true }).element());
   }
   await expect.element(page.getByText(row.description, { exact: true })).toBeInTheDocument();
+  // The stack's own read can be ahead of the head the reader was shown; a merge lands only that one.
+  const merging = row.label === "Merge stack" || row.label === "Auto-merge stack";
+  expect(state.sent).toEqual([
+    expect.objectContaining(
+      merging
+        ? {
+            action: row.label === "Merge stack" ? "merge" : "enable-auto-merge",
+            stackNumber: 1,
+            mergeMethod: "squash",
+            expectedHeadSha: "shown",
+            expectedStackHeads: [{ number: 2, headSha: "abc123" }],
+          }
+        : row.label === "Cancel stack auto-merge"
+          ? { action: "disable-auto-merge", stackNumber: 1 }
+          : { action: "update-branch" },
+    ),
+  ]);
+  if (!merging) expect(state.sent[0]).not.toHaveProperty("expectedHeadSha");
 });

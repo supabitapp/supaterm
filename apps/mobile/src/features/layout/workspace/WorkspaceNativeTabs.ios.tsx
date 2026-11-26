@@ -1,3 +1,4 @@
+import { useGT, useMessages } from "gt-react-native";
 import {
   WORKSPACE_TAB_LABELS,
   NAVIGATION_TAB_ICONS,
@@ -41,6 +42,7 @@ import { useAdaptiveWorkspaceLayout, useWorkspacePaneState } from "../AdaptiveWo
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 
 const PULL_REQUEST_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/pull-request.png");
+const ISSUE_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/issue.png");
 const COMPOSE_TAB = "compose";
 
 /** Retain each native controller tree; removing its root can leave RNS's stack empty. */
@@ -147,6 +149,8 @@ export function WorkspaceNativeTabs(props: {
   /** The sidebar column draws the tabs itself, so they leave with it. */
   readonly tabsInSidebarColumn?: boolean;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const workspace = useWorkspaceTabs()!;
   const order = useEnabledNavigationTabs();
   const primaryTabs = order.slice(0, 4);
@@ -236,7 +240,7 @@ export function WorkspaceNativeTabs(props: {
             const settings = slot === "settings";
             const tab = settings ? (overflow ?? selectedTab) : primaryTabs[index];
             if (!tab) return null;
-            const label = settings ? "Settings" : WORKSPACE_TAB_LABELS[tab];
+            const label = settings ? gt("Settings") : m(WORKSPACE_TAB_LABELS[tab]);
             return (
               <Tabs.Screen
                 // Stable slot controllers keep UIKit's stacks attached when a section moves into Settings.
@@ -244,7 +248,7 @@ export function WorkspaceNativeTabs(props: {
                 screenKey={slot}
                 title={phoneBar ? label : ""}
                 tabBarItemAccessibilityLabel={
-                  !settings && tab === "pullRequests" ? "Pull requests" : label
+                  !settings && tab === "pullRequests" ? gt("Pull requests") : label
                 }
                 ios={{
                   prewarmRequest: prewarmRequests.get(slot) ?? 0,
@@ -253,7 +257,9 @@ export function WorkspaceNativeTabs(props: {
                     ? { type: "sfSymbol", name: "gearshape" }
                     : tab === "pullRequests"
                       ? { type: "templateSource", templateSource: PULL_REQUEST_ICON }
-                      : { type: "sfSymbol", name: NAVIGATION_TAB_ICONS[tab] },
+                      : tab === "issues"
+                        ? { type: "templateSource", templateSource: ISSUE_ICON }
+                        : { type: "sfSymbol", name: NAVIGATION_TAB_ICONS[tab] },
                   selectedIcon:
                     !settings && tab === "threads"
                       ? { type: "sfSymbol", name: "text.bubble.fill" }
@@ -278,7 +284,8 @@ export function WorkspaceNativeTabs(props: {
             <Tabs.Screen
               key={COMPOSE_TAB}
               screenKey={COMPOSE_TAB}
-              title="New chat"
+              title={gt("New chat")}
+              tabBarItemAccessibilityLabel={gt("New chat")}
               preventNativeSelection
               ios={{
                 role: "search",

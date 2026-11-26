@@ -5,17 +5,20 @@ import {
   ProjectId,
   SourceControlProviderKind,
   type PullRequestDetailView,
+  type PullRequestStack,
 } from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
-import { userEvent } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import appCss from "~/index.css?inline";
 import { DraftId, useComposerDraftStore } from "~/composerDraftStore";
-import { act, fakeTimers, render } from "../../../test/render";
+import { act, fakeTimers, render, type Screen } from "../../../test/render";
+import { pressAgain } from "~/test/inlineConfirm";
 
-const { permissions, reads, shown } = vi.hoisted(() => ({
+const { command, permissions, reads, shown } = vi.hoisted(() => ({
+  command: vi.fn(),
   permissions: { checkout: true, operate: true },
   reads: { diff: [] as unknown[] },
-  shown: { detail: null as PullRequestDetailView | null },
+  shown: { detail: null as PullRequestDetailView | null, stack: null as PullRequestStack | null },
 }));
 
 vi.mock(import("~/state/session"), async (original) => ({
@@ -47,13 +50,21 @@ vi.mock(import("./usePullRequestDetail"), async (original) => ({
 }));
 vi.mock(import("~/state/usePullRequestStack"), async (original) => ({
   ...(await original()),
-  usePullRequestStack: (() => ({
-    data: null,
-    isFresh: true,
-    isPending: false,
-    error: null,
-    refresh: vi.fn(),
-  })) as never,
+  usePullRequestStackGate: (({ detail }: { detail: PullRequestDetailView | null }) => {
+    const supportsStackActions =
+      detail?.capabilities.stacks === true && detail.capabilities.stackActions === true;
+    return {
+      stackQuery: {
+        data: shown.stack,
+        isFresh: true,
+        isPending: false,
+        error: null,
+        refresh: vi.fn(),
+      },
+      supportsStackActions,
+      canMergeSinglePullRequest: !supportsStackActions || shown.stack === null,
+    };
+  }) as never,
 }));
 vi.mock(import("~/state/pullRequests"), async (original) => {
   const actual = await original();
@@ -70,7 +81,7 @@ vi.mock(import("~/state/pullRequests"), async (original) => {
 });
 vi.mock(import("~/state/use-atom-command"), async (original) => ({
   ...(await original()),
-  useAtomCommand: (() => vi.fn()) as never,
+  useAtomCommand: (() => command) as never,
 }));
 
 import { createWorkspaceFocusController, workspaceAreaProps } from "~/lib/workspaceFocus";
@@ -153,6 +164,8 @@ function setup() {
   permissions.operate = true;
   reads.diff = [];
   shown.detail = detail;
+  shown.stack = null;
+  command.mockReset();
   useComposerDraftStore.setState({ draftsByThreadKey: {} });
 }
 
@@ -181,6 +194,114 @@ it("can still add conflict resolution to an existing composer without checkout s
   const draft = useComposerDraftStore.getState().getComposerDraft(draftId);
   expect(draft?.prompt).toContain("conflicts");
   expect(draft?.prompt).toContain(detail.url);
+});
+
+const atHead = (headSha: string): PullRequestDetailView => ({
+  ...detail,
+  headSha,
+  mergeability: "mergeable",
+  mergeCapabilities: { merge: false, squash: true, rebase: false },
+  capabilities: {
+    ...detail.capabilities,
+    actions: ["merge"],
+    mergeMethods: ["squash"],
+    review: { ...detail.capabilities.review, verdicts: ["approve"] },
+  },
+  viewerPermissions: { ...detail.viewerPermissions, actions: ["merge"], verdicts: ["approve"] },
+});
+
+const sentHeads = (key: "action" | "verdict") =>
+  command.mock.calls.flatMap(([call]) =>
+    call?.input?.[key] === undefined ? [] : [call.input.expectedHeadSha],
+  );
+
+async function squashAndMerge(screen: Screen) {
+  await screen.getByRole("button", { name: "Squash and merge" }).click();
+  await pressAgain(screen.getByRole("button", { name: "Confirm merge", exact: true }).element());
+}
+
+async function renderAfterUnseenPush() {
+  shown.detail = atHead("shown-head");
+  await using stack = new AsyncDisposableStack();
+  const screen = stack.use(await render(panel()));
+  await expect.element(screen.getByRole("button", { name: "Squash and merge" })).toBeVisible();
+  // A background refresh brings a push the reader has not looked at.
+  shown.detail = atHead("pushed-head");
+  await screen.rerender(panel());
+  await expect.element(screen.getByText(/still applies to shown-h/)).toBeVisible();
+  stack.move();
+  return screen;
+}
+
+it("keeps a merge and a review on the head the reader was shown", async () => {
+  setup();
+  command.mockResolvedValue({ _tag: "Success", value: undefined });
+  await using screen = await renderAfterUnseenPush();
+
+  await squashAndMerge(screen);
+  await screen.getByRole("button", { name: "Review pull request" }).click();
+  // The composer popup is portalled outside the rendered tree.
+  await page.getByRole("button", { name: "Submit review" }).click();
+
+  await vi.waitFor(() => expect(sentHeads("verdict")).toEqual(["shown-head"]));
+  expect(sentHeads("action")).toEqual(["shown-head"]);
+});
+
+it("moves the pin to new commits once the host has loaded them, not at the click", async () => {
+  setup();
+  let resolveReload: (value: { _tag: "Success"; value: undefined }) => void = () => {};
+  const reloaded = new Promise<{ _tag: "Success"; value: undefined }>((resolve) => {
+    resolveReload = resolve;
+  });
+  command.mockImplementation((call) =>
+    call?.input?.reference === undefined
+      ? Promise.resolve({ _tag: "Success", value: undefined })
+      : reloaded,
+  );
+  await using screen = await renderAfterUnseenPush();
+
+  await screen.getByRole("button", { name: "Load new commits" }).click();
+  await squashAndMerge(screen);
+  await vi.waitFor(() => expect(sentHeads("action")).toEqual(["shown-head"]));
+  resolveReload({ _tag: "Success", value: undefined });
+  await expect.element(screen.getByText(/still applies to/)).not.toBeInTheDocument();
+  await squashAndMerge(screen);
+  await vi.waitFor(() => expect(sentHeads("action")).toEqual(["shown-head", "pushed-head"]));
+});
+
+it("cancels an armed stack's auto-merge for the whole stack from the header", async () => {
+  setup();
+  command.mockResolvedValue({ _tag: "Success", value: undefined });
+  shown.detail = {
+    ...detail,
+    mergeability: "mergeable",
+    autoMergeEnabled: true,
+    capabilities: {
+      ...detail.capabilities,
+      stacks: true,
+      stackActions: true,
+      stackAutoMerge: true,
+      actions: ["disable-auto-merge"],
+    },
+    viewerPermissions: { ...detail.viewerPermissions, actions: ["disable-auto-merge"] },
+  };
+  shown.stack = {
+    id: "stack",
+    number: 7,
+    url: "https://github.com/owner/repo/stack/7",
+    base: "main",
+    layers: [{ number: 1, headBranch: "feature", headSha: "abc123", state: "open" }],
+  };
+  await using screen = await render(panel());
+  await expect.element(screen.getByRole("button", { name: /^Stack 7/ })).toBeVisible();
+  await screen.getByRole("button", { name: "Disable auto-merge" }).click();
+  await vi.waitFor(() =>
+    expect(command).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ action: "disable-auto-merge", stackNumber: 7 }),
+      }),
+    ),
+  );
 });
 
 it("reads the first diff page once the pointer rests on the Code tab", async () => {

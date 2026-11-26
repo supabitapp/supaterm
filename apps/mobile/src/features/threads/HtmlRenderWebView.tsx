@@ -16,11 +16,12 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
 import { mobileHtmlRenderTheme } from "../../lib/htmlRenderTheme";
-import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
+import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useAssetUrlState, useRefreshAssetUrl } from "../../state/assets";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { webViewDecelerationRate } from "../../lib/webViewDecelerationRate";
 import { annotateHtmlRenderText, type HtmlRenderAnnotation } from "./annotateAssistantText";
+import { T, useGT } from "gt-react-native";
 
 const ROW_BOTTOM_MARGIN = 8;
 const ACTION_ROW_HEIGHT = 32;
@@ -77,7 +78,6 @@ function readOverflowMessage(data: string): Overflow | null {
 const withoutFragment = (url: string) => url.split("#", 1)[0];
 
 const ANNOTATE_MENU_KEY = "annotate";
-const ANNOTATE_MENU_ITEMS = [{ label: "Annotate", key: ANNOTATE_MENU_KEY }];
 
 export function HtmlRenderWebView(props: {
   readonly uri: string;
@@ -86,7 +86,9 @@ export function HtmlRenderWebView(props: {
   readonly annotation?: HtmlRenderAnnotation | undefined;
   readonly onLoadError?: () => void;
 }) {
+  const gt = useGT();
   const theme = useHtmlRenderTheme();
+  const openLink = useOpenPullRequest();
   const [initialTheme] = useState(theme);
   const [generation, setGeneration] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -147,7 +149,7 @@ export function HtmlRenderWebView(props: {
         }
         onOpenWindow={(event) => {
           const url = event.nativeEvent.targetUrl;
-          if (/^https?:/i.test(url)) void tryOpenExternalUrl(url, "html-render");
+          if (/^https?:/i.test(url)) void openLink(url);
         }}
         onLoadEnd={() => {
           setLoaded(true);
@@ -160,7 +162,12 @@ export function HtmlRenderWebView(props: {
         onRenderProcessGone={restart}
         {...(annotation
           ? {
-              menuItems: ANNOTATE_MENU_ITEMS,
+              menuItems: [
+                {
+                  label: gt("Annotate", { $context: "verb, annotates the selected text" }),
+                  key: ANNOTATE_MENU_KEY,
+                },
+              ],
               onCustomMenuSelection: (event) => {
                 const { key, selectedText } = event.nativeEvent;
                 if (key !== ANNOTATE_MENU_KEY || typeof selectedText !== "string") return;
@@ -199,6 +206,7 @@ export function ThreadHtmlRender(props: {
   readonly frameWidth: number;
   readonly iconColor: ColorValue;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const annotation =
     props.annotationDraftKey === undefined
@@ -246,7 +254,7 @@ export function ThreadHtmlRender(props: {
         {uri !== null && !failed ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Open ${title}`}
+            accessibilityLabel={gt("Open {title}", { title })}
             hitSlop={8}
             className="h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-card/80"
             onPress={() =>
@@ -289,7 +297,7 @@ export function ThreadHtmlRender(props: {
         ) : failed || asset._tag === "Failure" ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Reload ${title}`}
+            accessibilityLabel={gt("Reload {title}", { title })}
             className="flex-1 items-center justify-center"
             onPress={() => {
               retried.current = false;
@@ -297,7 +305,9 @@ export function ThreadHtmlRender(props: {
               if (uri === null) void refresh().then((next) => next !== null && setUri(next));
             }}
           >
-            <Text className="text-sm text-foreground-muted">Page unavailable</Text>
+            <Text className="text-sm text-foreground-muted">
+              <T>Page unavailable</T>
+            </Text>
           </Pressable>
         ) : (
           <View className="flex-1 items-center justify-center">

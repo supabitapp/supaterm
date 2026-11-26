@@ -9,6 +9,8 @@ import { registerCommands } from "../../shortcuts/dispatcher";
 import { shellEnvironment } from "../../state/shell";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
+import { m } from "../../i18n/messages";
+import { msg, useMessages } from "gt-react";
 
 /** Marks an OpenInPicker's primary button as the target of `editor.openFavorite`. */
 export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
@@ -45,6 +47,7 @@ export function useOpenFavoriteEditorShortcut({
   availableEditors: ReadonlyArray<EditorId>;
   openInCwd: string | null;
 }) {
+  const messages = useMessages();
   const openInEditorMutation = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
   const remote = useRemoteOpenState(environmentId);
   const remoteCapableEditors = useRemoteCapableEditors();
@@ -59,7 +62,7 @@ export function useOpenFavoriteEditorShortcut({
   );
   const openFavorite = useEffectEvent((repeat: boolean) => {
     if (repeat || !openInCwd || !preferredEditor) return false;
-    const label = editorLabelForPlatform(preferredEditor, navigator.platform);
+    const label = editorLabelForPlatform(preferredEditor, navigator.platform, messages);
     if (remote.mode === "remote-links") {
       const url = buildRemoteOpenUrl({
         editor: preferredEditor,
@@ -68,7 +71,7 @@ export function useOpenFavoriteEditorShortcut({
       });
       if (url === undefined) return;
       void openRemoteEditorUrl(url).then((opened) => {
-        if (opened) announce(`Opened in ${label}`);
+        if (opened) announce(m(msg("Opened in {editor}", { editor: label })));
       });
       return;
     }
@@ -79,7 +82,7 @@ export function useOpenFavoriteEditorShortcut({
         editor: preferredEditor,
       },
     }).then((result) => {
-      if (result._tag === "Success") announce(`Opened in ${label}`);
+      if (result._tag === "Success") announce(m(msg("Opened in {editor}", { editor: label })));
     });
   });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the open-in-editor fallback with the dispatcher for the component's lifetime

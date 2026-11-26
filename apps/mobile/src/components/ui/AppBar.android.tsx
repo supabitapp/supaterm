@@ -17,6 +17,7 @@ import { SearchField } from "./SearchField";
 import { findAppBarMenuItem, menuActionsFromAppBarItems } from "./menuActionItems";
 import type { AppBarMenuItem, AppBarProps, AppBarSearch } from "./AppBar.types";
 import { useHasWorkspaceAppBar, WorkspaceAppBar } from "./WorkspaceAppBar.android";
+import { useGT } from "gt-react-native";
 
 function selectMenuItem(items: ReadonlyArray<AppBarMenuItem>, id: string) {
   const action = findAppBarMenuItem(items, id);
@@ -76,6 +77,7 @@ function SearchableAppBar(props: AppBarProps & { readonly search: AppBarSearch }
 }
 
 function AppBarView(props: AppBarProps & { readonly searchState?: SearchState }) {
+  const gt = useGT();
   const { search, searchState } = props;
   const inFormSheet = use(RoutedFormSheetContext);
   const { height, paddingTop, paddingBottom } = useToolbarLayout(props.sheet || inFormSheet);
@@ -102,7 +104,7 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
       <SearchField
         inputRef={searchState.inputRef}
         accessibilityLabel={searchLabel}
-        clearAccessibilityLabel={search.clearAccessibilityLabel ?? "Clear search"}
+        clearAccessibilityLabel={search.clearAccessibilityLabel ?? gt("Clear search")}
         placeholder={
           search.compactToolbar
             ? (search.compactPlaceholder ?? search.placeholder)
@@ -192,7 +194,7 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
       leading={
         (props.onClose ? (
           <AndroidHeaderIconButton
-            accessibilityLabel={props.closeAccessibilityLabel ?? "Close"}
+            accessibilityLabel={props.closeAccessibilityLabel ?? gt("Close")}
             icon="xmark"
             onPress={props.onClose}
           />
@@ -229,7 +231,7 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
             {confirmButton}
             {closeInspector ? (
               <AndroidHeaderIconButton
-                accessibilityLabel="Close inspector"
+                accessibilityLabel={gt("Close inspector")}
                 icon="xmark"
                 onPress={closeInspector}
               />
@@ -265,20 +267,20 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
             {inline ? (
               props.onClose ? (
                 <ScreenHeaderButton
-                  accessibilityLabel={props.closeAccessibilityLabel ?? "Close"}
+                  accessibilityLabel={props.closeAccessibilityLabel ?? gt("Close")}
                   icon="xmark"
                   onPress={props.onClose}
                 />
               ) : props.onBack ? (
                 <ScreenHeaderButton
-                  accessibilityLabel="Navigate up"
+                  accessibilityLabel={gt("Navigate up")}
                   icon="arrow.left"
                   onPress={props.onBack}
                 />
               ) : null
             ) : (
               <ScreenHeaderButton
-                accessibilityLabel={search.closeAccessibilityLabel ?? "Close search"}
+                accessibilityLabel={search.closeAccessibilityLabel ?? gt("Close search")}
                 icon="arrow.left"
                 onPress={closeSearch}
               />

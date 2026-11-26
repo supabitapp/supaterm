@@ -14,6 +14,8 @@ import type {
 } from "@supaterm/contracts";
 
 import { resolveFileDiffPath } from "./diffRendering";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
 interface GitDiffFileContentsSource {
   readonly environmentId: EnvironmentId;
@@ -128,7 +130,7 @@ function createDiffFileContentsLoader(
     }
     if (!reproducesPatch(fileDiff, contents.oldContents, contents.newContents)) {
       throw new Error(
-        "This file changed since the diff was loaded. Refresh the diff to expand it.",
+        m(msg("This file changed since the diff was loaded. Refresh the diff to expand it.")),
       );
     }
     return {

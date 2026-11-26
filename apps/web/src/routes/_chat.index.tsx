@@ -22,6 +22,7 @@ import {
 } from "../state/entities";
 import { useEnvironments } from "../state/environments";
 import { APP_DISPLAY_NAME } from "~/branding";
+import { T, useGT } from "gt-react";
 
 function ChatIndexRouteView() {
   const { authGateState } = Route.useRouteContext();
@@ -101,7 +102,8 @@ function IndexDraftLanding() {
 }
 
 function DraftStartError({ onRetry }: { readonly onRetry: () => void }) {
-  const contentArea = workspaceAreaProps("home", 1, "Home");
+  const gt = useGT();
+  const contentArea = workspaceAreaProps("home", 1, gt("Home", { $context: "the home screen" }));
   return (
     <SidebarInset
       {...contentArea}
@@ -111,14 +113,16 @@ function DraftStartError({ onRetry }: { readonly onRetry: () => void }) {
       {isElectron ? <WorkspacePageHeader electron /> : null}
       <Empty className="flex-1">
         <EmptyHeader className="max-w-md">
-          <EmptyTitle>Couldn’t start a new thread</EmptyTitle>
+          <EmptyTitle>
+            <T>Couldn’t start a new thread</T>
+          </EmptyTitle>
           <EmptyDescription>
-            The project is still available. Try opening the draft again.
+            <T>The project is still available. Try opening the draft again.</T>
           </EmptyDescription>
           <div className="mt-5 flex justify-center">
             <Button size="sm" onClick={onRetry}>
               <RefreshIcon size="md" />
-              Try again
+              <T>Try again</T>
             </Button>
           </div>
         </EmptyHeader>
@@ -132,10 +136,15 @@ export const Route = createFileRoute("/_chat/")({
 });
 
 function HostedStaticOnboardingState() {
+  const gt = useGT();
   const localEnvironmentOff = isLocalEnvironmentDisabled();
   const description = localEnvironmentOff
-    ? "The local environment is turned off. Connect a remote environment, or turn the local environment back on in Environments."
-    : "Open Environments and add that machine using its pairing link. This app must be able to reach it.";
+    ? gt(
+        "The local environment is turned off. Connect a remote environment, or turn the local environment back on in Environments.",
+      )
+    : gt(
+        "Open Environments and add that machine using its pairing link. This app must be able to reach it.",
+      );
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -154,16 +163,20 @@ function HostedStaticOnboardingState() {
               <div className="mx-auto mb-5 flex size-11 items-center justify-center rounded-xl border border-border/70 bg-background/70 text-muted-foreground">
                 <LinkIcon className="size-5" />
               </div>
-              <EmptyTitle>Connect to a computer running Supaterm</EmptyTitle>
+              <EmptyTitle>
+                <T>Connect to a computer running Supaterm</T>
+              </EmptyTitle>
               <EmptyDescription>
-                This app connects to Supaterm running on your computer or a server. Start the
-                Supaterm desktop app or command-line server on that machine and keep it running.
+                <T>
+                  This app connects to Supaterm running on your computer or a server. Start the
+                  Supaterm desktop app or command-line server on that machine and keep it running.
+                </T>
               </EmptyDescription>
               <EmptyDescription>{description}</EmptyDescription>
               <div className="mt-6 flex justify-center">
                 <Button render={<Link to="/settings/connections" />} size="sm">
                   <PlusIcon className="size-4" />
-                  Open Environments
+                  <T>Open Environments</T>
                 </Button>
               </div>
             </EmptyHeader>

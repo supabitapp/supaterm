@@ -1,15 +1,17 @@
 import {
   isManagedSettingPath,
-  managedNightlyDeniedMessage,
-  managedUpdatesDenial,
   type ManagedPolicySummary,
   type ProviderDriverKind,
 } from "@supaterm/contracts";
 import { cliReleaseChannelOf } from "@supaterm/shared/cliRelease";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
+
+import { managedNightlyDeniedMessage, managedUpdatesDenial } from "./contractLabels.ts";
 
 /** The reason a control the policy pins shows: "Managed by Example Corp." */
-export function managedByMessage(organization: string): string {
-  return `Managed by ${organization}.`;
+export function managedByMessage(organization: string, resolve: MFunctionType = mFallback): string {
+  return resolve(msg("Managed by {organization}.", { organization }));
 }
 
 /**
@@ -27,17 +29,27 @@ export function firstManagedDenial(
   return undefined;
 }
 
+/** The first target policy that locks any of `paths`. */
+export function managedSettingLock(
+  policies: Iterable<ManagedPolicySummary | undefined>,
+  paths: ReadonlyArray<string>,
+): ManagedPolicySummary | undefined {
+  for (const policy of policies) {
+    if (policy !== undefined && paths.some((path) => isManagedSettingPath(policy, path))) {
+      return policy;
+    }
+  }
+  return undefined;
+}
+
 /** Why a control writing any of `paths` is locked on one of the target environments. */
 export function managedSettingDenial(
   policies: Iterable<ManagedPolicySummary | undefined>,
   paths: ReadonlyArray<string>,
+  resolve: MFunctionType = mFallback,
 ): string | undefined {
-  if (paths.length === 0) return undefined;
-  return firstManagedDenial(policies, (policy) =>
-    policy !== undefined && paths.some((path) => isManagedSettingPath(policy, path))
-      ? managedByMessage(policy.organization)
-      : undefined,
-  );
+  const lock = managedSettingLock(policies, paths);
+  return lock === undefined ? undefined : managedByMessage(lock.organization, resolve);
 }
 
 export interface ManagedInstanceLocks {
@@ -54,6 +66,7 @@ export interface ManagedInstanceLocks {
 export function managedInstanceLocks(
   policy: ManagedPolicySummary | undefined,
   driver: ProviderDriverKind,
+  resolve: MFunctionType = mFallback,
 ): ManagedInstanceLocks | undefined {
   const paths = policy?.limits?.providers?.lockedInstanceFields?.[driver];
   if (policy === undefined || paths === undefined || paths.length === 0) return undefined;
@@ -63,7 +76,7 @@ export function managedInstanceLocks(
     configKeys: fieldsUnder("config."),
     environmentNames: fieldsUnder("environment."),
     wholeEnvironment: paths.includes("environment"),
-    reason: managedByMessage(policy.organization),
+    reason: managedByMessage(policy.organization, resolve),
   };
 }
 
@@ -74,14 +87,15 @@ export function managedInstanceLocks(
 export function managedServerUpdateDenial(
   policy: ManagedPolicySummary | undefined,
   targetVersion: string | undefined,
+  resolve: MFunctionType = mFallback,
 ): string | undefined {
   return (
-    managedUpdatesDenial(policy) ??
+    managedUpdatesDenial(policy, resolve) ??
     (policy !== undefined &&
     policy.limits?.updates?.allowNightly === false &&
     targetVersion !== undefined &&
     cliReleaseChannelOf(targetVersion) !== "stable"
-      ? managedNightlyDeniedMessage(policy.organization)
+      ? managedNightlyDeniedMessage(policy.organization, resolve)
       : undefined)
   );
 }

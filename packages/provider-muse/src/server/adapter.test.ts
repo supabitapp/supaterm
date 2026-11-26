@@ -535,6 +535,7 @@ describe("MuseAdapterV2", () => {
       const policy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
         ...runtimePolicy,
         cwd: "C:\\work\\repo",
+        workspace: { folders: [], extraRoots: ["C:\\work\\api"] },
       });
       const harness = yield* makeHarness(
         fake,
@@ -553,7 +554,10 @@ describe("MuseAdapterV2", () => {
       yield* startConversation(harness, fake);
       const turnStart = fake.calls.find((call) => call.method === "turn/start");
       // Muse 1.4.3 rejects any other form: "expected a canonical path (resolves to \\?\C:\…)".
-      assert.deepStrictEqual(turnStart?.params.workspaceRoots, ["\\\\?\\C:\\work\\repo"]);
+      assert.deepStrictEqual(turnStart?.params.workspaceRoots, [
+        "\\\\?\\C:\\work\\repo",
+        "\\\\?\\C:\\work\\api",
+      ]);
       // The muse.cmd launcher runs under cmd.exe, which cannot start in a verbatim directory.
       assert.strictEqual(hostCwd, "C:\\work\\repo");
     }).pipe(
@@ -1369,6 +1373,13 @@ describe("MuseAdapterV2", () => {
       const harness = yield* makeHarness(fake, INSTANCE_ID, "saved-session");
       const resumed = yield* fake.takeCall("session/resume");
       assert.strictEqual(resumed.params.sessionId, "saved-session");
+      // Loading the saved session is reported while Muse answers, then cleared.
+      const phases: Array<string | null> = [];
+      for (let index = 0; index < 2; index += 1) {
+        const update = yield* harness.takeEvent("provider_session.updated");
+        phases.push(update.providerSession.startupPhase ?? null);
+      }
+      assert.deepStrictEqual(phases, ["resume", null]);
       assert.strictEqual(resumed.params.excludeItems, true);
       assert.isFalse(fake.calls.some((call) => call.method === "session/start"));
       assert.strictEqual(harness.providerThread.nativeThreadRef?.nativeId, "saved-session");

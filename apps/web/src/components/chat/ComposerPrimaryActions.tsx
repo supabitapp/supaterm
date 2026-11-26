@@ -32,6 +32,8 @@ import {
   type ComposerPrimaryActionInput,
   type ComposerStopState,
 } from "./composerPrimaryAction.logic";
+import { msg, useGT, useMessages } from "gt-react";
+import type { MessageResolver } from "../../i18n/messages";
 
 interface ComposerPrimaryActionsProps extends Omit<
   ComposerPrimaryActionInput,
@@ -50,22 +52,27 @@ interface ComposerPrimaryActionsProps extends Omit<
   onInterrupt: () => void;
 }
 
-const formatPendingPrimaryActionLabel = (input: {
-  compact: boolean;
-  isLastQuestion: boolean;
-  isResponding: boolean;
-  questionIndex: number;
-}) => {
+const formatPendingPrimaryActionLabel = (
+  input: {
+    compact: boolean;
+    isLastQuestion: boolean;
+    isResponding: boolean;
+    questionIndex: number;
+  },
+  resolve: MessageResolver,
+) => {
   if (input.isResponding) {
-    return "Submitting...";
+    return resolve(msg("Submitting..."));
   }
   if (input.compact) {
-    return input.isLastQuestion ? "Submit" : "Next";
+    return input.isLastQuestion
+      ? resolve(msg("Submit", { $context: "verb, submits answers" }))
+      : resolve(msg("Next", { $context: "button that goes to the next question" }));
   }
   if (!input.isLastQuestion) {
-    return "Next question";
+    return resolve(msg("Next question"));
   }
-  return input.questionIndex > 0 ? "Submit answers" : "Submit answer";
+  return input.questionIndex > 0 ? resolve(msg("Submit answers")) : resolve(msg("Submit answer"));
 };
 
 // The composer's labeled primary action shares the send button's
@@ -106,31 +113,37 @@ const SUBMIT_ACTIONS: Record<
   { label: string; icon: ReactNode }
 > = {
   resume: {
-    label: "Resume thread",
+    label: msg("Resume thread"),
     icon: <PlayIcon weight="fill" className="size-4" aria-hidden="true" />,
   },
   "update-queued": {
-    label: "Update queued message",
+    label: msg("Update queued message"),
     icon: <CheckIcon className="size-4" aria-hidden="true" />,
   },
-  queue: { label: "Queue message", icon: <ListPlusIcon className="size-4" aria-hidden="true" /> },
+  queue: {
+    label: msg("Queue message"),
+    icon: <ListPlusIcon className="size-4" aria-hidden="true" />,
+  },
   steer: {
-    label: "Steer message",
+    label: msg("Steer message"),
     icon: <CornerUpRightIcon className="size-4" aria-hidden="true" />,
   },
-  send: { label: "Submit message", icon: <ComposerSendArrowIcon /> },
+  send: { label: msg("Submit message"), icon: <ComposerSendArrowIcon /> },
 };
 
 // A reason without copy here leaves the control disabled under its usual label.
-function blockedStatusLabel(blocked: ComposerPrimaryActionBlock | null): string | null {
+function blockedStatusLabel(
+  blocked: ComposerPrimaryActionBlock | null,
+  resolve: MessageResolver,
+): string | null {
   if (blocked === null) return null;
   switch (blocked.reason) {
     case "environment-disconnected":
-      return "Environment disconnected";
+      return resolve(msg("Environment disconnected"));
     case "project-required":
-      return "Choose a project above to start a thread";
+      return resolve(msg("Choose a project above to start a thread"));
     case "provider-unavailable":
-      return "Enable a provider in Settings to send a message";
+      return resolve(msg("Enable a provider in Settings to send a message"));
     case "send-disabled":
       return blocked.message;
     case "provider-pending":
@@ -143,9 +156,9 @@ function blockedStatusLabel(blocked: ComposerPrimaryActionBlock | null): string 
 }
 
 const FOLLOW_UP_ACTION_LABELS: Record<ActiveTurnComposerAction, string> = {
-  queue: "Queue message",
-  steer: "Steer current run",
-  restart: "Restart run",
+  queue: msg("Queue message"),
+  steer: msg("Steer current run"),
+  restart: msg("Restart run"),
 };
 
 // The click action leads; the others only appear while a key runs them.
@@ -167,6 +180,8 @@ function SendActionsTooltip(props: {
   hasMultilinePrompt: boolean;
 }) {
   const { isRunning, followUpBehavior, canSteer, isDraftThread } = props;
+  const gt = useGT();
+  const m = useMessages();
   const isSoftwareKeyboardOpen = useSoftwareKeyboardOpen();
   const shortcuts = composerSendShortcutLabels({
     ...props,
@@ -175,11 +190,11 @@ function SendActionsTooltip(props: {
   });
   const labels: Record<ComposerSendAction, string> = {
     foreground: isRunning
-      ? FOLLOW_UP_ACTION_LABELS[canSteer ? followUpBehavior : "queue"]
-      : "Send message",
-    newLine: "New line",
-    alternate: FOLLOW_UP_ACTION_LABELS[alternateComposerDispatchAction(followUpBehavior)],
-    background: isDraftThread ? "Send in background" : "Send and start new thread",
+      ? m(FOLLOW_UP_ACTION_LABELS[canSteer ? followUpBehavior : "queue"])
+      : gt("Send message"),
+    newLine: gt("New line"),
+    alternate: m(FOLLOW_UP_ACTION_LABELS[alternateComposerDispatchAction(followUpBehavior)]),
+    background: isDraftThread ? gt("Send in background") : gt("Send and start new thread"),
   };
 
   return (
@@ -232,6 +247,7 @@ export function ComposerStopButton(props: {
   readonly preserveComposerFocusOnPointerDown: boolean;
   readonly onStop: () => void;
 }) {
+  const gt = useGT();
   const { canOperateThread, stopping } = props;
   return (
     <Tooltip>
@@ -251,7 +267,7 @@ export function ComposerStopButton(props: {
               if (!canOperateThread || stopping) return;
               props.onStop();
             }}
-            aria-label={stopping ? "Stopping" : "Stop generation"}
+            aria-label={stopping ? gt("Stopping") : gt("Stop generation")}
           />
         }
       >
@@ -260,7 +276,9 @@ export function ComposerStopButton(props: {
         </svg>
       </TooltipTrigger>
       <TooltipPopup shortcut={shortcutLabelForCommand(props.keybindings, "thread.stop")}>
-        {stopping ? "Stopping…" : "Interrupt"}
+        {stopping
+          ? gt("Stopping…")
+          : gt("Interrupt", { $context: "verb, stops the running agent" })}
       </TooltipPopup>
     </Tooltip>
   );
@@ -279,6 +297,8 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   runId = null,
   ...facts
 }: ComposerPrimaryActionsProps) {
+  const gt = useGT();
+  const m = useMessages();
   const { canOperateThread, canInterrupt, isRunning, followUpBehavior, canSteer } = facts;
   const pointerFocusProps = preserveComposerFocusOnPointerDown
     ? { onPointerDown: preventPointerFocus }
@@ -321,12 +341,15 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           }}
           disabled={disabled}
         >
-          {formatPendingPrimaryActionLabel({
-            compact,
-            isLastQuestion: action.isLastQuestion,
-            isResponding: action.busy,
-            questionIndex: action.questionIndex,
-          })}
+          {formatPendingPrimaryActionLabel(
+            {
+              compact,
+              isLastQuestion: action.isLastQuestion,
+              isResponding: action.busy,
+              questionIndex: action.questionIndex,
+            },
+            m,
+          )}
         </button>
       </div>
     );
@@ -339,14 +362,16 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   const showResume = action.kind === "resume";
   const { label: submitLabel, icon: submitIcon } = SUBMIT_ACTIONS[action.kind];
   const submitStatus =
-    blockedStatusLabel(action.blocked) ??
-    (action.preparingWorktree
-      ? "Preparing worktree"
-      : action.busy
-        ? action.kind === "update-queued"
-          ? "Updating queued message"
-          : "Submitting message"
-        : null);
+    action.held && action.blocked?.reason !== "environment-disconnected"
+      ? gt("Sending when ready")
+      : (blockedStatusLabel(action.blocked, m) ??
+        (action.preparingWorktree
+          ? gt("Preparing worktree")
+          : action.busy
+            ? action.kind === "update-queued"
+              ? gt("Updating queued message")
+              : gt("Submitting message")
+            : null));
 
   const sendButton = (
     <ComposerSendButton
@@ -361,7 +386,8 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
         else onSubmitMessage?.(event);
       }}
       disabled={disabled}
-      aria-label={submitStatus ?? submitLabel}
+      aria-label={submitStatus ?? m(submitLabel)}
+      aria-busy={action.busy || undefined}
     >
       {action.busy ? <Spinner size="sm" aria-hidden="true" /> : submitIcon}
     </ComposerSendButton>
@@ -374,7 +400,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
         <TooltipTrigger render={<span className="inline-flex" />}>{sendButton}</TooltipTrigger>
         <TooltipPopup side="top">
           {submitStatus || showResume || action.kind === "update-queued" ? (
-            (submitStatus ?? submitLabel)
+            (submitStatus ?? m(submitLabel))
           ) : (
             <SendActionsTooltip
               keybindings={keybindings}

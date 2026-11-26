@@ -1,3 +1,5 @@
+import { limitsNotice, formatDuration } from "@supaterm/shared/usageLimitsCopy";
+import { msg, useGT, useMessages } from "gt-react";
 import type {
   ProviderInstanceId,
   ServerProvider,
@@ -5,9 +7,7 @@ import type {
 } from "@supaterm/contracts";
 import {
   collectProviderUsageLimits,
-  formatDuration,
   type LimitPace,
-  limitsNotice,
   paceOf,
   remainingPercent,
 } from "@supaterm/shared/usageLimits";
@@ -21,9 +21,9 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 
 const PACE_LABEL: Record<LimitPace, string> = {
-  ahead: "Ahead of pace",
-  on: "On pace",
-  under: "Under pace",
+  ahead: msg("Ahead of pace"),
+  on: msg("On pace"),
+  under: msg("Under pace"),
 };
 
 export interface ThreadDetailsLimitsInput {
@@ -36,6 +36,8 @@ export interface ThreadDetailsLimitsInput {
  * Every row reads as room left, so a longer bar always means more headroom.
  */
 export function ThreadDetailsLimits({ providerInstanceId, providers }: ThreadDetailsLimitsInput) {
+  const gt = useGT();
+  const messages = useMessages();
   const nowMinute = useNowMinute();
   const now = Date.parse(`${nowMinute}:00Z`);
   const report =
@@ -47,21 +49,21 @@ export function ThreadDetailsLimits({ providerInstanceId, providers }: ThreadDet
   const limits =
     report?.accounts.find((entry) => entry.instanceId === providerInstanceId)?.limits ??
     providers.find((provider) => provider.instanceId === providerInstanceId)?.usageLimits;
-  const notice = limits ? limitsNotice(limits) : null;
+  const notice = limits ? limitsNotice(limits, messages) : null;
   if (!limits) return null;
 
   return (
     <ThreadDetailsSection
       headingId="thread-details-limits-heading"
-      title="Usage"
+      title={gt("Usage", { $context: "thread details section heading" })}
       showHeading={false}
     >
       <div className="grid grid-cols-[auto_minmax(3rem,1fr)_auto] gap-x-3 text-xs">
         {notice ? (
           <UsageRow
-            label="Limits"
+            label={gt("Limits", { $context: "usage limits row label" })}
             left={null}
-            value="Unavailable"
+            value={gt("Unavailable")}
             tooltip={<span className="text-foreground">{notice}</span>}
           />
         ) : null}
@@ -80,6 +82,8 @@ function LimitRow({
   readonly window: ServerProviderUsageWindow;
   readonly now: number;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
   const left = remainingPercent(window);
   const pace = paceOf(window, now);
@@ -91,15 +95,19 @@ function LimitRow({
       tooltip={
         <>
           <span className="text-foreground">
-            {window.label}: {left}% left
+            {gt("{label}: {left}% left", { label: window.label, left })}
           </span>
           {window.resetsAt && resetsAt > now ? (
             <span className="text-muted-foreground">
-              Resets in {formatDuration(resetsAt - now)} ·{" "}
-              {formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)}
+              {gt("Resets in {duration} · {time}", {
+                duration: formatDuration(resetsAt - now, messages),
+                time: formatUpcomingTimestamp(window.resetsAt, timestampFormat, now),
+              })}
             </span>
           ) : null}
-          {pace ? <span className="text-muted-foreground">{PACE_LABEL[pace]}</span> : null}
+          {pace ? (
+            <span className="text-muted-foreground">{messages(PACE_LABEL[pace])}</span>
+          ) : null}
         </>
       }
     />
@@ -119,6 +127,7 @@ function UsageRow({
   /** Replaces the percentage when there is none. */
   readonly value?: string | undefined;
 }) {
+  const gt = useGT();
   const tone = left === null ? null : left <= 10 ? "error" : left <= 20 ? "warning" : null;
   return (
     <Tooltip>
@@ -126,7 +135,7 @@ function UsageRow({
         render={
           <div
             tabIndex={0}
-            aria-label={`${label}: ${value ?? `${left}% left`}`}
+            aria-label={`${label}: ${value ?? gt("{left}% left", { left })}`}
             className="col-span-3 grid h-6 cursor-default grid-cols-subgrid items-center rounded-lg px-2.5 outline-none hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-popup-open:bg-black/[0.035] dark:hover:bg-white/[0.08] dark:data-popup-open:bg-white/[0.08]"
           />
         }

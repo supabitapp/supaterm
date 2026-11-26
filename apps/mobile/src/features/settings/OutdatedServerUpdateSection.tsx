@@ -20,6 +20,7 @@ import {
   releaseCheckError,
   releaseCheckValue,
 } from "./environmentUpdateCheck";
+import { useGT, useMessages } from "gt-react-native";
 
 export function OutdatedServerUpdateSection({
   environmentId,
@@ -30,6 +31,8 @@ export function OutdatedServerUpdateSection({
   readonly label: string;
   readonly updatesDenial: string | undefined;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const describe = useAtomCommand(describeOutdatedServer, { reportFailure: false });
   const update = useAtomCommand(updateOutdatedServer, { reportFailure: false });
   const state = useAtomValue(serverEnvironment.updateStateAtom(environmentId));
@@ -55,12 +58,15 @@ export function OutdatedServerUpdateSection({
     const targetVersion = release?.targetVersion;
     if (busy || !release || !targetVersion) return;
     Dialog.alert(
-      `Update ${label}?`,
-      `Install Supaterm ${targetVersion}. Supaterm restarts on that machine and reconnects. Running threads may be interrupted.`,
+      gt("Update {environment}?", { environment: label }),
+      gt(
+        "Install {product} {version}. {product} restarts on that machine and reconnects. Running threads may be interrupted.",
+        { product: "Supaterm", version: targetVersion },
+      ),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: gt("Cancel"), style: "cancel" },
         {
-          text: "Update",
+          text: gt("Update", { $context: "verb, install an update" }),
           onPress: () => {
             setCheckErrorDismissed(true);
             void update({
@@ -78,34 +84,38 @@ export function OutdatedServerUpdateSection({
     <SettingsSection title="Supaterm">
       <View className="gap-1 p-4">
         <Text className="text-base text-foreground">
-          {release ? `Version ${release.fromVersion}` : "Update required"}
+          {release
+            ? gt("Version {version}", { version: release.fromVersion })
+            : gt("Update required")}
         </Text>
         <Text className="text-sm text-foreground-muted">
           {state.status === "running"
             ? state.stage === "resuming"
-              ? "Restarting and reconnecting…"
+              ? gt("Restarting and reconnecting…")
               : state.stage === "installing"
-                ? "Installing update…"
-                : "Downloading update…"
+                ? gt("Installing update…")
+                : gt("Downloading update…")
             : release
               ? release.targetVersion
-                ? `Version ${release.targetVersion} is available.`
-                : "No newer version is available yet."
-              : "This app needs a newer version of Supaterm on this machine."}
+                ? gt("Version {version} is available.", { version: release.targetVersion })
+                : gt("No newer version is available yet.")
+              : gt("This app needs a newer version of {product} on this machine.", {
+                  product: "Supaterm",
+                })}
         </Text>
         {updatesDenial ? (
           <Text className="text-sm text-foreground-muted">{updatesDenial}</Text>
         ) : null}
         {error || state.status === "failed" ? (
           <Text selectable accessibilityRole="alert" className="text-sm text-danger-foreground">
-            {error ?? (state.status === "failed" ? state.message : null)}
+            {error ?? (state.status === "failed" ? messages(state.message) : null)}
           </Text>
         ) : null}
       </View>
       {updatesDenial ? null : (
         <SettingsActionRow
           icon="arrow.clockwise"
-          label="Check for updates"
+          label={gt("Check for updates")}
           disabled={busy}
           loading={checking}
           onPress={check}
@@ -114,7 +124,11 @@ export function OutdatedServerUpdateSection({
       {release?.targetVersion && !updatesDenial ? (
         <SettingsActionRow
           icon="arrow.up.circle"
-          label={state.status === "failed" ? "Retry update" : `Update to ${release.targetVersion}`}
+          label={
+            state.status === "failed"
+              ? gt("Retry update")
+              : gt("Update to {version}", { version: release.targetVersion })
+          }
           disabled={busy}
           loading={state.status === "running"}
           onPress={requestUpdate}

@@ -1,6 +1,7 @@
 import type { RepositoryIdentity, SourceControlProviderError } from "@supaterm/contracts";
 import { parseGitRemoteHost } from "@supaterm/source-control-core/shared/definition";
 import { repositoryPathFromRemoteUrl } from "@supaterm/source-control-core/server/SourceControlProvider";
+import { withoutRemoteUrlCredentials } from "@supaterm/shared/cloneUrl";
 import {
   canonicalRepositoryPath,
   GH_RESOLVED_CONFIG_ARGS,
@@ -309,6 +310,18 @@ const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote"
   return remoteName && remoteUrl ? { remoteName, remoteUrl } : null;
 });
 
+// `git remote -v` applies url.*.insteadOf, which can point a GitHub remote at a proxy or mirror.
+// A configured URL that names a forge wins; a shorthand like `gh:` is known only once rewritten.
+function parseConfiguredRemoteUrls(config: string): Map<string, string> {
+  const urls = new Map<string, string>();
+  for (const line of config.split("\n")) {
+    const match = /^remote\.(\S+)\.url (.+)$/u.exec(line);
+    // Git fetches from the first of several configured URLs.
+    if (match?.[1] && match[2] && !urls.has(match[1])) urls.set(match[1], match[2]);
+  }
+  return urls;
+}
+
 const resolveRepositoryIdentityFromCacheKey = Effect.fn(
   "RepositoryIdentityResolver.resolveFromCacheKey",
 )(function* (
@@ -316,21 +329,39 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
 ): Effect.fn.Return<RepositoryIdentity | null, never, ProcessRunner.ProcessRunner> {
   const processRunner = yield* ProcessRunner.ProcessRunner;
   const env = gitEnv(yield* HostProcess.Platform);
-  const remoteResult = yield* processRunner
-    .run({
-      command: "git",
-      args: ["-C", cacheKey.rootPath, ...(cacheKey.isBare ? ["--git-dir=."] : []), "remote", "-v"],
-      env,
-      timeoutBehavior: "timedOutResult",
-    })
-    .pipe(Effect.option);
+  const runGit = (args: ReadonlyArray<string>) =>
+    processRunner
+      .run({
+        command: "git",
+        args: ["-C", cacheKey.rootPath, ...(cacheKey.isBare ? ["--git-dir=."] : []), ...args],
+        env,
+        timeoutBehavior: "timedOutResult",
+      })
+      .pipe(Effect.option);
+  const [remoteResult, configResult] = yield* Effect.all(
+    [runGit(["remote", "-v"]), runGit(["config", "--get-regexp", "^remote\\..*\\.url$"])],
+    { concurrency: "unbounded" },
+  );
   if (remoteResult._tag === "None" || remoteResult.value.code !== 0) {
     return null;
   }
 
+  // Exits 1 when no key matches.
+  const configuredUrls = parseConfiguredRemoteUrls(
+    configResult._tag === "Some" && configResult.value.code === 0 ? configResult.value.stdout : "",
+  );
   const remotes = new Map(
-    [...parseGitRemoteFetchUrls(remoteResult.value.stdout)].filter(
-      ([, url]) => !isLocalRemoteUrl(url),
+    [...parseGitRemoteFetchUrls(remoteResult.value.stdout)].flatMap(
+      ([remoteName, fetchUrl]): Array<[string, string]> => {
+        const configuredUrl = configuredUrls.get(remoteName);
+        const url =
+          configuredUrl !== undefined &&
+          (sourceControlDefinitions.recognizeRemote(configuredUrl)?.kind ?? "unknown") !== "unknown"
+            ? configuredUrl
+            : fetchUrl;
+        // The identity names the remote, not the login used to reach it.
+        return isLocalRemoteUrl(url) ? [] : [[remoteName, withoutRemoteUrlCredentials(url)]];
+      },
     ),
   );
   const remote =

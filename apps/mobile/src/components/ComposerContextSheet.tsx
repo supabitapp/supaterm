@@ -31,6 +31,8 @@ import { AppText as Text } from "./ui/AppText";
 import { Sheet } from "./ui/Sheet";
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { getMobileTerminalTheme } from "../features/terminal/terminalTheme";
+import { changeRequestTermKind } from "../lib/changeRequestTerm";
+import { T, useGT, Var } from "gt-react-native";
 
 function ContextField(props: { label: string; value: string | null | undefined; code?: boolean }) {
   if (!props.value) return null;
@@ -62,6 +64,7 @@ function ContextField(props: { label: string; value: string | null | undefined; 
 }
 
 function ContextSource(props: { source: ElementContextSource | null }) {
+  const gt = useGT();
   const source = props.source;
   if (!source) return null;
   const location = source.fileName
@@ -69,7 +72,7 @@ function ContextSource(props: { source: ElementContextSource | null }) {
     : null;
   return (
     <ContextField
-      label="Source"
+      label={gt("Source", { $context: "where an element is defined in source code" })}
       value={[source.functionName, location].filter(Boolean).join("\n")}
       code
     />
@@ -91,6 +94,7 @@ export function ComposerContextSheet(props: {
   readonly records?: ReadonlyArray<ComposerContextRecord>;
   readonly attachments?: ReadonlyArray<DraftComposerAttachment>;
 }) {
+  const gt = useGT();
   const openPullRequest = useOpenPullRequest({
     context:
       props.environmentId && props.projectId
@@ -184,10 +188,12 @@ export function ComposerContextSheet(props: {
     record?.kind === "review-comment" && "pullRequest" in record
       ? record.pullRequest?.url
       : undefined;
-  const changeRequestTerm = (
-    (pullRequestUrl ? sourceControlClients.findByChangeRequestUrl(pullRequestUrl) : undefined) ??
-    sourceControlClients.get(undefined)
-  ).changeRequest.singular;
+  const term = changeRequestTermKind(
+    (
+      (pullRequestUrl ? sourceControlClients.findByChangeRequestUrl(pullRequestUrl) : undefined) ??
+      sourceControlClients.get(undefined)
+    ).changeRequest,
+  );
   const terminal = record?.kind === "terminal" && !("payload" in record) ? record : null;
   return (
     <Sheet title={terminal?.terminalLabel ?? props.label} onClose={props.onClose}>
@@ -204,18 +210,24 @@ export function ComposerContextSheet(props: {
       >
         {terminal ? (
           <Text className="text-sm text-foreground-muted">
-            Lines {terminal.lineStart}–{terminal.lineEnd}
+            <T>
+              Lines <Var>{terminal.lineStart}</Var>–<Var>{terminal.lineEnd}</Var>
+            </T>
           </Text>
         ) : null}
         {!record ? (
           <Text className="text-foreground">
-            Context unavailable. The reference was copied without its payload. Copy it again from
-            the original message or remove it.
+            <T>
+              Context unavailable. The reference was copied without its payload. Copy it again from
+              the original message or remove it.
+            </T>
           </Text>
         ) : "payload" in record ? (
           <Text className="text-foreground">
-            This context type is not supported by this version of the app. Its payload will be
-            preserved when sent.
+            <T>
+              This context type is not supported by this version of the app. Its payload will be
+              preserved when sent.
+            </T>
           </Text>
         ) : (
           <>
@@ -264,53 +276,85 @@ export function ComposerContextSheet(props: {
             ) : null}
             {record.kind === "preview-annotation" ? (
               <>
-                <ContextField label="Page" value={record.pageTitle ?? record.pageUrl} />
+                <ContextField
+                  label={gt("Page", { $context: "web page" })}
+                  value={record.pageTitle ?? record.pageUrl}
+                />
                 <ContextField label="URL" value={record.pageUrl} />
-                <ContextField label="Comment" value={record.comment} />
-                <ContextField label="Selection" value={record.targetSummary} />
-                <ContextField label="Requested changes" value={record.styleChanges.join("\n")} />
+                <ContextField label={gt("Comment", { $context: "noun" })} value={record.comment} />
+                <ContextField
+                  label={gt("Selection", { $context: "selected part of a web page" })}
+                  value={record.targetSummary}
+                />
+                <ContextField
+                  label={gt("Requested changes")}
+                  value={record.styleChanges.join("\n")}
+                />
                 {withOccurrenceKeys(
                   record.elements ?? [],
                   (element) => element.selector ?? element.tagName,
                 ).map(({ item: element, key }) => (
                   <View key={key} className="gap-3">
                     <ContextField
-                      label="Element"
+                      label={gt("Element", { $context: "HTML element on a web page" })}
                       value={element.componentName ?? element.tagName}
                     />
-                    <ContextField label="Selector" value={element.selector} code />
+                    <ContextField
+                      label={gt("Selector", { $context: "CSS selector" })}
+                      value={element.selector}
+                      code
+                    />
                     <ContextSource source={element.source} />
                     <ContextField label="HTML" value={element.htmlPreview} code />
-                    <ContextField label="Styles" value={element.styles} code />
+                    <ContextField
+                      label={gt("Styles", { $context: "CSS styles" })}
+                      value={element.styles}
+                      code
+                    />
                   </View>
                 ))}
               </>
             ) : null}
             {record.kind === "element" ? (
               <>
-                <ContextField label="Page" value={record.pageUrl} />
-                <ContextField label="Element" value={record.componentName ?? record.tagName} />
-                <ContextField label="Selector" value={record.selector} code />
+                <ContextField label={gt("Page", { $context: "web page" })} value={record.pageUrl} />
+                <ContextField
+                  label={gt("Element", { $context: "HTML element on a web page" })}
+                  value={record.componentName ?? record.tagName}
+                />
+                <ContextField
+                  label={gt("Selector", { $context: "CSS selector" })}
+                  value={record.selector}
+                  code
+                />
                 <ContextSource source={record.source} />
                 <ContextField label="HTML" value={record.htmlPreview} code />
-                <ContextField label="Styles" value={record.styles} code />
+                <ContextField
+                  label={gt("Styles", { $context: "CSS styles" })}
+                  value={record.styles}
+                  code
+                />
               </>
             ) : null}
             {record.kind === "image" ? (
               <ContextField
-                label="File"
+                label={gt("File", { $context: "noun" })}
                 value={`${record.mimeType} · ${formatAttachmentSize(record.sizeBytes)}`}
               />
             ) : null}
             {record.kind === "mention" ? (
-              <ContextField label="Path" value={record.path} code />
+              <ContextField
+                label={gt("Path", { $context: "file path" })}
+                value={record.path}
+                code
+              />
             ) : null}
             {record.kind === "thread" ? (
               <View className="gap-3">
-                <ContextField label="Thread" value={record.title} />
+                <ContextField label={gt("Thread", { $context: "noun" })} value={record.title} />
                 {props.onOpenThread ? (
                   <Button
-                    label="Open thread"
+                    label={gt("Open thread")}
                     tone="secondary"
                     onPress={() =>
                       props.onOpenThread?.({
@@ -325,32 +369,40 @@ export function ComposerContextSheet(props: {
             ) : null}
             {record.kind === "model" ? (
               <>
-                <ContextField label="Provider" value={record.providerName} />
-                <ContextField label="Model" value={record.model} code />
+                <ContextField label={gt("Provider")} value={record.providerName} />
+                <ContextField label={gt("Model")} value={record.model} code />
               </>
             ) : null}
             {record.kind === "environment" ? (
-              <ContextField label="Machine" value={record.label} />
+              <ContextField label={gt("Machine", { $context: "computer" })} value={record.label} />
             ) : null}
             {record.kind === "response" ? (
               <>
                 <ContextField
-                  label="Subagent"
+                  label={gt("Subagent")}
                   value={record.subagents?.map((subagent) => subagent.title).join(", ")}
                 />
-                <ContextField label="Response" value={record.citation.text} />
+                <ContextField
+                  label={gt("Response", { $context: "noun" })}
+                  value={record.citation.text}
+                />
               </>
             ) : null}
             {record.kind === "skill" ? (
               <View className="gap-3">
-                <ContextField label="Skill" value={record.name} />
                 <ContextField
-                  label="Description"
-                  value={props.skillDescription ?? "No description is available for this skill."}
+                  label={gt("Skill", { $context: "agent skill" })}
+                  value={record.name}
+                />
+                <ContextField
+                  label={gt("Description")}
+                  value={
+                    props.skillDescription ?? gt("No description is available for this skill.")
+                  }
                 />
                 {props.onOpenSkill ? (
                   <Button
-                    label="View instructions"
+                    label={gt("View instructions")}
                     tone="secondary"
                     onPress={props.onOpenSkill}
                     fullWidth
@@ -381,17 +433,28 @@ export function ComposerContextSheet(props: {
             onPress={() => {
               props.onClose();
               void openPullRequest(pullRequestUrl).catch(() =>
-                Dialog.alert(`Could not open ${changeRequestTerm}`, "Try again when connected."),
+                Dialog.alert(
+                  gt(
+                    "Could not open {term, select, mr {merge request} cr {change request} other {pull request}}",
+                    { term },
+                  ),
+                  gt("Try again when connected."),
+                ),
               );
             }}
             className="rounded-xl bg-subtle p-4"
           >
-            <Text className="text-foreground">Open {changeRequestTerm}</Text>
+            <Text className="text-foreground">
+              {gt(
+                "Open {term, select, mr {merge request} cr {change request} other {pull request}}",
+                { term },
+              )}
+            </Text>
           </Pressable>
         ) : null}
         {props.onOpenAttachment ? (
           <Button
-            label="Open attachment"
+            label={gt("Open attachment")}
             tone="secondary"
             onPress={props.onOpenAttachment}
             fullWidth
@@ -399,14 +462,22 @@ export function ComposerContextSheet(props: {
         ) : null}
         {props.onOpenPullRequest && !pullRequestUrl ? (
           <Button
-            label={`Open ${changeRequestTerm}`}
+            label={gt(
+              "Open {term, select, mr {merge request} cr {change request} other {pull request}}",
+              { term },
+            )}
             tone="secondary"
             onPress={props.onOpenPullRequest}
             fullWidth
           />
         ) : null}
         {props.onRemove ? (
-          <Button label="Remove from draft" tone="secondary" onPress={props.onRemove} fullWidth />
+          <Button
+            label={gt("Remove from draft")}
+            tone="secondary"
+            onPress={props.onRemove}
+            fullWidth
+          />
         ) : null}
       </ScrollView>
     </Sheet>

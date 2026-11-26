@@ -6,6 +6,8 @@ import { optimisticThreadCreationShell } from "@supaterm/client-runtime/state/th
 import type { OrchestrationV2ThreadShell } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import type { PendingThreadTurn } from "./threadOutbox";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 // ChatView resets its retained creation during render whenever this identity
 // changes, so one outbox entry must always present as the same object.
@@ -45,7 +47,7 @@ function presentPendingThreadCreation(entry: PendingThreadTurn) {
     message,
     outcome:
       entry.status === "failed"
-        ? { kind: "failed", message, reason: entry.error ?? "Could not start the thread." }
+        ? { kind: "failed", message, reason: entry.error ?? m(msg("Could not start the thread.")) }
         : entry.status === "delivered"
           ? { kind: "delivered", message }
           : null,

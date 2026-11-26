@@ -3,6 +3,8 @@ import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
 import { ThreadId, TrimmedNonEmptyString, TrimmedString } from "./baseSchemas.ts";
+import { SecretReference } from "./secretReference.ts";
+import { SettingsSecretValue } from "./settingsSecretValue.ts";
 
 export const DevicePlatform = Schema.Literals(["ios", "android"]);
 export type DevicePlatform = typeof DevicePlatform.Type;
@@ -29,22 +31,18 @@ export const SshDeviceHostConfig = Schema.Struct({
 });
 export type SshDeviceHostConfig = typeof SshDeviceHostConfig.Type;
 
-/**
- * Cloud simulators from Expo Simulators. Sessions bill the Expo account until
- * they stop, so every one is bounded. The Expo credential is not stored here.
- */
-export const EasDeviceHostConfig = Schema.Struct({
+const easDeviceHostFields = {
   kind: Schema.Literal("eas"),
   id: ConfiguredDeviceHostId,
   label: TrimmedNonEmptyString,
   /** Expo project that sessions run under, when the project's app config does not name one. */
   appId: Schema.optional(TrimmedNonEmptyString),
   /**
-   * Expo access token, kept in the secret store. When empty the server uses
-   * EXPO_TOKEN, then the `eas login` session. This is `secretSetting` from
-   * settings.ts, which imports this module.
+   * Expo access token, kept in the secret store, or the secret provider to read
+   * it from. When empty the server uses EXPO_TOKEN, then the `eas login` session.
+   * This is `secretSetting` from settings.ts, which imports this module.
    */
-  accessToken: TrimmedString.pipe(
+  accessToken: SettingsSecretValue.pipe(
     Schema.withDecodingDefaultKey(Effect.succeed("")),
     Schema.annotateKey({ settingsSecret: true }),
   ),
@@ -58,7 +56,13 @@ export const EasDeviceHostConfig = Schema.Struct({
   maxConcurrentSessions: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed(2)),
   ),
-}).check(
+};
+
+/**
+ * Cloud simulators from Expo Simulators. Sessions bill the Expo account until
+ * they stop, so every one is bounded. The Expo credential is not stored here.
+ */
+export const EasDeviceHostConfig = Schema.Struct(easDeviceHostFields).check(
   // Expo requires the idle limit to be smaller than the session limit.
   Schema.makeFilter(
     (host: { readonly idleMinutes: number; readonly maxSessionMinutes: number }) =>
@@ -83,12 +87,34 @@ export const SshDeviceHostConfigs = Schema.Array(SshDeviceHostConfig).check(uniq
  * Expo hosts decode `deviceHosts` as SSH hosts and would reject the whole file
  * or snapshot over one Expo entry.
  */
-export const EasDeviceHostConfigs = Schema.Array(EasDeviceHostConfig).check(uniqueHostIds);
+// A reference is stored beside an empty token, so servers from before references still read
+// settings.json; a token they cannot decode would make them ignore the whole file.
+const StoredEasDeviceHost = Schema.Struct({
+  ...easDeviceHostFields,
+  accessToken: TrimmedString.pipe(Schema.withDecodingDefaultKey(Effect.succeed(""))),
+  accessTokenSecret: Schema.optionalKey(SecretReference),
+});
+
+const StoredEasDeviceHostConfig = StoredEasDeviceHost.pipe(
+  Schema.decodeTo(
+    Schema.toType(EasDeviceHostConfig),
+    SchemaTransformation.transform<EasDeviceHostConfig, typeof StoredEasDeviceHost.Type>({
+      decode: ({ accessTokenSecret, ...host }) =>
+        accessTokenSecret === undefined ? host : { ...host, accessToken: accessTokenSecret },
+      encode: ({ accessToken, ...host }) =>
+        typeof accessToken === "string"
+          ? { ...host, accessToken }
+          : { ...host, accessToken: "", accessTokenSecret: accessToken },
+    }),
+  ),
+);
+
+export const EasDeviceHostConfigs = Schema.Array(StoredEasDeviceHostConfig).check(uniqueHostIds);
 
 export const DeviceEasAccountInput = Schema.Struct({
   /** A saved Expo host whose stored token is checked when no new token is given. */
   hostId: Schema.optional(DeviceHostId),
-  accessToken: Schema.optional(TrimmedString),
+  accessToken: Schema.optional(SettingsSecretValue),
 });
 export type DeviceEasAccountInput = typeof DeviceEasAccountInput.Type;
 

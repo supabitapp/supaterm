@@ -21,4 +21,4 @@ export * as Wakeups from "./wakeups.ts";
 export { OutdatedHostUpdateError } from "./outdatedHostUpdate.ts";
 export * from "./routes.ts";
 // Flat so the shared session atoms' inferred types can name their result.
-export type { ConnectionRouteLatency } from "./routeLatency.ts";
+export { connectionRouteLatencyLabel, type ConnectionRouteLatency } from "./routeLatency.ts";

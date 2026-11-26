@@ -11,11 +11,11 @@ import { ClaudeSettings, type ServerProvider } from "@supaterm/contracts";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
-import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import {
   buildClaudeCapabilitiesProbeQueryOptions,
@@ -179,8 +179,11 @@ it.effect("records an SDK failure without exposing the rejection message", () =>
       decodeClaudeSettings({ binaryPath: "claude" }),
     ).pipe(Effect.result);
     assert.equal(Result.isFailure(result), true);
-    if (Result.isFailure(result)) assert.equal(result.failure._tag, "UnknownError");
-    assert.deepEqual(messages, [["Claude capability probe failed.", { errorTag: "UnknownError" }]]);
+    if (Result.isFailure(result))
+      assert.equal(result.failure._tag, "ClaudeCapabilitiesProbeSdkError");
+    assert.deepEqual(messages, [
+      ["Claude capability probe failed.", { errorTag: "ClaudeCapabilitiesProbeSdkError" }],
+    ]);
     assert.equal(JSON.stringify(messages).includes("secret-sdk-output"), false);
   }).pipe(Effect.scoped, Effect.provide([NodeServices.layer, Logger.layer([logger])]));
 });
@@ -253,7 +256,7 @@ it.effect("keeps the probe subprocess alive while gateway model discovery can fi
     );
     const capabilities = yield* probeClaudeCapabilities(
       decodeClaudeSettings({ binaryPath: "claude" }),
-      { PATH: process.env.PATH, CLAUDE_CONFIG_DIR: configDir },
+      { PATH: (yield* HostProcess.Environment).PATH, CLAUDE_CONFIG_DIR: configDir },
     );
     assert.deepEqual(
       capabilities.models?.map((model) => model.value),

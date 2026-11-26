@@ -19,6 +19,7 @@ import { openCommandPalette } from "../../commandPaletteBus";
 import { isElectron } from "../../env";
 import { useStartTriage, useTriageEnvironmentId } from "../../hooks/useStartTriage";
 import { useShortcutLabel } from "../../hooks/useShortcutLabel";
+import { m } from "../../i18n/messages";
 import { formatShortcutLabel } from "../../keybindings";
 import { cn } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
@@ -27,7 +28,7 @@ import {
   useCanNavigateHistory,
   type HistoryDirection,
 } from "../../navigationHistory";
-import { usePullRequestsSupported } from "../../state/environments";
+import { useIssuesSupported, usePullRequestsSupported } from "../../state/environments";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import {
@@ -41,6 +42,8 @@ import {
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { readPullRequestListPreferences } from "../pullRequest/pullRequestListPreferences";
+import { readIssueListPreferences } from "../issue/issueListPreferences";
+import { IssueGlyph } from "../issue/issuePresentation";
 import { isSidebarUtilityPage, useNavigateToMainApp } from "./mainAppLocation";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
@@ -48,6 +51,7 @@ import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUp
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { sourceControlIcon } from "~/sourceControlPresentation";
 import { observeResize } from "~/lib/observeResize";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const GitHubIcon = sourceControlIcon(sourceControlClients.get("github"));
 
@@ -56,6 +60,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 }: {
   isElectron: boolean;
 }) {
+  const gt = useGT();
   return (
     <div
       className={cn(
@@ -65,7 +70,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
     >
       {/* From md up, the window-corner toggle sits where the in-flow trigger would be. */}
       <div className="relative top-[calc(var(--workspace-controls-top)-env(safe-area-inset-top))] ml-[calc(var(--workspace-controls-left)+1px-env(safe-area-inset-left))] flex min-w-0 flex-1 items-center md:ml-[calc(var(--workspace-controls-left)+1px+var(--workspace-titlebar-control-size))]">
-        <SidebarTrigger className="md:hidden" aria-label="Toggle main sidebar" />
+        <SidebarTrigger className="md:hidden" aria-label={gt("Toggle main sidebar")} />
         <SidebarSearchButton />
         {isElectron ? (
           <div className="ml-auto hidden md:flex">
@@ -108,21 +113,23 @@ export function SidebarHeaderWidthProbe({
 }
 
 export function MainSidebarToggle({ className }: { className?: string }) {
+  const gt = useGT();
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const shortcut = useShortcutLabel("sidebar.toggle", { context: { usagePageOpen } });
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<SidebarTrigger className={className} aria-label="Toggle main sidebar" />}
+        render={<SidebarTrigger className={className} aria-label={gt("Toggle main sidebar")} />}
       />
       <TooltipPopup side="bottom" shortcut={shortcut}>
-        Toggle main sidebar
+        {gt("Toggle main sidebar")}
       </TooltipPopup>
     </Tooltip>
   );
 }
 
 function SidebarSearchButton() {
+  const gt = useGT();
   const { isMobile, setOpenMobile } = useSidebar();
   const shortcut = useShortcutLabel("commandPalette.toggle");
   return (
@@ -130,7 +137,7 @@ function SidebarSearchButton() {
       <TooltipTrigger
         render={
           <Button
-            aria-label="Search"
+            aria-label={gt("Search")}
             onClick={() => {
               // The palette is a dialog over the whole app, so the sidebar sheet closes first.
               if (isMobile) setOpenMobile(false);
@@ -144,19 +151,21 @@ function SidebarSearchButton() {
         <SearchIcon />
       </TooltipTrigger>
       <TooltipPopup side="bottom" shortcut={shortcut}>
-        Search
+        <T>Search</T>
       </TooltipPopup>
     </Tooltip>
   );
 }
 
 const HISTORY_BUTTONS = {
-  back: { label: "Go back", command: "navigation.back", Icon: ArrowLeftIcon },
-  forward: { label: "Go forward", command: "navigation.forward", Icon: ArrowRightIcon },
+  back: { label: msg("Go back"), command: "navigation.back", Icon: ArrowLeftIcon },
+  forward: { label: msg("Go forward"), command: "navigation.forward", Icon: ArrowRightIcon },
 } as const;
 
 function HistoryNavigationButton({ direction }: { direction: HistoryDirection }) {
-  const { label, command, Icon } = HISTORY_BUTTONS[direction];
+  const messages = useMessages();
+  const { command, Icon } = HISTORY_BUTTONS[direction];
+  const label = messages(HISTORY_BUTTONS[direction].label);
   const enabled = useCanNavigateHistory(direction);
   const shortcut = useShortcutLabel(command);
   return (
@@ -218,10 +227,11 @@ function SidebarUtilityItem({
 function openExternalLink(url: string) {
   void readLocalApi()
     ?.shell.openExternal(url)
-    .catch(() => toastManager.add({ type: "error", title: "Unable to open the link" }));
+    .catch(() => toastManager.add({ type: "error", title: m(msg("Unable to open the link")) }));
 }
 
 function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => void }) {
+  const gt = useGT();
   const startTriage = useStartTriage();
   const triageEnvironmentId = useTriageEnvironmentId();
 
@@ -230,11 +240,15 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
       <Menu>
         <Tooltip>
           <TooltipTrigger
-            render={<MenuTrigger render={<SidebarMenuButton aria-label="Help" size="icon" />} />}
+            render={
+              <MenuTrigger render={<SidebarMenuButton aria-label={gt("Help")} size="icon" />} />
+            }
           >
             <CircleHelpIcon />
           </TooltipTrigger>
-          <TooltipPopup side="top">Help</TooltipPopup>
+          <TooltipPopup side="top">
+            <T>Help</T>
+          </TooltipPopup>
         </Tooltip>
         <MenuPopup side="top" align="end">
           <MenuItem
@@ -246,7 +260,7 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
             }}
           >
             <MessageSquareTextIcon />
-            Send feedback
+            <T>Send feedback</T>
           </MenuItem>
           <MenuItem onClick={() => openExternalLink(WEBSITE_URL)}>
             <GlobeIcon />
@@ -254,7 +268,7 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
           </MenuItem>
           <MenuItem onClick={() => openExternalLink(SOURCE_CODE_URL)}>
             <GitHubIcon />
-            View source on GitHub
+            <T>View source on GitHub</T>
           </MenuItem>
         </MenuPopup>
       </Menu>
@@ -265,11 +279,13 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
 const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigate = useNavigate();
   const navigateToMainApp = useNavigateToMainApp();
+  const gt = useGT();
   const { isMobile, setOpenMobile } = useSidebar();
   const isOnUtilityPage = useLocation({
     select: (location) => isSidebarUtilityPage(location.pathname),
   });
   const pullRequestsSupported = usePullRequestsSupported();
+  const issuesSupported = useIssuesSupported();
   const usageShortcut = useShortcutLabel("usage.open");
   const settingsShortcut = isElectron ? formatShortcutLabel(DESKTOP_SETTINGS_SHORTCUT) : null;
   const closeMobileSidebar = () => {
@@ -283,6 +299,10 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
       to: "/pull-requests",
       search: readPullRequestListPreferences(),
     });
+  };
+  const handleIssuesClick = () => {
+    closeMobileSidebar();
+    void navigate({ to: "/issues", search: readIssueListPreferences() });
   };
   const handleSettingsClick = () => {
     closeMobileSidebar();
@@ -307,7 +327,9 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
         <SidebarMenuItem className="min-w-0 flex-1">
           <SidebarMenuButton onClick={handleBackClick}>
             <ArrowLeftIcon />
-            <span>Back</span>
+            <span>
+              <T>Back</T>
+            </span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       ) : null}
@@ -315,20 +337,27 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
         <>
           <SidebarUtilityItem
             icon={<SettingsIcon />}
-            label="Settings"
+            label={gt("Settings")}
             shortcut={settingsShortcut}
             onClick={handleSettingsClick}
           />
           {pullRequestsSupported ? (
             <SidebarUtilityItem
               icon={<PullRequestGlyph.pullRequest />}
-              label="Pull requests"
+              label={gt("Pull requests")}
               onClick={handlePullRequestsClick}
+            />
+          ) : null}
+          {issuesSupported ? (
+            <SidebarUtilityItem
+              icon={<IssueGlyph.issue />}
+              label={gt("Issues", { $context: "sidebar link to the list of issues" })}
+              onClick={handleIssuesClick}
             />
           ) : null}
           <SidebarUtilityItem
             icon={<ChartColumnIcon />}
-            label="Usage"
+            label={gt("Usage")}
             shortcut={usageShortcut}
             onClick={handleUsageClick}
           />

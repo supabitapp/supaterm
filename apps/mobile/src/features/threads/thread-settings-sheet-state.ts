@@ -5,7 +5,7 @@ export function modelFavoriteKey(provider: ProviderInstanceId, model: string): s
   return `${provider}:${model}`;
 }
 
-export function favoritesFirst(
+function favoritesFirst(
   models: ReadonlyArray<ModelOption>,
   favoriteKeys: ReadonlySet<string>,
 ): ReadonlyArray<ModelOption> {
@@ -17,7 +17,7 @@ export function favoritesFirst(
   return [...favorites, ...others];
 }
 
-export function modelMatchesCatalogQuery(input: {
+function modelMatchesCatalogQuery(input: {
   readonly model: ModelOption;
   readonly providerLabel: string;
   readonly query: string;
@@ -33,6 +33,36 @@ export function modelMatchesCatalogQuery(input: {
     input.model.selection.model,
     input.providerLabel,
   ].some((value) => value.toLocaleLowerCase().includes(query));
+}
+
+export function visibleCatalogModels(input: {
+  readonly models: ReadonlyArray<ModelOption>;
+  readonly providerLabel: string;
+  readonly query: string;
+  readonly favoriteKeys: ReadonlySet<string>;
+  readonly favoritesOnly: boolean;
+  readonly showLegacy: boolean;
+  readonly isDisplayed: (model: ModelOption) => boolean;
+}): ReadonlyArray<ModelOption> {
+  const catalogModels =
+    input.showLegacy || input.favoritesOnly || input.query.trim().length > 0
+      ? input.models
+      : input.models.filter(
+          (model) =>
+            !model.isLegacy || input.isDisplayed(model) || input.favoriteKeys.has(model.key),
+        );
+  return favoritesFirst(
+    catalogModels.filter(
+      (model) =>
+        (!input.favoritesOnly || input.favoriteKeys.has(model.key)) &&
+        modelMatchesCatalogQuery({
+          model,
+          providerLabel: input.providerLabel,
+          query: input.query,
+        }),
+    ),
+    input.favoriteKeys,
+  );
 }
 
 export function pendingModelAfterPress(input: {

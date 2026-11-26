@@ -14,6 +14,7 @@ const testState = vi.hoisted(() => ({
   projects: [] as Project[],
   projectFile: null as SupatermProjectFile | null,
   projectFileReads: 0,
+  heldProjectFile: null as Promise<SupatermProjectFile | null> | null,
   connectedEnvironmentIds: ["environment-local"] as string[],
 }));
 
@@ -38,12 +39,18 @@ vi.mock("../state/olderDoneShelf", () => ({ readUnloadedThreadCount: () => 0 }))
 vi.mock("./supatermProjectFileDefaults", () => ({
   readSupatermProjectFile: async () => {
     testState.projectFileReads += 1;
-    return testState.projectFile;
+    return testState.heldProjectFile ?? testState.projectFile;
   },
+  peekSupatermProjectFile: () => undefined,
 }));
 
 import { DraftId, useComposerDraftStore } from "../composerDraftStore";
-import { moveDraftToProject, resolveNewDraftWorkspace } from "./newDraftWorkspace";
+import {
+  moveDraftToProject,
+  openNewDraftWorkspace,
+  readPendingWorkspaceDefault,
+  resolveNewDraftWorkspace,
+} from "./newDraftWorkspace";
 
 const environmentId = EnvironmentId.make("environment-local");
 const draftId = DraftId.make("draft-move");
@@ -71,6 +78,7 @@ beforeEach(() => {
   testState.projects = [];
   testState.projectFile = null;
   testState.projectFileReads = 0;
+  testState.heldProjectFile = null;
   testState.connectedEnvironmentIds = ["environment-local"];
   useComposerDraftStore.setState({
     draftsByThreadKey: {},
@@ -179,5 +187,43 @@ describe("moveDraftToProject", () => {
       projectId: from.id,
       envMode: "worktree",
     });
+  });
+
+  it("keeps the destination default when the previous project's supaterm.json arrives late", async () => {
+    testState.projects = [from, to];
+    let releaseProjectFile: (file: SupatermProjectFile | null) => void = () => {};
+    testState.heldProjectFile = new Promise((resolve) => {
+      releaseProjectFile = resolve;
+    });
+    const opened = openNewDraftWorkspace(
+      scopeProjectRef(environmentId, from.id),
+      serverConfigWith({ defaultThreadEnvMode: null }),
+    );
+    useComposerDraftStore
+      .getState()
+      .setLogicalProjectDraftThreadId(
+        "from-repo",
+        scopeProjectRef(environmentId, from.id),
+        draftId,
+        { threadId: ThreadId.make("thread-move"), ...opened.workspace },
+      );
+    opened.applyProjectFile(draftId);
+    const fromProjectFileApplied = readPendingWorkspaceDefault(draftId);
+
+    moveDraftToProject({
+      draftId,
+      project: to,
+      logicalProjectKey: "to-repo",
+      workspace: { envMode: "local", startFromOrigin: false },
+    });
+    const sendWaitsOn = readPendingWorkspaceDefault(draftId);
+    releaseProjectFile({ defaultThreadEnvMode: "worktree" });
+    await fromProjectFileApplied;
+
+    expect(useComposerDraftStore.getState().getDraftSession(draftId)).toMatchObject({
+      projectId: to.id,
+      envMode: "local",
+    });
+    expect(sendWaitsOn).toBeNull();
   });
 });

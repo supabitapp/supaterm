@@ -30,6 +30,10 @@ import {
   type SupatermToolSummaryCall,
 } from "@supaterm/client-runtime/supatermToolSummary";
 
+import { supatermToolSentence } from "./supatermToolSentences.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
+
 export type WorkLogToolLifecycleStatus = RuntimeItemStatus | "stopped" | "idle";
 
 export function toolItemForDisplay(item: OrchestrationV2TurnItem): OrchestrationV2TurnItem {
@@ -69,15 +73,18 @@ export function contextCompactionTokenCounts(
   return { before: formatTokens(item.beforeTokenCount), after: formatTokens(item.afterTokenCount) };
 }
 
-export function contextCompactionLabel(item: CompactionLabelItem): string {
-  if (item.status === "failed") return "Context compaction failed";
+export function contextCompactionLabel(
+  item: CompactionLabelItem,
+  resolve: MFunctionType = mFallback,
+): string {
+  if (item.status === "failed") return resolve(msg("Context compaction failed"));
   if (item.status === "cancelled" || item.status === "interrupted")
-    return "Context compaction stopped";
-  if (isOrchestrationV2WorkActive(item.status)) return "Compacting context";
+    return resolve(msg("Context compaction stopped"));
+  if (isOrchestrationV2WorkActive(item.status)) return resolve(msg("Compacting context"));
   const tokens = contextCompactionTokenCounts(item);
   return tokens
-    ? `Context compacted ${tokens.before} → ${tokens.after} tokens`
-    : "Context compacted";
+    ? resolve(msg("Context compacted {before} → {after} tokens", tokens))
+    : resolve(msg("Context compacted"));
 }
 
 export interface WorkLogPresentationEntry {
@@ -165,26 +172,24 @@ function workEntryToolOutput(
     : (data?.output ?? data?.result ?? data?.rawOutput ?? data?.content);
 }
 
+function supatermToolStatusKey(status: string | undefined) {
+  return status === "inProgress" ||
+    status === "completed" ||
+    status === "failed" ||
+    status === "declined" ||
+    status === "stopped"
+    ? status
+    : "other";
+}
+
 function resolveSupatermMcpToolPresentation(
   definition: SupatermMcpToolDefinition | null,
   status: string | undefined,
   data?: unknown,
+  resolve: MFunctionType = mFallback,
 ) {
   if (!definition) return null;
-  const [action, running, completed, detail] = definition.labels;
-  const verb =
-    status === "inProgress"
-      ? running
-      : status === "completed"
-        ? completed
-        : status === "failed"
-          ? `Failed to ${action.toLowerCase()}`
-          : status === "declined"
-            ? `Declined to ${action.toLowerCase()}`
-            : status === "stopped"
-              ? `Stopped ${running.toLowerCase()}`
-              : running;
-
+  const detail = definition.labels[3];
   const actionKind =
     definition.summaryAction === "link-pr" ||
     definition.summaryAction === "unlink-pr" ||
@@ -201,16 +206,42 @@ function resolveSupatermMcpToolPresentation(
   const number = urlTarget?.link.number ?? input?.number;
   const { shortLabel } = (urlTarget?.definition ?? sourceControlClients.get(undefined))
     .changeRequest;
-  const target =
+  const pullRequestNumber =
     actionKind !== undefined &&
     actionKind !== "list-prs" &&
     typeof number === "number" &&
     Number.isSafeInteger(number) &&
     number > 0
-      ? `${shortLabel} #${number}`
-      : detail;
+      ? number
+      : null;
+  const sentence = supatermToolSentence(definition.labels);
+  const statusKey = supatermToolStatusKey(status);
+  // A tool added to the shared table after `supatermToolSentences.ts` was generated.
+  const [action, running, completed] = definition.labels;
+  const fallbackVerb =
+    status === "inProgress"
+      ? running
+      : status === "completed"
+        ? completed
+        : status === "failed"
+          ? `Failed to ${action.toLowerCase()}`
+          : status === "declined"
+            ? `Declined to ${action.toLowerCase()}`
+            : status === "stopped"
+              ? `Stopped ${running.toLowerCase()}`
+              : running;
+  const displayName =
+    sentence === undefined
+      ? `${fallbackVerb} ${pullRequestNumber === null ? detail : `${shortLabel} #${pullRequestNumber}`}`
+      : pullRequestNumber !== null && sentence.changeRequest !== undefined
+        ? resolve(sentence.changeRequest, {
+            status: statusKey,
+            changeRequest: shortLabel,
+            number: String(pullRequestNumber),
+          })
+        : resolve(sentence.detail, { status: statusKey });
   return {
-    displayName: `${verb} ${target}`,
+    displayName,
     icon: definition.icon,
     ...(actionKind === undefined ? {} : { action: actionKind }),
   };
@@ -224,16 +255,21 @@ export function liveActivityToolStatus(status: string | undefined, presentTense:
   return "completed";
 }
 
-function genericCommandStatusLabel(status: ReturnType<typeof liveActivityToolStatus>) {
-  return status === "inProgress"
-    ? "Running command"
-    : status === "failed"
-      ? "Failed command"
-      : status === "declined"
-        ? "Declined command"
-        : status === "stopped"
-          ? "Stopped command"
-          : "Ran command";
+export function genericCommandStatusLabel(
+  status: ReturnType<typeof liveActivityToolStatus>,
+  resolve: MFunctionType = mFallback,
+) {
+  return resolve(
+    status === "inProgress"
+      ? msg("Running command")
+      : status === "failed"
+        ? msg("Failed command")
+        : status === "declined"
+          ? msg("Declined command")
+          : status === "stopped"
+            ? msg("Stopped command")
+            : msg("Ran command"),
+  );
 }
 
 const GENERIC_COMMAND_TITLES = new Set(["Ran command", "Run command", "Command"]);
@@ -244,6 +280,7 @@ export function commandlessCommandLabel(
     "itemType" | "command" | "toolTitle" | "label" | "structuredPayload"
   >,
   status: ReturnType<typeof liveActivityToolStatus>,
+  resolve: MFunctionType = mFallback,
 ): string | null {
   if (entry.itemType !== "command_execution" || entry.command?.trim()) return null;
   // The provider's own title, before a client substitutes its fallback.
@@ -251,7 +288,7 @@ export function commandlessCommandLabel(
     entry.structuredPayload ? entry.structuredPayload.title : entry.toolTitle || entry.label
   )?.trim();
   return !title || GENERIC_COMMAND_TITLES.has(normalizeCompactToolLabel(title))
-    ? genericCommandStatusLabel(status)
+    ? genericCommandStatusLabel(status, resolve)
     : null;
 }
 
@@ -261,6 +298,7 @@ export function resolveWorkEntryToolPresentation(
     "label" | "toolTitle" | "toolData" | "toolLifecycleStatus" | "structuredPayload"
   >,
   fallbackStatus?: "inProgress" | "completed",
+  resolve: MFunctionType = mFallback,
 ) {
   const definition = resolveSupatermMcpToolDefinition(
     workEntryToolName(entry),
@@ -273,6 +311,7 @@ export function resolveWorkEntryToolPresentation(
       ? "failed"
       : status,
     entry.toolData,
+    resolve,
   );
 }
 
@@ -500,41 +539,84 @@ function toolGroupActionCount(
   return changedFiles.size + editsWithoutFileDetails;
 }
 
-function toolGroupActionLabel(action: ToolGroupAction, count: number): string {
-  const n = count.toLocaleString();
+// `#` keeps the locale's digit grouping, as the English label always had.
+function toolGroupActionLabel(
+  action: ToolGroupAction,
+  count: number,
+  resolve: MFunctionType,
+): string {
   switch (action) {
     case "link-pr":
-      return `Linked ${n} ${count === 1 ? "pull request" : "pull requests"}`;
+      return resolve(
+        msg("{count, plural, one {Linked # pull request} other {Linked # pull requests}}", {
+          count,
+        }),
+      );
     case "unlink-pr":
-      return `Unlinked ${n} ${count === 1 ? "pull request" : "pull requests"}`;
+      return resolve(
+        msg("{count, plural, one {Unlinked # pull request} other {Unlinked # pull requests}}", {
+          count,
+        }),
+      );
     case "watch-pr":
-      return `Watching ${n} ${count === 1 ? "pull request" : "pull requests"}`;
+      return resolve(
+        msg("{count, plural, one {Watching # pull request} other {Watching # pull requests}}", {
+          count,
+        }),
+      );
     case "unwatch-pr":
-      return `Stopped watching ${n} ${count === 1 ? "pull request" : "pull requests"}`;
+      return resolve(
+        msg(
+          "{count, plural, one {Stopped watching # pull request} other {Stopped watching # pull requests}}",
+          { count },
+        ),
+      );
     case "list-prs":
-      return count === 1
-        ? "Checked linked pull requests"
-        : `Checked linked pull requests ${n} times`;
+      return resolve(
+        msg(
+          "{count, plural, =1 {Checked linked pull requests} other {Checked linked pull requests # times}}",
+          { count },
+        ),
+      );
     case "read":
-      return `Read ${n} ${count === 1 ? "file" : "files"}`;
+      return resolve(msg("{count, plural, one {Read # file} other {Read # files}}", { count }));
     case "edit":
-      return `Changed ${n} ${count === 1 ? "file" : "files"}`;
+      return resolve(
+        msg("{count, plural, one {Changed # file} other {Changed # files}}", { count }),
+      );
     case "command":
-      return `Ran ${n} ${count === 1 ? "command" : "commands"}`;
+      return resolve(msg("{count, plural, one {Ran # command} other {Ran # commands}}", { count }));
     case "thread-create":
-      return `Created ${n} ${count === 1 ? "thread" : "threads"}`;
+      return resolve(
+        msg("{count, plural, one {Created # thread} other {Created # threads}}", { count }),
+      );
     case "device":
-      return `Used device controls ${n} ${count === 1 ? "time" : "times"}`;
+      return resolve(
+        msg(
+          "{count, plural, one {Used device controls # time} other {Used device controls # times}}",
+          { count },
+        ),
+      );
     case "browser":
-      return `Used browser ${n} ${count === 1 ? "time" : "times"}`;
+      return resolve(
+        msg("{count, plural, one {Used browser # time} other {Used browser # times}}", { count }),
+      );
     case "search":
-      return `Searched the web ${n} ${count === 1 ? "time" : "times"}`;
+      return resolve(
+        msg("{count, plural, one {Searched the web # time} other {Searched the web # times}}", {
+          count,
+        }),
+      );
     case "code-search":
-      return `Searched code ${n} ${count === 1 ? "time" : "times"}`;
+      return resolve(
+        msg("{count, plural, one {Searched code # time} other {Searched code # times}}", { count }),
+      );
     case "other":
-      return `Used ${n} ${count === 1 ? "tool" : "tools"}`;
+      return resolve(msg("{count, plural, one {Used # tool} other {Used # tools}}", { count }));
     case "update":
-      return `Received ${n} ${count === 1 ? "update" : "updates"}`;
+      return resolve(
+        msg("{count, plural, one {Received # update} other {Received # updates}}", { count }),
+      );
   }
 }
 
@@ -584,6 +666,7 @@ function summaryActionPriority(action: ToolGroupAction | SupatermMcpToolSummaryA
     case "project-delete":
     case "project-clone":
     case "environment-update":
+    case "theme-set":
     case "attachment-prepare":
     case "attachment-discard":
     case "attachment-send":
@@ -597,14 +680,20 @@ function summaryActionPriority(action: ToolGroupAction | SupatermMcpToolSummaryA
   }
 }
 
-export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEntry>): {
+export function summarizeToolGroup(
+  entries: ReadonlyArray<WorkLogPresentationEntry>,
+  resolve: MFunctionType = mFallback,
+): {
   summary: string;
   hasFailure: boolean;
 } {
   const toolEntries = entries.filter((entry) => entry.itemType !== "reasoning");
   if (entries.length > 0 && toolEntries.length === 0) {
     return {
-      summary: entries.length === 1 ? "Thought" : `Thought (×${entries.length.toLocaleString()})`,
+      summary:
+        entries.length === 1
+          ? resolve(msg("Thought", { $context: "noun, a reasoning step" }))
+          : resolve(msg("Thought (×{count})", { count: entries.length.toLocaleString() })),
       hasFailure: false,
     };
   }
@@ -643,6 +732,7 @@ export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEnt
           label: toolGroupActionLabel(
             group.action,
             toolGroupActionCount(group.action, group.entries),
+            resolve,
           ),
           failedCount: group.entries.filter(workEntryDisplayIndicatesToolFailure).length,
         }),

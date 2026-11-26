@@ -1,9 +1,8 @@
 # Updating Supaterm
 
 The app you use and the server running your agents can be on different machines.
-When a server is behind your web or desktop app, an update notice appears in the
-conversation and **Settings → Environments**. Update the machine named in that
-notice. A server installed with the `supaterm` command stays on its release
+When a server is behind your web or desktop app, the update button at the bottom
+of the sidebar and **Settings → Environments** offer to update it. A server installed with the `supaterm` command stays on its release
 channel, so a nightly app does not offer to update a stable server unless the
 server is too old to connect. To switch it, run
 `supaterm update --channel nightly` on its host.
@@ -27,8 +26,7 @@ finishes on its own, and the button keeps showing it after the desktop app
 restarts.
 
 The confirmation lists each machine it skips and why, such as a machine that is
-offline or needs a manual update. Use the notice or **Settings → Environments**
-for those.
+offline or needs a manual update. Use **Settings → Environments** for those.
 
 If a desktop app restarts on its old version, Supaterm tells you the update did
 not apply. It does not install that version again on its own, even when another
@@ -49,6 +47,12 @@ settings, and data stay.
 A background service cannot move to an older release remotely. When Stable is
 older than its Nightly, run `supaterm update --channel stable --allow-downgrade` on
 that machine.
+
+`--allow-downgrade`, like installing an older desktop app by hand, skips the
+database check below. The older release opens the database but drops what it
+does not know from any thread it changes, even by opening it: linked issues and
+the notice that a rewind left some repositories unrestored. Updating again does
+not bring them back.
 
 A switch is blocked for a machine whose database already has changes the
 target release does not support, or when Supaterm cannot confirm that it does.
@@ -75,7 +79,7 @@ Supaterm must start again on that machine;
 the setting does not enable automatic startup. Terminal commands may still be
 interrupted, and threads without saved provider resume state need a new message.
 A thread that finished its turn to wait on a subagent, a background task, a Claude
-monitor, or a command or other monitor the agent said it was waiting on is woken and told that this work
+monitor or `sleep` timer, or a command or other monitor the agent said it was waiting on is woken and told that this work
 stopped. Other background shells and monitors, such as a dev server and its
 watchdog, do not wake it; the thread learns about them with your next message.
 A thread is not resumed while it waits for your approval, answer, or secret, or

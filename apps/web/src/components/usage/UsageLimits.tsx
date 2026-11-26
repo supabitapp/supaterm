@@ -1,3 +1,4 @@
+import { resetCreditChoices, formatResetsIn } from "@supaterm/shared/usageLimitsCopy";
 import {
   AuthProvidersManageScope,
   type EnvironmentId,
@@ -11,13 +12,11 @@ import {
 import { useAtomValue } from "@effect/atom-react";
 import { normalizeProviderAccentColor } from "@supaterm/client-runtime/state/provider-instance-display";
 import {
-  formatResetsIn,
   type LimitPace,
   paceOf,
   paceRemainingPercent,
   remainingPercent,
   type ResetCreditChoice,
-  resetCreditChoices,
 } from "@supaterm/shared/usageLimits";
 import { GaugeIcon, TrendingDownIcon, TrendingUpIcon } from "@supaterm/icons";
 import { Fragment, useLayoutEffect, useState } from "react";
@@ -35,11 +34,18 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { UsageLimitsPooled } from "./UsageLimitsPooled";
 import { PROVIDER_PRESENTATION } from "./usageProviders";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const PACE: Record<LimitPace, { readonly label: string; readonly icon: typeof GaugeIcon }> = {
-  ahead: { label: "Ahead of pace: spending faster than the window elapses", icon: TrendingUpIcon },
-  on: { label: "On pace with the window", icon: GaugeIcon },
-  under: { label: "Under pace: headroom left for the rest of the window", icon: TrendingDownIcon },
+  ahead: {
+    label: msg("Ahead of pace: spending faster than the window elapses"),
+    icon: TrendingUpIcon,
+  },
+  on: { label: msg("On pace with the window"), icon: GaugeIcon },
+  under: {
+    label: msg("Under pace: headroom left for the rest of the window"),
+    icon: TrendingDownIcon,
+  },
 };
 
 export function barColor(driver: ServerProvider["driver"]): string {
@@ -50,6 +56,7 @@ export function barColor(driver: ServerProvider["driver"]): string {
 }
 
 export function PaceIcon({ pace }: { readonly pace: LimitPace }) {
+  const m = useMessages();
   const Icon = PACE[pace].icon;
   return (
     <Tooltip>
@@ -57,14 +64,14 @@ export function PaceIcon({ pace }: { readonly pace: LimitPace }) {
         render={
           <span
             role="img"
-            aria-label={PACE[pace].label}
+            aria-label={m(PACE[pace].label)}
             className="inline-flex text-muted-foreground"
           />
         }
       >
         <Icon className="size-3.5" aria-hidden />
       </TooltipTrigger>
-      <TooltipPopup side="top">{PACE[pace].label}</TooltipPopup>
+      <TooltipPopup side="top">{m(PACE[pace].label)}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -116,17 +123,34 @@ function WindowBar({
   readonly window: ServerProviderUsageWindow;
   readonly now: number;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
   const remaining = remainingPercent(window);
   const timeLeft = paceRemainingPercent(window, now);
   const [barRef, paceMark] = usePaceMark(timeLeft);
-  const resetsIn = formatResetsIn(window, now);
+  const resetsIn = formatResetsIn(window, now, m);
   const resetsAt = window.resetsAt
     ? formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)
     : null;
-  const summary = `${window.label}: ${remaining}% left${
-    timeLeft === null ? "" : `, ${timeLeft}% of the window left`
-  }${resetsIn ? `, ${resetsIn}` : ""}`;
+  const label = window.label;
+  const summary =
+    timeLeft === null
+      ? resetsIn
+        ? gt("{label}: {remaining}% left, {resetsIn}", { label, remaining, resetsIn })
+        : gt("{label}: {remaining}% left", { label, remaining })
+      : resetsIn
+        ? gt("{label}: {remaining}% left, {timeLeft}% of the window left, {resetsIn}", {
+            label,
+            remaining,
+            timeLeft,
+            resetsIn,
+          })
+        : gt("{label}: {remaining}% left, {timeLeft}% of the window left", {
+            label,
+            remaining,
+            timeLeft,
+          });
 
   return (
     <Tooltip>
@@ -162,15 +186,20 @@ function WindowBar({
       <TooltipPopup side="top">
         <div className="flex flex-col gap-0.5">
           <span className="text-foreground">
-            {remaining}% left{timeLeft !== null ? ` · ${timeLeft}% of the window left` : ""}
+            {timeLeft !== null
+              ? gt("{remaining}% left · {timeLeft}% of the window left", { remaining, timeLeft })
+              : gt("{remaining}% left", { remaining })}
           </span>
           {timeLeft !== null ? (
-            <span className="text-muted-foreground">The line is where even spending would be.</span>
+            <span className="text-muted-foreground">
+              <T>The line is where even spending would be.</T>
+            </span>
           ) : null}
           {resetsAt ? (
             <span className="text-muted-foreground">
-              Resets {resetsAt}
-              {resetsIn ? ` · ${resetsIn}` : ""}
+              {resetsIn
+                ? gt("Resets {resetsAt} · {resetsIn}", { resetsAt, resetsIn })
+                : gt("Resets {resetsAt}", { resetsAt })}
             </span>
           ) : null}
         </div>
@@ -192,6 +221,8 @@ export function LimitWindows({
   readonly now: number;
   readonly compact?: boolean;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const color = normalizeProviderAccentColor(accentColor) ?? barColor(driver);
   return (
     <div
@@ -203,13 +234,13 @@ export function LimitWindows({
     >
       {windows.map((window) => {
         const pace = paceOf(window, now);
-        const resetsIn = formatResetsIn(window, now);
+        const resetsIn = formatResetsIn(window, now, m);
         return (
           <Fragment key={window.id}>
             <span className="flex min-w-0 items-center gap-2 text-xs">
               <span className="truncate text-muted-foreground">{window.label}</span>
               <span className="ms-auto shrink-0 font-medium text-foreground tabular-nums">
-                {remainingPercent(window)}% left
+                {gt("{remaining}% left", { remaining: remainingPercent(window) })}
               </span>
             </span>
             <WindowBar color={color} window={window} now={now} />
@@ -225,13 +256,14 @@ export function LimitWindows({
 }
 
 const OUTCOME_TEXT: Record<ProviderConsumeResetCreditOutcome, string> = {
-  reset: "Reset applied. Your windows have cleared.",
-  nothingToReset: "Nothing to reset right now.",
-  noCredit: "No reset credit left.",
-  alreadyRedeemed: "That credit was already redeemed.",
+  reset: msg("Reset applied. Your windows have cleared."),
+  nothingToReset: msg("Nothing to reset right now."),
+  noCredit: msg("No reset credit left."),
+  alreadyRedeemed: msg("That credit was already redeemed."),
 };
 
 export function useResetCredit(environmentId: EnvironmentId) {
+  const m = useMessages();
   const canManageProviders = useEnvironmentScope(environmentId, AuthProvidersManageScope);
   const consume = useAtomCommand(serverEnvironment.consumeResetCredit, { reportFailure: false });
   const [busy, setBusy] = useState(false);
@@ -244,13 +276,13 @@ export function useResetCredit(environmentId: EnvironmentId) {
     const result = await consume({ environmentId, input: choice.input });
     setBusy(false);
     if (result._tag === "Success") {
-      setStatus(result.value.warning ?? OUTCOME_TEXT[result.value.outcome]);
+      setStatus(result.value.warning ?? m(OUTCOME_TEXT[result.value.outcome]));
       return;
     }
     setStatus(
       "error" in result.cause && result.cause.error instanceof Error
         ? result.cause.error.message
-        : "Could not use the reset credit.",
+        : m(msg("Could not use the reset credit.")),
     );
   };
 
@@ -268,6 +300,7 @@ export function ResetCreditButton({
   readonly onRedeem: () => void;
   readonly disabled?: boolean;
 }) {
+  const gt = useGT();
   const confirm = useInlineConfirm<"redeem">();
   const armed = confirm.armed === "redeem";
   return (
@@ -282,14 +315,18 @@ export function ResetCreditButton({
           >
             <InlineConfirmLabel
               armed={armed}
-              idle={busy ? "Using…" : choice.actionLabel}
-              confirm="Confirm reset"
+              idle={busy ? gt("Using…") : choice.actionLabel}
+              confirm={gt("Confirm reset")}
             />
           </Button>
         }
       />
       <TooltipPopup>
-        {armed ? `Click again to confirm. ${choice.confirmDescription}` : choice.confirmDescription}
+        {armed
+          ? gt("Click again to confirm. {description}", {
+              description: choice.confirmDescription,
+            })
+          : choice.confirmDescription}
       </TooltipPopup>
     </Tooltip>
   );
@@ -306,11 +343,12 @@ export function ResetCredits({
   readonly credits: ServerProviderResetCredits;
   readonly now: number;
 }) {
+  const m = useMessages();
   const { canManageProviders, busy, status, redeem } = useResetCredit(environmentId);
   if (credits.availableCount === 0 && status === null) return null;
   return (
     <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-      {resetCreditChoices(credits, input, now).map((choice) => (
+      {resetCreditChoices(credits, input, now, undefined, m).map((choice) => (
         <div key={choice.key} className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="tabular-nums">{choice.summary}</span>
           {choice.availableCount > 0 ? (

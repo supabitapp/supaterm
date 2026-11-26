@@ -27,7 +27,11 @@ const backoff = (lastFailure: ConnectionAttemptError): SupervisorConnectionState
 
 const relayFailure = (failure: RelayTunnelFailure) =>
   mapRemoteEnvironmentError(
-    new RemoteEnvironmentAuthUndeclaredStatusError("https://relay.example.test", 503, failure),
+    new RemoteEnvironmentAuthUndeclaredStatusError({
+      requestUrl: "https://relay.example.test",
+      status: 503,
+      relayFailure: failure,
+    }),
     "relay",
   );
 const diagnose = (state: SupervisorConnectionState, via: "relay" | "direct" = "relay") =>
@@ -58,7 +62,10 @@ it.each([
 
 it("does not claim that the relay answered a request that timed out", () => {
   const failure = mapRemoteEnvironmentError(
-    new RemoteEnvironmentAuthTimeoutError("https://relay.example.test", 15000),
+    new RemoteEnvironmentAuthTimeoutError({
+      requestUrl: "https://relay.example.test",
+      timeoutMs: 15000,
+    }),
     "relay",
   );
   const diagnosis = diagnose(backoff(failure), "direct");

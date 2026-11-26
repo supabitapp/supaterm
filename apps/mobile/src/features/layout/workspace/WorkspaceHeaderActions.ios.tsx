@@ -1,3 +1,5 @@
+import { useGT } from "gt-react-native";
+
 import { Toolbar } from "../../../components/ui/Toolbar";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../../native/native-glass";
 import { useDeviceType } from "../../../native/native-layout-metrics";
@@ -6,6 +8,7 @@ import type { WorkspaceFilterMenu } from "./workspace-filter-menu";
 import { workspaceFilterToolbarMenu } from "./WorkspaceFilterToolbarMenu.ios";
 
 export function WorkspaceHeaderActions(props: { readonly filterMenu?: WorkspaceFilterMenu }) {
+  const gt = useGT();
   const deviceType = useDeviceType();
   // iPad and the Duo take these from WorkspaceToolbar's trailing items.
   if (deviceType !== "phone") return null;
@@ -15,7 +18,7 @@ export function WorkspaceHeaderActions(props: { readonly filterMenu?: WorkspaceF
       {props.filterMenu ? workspaceFilterToolbarMenu(props.filterMenu) : null}
       {NATIVE_LIQUID_GLASS_SUPPORTED ? null : (
         <Toolbar.Button
-          accessibilityLabel="Focus search"
+          accessibilityLabel={gt("Focus search")}
           icon="magnifyingglass"
           onPress={() => dispatchHardwareKeyboardCommand("focusSearch")}
         />

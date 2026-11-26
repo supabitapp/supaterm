@@ -1,16 +1,19 @@
+import { useAtomValue } from "@effect/atom-react";
 import {
   parseScopedThreadKey,
   scopedThreadKey,
   scopeThreadRef,
 } from "@supaterm/client-runtime/environment";
 import type { ScopedThreadRef } from "@supaterm/contracts";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { use, useEffect, useState } from "react";
 import { BackgroundThreadContext } from "./chat/backgroundThread";
 
 import ChatView from "./ChatView";
 import { waitForDraftHeroTransition } from "./chat/draftHeroTransition";
 import { ThreadTimelineLoading } from "./chat/ThreadTimelineLoading";
+import { Button } from "./ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "./ui/empty";
 import { isPaneInputOwner } from "../chatPanes/paneScope";
 import { useChatPaneStore } from "../chatPanes/store";
 import {
@@ -19,6 +22,7 @@ import {
 } from "../composerDraftStore";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
 import { useEnvironmentThreadRefs, useQuietThreadShell } from "../state/entities";
+import { environmentUnreachableAtom } from "../state/presentation";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { useEnvironmentShellStatus } from "../state/shell";
 import { threadFamilies } from "../state/threads";
@@ -30,6 +34,7 @@ import {
   resolveThreadRouteRenderState,
   type ThreadRouteTarget,
 } from "../threadRoutes";
+import { T } from "gt-react";
 
 /**
  * Keeps the family of an open thread the shell leaves out (an older Done thread) in the shell
@@ -91,6 +96,9 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
 
   const shellStatus = useEnvironmentShellStatus(serverThreadRef?.environmentId ?? null);
   const environmentThreadRefs = useEnvironmentThreadRefs(serverThreadRef?.environmentId ?? null);
+  const environmentUnreachable = useAtomValue(
+    environmentUnreachableAtom(serverThreadRef?.environmentId ?? null),
+  );
   const bootstrapComplete = isThreadRouteSnapshotAuthoritative(shellStatus);
   const draftThread = useComposerDraftStore((store) =>
     serverThreadRef ? store.getDraftThreadByRef(serverThreadRef) : null,
@@ -135,6 +143,7 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
     draftThreadExists: draftThread !== null,
     pendingThreadExists: pendingCreation !== null,
     outboxLoaded,
+    environmentUnreachable,
   });
   const environmentHasAnyThreads = environmentThreadRefs.length > 0 || environmentHasDraftThreads;
   const draftGone = target.kind === "draft" && draftSession === null && draftRedirect === null;
@@ -222,9 +231,31 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
         routeKind="server"
       />
     );
+  } else if (renderState === "unreachable") {
+    view = <UnreachableEnvironmentState />;
   } else if (renderState === "loading") {
     view = <ThreadTimelineLoading />;
   }
 
   return view;
+}
+
+function UnreachableEnvironmentState() {
+  return (
+    <Empty className="flex-1">
+      <EmptyHeader>
+        <EmptyTitle>
+          <T>Thread unavailable</T>
+        </EmptyTitle>
+        <EmptyDescription>
+          <T>This thread is on an environment this app is not connected to.</T>
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button render={<Link to="/settings/connections" />} size="sm">
+          <T>Open Environments</T>
+        </Button>
+      </EmptyContent>
+    </Empty>
+  );
 }

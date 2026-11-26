@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { SymbolView } from "../../../components/ui/AppSymbol";
+import { useGT } from "gt-react-native";
 
 type SettingsDragHandleProps = {
   readonly title: string;
@@ -31,6 +32,7 @@ function useDragPan(latest: RefObject<SettingsDragHandleProps>) {
 }
 
 export function SettingsDragHandle(props: SettingsDragHandleProps) {
+  const gt = useGT();
   const latest = useRef(props);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed props to the ref the memoized pan gesture's JS callbacks read
   useLayoutEffect(() => {
@@ -43,10 +45,10 @@ export function SettingsDragHandle(props: SettingsDragHandleProps) {
         collapsable={false}
         accessible
         accessibilityRole="adjustable"
-        accessibilityLabel={`Reorder ${props.title}`}
+        accessibilityLabel={gt("Reorder {item}", { item: props.title })}
         accessibilityActions={[
-          ...(props.canMoveUp ? [{ name: "decrement", label: "Move up" }] : []),
-          ...(props.canMoveDown ? [{ name: "increment", label: "Move down" }] : []),
+          ...(props.canMoveUp ? [{ name: "decrement", label: gt("Move up") }] : []),
+          ...(props.canMoveDown ? [{ name: "increment", label: gt("Move down") }] : []),
         ]}
         onAccessibilityAction={({ nativeEvent }) => {
           if (nativeEvent.actionName === "decrement" && props.canMoveUp) props.onStep("up");

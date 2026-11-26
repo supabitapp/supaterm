@@ -1,4 +1,5 @@
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import Animated from "react-native-reanimated";
 import { PR_ROW_LAYOUT } from "./pullRequestAnimations";
 import { useNavigation } from "@react-navigation/native";
@@ -22,6 +23,7 @@ import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { usePullRequestReviewDraft } from "./usePullRequestReviewDraft";
 import { usePullRequestAgentActions } from "./usePullRequestAgentActions";
+import { useGT } from "gt-react-native";
 
 export function PullRequestCardGroup(props: { readonly children: ReactNode }) {
   return (
@@ -117,11 +119,14 @@ export function PullRequestActionToolbar(props: {
   readonly pr: PullRequestDetail | null;
   readonly params: PullRequestParams;
   readonly filePath?: string;
+  /** The head of the diff on screen, when the screen shows one. */
+  readonly reviewedHeadSha?: string | undefined;
   /** The screen's actions menu; the vertical bar shows it here with the toolbar's tools. */
   readonly menu: AppBarMenu;
   readonly onOpenFiles?: () => void;
   readonly onHeightChange?: (height: number) => void;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const { draft } = usePullRequestReviewDraft(props.params);
   const { themeVariables: colors } = useAppearancePreferences();
@@ -133,15 +138,27 @@ export function PullRequestActionToolbar(props: {
   const pendingReview = canReview && draft.comments.length > 0;
   const showAgentControls = agent.canAsk || !permissions.connected;
   const canOpenThread = agent.threads.length > 0 || showAgentControls;
-  const { shortLabel } = sourceControlClients.get(
-    (props.pr ?? props.params.initialSummary)?.provider,
-  ).changeRequest;
-  const threadLabel = agent.threads.length ? "Continue thread" : `Work on ${shortLabel}`;
-  const primaryLabel = pendingReview ? `Submit review · ${draft.comments.length}` : threadLabel;
+  const term = changeRequestTermKind(
+    sourceControlClients.get((props.pr ?? props.params.initialSummary)?.provider).changeRequest,
+  );
+  const threadLabel = agent.threads.length
+    ? gt("Continue thread")
+    : gt("Work on {term, select, mr {MR} cr {change request} other {PR}}", { term });
+  const primaryLabel = pendingReview
+    ? gt("Submit review · {count}", { count: draft.comments.length })
+    : threadLabel;
+  const agentActionsLabel = gt(
+    "{term, select, mr {MR} cr {change request} other {PR}} agent actions",
+    { term },
+  );
   const chooseThread = agent.chooseThread;
   const agentActions = agent.actions.filter((action) => action.task !== "ask");
   const open = (mode: "review" | "comment") =>
-    navigation.navigate("PullRequestReview", { ...props.params, mode });
+    navigation.navigate("PullRequestReview", {
+      ...props.params,
+      mode,
+      reviewedHeadSha: props.reviewedHeadSha ?? props.pr?.headSha,
+    });
   const primaryPress = () => (pendingReview ? open("review") : agent.start("ask"));
   const threadMenuItems = agent.threadActions("ask");
   const openFiles =
@@ -172,14 +189,14 @@ export function PullRequestActionToolbar(props: {
           <View className="flex-row items-center gap-2">
             {showAgentControls ? (
               <Menu
-                title="AI helpers"
+                title={gt("AI helpers")}
                 actions={agentActions.map((action) => agent.menuAction(action.task))}
                 onPressAction={({ nativeEvent }) => agent.select(nativeEvent.event)}
               >
                 <View pointerEvents="none">
                   <IconButton
                     icon="ellipsis.bubble"
-                    accessibilityLabel={`${shortLabel} agent actions`}
+                    accessibilityLabel={agentActionsLabel}
                     disabled={agent.disabled}
                   />
                 </View>
@@ -189,7 +206,7 @@ export function PullRequestActionToolbar(props: {
               <View className="min-w-0 shrink">
                 {!pendingReview && chooseThread ? (
                   <Menu
-                    title="Open thread"
+                    title={gt("Open thread")}
                     actions={threadMenuItems}
                     onPressAction={({ nativeEvent }) => agent.select(nativeEvent.event)}
                   >
@@ -200,7 +217,11 @@ export function PullRequestActionToolbar(props: {
                 )}
               </View>
             ) : null}
-            <IconButton icon="file.diff" accessibilityLabel="Changed files" onPress={openFiles} />
+            <IconButton
+              icon="file.diff"
+              accessibilityLabel={gt("Changed files")}
+              onPress={openFiles}
+            />
           </View>
         </Toolbar>
       </View>
@@ -250,8 +271,8 @@ export function PullRequestActionToolbar(props: {
     <Toolbar.Menu
       identifier="pull-request-agent"
       icon="ellipsis.bubble"
-      title="AI helpers"
-      accessibilityLabel={`${shortLabel} agent actions`}
+      title={gt("AI helpers")}
+      accessibilityLabel={agentActionsLabel}
       disabled={agent.disabled}
       separateBackground
     >
@@ -277,7 +298,7 @@ export function PullRequestActionToolbar(props: {
     <Toolbar.Button
       identifier="workspace-trailing-action"
       icon={{ type: "image", source: require("../../../assets/icons/file-diff.png") }}
-      accessibilityLabel="Changed files"
+      accessibilityLabel={gt("Changed files")}
       onPress={openFiles}
       separateBackground
     />
@@ -293,7 +314,7 @@ export function PullRequestActionToolbar(props: {
           items: [
             {
               id: "changed-files",
-              title: "Changed files",
+              title: gt("Changed files"),
               icon: "doc.text.magnifyingglass",
               onPress: openFiles,
             },
@@ -301,7 +322,7 @@ export function PullRequestActionToolbar(props: {
               ? [
                   {
                     id: "ai-helpers",
-                    title: "AI helpers",
+                    title: gt("AI helpers"),
                     icon: "ellipsis.bubble",
                     items: agentActions.map((action): AppBarMenuItem =>
                       chooseThread && !action.disabled

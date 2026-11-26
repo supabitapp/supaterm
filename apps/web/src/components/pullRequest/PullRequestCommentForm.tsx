@@ -17,6 +17,9 @@ import {
   pullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
 import { isImeComposing } from "~/lib/imeComposition";
+import { msg, useGT } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
+import { m } from "~/i18n/messages";
 
 export function PullRequestCommentForm({
   environmentId,
@@ -40,6 +43,7 @@ export function PullRequestCommentForm({
   onCommented: () => void;
   onClose: () => void;
 }) {
+  const gt = useGT();
   const [body, setBody] = useState("");
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [submitting, setSubmitting] = useState<"comment" | "close" | "reopen" | null>(null);
@@ -81,7 +85,7 @@ export function PullRequestCommentForm({
     });
     if (result._tag === "Failure") {
       setSubmitting(null);
-      toastManager.add({ type: "error", title: "Could not post the comment" });
+      toastManager.add({ type: "error", title: m(msg("Could not post the comment")) });
       return;
     }
     setBody("");
@@ -100,8 +104,13 @@ export function PullRequestCommentForm({
         readOnly={voiceBusy}
         value={body}
         rows={3}
-        placeholder="Leave a comment"
-        aria-label={`Comment on this ${sourceControlClients.get(detail.provider).changeRequest.singular}`}
+        placeholder={gt("Leave a comment")}
+        aria-label={gt(
+          "Comment on this {term, select, mr {merge request} cr {change request} other {pull request}}",
+          {
+            term: changeRequestTermKind(sourceControlClients.get(detail.provider).changeRequest),
+          },
+        )}
         onValueChange={setBody}
         onKeyDown={(event) => {
           if (isImeComposing(event)) return;
@@ -139,8 +148,8 @@ export function PullRequestCommentForm({
             </InlineConfirmIcon>
             <InlineConfirmLabel
               armed={confirm.armed === "close"}
-              idle={submitting === "close" ? "Closing..." : "Close with comment"}
-              confirm="Confirm close"
+              idle={submitting === "close" ? gt("Closing...") : gt("Close with comment")}
+              confirm={gt("Confirm close")}
             />
           </Button>
         ) : followUpAction === "reopen" ? (
@@ -151,7 +160,7 @@ export function PullRequestCommentForm({
             onClick={() => void submit("reopen")}
           >
             <PullRequestGlyph.reopen className="size-3.5" />
-            {submitting === "reopen" ? "Reopening..." : "Reopen with comment"}
+            {submitting === "reopen" ? gt("Reopening...") : gt("Reopen with comment")}
           </Button>
         ) : null}
         <Button
@@ -161,7 +170,9 @@ export function PullRequestCommentForm({
           onClick={() => void submit("comment")}
         >
           <SendIcon className="size-3.5" />
-          {submitting === "comment" ? "Posting..." : "Comment"}
+          {submitting === "comment"
+            ? gt("Posting...")
+            : gt("Comment", { $context: "verb, submit button" })}
         </Button>
       </div>
     </div>

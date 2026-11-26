@@ -18,6 +18,8 @@ import {
 
 import type { EnvironmentThreadShell } from "./state/models.ts";
 import { threadSearchSubject, type ThreadSearchShell } from "./state/threadSearch.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 const COMPOSER_THREAD_RESULT_LIMIT = 5;
 
@@ -38,16 +40,19 @@ export interface ComposerThreadItem {
  * on its own server and on the machines it links to, so candidates stay within those, and a
  * linked machine's threads say which machine they are on.
  */
-export function matchComposerThreadItems(input: {
-  shells: ReadonlyArray<ComposerThreadCandidate>;
-  environmentId: EnvironmentId;
-  /** The machines the composer's environment links to, by name. */
-  linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
-  excludeThreadId: ThreadId | null;
-  query: string;
-  /** Recency is measured against this time. */
-  now: number;
-}): ComposerThreadItem[] {
+export function matchComposerThreadItems(
+  input: {
+    shells: ReadonlyArray<ComposerThreadCandidate>;
+    environmentId: EnvironmentId;
+    /** The machines the composer's environment links to, by name. */
+    linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
+    excludeThreadId: ThreadId | null;
+    query: string;
+    /** Recency is measured against this time. */
+    now: number;
+  },
+  resolve: MFunctionType = mFallback,
+): ComposerThreadItem[] {
   const query = foldSearchQuery(input.query);
   if (query.length === 0) return [];
   // Closing an unused side chat deletes it, so only one with a message is offered.
@@ -85,10 +90,10 @@ export function matchComposerThreadItems(input: {
         ),
         label: shell.title,
         description: isOwnSideChat(shell)
-          ? "Side chat"
+          ? resolve(msg("Side chat"))
           : machine === undefined
-            ? "Thread"
-            : `Thread on ${machine}`,
+            ? resolve(msg("Thread", { $context: "noun, search result type" }))
+            : resolve(msg("Thread on {machine}", { machine })),
       };
     });
 }
@@ -113,13 +118,16 @@ export interface ComposerEnvironmentItem {
  * machines and those the composer's environment links to. The composer's own environment is
  * left out. Like threads, they need a query: bare `@` stays a file picker.
  */
-export function matchComposerEnvironmentItems(input: {
-  environments: ReadonlyArray<ComposerEnvironmentCandidate>;
-  /** The machines the composer's environment links to, by name. */
-  linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
-  environmentId: EnvironmentId;
-  query: string;
-}): ComposerEnvironmentItem[] {
+export function matchComposerEnvironmentItems(
+  input: {
+    environments: ReadonlyArray<ComposerEnvironmentCandidate>;
+    /** The machines the composer's environment links to, by name. */
+    linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
+    environmentId: EnvironmentId;
+    query: string;
+  },
+  resolve: MFunctionType = mFallback,
+): ComposerEnvironmentItem[] {
   const query = input.query.trim().toLowerCase();
   if (query.length === 0) return [];
   const paired = new Set(input.environments.map((environment) => environment.environmentId));
@@ -138,7 +146,7 @@ export function matchComposerEnvironmentItems(input: {
             record: environmentContextRecord(environment),
             machine: environment.machine,
             label: environment.label,
-            description: "Machine",
+            description: resolve(msg("Machine", { $context: "noun, search result type" })),
           },
         ]
       : [],

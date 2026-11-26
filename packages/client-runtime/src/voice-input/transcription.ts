@@ -1,3 +1,7 @@
+import * as Schema from "effect/Schema";
+import { msg } from "gt-i18n";
+import { translatableMessage } from "../errors/translatable.ts";
+
 /** Cancellation is cooperative: settle only after the underlying work has stopped. */
 export type VoiceTranscriptionOptions = {
   readonly signal: AbortSignal;
@@ -25,25 +29,29 @@ export type VoiceTranscriber = {
   readonly prepare: (options: VoiceTranscriptionOptions) => Promise<PreparedVoiceTranscription>;
 };
 
-export type VoiceTranscriptionErrorCode =
+const VoiceTranscriptionErrorCode = Schema.Literals([
   /** The environment declined with a reason the user can act on, carried in the message. */
-  | "refused"
+  "refused",
   /** Too little audio to transcribe, as from a tap; the recording is dropped without a word. */
-  | "tooShort"
-  | "cancelled";
+  "tooShort",
+  "cancelled",
+]);
+export type VoiceTranscriptionErrorCode = typeof VoiceTranscriptionErrorCode.Type;
 
-export class VoiceTranscriptionError extends Error {
-  readonly code: VoiceTranscriptionErrorCode;
-
-  constructor(code: VoiceTranscriptionErrorCode, message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = "VoiceTranscriptionError";
-    this.code = code;
-  }
-}
+export class VoiceTranscriptionError extends Schema.TaggedError<VoiceTranscriptionError>()(
+  "VoiceTranscriptionError",
+  {
+    code: VoiceTranscriptionErrorCode,
+    message: Schema.String,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {}
 
 export function throwIfVoiceTranscriptionAborted(signal: AbortSignal): void {
   if (signal.aborted) {
-    throw new VoiceTranscriptionError("cancelled", "Voice transcription was cancelled.");
+    throw new VoiceTranscriptionError({
+      code: "cancelled",
+      ...translatableMessage(msg("Voice transcription was cancelled.")),
+    });
   }
 }

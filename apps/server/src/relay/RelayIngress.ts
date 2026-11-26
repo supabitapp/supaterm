@@ -39,6 +39,7 @@ const PEER_LINK_PATHS = new Set([
   "/oauth/mcp/register",
   "/oauth/mcp/decision",
   "/oauth/mcp/token",
+  "/oauth/mcp/revoke",
 ]);
 
 export const isRelayPath = (pathname: string) =>

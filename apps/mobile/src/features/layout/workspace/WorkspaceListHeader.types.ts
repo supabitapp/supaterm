@@ -1,4 +1,7 @@
+import { msg } from "gt-react-native";
+
 import type { AppBarMenuItem } from "../../../components/ui/AppBar.types";
+import { m, type MessageResolver } from "../../../i18n/messages";
 import { workspaceFilterMenuFromAppBarItems } from "./workspace-filter-menu";
 
 /** The header of the workspace thread list, on Home and in the sidebar column. */
@@ -36,10 +39,13 @@ export function workspaceListFilterIcon(customized: boolean) {
     : "line.3.horizontal.decrease.circle";
 }
 
-export function workspaceListFilterMenu(filter: WorkspaceListHeaderProps["filter"]) {
+export function workspaceListFilterMenu(
+  filter: WorkspaceListHeaderProps["filter"],
+  resolve: MessageResolver = m,
+) {
   return workspaceFilterMenuFromAppBarItems({
-    title: "Thread list options",
-    accessibilityLabel: "Filter threads",
+    title: resolve(msg("Thread list options")),
+    accessibilityLabel: resolve(msg("Filter threads")),
     ...filter,
   });
 }

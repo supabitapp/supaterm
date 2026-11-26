@@ -23,17 +23,21 @@ import { WorkspaceTabToolbarButtons } from "./WorkspaceSectionToolbar";
 import { useThreadListFilter } from "../../home/useThreadListFilter";
 import { workspaceFilterToolbarMenu } from "./WorkspaceFilterToolbarMenu.ios";
 import { workspaceListFilterMenu } from "./WorkspaceListHeader.types";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const SEARCH_LABELS = {
-  threads: "Search threads",
-  pullRequests: "Search pull requests",
-  settings: "Search settings",
+  threads: msg("Search threads"),
+  pullRequests: msg("Search pull requests"),
+  issues: msg("Search issues"),
+  settings: msg("Search settings"),
 } as const;
 
 export function WorkspaceToolbar(props: {
   readonly onNewTask: () => void;
   readonly sidebar?: boolean;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const workspace = useWorkspaceTabs()!;
   const activeNewTask = useActiveNewTask();
   const deviceType = useDeviceType();
@@ -56,7 +60,7 @@ export function WorkspaceToolbar(props: {
   // The Settings list takes the selected tab's place, so search follows it.
   const selectedTab = workspace.settingsOpen ? "settings" : workspace.state.selectedTab;
   const tab = workspace.state.tabs[selectedTab];
-  const searchLabel = SEARCH_LABELS[selectedTab === "usage" ? "threads" : selectedTab];
+  const searchLabel = messages(SEARCH_LABELS[selectedTab === "usage" ? "threads" : selectedTab]);
   // iPhone draws the thread filter from the list's own header actions.
   const showsThreadFilter = deviceType !== "phone" && selectedTab === "threads";
 
@@ -135,7 +139,7 @@ export function WorkspaceToolbar(props: {
   const composeButton = nativeToolbarCompose ? (
     <Toolbar.Button
       identifier="workspace-compose"
-      accessibilityLabel="New chat"
+      accessibilityLabel={gt("New chat")}
       icon="square.and.pencil"
       onPress={props.onNewTask}
       separateBackground
@@ -144,7 +148,7 @@ export function WorkspaceToolbar(props: {
   const searchButton = foldedSearch ? (
     <Toolbar.Button
       identifier="workspace-search"
-      accessibilityLabel={searchVisible ? "Close search" : searchLabel}
+      accessibilityLabel={searchVisible ? gt("Close search") : searchLabel}
       icon={searchVisible ? "xmark" : "magnifyingglass"}
       onPress={searchVisible ? () => searchRef.current?.cancelSearch() : focusSearch}
       separateBackground
@@ -212,7 +216,7 @@ export function WorkspaceToolbar(props: {
           sidebarTabs === "picker" ||
           floatingTabs ? null : (
             <Toolbar.Button
-              accessibilityLabel="New chat"
+              accessibilityLabel={gt("New chat")}
               icon="square.and.pencil"
               onPress={props.onNewTask}
             />
@@ -225,7 +229,7 @@ export function WorkspaceToolbar(props: {
             />
           )}
           {showsThreadFilter
-            ? workspaceFilterToolbarMenu(workspaceListFilterMenu(threadFilter))
+            ? workspaceFilterToolbarMenu(workspaceListFilterMenu(threadFilter, messages))
             : null}
         </Toolbar>
       )}

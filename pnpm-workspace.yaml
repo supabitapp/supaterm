@@ -22,9 +22,8 @@ allowBuilds:
   # Ships N-API prebuilds; the install script would only fall back to node-gyp.
   node-hid: false
   node-pty: true
-  "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.19.tgz": true
+  "react-native-enriched-markdown@file:apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.20.tgz": true
   sharp: true
-  "@tsc-rs/typescript": true
   utf-8-validate: false
 
 catalog:
@@ -51,7 +50,6 @@ catalog:
   react: 19.3.0
   react-dom: 19.3.0
   tailwindcss: 4.3.3
-  typescript: npm:@tsc-rs/typescript@0.8.0
   undici: 8.12.4
   vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vite-plus: 1.4.0
@@ -72,7 +70,14 @@ catalog:
   unified: 11.0.5
 
 minimumReleaseAgeExclude:
-  - "@tsc-rs/*"
+  - "@effect/tsgo-darwin-arm64@0.67.1"
+  - "@effect/tsgo-darwin-x64@0.67.1"
+  - "@effect/tsgo-linux-arm64@0.67.1"
+  - "@effect/tsgo-linux-arm@0.67.1"
+  - "@effect/tsgo-linux-x64@0.67.1"
+  - "@effect/tsgo-win32-arm64@0.67.1"
+  - "@effect/tsgo-win32-x64@0.67.1"
+  - "@effect/tsgo@0.67.1"
   - "@effect/atom-react@4.1.5"
   - "@effect/graphql-generator@4.1.5"
   - "@effect/openapi-generator@4.1.5"
@@ -118,6 +123,7 @@ minimumReleaseAgeExclude:
 overrides:
   # Pin every patched package, including transitive dependencies, so lockfile-free
   # release installs cannot drift past the patch. Update these with patchedDependencies.
+  gt-react-native: 11.4.18
   react-native-image-viewing: 0.2.2
   mdast-util-math: 3.0.0
   micromark-extension-llm-math: 3.1.1-20250610
@@ -126,6 +132,7 @@ overrides:
   expo-audio: 58.0.11
   "@expo/ui": 58.0.27
   expo-network: 58.0.4
+  "@cursor/sdk": 1.4.2
   expo-sharing: 58.0.22
   expo-video: 58.0.13
   expo-widgets: 58.0.27
@@ -226,6 +233,7 @@ packageExtensions:
       "@react-navigation/core": ^7.21.2
 
 patchedDependencies:
+  gt-react-native@11.4.18: patches/gt-react-native@11.4.18.patch
   react-native-image-viewing@0.2.2: patches/react-native-image-viewing@0.2.2.patch
   mdast-util-math@3.0.0: patches/mdast-util-math@3.0.0.patch
   micromark-extension-llm-math@3.1.1-20250610: patches/micromark-extension-llm-math@3.1.1-20250610.patch
@@ -262,8 +270,7 @@ patchedDependencies:
   # Android: a nested WebView hands a vertical drag to its scrolling parent at the page's edge.
   react-native-webview@14.0.1: patches/react-native-webview@14.0.1.patch
   # Code blocks start with their lines wrapped; the header toggle unwraps a block.
-  # A newline in a copied table cell becomes <br>, so Copy as Markdown keeps the row whole.
-  react-native-enriched-markdown@1.2.0-supacode.19: patches/react-native-enriched-markdown@1.2.0-supacode.19.patch
+  react-native-enriched-markdown@1.2.0-supacode.20: patches/react-native-enriched-markdown@1.2.0-supacode.20.patch
   # Android: a Compose host that requests layout in a mount (a new screen's app bar) is laid out
   # before that frame is drawn, instead of a frame later.
   expo-modules-core@58.0.30: patches/expo-modules-core@58.0.30.patch
@@ -271,9 +278,15 @@ patchedDependencies:
   # The spawner takes an injected spawn function (and uses it for taskkill) so Windows launches
   # can run on worker threads: apps/server/src/process/SpawnWorker.ts.
   "@effect/platform-node-shared@4.1.5": patches/@effect__platform-node-shared@4.1.5.patch
+  # A SQL transaction or savepoint provides its context without copying every service twice.
+  effect@4.1.5: patches/effect@4.1.5.patch
   # Electron net requests never emit "socket", so upstream's idle timeout never fires and a
   # stalled update download hangs forever.
   electron-updater@6.8.9: patches/electron-updater@6.8.9.patch
+  # Local agents honor the attribution settings in the user's Cursor CLI cli-config.json, stream
+  # shell output while it runs, expose agent.resume() (the protocol's ResumeAction), and offer
+  # background shells to the host so they can outlive the run.
+  "@cursor/sdk@1.4.2": patches/@cursor__sdk@1.4.2.patch
   # Android: a marker orient other than "auto" or a number (auto-start-reverse) no longer throws.
   react-native-svg@15.16.1: patches/react-native-svg@15.16.1.patch
   # Android: double-tap zoom no longer cancels itself, and taps near a link open it.

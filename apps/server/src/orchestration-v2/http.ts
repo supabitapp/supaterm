@@ -7,7 +7,9 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
+import { HttpApiSchemaError } from "effect/http-api/HttpApiError";
 import * as SqlClient from "effect/sql/SqlClient";
 
 import {
@@ -35,8 +37,11 @@ import {
   loadSubscriberShellSnapshot,
   projectIdentitiesDigest,
 } from "./ShellStream.ts";
+import { encodeThreadSnapshotBody } from "./threadSnapshotBody.ts";
 import { boundedSnapshotResponseFields } from "./ThreadStream.ts";
 import { projectThreadProjectionForWire } from "./WireProjection.ts";
+
+const isInvalidThreadHistoryCursorError = Schema.is(InvalidThreadHistoryCursorError);
 
 const isThreadTranscriptTooLargeError = Schema.is(
   ThreadManagementService.ThreadTranscriptTooLargeError,
@@ -196,14 +201,23 @@ export const layer = HttpApiBuilder.group(
         Effect.fn("environment.orchestration.threadSnapshot")(function* (args) {
           yield* annotateEnvironmentRequest(args.endpoint.name);
           yield* requireEnvironmentScope(AuthOrchestrationReadScope);
-          const snapshot = yield* loadThreadSnapshot(
+          const body = yield* loadThreadSnapshot(
             args.params.threadId,
             "orchestration_thread_snapshot_failed",
+          ).pipe(
+            Effect.flatMap((snapshot) =>
+              encodeThreadSnapshotBody({
+                snapshotSequence: snapshot.snapshotSequence,
+                projection: snapshot.projection,
+              }).pipe(
+                // The same defect, and the same empty 500, as a failed response encoding.
+                Effect.catch((cause) =>
+                  Effect.die(new HttpApiSchemaError({ kind: "Body", cause })),
+                ),
+              ),
+            ),
           );
-          return {
-            snapshotSequence: snapshot.snapshotSequence,
-            projection: snapshot.projection,
-          };
+          return HttpServerResponse.stream(body, { contentType: "application/json" });
         }),
       )
       .handle(
@@ -261,12 +275,10 @@ export const layer = HttpApiBuilder.group(
         Effect.fn("environment.orchestration.threadHistoryPage")(function* (args) {
           yield* annotateEnvironmentRequest(args.endpoint.name);
           yield* requireEnvironmentScope(AuthOrchestrationReadScope);
-          const decoded = yield* Effect.try(() =>
-            decodeThreadHistoryCursor(args.query.cursor),
-          ).pipe(Effect.result);
+          const decoded = Result.try(() => decodeThreadHistoryCursor(args.query.cursor));
           if (Result.isFailure(decoded)) {
-            const cause = decoded.failure.cause;
-            if (cause instanceof InvalidThreadHistoryCursorError)
+            const cause = decoded.failure;
+            if (isInvalidThreadHistoryCursorError(cause))
               return yield* failEnvironmentInvalidRequest("invalid_history_cursor");
             return yield* failEnvironmentInternal("orchestration_thread_history_failed", cause);
           }

@@ -26,6 +26,7 @@ import {
   type ThreadPullRequestKey,
 } from "@supaterm/contracts";
 import type { ReviewGuideStackLayer } from "@supaterm/provider-core/server/textGeneration";
+import { withoutRemoteUrlCredentials } from "@supaterm/shared/cloneUrl";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 
 import * as ServerConfig from "../config.ts";
@@ -162,16 +163,28 @@ const make = Effect.gen(function* () {
     const remote = yield* Effect.findFirst(
       [locator.remoteName, ...names.filter((name) => name !== locator.remoteName)],
       (name) =>
-        git
-          .execute({
-            operation: "PullRequestReviewGuideService.remoteUrl",
-            cwd: workspaceRoot,
-            args: ["remote", "get-url", "--", name],
-          })
-          .pipe(
-            Effect.map((result) => result.stdout.trim() === locator.remoteUrl),
-            Effect.orElseSucceed(() => false),
-          ),
+        Effect.forEach(
+          [
+            ["remote", "get-url", "--", name],
+            ["config", "--get-all", `remote.${name}.url`],
+          ],
+          (args) =>
+            git
+              .execute({
+                operation: "PullRequestReviewGuideService.remoteUrl",
+                cwd: workspaceRoot,
+                args,
+              })
+              .pipe(
+                Effect.map(
+                  (result) =>
+                    withoutRemoteUrlCredentials(result.stdout.split("\n")[0]?.trim() ?? "") ===
+                    locator.remoteUrl,
+                ),
+                Effect.orElseSucceed(() => false),
+              ),
+          { concurrency: "unbounded" },
+        ).pipe(Effect.map((matches) => matches.includes(true))),
     ).pipe(Effect.map(Option.getOrUndefined));
     if (remote === undefined) {
       return yield* new PullRequestOperationError({
@@ -388,6 +401,7 @@ const make = Effect.gen(function* () {
             generated: textGeneration.generateReviewGuide({
               ...reviewGuideInputFromPullRequest(detail, activity, checkout.baseCommit),
               cwd: checkout.path,
+              projectCwd: workspaceRoot,
               modelSelection,
               projectId: input.projectId,
               instructions,
@@ -437,7 +451,7 @@ const make = Effect.gen(function* () {
     if (!settings.reviewGuidesEnabled) {
       return yield* new PullRequestOperationError({
         operation: "generateReviewGuide",
-        detail: "Review guides are off. Turn them on in Settings → Source Control.",
+        detail: "Review guides are off. Turn them on in Settings → Source control & issues.",
       });
     }
     const { key, workspaceRoot, identity } = yield* keyFor(input);

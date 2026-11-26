@@ -391,7 +391,9 @@ export function isAtomCommandInterrupted(result: AtomCommandResult<unknown, unkn
 export function squashAtomCommandFailure(result: {
   readonly cause: Cause.Cause<unknown>;
 }): unknown {
-  return Cause.squash(result.cause);
+  const squashed = Cause.squash(result.cause);
+  // A server `Effect.die("text")` decodes over RPC as a bare string; callers read `Error`s.
+  return typeof squashed === "string" ? new Error(squashed) : squashed;
 }
 
 export async function settleAsyncResult<A, E>(
@@ -746,15 +748,14 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
     | AtomRegistry.AtomRegistry
     | R
   >,
-): (target: {
-  readonly environmentId: EnvironmentIdType;
-  readonly input: Input;
-}) => Atom.Atom<AsyncResult.AsyncResult<A, E | ER | Error>> {
+): (
+  target: { readonly environmentId: EnvironmentIdType; readonly input: Input },
+  mountScope?: string,
+) => Atom.Atom<AsyncResult.AsyncResult<A, E | ER | Error>> {
   const connectionAtom = environmentConnectionAtoms(runtime);
   // `Atom.family` holds members weakly and the mounted layer has no TTL, so each member lives
   // as long as its cache: keyed weakly, this lets both go once the cache's TTL ends.
-  const membersByCache = new WeakMap<Atom.Atom<unknown>, Atom.Atom<unknown>>();
-  const family = Atom.family((key: string) => {
+  const cacheFamily = Atom.family((key: string) => {
     const target = parseEnvironmentRpcKey<Input>(key);
     const idleTtlMs = options.idleTtlMs ?? 5 * 60_000;
     const queryAtom = runtime
@@ -884,19 +885,31 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
         ? queryAtom
         : queryAtom.pipe(refreshEveryUntilFinal(options.refreshIntervalMs, isFinal));
     const refreshTrigger = options.refreshTrigger?.(target, intervalQuery);
-    const cache = (
+    return (
       refreshTrigger === undefined
         ? intervalQuery
         : intervalQuery.pipe(refreshOnSignalWhileRead(refreshTrigger, isFinal))
     ).pipe(Atom.setIdleTTL(idleTtlMs));
+  });
+  type QueryAtom = ReturnType<typeof cacheFamily>;
+  const membersByCache = new WeakMap<QueryAtom, Map<string | undefined, QueryAtom>>();
+  return (target, mountScope) => {
+    const key = environmentRpcKey(target);
+    const cache = cacheFamily(key);
+    let members = membersByCache.get(cache);
+    if (members === undefined) {
+      members = new Map();
+      membersByCache.set(cache, members);
+    }
+    const existing = members.get(mountScope);
+    if (existing !== undefined) return existing;
     const member = cache.pipe(
       revalidateOnMount(options.staleTimeMs ?? 30_000),
-      Atom.withLabel(`${options.label}:${key}`),
+      Atom.withLabel(`${options.label}:${key}${mountScope === undefined ? "" : `:${mountScope}`}`),
     );
-    membersByCache.set(cache, member);
+    members.set(mountScope, member);
     return member;
-  });
-  return (target) => family(environmentRpcKey(target));
+  };
 }
 
 export function createEnvironmentSubscriptionAtomFamily<R, ER, Input, A, E>(
@@ -1112,6 +1125,7 @@ export function createEnvironmentRpcCommand<
         readonly input: NoInfer<Input>;
       },
       registry: AtomRegistry.AtomRegistry,
+      exit: Exit.Exit<EnvironmentRpcSuccess<TTag>, unknown>,
     ) => Effect.Effect<void, never, R>;
   },
 ) {
@@ -1142,7 +1156,7 @@ export function createEnvironmentRpcCommand<
         Effect.tap(
           (result) => options.onSuccess?.(target, registry, result, started) ?? Effect.void,
         ),
-        Effect.ensuring(options.onSettled?.(target, registry) ?? Effect.void),
+        Effect.onExit((exit) => options.onSettled?.(target, registry, exit) ?? Effect.void),
       );
     },
   });

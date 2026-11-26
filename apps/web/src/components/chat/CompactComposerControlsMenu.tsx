@@ -14,6 +14,7 @@ import { shortcutLabelForCommand } from "../../keybindings";
 import { ComposerControl, ComposerControlIcon } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
+import { T, useGT, useMessages } from "gt-react";
 
 export const CompactComposerControlsMenu = memo(function CompactComposerControlsMenu(props: {
   runtimeMode: RuntimeMode;
@@ -29,6 +30,8 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   hidden?: boolean;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const composerFloatingLayerProps = useComposerMenuProps();
   const size = props.size ?? "sm";
   const [open, setOpen] = useComposerMenuState(props.hidden);
@@ -44,7 +47,7 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
           <ComposerControl
             size={size}
             className="shrink-0"
-            aria-label="More composer controls"
+            aria-label={gt("More composer controls")}
             data-composer-shortcut={
               props.traitsMenuContent ? "composer.mode composer.effort" : "composer.mode"
             }
@@ -61,7 +64,7 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
           </>
         ) : null}
         <div className="flex items-center gap-2 px-2 py-1.5 font-medium text-muted-foreground text-xs">
-          Access
+          <T context="menu section heading, agent permission mode">Access</T>
           {runtimeModeShortcut ? <MenuShortcut>{runtimeModeShortcut}</MenuShortcut> : null}
         </div>
         <MenuRadioGroup
@@ -77,7 +80,7 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
               value={option.mode}
               disabled={option.disabledReason !== undefined}
             >
-              {option.label}
+              {m(option.label)}
             </MenuRadioItem>
           ))}
         </MenuRadioGroup>

@@ -68,16 +68,18 @@ import { PopoverCreateHandle } from "../ui/popover";
 import type { BackgroundTaskOutputTarget } from "./BackgroundWork";
 import type { EnvironmentPresentation } from "../../state/environments";
 import {
-  backgroundWorkBannerItem,
-  childInputBannerItem,
-  goalBannerItem,
-  runStopBannerItem,
+  backgroundWorkNowItem,
+  childInputNowItem,
+  goalNowItem,
+  runStopNowItem,
 } from "./ThreadActivityBanners";
 import { useForceStopThread } from "./useForceStopThread";
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import { environmentThreadDetails } from "../../state/threads";
 import { openSideChatBeside } from "../../chatPanes/actions";
+import { msg, useGT, useMessages } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
 const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
@@ -109,7 +111,8 @@ interface ThreadLifecycleInput {
   readonly isWorking: boolean;
   /** Also true while the server prepares, starts, or queues a run this client did not send. */
   readonly runIsLive: boolean;
-  readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkBannerItem>[0]["tasks"];
+  readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkNowItem>[0]["tasks"];
+  readonly turnItems: Parameters<typeof backgroundWorkNowItem>[0]["turnItems"];
   readonly activePendingApproval: PendingThreadRequests["activePendingApproval"];
   readonly activePendingUserInput: PendingThreadRequests["activePendingUserInput"];
   readonly localCheckoutBranchMismatch: {
@@ -132,6 +135,8 @@ interface ThreadLifecycleInput {
  * banners, opening related threads, and standalone slash commands.
  */
 export function useThreadLifecycle(input: ThreadLifecycleInput) {
+  const messages = useMessages();
+  const gt = useGT();
   const {
     environmentId,
     routeThreadKey,
@@ -153,6 +158,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     isWorking,
     runIsLive,
     pendingBackgroundTasks,
+    turnItems,
     activePendingApproval,
     activePendingUserInput,
     localCheckoutBranchMismatch,
@@ -231,8 +237,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to reopen thread",
-          description: error instanceof Error ? error.message : "An error occurred.",
+          title: m(msg("Failed to reopen thread")),
+          description: error instanceof Error ? error.message : m(msg("An error occurred.")),
         }),
       );
     }
@@ -276,8 +282,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to wake thread",
-          description: error instanceof Error ? error.message : "An error occurred.",
+          title: m(msg("Failed to wake thread")),
+          description: error instanceof Error ? error.message : m(msg("An error occurred.")),
         }),
       );
     }
@@ -345,8 +351,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: "Failed to switch checkout",
-            description: chatActionErrorMessage(squashAtomCommandFailure(checkoutResult)),
+            title: m(msg("Failed to switch checkout")),
+            description: chatActionErrorMessage(squashAtomCommandFailure(checkoutResult), messages),
           }),
         );
       }
@@ -369,8 +375,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           toastManager.add(
             stackedThreadToast({
               type: "error",
-              title: "Checkout switched, but the thread could not be updated",
-              description: chatActionErrorMessage(squashAtomCommandFailure(updateResult)),
+              title: m(msg("Checkout switched, but the thread could not be updated")),
+              description: chatActionErrorMessage(squashAtomCommandFailure(updateResult), messages),
             }),
           );
         }
@@ -387,9 +393,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     }
   };
   const handleSwitchCheckoutToThreadStable = useStableCallback(handleSwitchCheckoutToThread);
-  // The stack renders items[0] front-most, so order is priority and the parked-thread banner goes
-  // last. Background work can outlive the turn and its stop button, so its banner is the only
-  // visible stop while no run is live.
+  // Background work can outlive the turn and its stop button, so its line is the only visible
+  // stop while no run is live.
   const activeBackgroundTasks = activeThread ? pendingBackgroundTasks : [];
   const [backgroundWorkStops, setBackgroundWorkStops] = useState<
     Record<string, BackgroundWorkStopRequest | undefined>
@@ -435,7 +440,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         const error = squashAtomCommandFailure(result);
         setThreadError(
           activeThread.id,
-          error instanceof Error ? error.message : "Failed to stop background work.",
+          error instanceof Error ? error.message : m(msg("Failed to stop background work.")),
         );
       }
     }
@@ -472,7 +477,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     }
     const shell = readThreadShell(threadRef);
     if (shell === null ? !shellOmitsChildren && isEnvironmentLive() : shell.deletedAt != null) {
-      toastManager.add({ type: "info", title: "This thread is no longer available" });
+      toastManager.add({ type: "info", title: m(msg("This thread is no longer available")) });
       return;
     }
     // A side chat and its parent sit side by side; where there is no room, one replaces the other.
@@ -496,13 +501,16 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const onOpenRelatedThreadStable = useStableCallback(onOpenRelatedThread);
   const childThreadInputs = useChildThreadInputs(activeThreadRef);
 
-  const childInputBanner = childInputBannerItem({
-    childThreadInputs,
-    parentAwaitingUser: Boolean(
-      activePendingApproval || activePendingUserInput || activeThreadShell?.hasPendingUserInput,
-    ),
-    onOpenThread: onOpenRelatedThreadStable,
-  });
+  const childInputNow = childInputNowItem(
+    {
+      childThreadInputs,
+      parentAwaitingUser: Boolean(
+        activePendingApproval || activePendingUserInput || activeThreadShell?.hasPendingUserInput,
+      ),
+      onOpenThread: onOpenRelatedThreadStable,
+    },
+    messages,
+  );
   const sendStandaloneCommand = async (text: string, failureMessage: string) => {
     if (!activeThread || !clientSettingsHydrated || sendInFlightRef.current) return;
     const context = composerRef.current?.getSendContext();
@@ -542,14 +550,17 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const sendStandaloneCommandStable = useStableCallback(sendStandaloneCommand);
   const activeGoal = activeThreadShell?.goal ?? null;
 
-  const goalBanner =
+  const goalNow =
     activeThread && activeGoal !== null
-      ? goalBannerItem({
-          threadId: activeThread.id,
-          goal: activeGoal,
-          isWorking,
-          onSendCommand: sendStandaloneCommandStable,
-        })
+      ? goalNowItem(
+          {
+            threadId: activeThread.id,
+            goal: activeGoal,
+            isWorking,
+            onSendCommand: sendStandaloneCommandStable,
+          },
+          messages,
+        )
       : null;
   const forceStop = useForceStopThread(environmentId);
   const anyRunStop = useAtomValue(
@@ -557,9 +568,9 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   );
   // A background Stop matters only while that work is still pending.
   const runStop = anyRunStop?.background && activeBackgroundTasks.length === 0 ? null : anyRunStop;
-  const runStopBanner =
+  const runStopNow =
     activeThread && runStop !== null
-      ? runStopBannerItem({
+      ? runStopNowItem({
           threadId: activeThread.id,
           stop: runStop,
           canForceStop: forceStop.canForceStop,
@@ -567,20 +578,24 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           onForceStop: () => void forceStop.forceStopThread(activeThread.id, runStop.runId),
         })
       : null;
-  const backgroundWorkBanner = activeThread
-    ? backgroundWorkBannerItem({
-        environmentId: activeThread.environmentId,
-        threadId: activeThread.id,
-        projectId: activeThread.projectId,
-        pullRequests: activeThread.pullRequests,
-        tasks: activeBackgroundTasks,
-        outputHandle: backgroundTaskOutputHandle,
-        // Interrupt stops the active run first, not this work; the composer owns that Stop.
-        stopDisabled: runIsLive || !canOperateThread || isStoppingBackgroundWork,
-        stopping: isStoppingBackgroundWork,
-        onStop: handleStopBackgroundWorkStable,
-        onOpenThread: onOpenRelatedThreadStable,
-      })
+  const backgroundWorkNow = activeThread
+    ? backgroundWorkNowItem(
+        {
+          environmentId: activeThread.environmentId,
+          threadId: activeThread.id,
+          projectId: activeThread.projectId,
+          pullRequests: activeThread.pullRequests,
+          tasks: activeBackgroundTasks,
+          turnItems,
+          outputHandle: backgroundTaskOutputHandle,
+          // Interrupt stops the active run first, not this work; the composer owns that Stop.
+          stopDisabled: runIsLive || !canOperateThread || isStoppingBackgroundWork,
+          stopping: isStoppingBackgroundWork,
+          onStop: handleStopBackgroundWorkStable,
+          onOpenThread: onOpenRelatedThreadStable,
+        },
+        messages,
+      )
     : null;
   // Done, snoozed, and woke are thread state, so each gets a quiet line after the last message
   // instead of a banner. Dismissing a wake acknowledges it like the sidebar pill does. Memoized
@@ -591,14 +606,18 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     const nowMs = Date.parse(`${nowMinute}:00.000Z`);
     // Same rounding as the sidebar's snoozed shelf, so both read the same hour.
     const snoozeWake = activeSnoozedUntil
-      ? snoozeWakeLabel(activeSnoozedUntil, { now: `${nowMinute}:00.000Z` })
+      ? snoozeWakeLabel(activeSnoozedUntil, { now: `${nowMinute}:00.000Z` }, messages)
       : null;
     return activeThreadSnoozed ? (
       limitRecoveryHoldsSnooze ? null : (
         <ThreadStatusLine
           icon={<ClockSnoozeIcon />}
-          label={snoozeWake && snoozeWake !== "now" ? `Snoozed, ${snoozeWake} left` : "Snoozed"}
-          actionLabel={isUnsnoozing ? "Waking..." : "Wake now"}
+          label={
+            snoozeWake && snoozeWake !== "now"
+              ? gt("Snoozed, {remaining} left", { remaining: snoozeWake })
+              : gt("Snoozed", { $context: "thread status" })
+          }
+          actionLabel={isUnsnoozing ? gt("Waking...") : gt("Wake now")}
           actionDisabled={!canOperateThread || isUnsnoozing}
           onAction={() => void handleUnsnoozeActiveThreadStable()}
         />
@@ -606,16 +625,20 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     ) : activeThreadDone ? (
       <ThreadStatusLine
         icon={<CircleCheckIcon />}
-        label={activeDoneAt ? `Done ${formatRelativeTimeLabel(activeDoneAt, nowMs)}` : "Done"}
-        actionLabel={isReopening ? "Reopening..." : "Reopen"}
+        label={
+          activeDoneAt
+            ? gt("Done {time}", { time: formatRelativeTimeLabel(activeDoneAt, nowMs) })
+            : gt("Done", { $context: "thread status" })
+        }
+        actionLabel={isReopening ? gt("Reopening...") : gt("Reopen")}
         actionDisabled={!canOperateThread || isReopening}
         onAction={() => void handleReopenActiveThreadStable()}
       />
     ) : activeThreadWokeVisible ? (
       <ThreadStatusLine
         icon={<ClockSnoozeIcon />}
-        label="Woke from snooze"
-        actionLabel="Dismiss"
+        label={gt("Woke from snooze")}
+        actionLabel={gt("Dismiss")}
         onAction={acknowledgeActiveThreadWokeStable}
       />
     ) : null;
@@ -629,7 +652,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         stackedThreadToast({
           type: "error",
           title,
-          description: error instanceof Error ? error.message : "An error occurred.",
+          description: error instanceof Error ? error.message : m(msg("An error occurred.")),
         }),
       );
     };
@@ -643,7 +666,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       }
       if (markDoneAndAdvance(activeThreadRef)) return;
       void markThreadDone(activeThreadRef).then(
-        toastThreadActionFailure("Failed to mark thread as Done"),
+        toastThreadActionFailure(gt("Failed to mark thread as Done")),
       );
     },
     "thread.pin": ({ event }) => {
@@ -655,7 +678,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         activeThreadPinned ? confirmAndUnpinThread(activeThreadRef) : pinThread(activeThreadRef)
       ).then(
         toastThreadActionFailure(
-          activeThreadPinned ? "Failed to unpin thread" : "Failed to pin thread",
+          activeThreadPinned ? m(msg("Failed to unpin thread")) : m(msg("Failed to pin thread")),
         ),
       );
     },
@@ -677,9 +700,10 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     shortcuts,
     activeBranchMismatchKey,
     // A Stop that went unanswered needs the user; one in progress is the thread's work.
-    backgroundWorkBanner: runStop?.state === "stopping" ? runStopBanner : backgroundWorkBanner,
-    childInputBanner: runStop?.state === "unresponsive" ? runStopBanner : childInputBanner,
-    goalBanner,
+    attentionNow: runStop?.state === "unresponsive" ? runStopNow : childInputNow,
+    workNow: runStop?.state === "stopping" ? runStopNow : backgroundWorkNow,
+    childInputNow,
+    goalNow,
     handleSwitchCheckoutToThreadStable,
     isRestoringThreadBranch,
     onOpenRelatedThread,

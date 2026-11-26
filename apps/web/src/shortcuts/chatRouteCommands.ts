@@ -24,6 +24,8 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../termina
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { type CommandHandlers, registerCommands } from "./dispatcher";
+import { m } from "~/i18n/messages";
+import { msg } from "gt-react";
 
 const CHAT_ROUTE_ID = "/_chat";
 
@@ -125,8 +127,8 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
         toastManager.add(
           stackedThreadToast({
             type: "info",
-            title: "Preview is desktop-only",
-            description: "Open Supaterm in the desktop app to use the in-app preview.",
+            title: m(msg("Preview is desktop-only")),
+            description: m(msg("Open Supaterm in the desktop app to use the in-app preview.")),
           }),
         );
         return;
@@ -138,7 +140,12 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     "preview.zoomIn": zoomCommand("zoom-in"),
     "preview.zoomOut": zoomCommand("zoom-out"),
     "preview.resetZoom": zoomCommand("reset-zoom"),
-    "preview.find": previewCommand("find"),
+    // Unclaimed, the browser's own find runs when no thread handles panel find.
+    "preview.find": () => {
+      const environmentId = readRouteEnvironmentId();
+      if (!environmentId || !canOperatePreview(environmentId)) return false;
+      dispatchPreviewAction("find");
+    },
   };
 
   const when = () =>

@@ -1,3 +1,4 @@
+import { T, Var } from "gt-react";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type { ComponentProps } from "react";
@@ -20,11 +21,15 @@ import {
   THREAD_DETAILS_PANEL_SELECT_LABEL_CLASS,
   THREAD_DETAILS_PANEL_SELECT_ICON_CLASS,
 } from "./threadDetailsPanelStyles";
-import { ChevronDownIcon } from "@supaterm/icons";
+import { ChevronDownIcon, MinusIcon, PlusIcon } from "@supaterm/icons";
 
 const parts = {
   "group-row": `${THREAD_DETAILS_PANEL_ROW_CLASS} hover:!bg-transparent dark:hover:!bg-transparent`,
   row: THREAD_DETAILS_PANEL_ROW_CLASS,
+  title: cn(
+    THREAD_DETAILS_PANEL_ROW_CLASS,
+    "h-auto min-h-8 items-start pt-1.5 pb-0 disabled:opacity-100 sm:h-auto [&>svg]:mt-px",
+  ),
   select: THREAD_DETAILS_PANEL_SELECT_ROW_CLASS,
   primary: THREAD_DETAILS_PANEL_SPLIT_PRIMARY_CLASS,
   secondary: THREAD_DETAILS_PANEL_SPLIT_SECONDARY_CLASS,
@@ -127,5 +132,37 @@ export function ThreadDetailsComboboxControl({
       {children}
       {panel ? null : <ChevronDownIcon className="size-3 shrink-0 opacity-50" />}
     </ComboboxTrigger>
+  );
+}
+
+export function ThreadDetailsMoreButton({
+  expanded,
+  remaining,
+  onToggle,
+}: {
+  expanded: boolean;
+  remaining: number;
+  onToggle: () => void;
+}) {
+  const Icon = expanded ? MinusIcon : PlusIcon;
+  return (
+    <ThreadDetailsControl
+      variant="ghost"
+      size="sm"
+      aria-expanded={expanded}
+      onClick={onToggle}
+      part="row"
+      tone="muted"
+      className="w-full active:scale-100"
+    >
+      <Icon aria-hidden className="size-3.5 shrink-0" />
+      {expanded ? (
+        <T>Show less</T>
+      ) : (
+        <T>
+          Show <Var>{remaining}</Var> more
+        </T>
+      )}
+    </ThreadDetailsControl>
   );
 }

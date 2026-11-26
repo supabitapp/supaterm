@@ -29,6 +29,8 @@ import {
 import { createCommandPermissions } from "./commandPermissions.ts";
 import { vcsCommandScheduler } from "./vcsCommandScheduler.ts";
 import { invalidateCachedVcsRefs } from "./vcsRefInvalidation.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export const VcsActionOperation = Schema.Literals([
   "refresh_status",
@@ -222,6 +224,38 @@ export function beginVcsActionState(
   };
 }
 
+const RUN_ACTION_LABEL = msg("Running source control action");
+const ACTION_FAILED_ERROR = msg("Source control action failed.");
+
+function hookRunningText(hookName: string): string {
+  return msg("Running {hook}...", { hook: hookName });
+}
+
+/**
+ * The action's progress label in the active language. Labels this module wrote translate;
+ * phase labels from the server stay as they are.
+ * @public
+ */
+export function vcsActionLabelText(
+  state: Pick<VcsActionState, "currentLabel" | "hookName">,
+  resolve: MFunctionType = mFallback,
+): string | null {
+  const label = state.currentLabel;
+  if (label === RUN_ACTION_LABEL) return resolve(RUN_ACTION_LABEL);
+  if (state.hookName !== null && label === mFallback(hookRunningText(state.hookName))) {
+    return resolve(hookRunningText(state.hookName));
+  }
+  return label;
+}
+
+/** @public The action's error in the active language; messages from the server stay as they are. */
+export function vcsActionErrorText(
+  state: Pick<VcsActionState, "error">,
+  resolve: MFunctionType = mFallback,
+): string | null {
+  return state.error === ACTION_FAILED_ERROR ? resolve(ACTION_FAILED_ERROR) : state.error;
+}
+
 function failVcsActionState(
   operation: VcsActionOperation,
   actionId: string,
@@ -231,7 +265,7 @@ function failVcsActionState(
     ...EMPTY_VCS_ACTION_STATE,
     operation,
     actionId,
-    error: error instanceof Error ? error.message : "Source control action failed.",
+    error: error instanceof Error ? error.message : ACTION_FAILED_ERROR,
   };
 }
 
@@ -362,7 +396,7 @@ export function applyVcsActionProgressEvent(
         actionId: event.actionId,
         action: event.action,
         operation: "run_change_request",
-        currentLabel: `Running ${event.hookName}...`,
+        currentLabel: mFallback(hookRunningText(event.hookName)),
         hookName: event.hookName,
         hookStartedAtMs: now,
         lastOutputLine: null,
@@ -460,7 +494,7 @@ export function createVcsActionManager<R, E>(
           stateAtom,
           beginVcsActionState({
             operation: "run_change_request",
-            label: "Running source control action",
+            label: RUN_ACTION_LABEL,
             actionId: input.actionId,
           }),
         );

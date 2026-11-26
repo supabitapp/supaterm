@@ -1,4 +1,5 @@
 import { linkOriginIsFenced, ProjectId, type ProjectScript, ThreadId } from "@supaterm/contracts";
+import { splitsSurrogatePair } from "@supaterm/shared/assistantCitations";
 import {
   projectScriptRuntimeEnv,
   projectScriptTerminalInput,
@@ -12,6 +13,7 @@ import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -332,7 +334,14 @@ export const make = Effect.gen(function* () {
           ) {
             return Effect.void;
           }
-          return input.onOutputLine(cleaned.slice(0, OUTPUT_LINE_MAX_LENGTH));
+          return input.onOutputLine(
+            cleaned.slice(
+              0,
+              splitsSurrogatePair(cleaned, OUTPUT_LINE_MAX_LENGTH)
+                ? OUTPUT_LINE_MAX_LENGTH - 1
+                : OUTPUT_LINE_MAX_LENGTH,
+            ),
+          );
         });
 
       const unsubscribe = yield* terminalManager.subscribe((event) => {
@@ -349,7 +358,10 @@ export const make = Effect.gen(function* () {
           // A script that never prints a newline must not grow this forever.
           // The sentinel is always on its own line, so keeping the tail is safe.
           if (lineBuffer.length > PARTIAL_LINE_MAX_LENGTH) {
-            lineBuffer = lineBuffer.slice(-PARTIAL_LINE_MAX_LENGTH);
+            const start = lineBuffer.length - PARTIAL_LINE_MAX_LENGTH;
+            lineBuffer = lineBuffer.slice(
+              splitsSurrogatePair(lineBuffer, start) ? start + 1 : start,
+            );
           }
           return Effect.forEach(lines, handleLine, { discard: true }).pipe(
             Effect.andThen(
@@ -426,7 +438,7 @@ export const make = Effect.gen(function* () {
           const seen = activity;
           yield* Effect.sleep(SHELL_QUIET_FALLBACK);
           if (activity !== seen) continue;
-          if (!busy) return "ready" as const;
+          if (!busy) return "quiet" as const;
           yield* input.onStartupPrompt;
         }
       });
@@ -520,6 +532,19 @@ export const make = Effect.gen(function* () {
       trigger === "done"
         ? `done-${script.id}-${(yield* random.uuidV4()).slice(0, 8)}`
         : `setup-${script.id}`;
+    // A surviving setup shell may still hold a deleted worktree directory.
+    if (trigger === "setup") {
+      yield* terminalManager.close({ threadId: input.threadId, terminalId }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ProjectSetupScriptOperationError({
+              ...errorContext,
+              operation: "openTerminal",
+              cause,
+            }),
+        ),
+      );
+    }
     const cwd = input.worktreePath;
     const env = {
       ...projectScriptRuntimeEnv({
@@ -626,19 +651,24 @@ export const make = Effect.gen(function* () {
     );
     // Return once the terminal exists so callers can show it while a startup prompt waits.
     // PowerShell and cmd have no line-editor signal.
-    yield* (
+    const commandWriter = yield* (
       completionShell === "powershell" || completionShell === null
         ? Effect.succeed("ready" as const)
         : readiness.wait
     ).pipe(
-      Effect.flatMap((shell) =>
-        shell === "exited" || commandLine === null
-          ? Effect.void
-          : (input.withCommandWriteGuard
-              ? input.withCommandWriteGuard(writeCommand(commandLine))
-              : writeCommand(commandLine).pipe(Effect.as(true))
-            ).pipe(Effect.flatMap((written) => (written ? Effect.void : abandonUnusedTerminal))),
-      ),
+      Effect.flatMap((shell) => {
+        if (shell === "exited" || commandLine === null) return Effect.void;
+        // macOS zsh garbles long typed-ahead multiline input; a live line editor takes it as one paste.
+        const line =
+          shell === "ready" && completionShell === "posix" && commandLine.includes("\r")
+            ? `\x1b[200~${commandLine.replaceAll("\r", "\n")}\x1b[201~`
+            : commandLine;
+        return (
+          input.withCommandWriteGuard
+            ? input.withCommandWriteGuard(writeCommand(line))
+            : writeCommand(line).pipe(Effect.as(true))
+        ).pipe(Effect.flatMap((written) => (written ? Effect.void : abandonUnusedTerminal)));
+      }),
       Effect.catchCause((cause) =>
         Effect.logWarning("project script command was not written", {
           ...errorContext,
@@ -651,6 +681,13 @@ export const make = Effect.gen(function* () {
     );
 
     const completion = observed?.completion.pipe(
+      Effect.onInterrupt(() =>
+        Fiber.interrupt(commandWriter).pipe(
+          Effect.andThen(Effect.sync(() => readiness.unsubscribe())),
+          Effect.andThen(terminalManager.close({ threadId: input.threadId, terminalId })),
+          Effect.ignore,
+        ),
+      ),
       Effect.tap(({ exitCode }) =>
         exitCode === 0
           ? terminalManager.closeIdle({ threadId: input.threadId, terminalId })

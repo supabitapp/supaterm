@@ -14,6 +14,7 @@ import {
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { CommandId, MessageId } from "@supaterm/contracts";
 import {
+  MCP_APP_DOCUMENT_MESSAGE,
   mcpAppAllowAttribute,
   mcpAppFileName,
   mcpAppReferencesEqual,
@@ -42,20 +43,29 @@ import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { MCP_APP_INLINE_MAX_HEIGHT, mcpAppInlineHeight } from "./mcpAppSizing";
+import { msg, T, useGT, Var } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const ROW_BOTTOM_MARGIN = 8;
 
 function outerDocument(src: string, allow: string, secret: string) {
   const attribute = (value: string) =>
     value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  // The frame's window outlives its document, so the relay trusts only the port the app
+  // document's bootstrap sends first, and relays a message once that document confirms it is
+  // alive. Servers without the bootstrap keep the plain window relay.
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>html,body{margin:0;height:100%;background:transparent}iframe{border:0;display:block;width:100%;height:100%}</style></head>
 <body><iframe id="app" sandbox="allow-scripts allow-forms" allow="${attribute(allow)}"></iframe>
 <script>(function(){var frame=document.getElementById("app"),secret=${JSON.stringify(secret)},loads=0,live=true;
 var send=function(m){var u=navigator.userActivation;window.ReactNativeWebView.postMessage(JSON.stringify({secret:secret,active:!!(u&&u.isActive)&&document.activeElement===frame,message:m}));};
 frame.addEventListener("load",function(){loads+=1;if(loads>1&&live){live=false;send({supaterm:"navigated"});}});
-window.addEventListener("message",function(e){if(live&&e.source===frame.contentWindow)send(e.data);});
-window.__supatermMcpAppReceive=function(m){live&&frame.contentWindow&&frame.contentWindow.postMessage(m,"*");};
+var port=null,plain=false,unconfirmed=Object.create(null),waiting=0,probe=0;
+window.addEventListener("message",function(e){if(!live||e.source!==frame.contentWindow)return;
+if(!port&&!plain){if(e.data&&e.data.supaterm===${JSON.stringify(MCP_APP_DOCUMENT_MESSAGE)}&&e.ports[0]){port=e.ports[0];
+port.onmessage=function(r){var k=r.data&&r.data.alive;if(live&&k in unconfirmed){var m=unconfirmed[k];delete unconfirmed[k];waiting-=1;send(m);}};return;}plain=true;}
+if(plain)send(e.data);else if(waiting<256){unconfirmed[probe]=e.data;waiting+=1;port.postMessage({alive:probe++});}});
+window.__supatermMcpAppReceive=function(m){if(!live)return;if(port)port.postMessage({message:m,origin:location.origin});else if(plain&&frame.contentWindow)frame.contentWindow.postMessage(m,"*");};
 frame.src=${JSON.stringify(src).replace(/</g, "\\u003c")};})();</script></body></html>`;
 }
 
@@ -65,7 +75,7 @@ const confirm = (title: string, message: string, action: string) =>
       title,
       message,
       [
-        { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+        { text: m(msg("Cancel")), style: "cancel", onPress: () => resolve(false) },
         { text: action, onPress: () => resolve(true) },
       ],
 
@@ -90,6 +100,7 @@ export function ThreadMcpApp(props: {
 
   readonly height?: number;
 }) {
+  const gt = useGT();
   const [height, setHeight] = useState(MCP_APP_INLINE_MAX_HEIGHT);
   const [documentKey, setDocumentKeyState] = useState(0);
   const [uri, setUri] = useState<string | null>(null);
@@ -280,15 +291,15 @@ export function ThreadMcpApp(props: {
       commands: () => latest.current,
       confirmTool: ({ name, title, arguments: args }) =>
         confirm(
-          `Allow ${app.server} to run ${title ?? name}?`,
+          m(msg("Allow {server} to run {tool}?", { server: app.server, tool: title ?? name })),
           JSON.stringify(args, null, 2),
-          "Allow",
+          m(msg("Allow", { $context: "verb, confirm button" })),
         ),
       confirmDownload: (files) =>
         confirm(
-          `Save a file from ${app.server}?`,
+          m(msg("Save a file from {server}?", { server: app.server })),
           files.map((file) => file.name).join(", "),
-          "Save",
+          m(msg("Save", { $context: "verb, confirm button" })),
         ),
       saveFile: async ({ name, mimeType, bytes }) => {
         const shared = await shareGeneratedAttachment({
@@ -296,7 +307,8 @@ export function ThreadMcpApp(props: {
           attachment: { name, mimeType },
           signal: new AbortController().signal,
         });
-        if (!shared) throw new McpAppHostRefusal("Sharing is not available on this device.");
+        if (!shared)
+          throw new McpAppHostRefusal({ message: "Sharing is not available on this device." });
       },
     });
     const next = makeMcpAppHost({
@@ -309,16 +321,28 @@ export function ThreadMcpApp(props: {
       hostContext,
       ...requests,
       openLink: async (url) => {
-        if (!(await confirm(`Open a link from ${app.server}?`, url, "Open"))) {
-          throw new McpAppHostRefusal("Declined by the user.");
+        if (
+          !(await confirm(
+            m(msg("Open a link from {server}?", { server: app.server })),
+            url,
+            m(msg("Open", { $context: "verb, opens a link" })),
+          ))
+        ) {
+          throw new McpAppHostRefusal({ message: "Declined by the user." });
         }
         if (!(await tryOpenExternalUrl(url, "mcp-app"))) {
-          throw new McpAppHostRefusal("The link could not be opened.");
+          throw new McpAppHostRefusal({ message: "The link could not be opened." });
         }
       },
       sendMessage: async (text) => {
-        if (!(await confirm(`Send this message from ${app.server}?`, text, "Send"))) {
-          throw new McpAppHostRefusal("Declined by the user.");
+        if (
+          !(await confirm(
+            m(msg("Send this message from {server}?", { server: app.server })),
+            text,
+            m(msg("Send", { $context: "verb, sends the message" })),
+          ))
+        ) {
+          throw new McpAppHostRefusal({ message: "Declined by the user." });
         }
 
         await enqueueThreadOutboxMessage({
@@ -415,7 +439,9 @@ export function ThreadMcpApp(props: {
         className="items-center justify-center rounded-lg border border-border"
       >
         <Text className="text-sm text-foreground-muted">
-          The {app.server} app is open full screen
+          <T>
+            The <Var>{app.server}</Var> app is open full screen
+          </T>
         </Text>
       </View>
     );
@@ -427,10 +453,14 @@ export function ThreadMcpApp(props: {
         style={{ height, marginBottom: ROW_BOTTOM_MARGIN }}
         className="items-center justify-center gap-2 rounded-lg border border-border"
       >
-        <Text className="text-sm text-foreground-muted">The {app.server} app was closed</Text>
+        <Text className="text-sm text-foreground-muted">
+          <T>
+            The <Var>{app.server}</Var> app was closed
+          </T>
+        </Text>
         <View className="items-center">
           <Button
-            label="Show app"
+            label={gt("Show app")}
             tone="secondary"
             onPress={() => {
               setDocumentKey((value) => value + 1);
@@ -447,7 +477,9 @@ export function ThreadMcpApp(props: {
       {navigatedAway ? (
         <View className="flex-1 items-center justify-center">
           <Text className="text-sm text-foreground-muted">
-            The {app.server} app left its page and was stopped
+            <T>
+              The <Var>{app.server}</Var> app left its page and was stopped
+            </T>
           </Text>
         </View>
       ) : uri !== null && !crashed ? (
@@ -494,7 +526,11 @@ export function ThreadMcpApp(props: {
         />
       ) : asset._tag === "Failure" || crashed ? (
         <View className="flex-1 items-center justify-center">
-          <Text className="text-sm text-foreground-muted">Unable to load the {app.server} app</Text>
+          <Text className="text-sm text-foreground-muted">
+            <T>
+              Unable to load the <Var>{app.server}</Var> app
+            </T>
+          </Text>
         </View>
       ) : null}
       {uri !== null && !loaded && !crashed && !navigatedAway ? (

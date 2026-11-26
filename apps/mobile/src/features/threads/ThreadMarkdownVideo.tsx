@@ -7,6 +7,7 @@ import {
   mediaVideoThumbnailKey,
   type MediaVideoPreviewSource,
 } from "../../lib/videoPreviewSource";
+import { useMessages } from "gt-react-native";
 
 export const ThreadMediaVisibleContext = createContext(false);
 /** Asks the feed to keep this row out of list recycling while its media holds playback state. */
@@ -20,6 +21,7 @@ export function ThreadMarkdownVideo(props: {
   readonly onPlaybackStart?: () => void;
   readonly borderRadius?: number;
 }) {
+  const messages = useMessages();
   const { source } = props;
   const feedVisible = useContext(ThreadMediaVisibleContext);
   const visible = props.thumbnailVisible ?? feedVisible;
@@ -50,7 +52,7 @@ export function ThreadMarkdownVideo(props: {
       unavailable={"resource" in source && asset._tag === "Failure"}
       unavailableDetail={
         asset._tag === "Failure" && asset.reason === "missing-file-access"
-          ? MISSING_FILE_ACCESS_MESSAGE
+          ? messages(MISSING_FILE_ACCESS_MESSAGE)
           : undefined
       }
       actionsSource={source.actionsSource}

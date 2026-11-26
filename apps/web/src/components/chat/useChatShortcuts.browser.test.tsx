@@ -134,3 +134,21 @@ it.each([
   expect(composerKeys).toEqual(composer);
   expect(received).toEqual(launcher);
 });
+
+it("leaves keys to a focused video player with controls", async () => {
+  const composerKeys: string[] = [];
+  await using _screen = await render(
+    <>
+      <Chat composerKeys={composerKeys} />
+      <video ref={focusOnMount} controls />
+    </>,
+    options,
+  );
+
+  await userEvent.keyboard(" m");
+  expect(composerKeys).toEqual([]);
+
+  (document.activeElement as HTMLElement).blur();
+  await userEvent.keyboard("a");
+  expect(composerKeys).toEqual(["a"]);
+});

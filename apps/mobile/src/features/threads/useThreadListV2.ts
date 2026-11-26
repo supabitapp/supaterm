@@ -15,6 +15,7 @@ import {
   threadListInboxReturns,
   threadListV2LayoutTime,
 } from "./threadListV2";
+import { keepMarked } from "../../i18n/messages";
 
 /**
  * Screens' select handlers read the content-only key set; a fresh one per list rebuild gave
@@ -219,6 +220,7 @@ export function useThreadListV2(input: {
         queuedThreadKeys: input.queuedThreadKeys,
         shelfPreferencesLoading: !input.shelfPreferencesLoaded,
         ...(olderDoneState === undefined ? {} : { olderDoneState }),
+        resolve: keepMarked,
       }),
     [
       layout,

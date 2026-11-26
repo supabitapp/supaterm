@@ -973,7 +973,11 @@ describe("web thread outbox voice messages", () => {
     await enqueueThreadOutboxTurn(voiceTarget());
     harness.online = true;
     harness.voice.mockRejectedValueOnce(
-      new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
+      new VoiceUploadError({
+        reason: "disconnected",
+        message: "The recording couldn't reach the environment.",
+        retryable: true,
+      }),
     );
     await webThreadOutbox.drain();
     expect(harness.records.get("message")).toMatchObject({

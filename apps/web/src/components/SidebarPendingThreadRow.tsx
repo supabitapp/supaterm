@@ -5,6 +5,7 @@ import { memo } from "react";
 
 import { cn } from "../lib/utils";
 import type { PendingThreadTurn } from "../state/threadOutbox";
+import { useGT } from "gt-react";
 
 export const SidebarPendingThreadRow = memo(function SidebarPendingThreadRow(props: {
   readonly entry: PendingThreadTurn;
@@ -12,10 +13,14 @@ export const SidebarPendingThreadRow = memo(function SidebarPendingThreadRow(pro
   readonly active: boolean;
   readonly onNavigate: (ref: ScopedThreadRef) => unknown;
 }) {
+  const gt = useGT();
   const { entry } = props;
   const creation = entry.payload.input.bootstrap?.createThread;
   if (!creation) return null;
-  const status = entry.status === "failed" ? "Could not start" : "Pending";
+  const status =
+    entry.status === "failed"
+      ? gt("Could not start")
+      : gt("Pending", { $context: "a new thread waiting to start" });
   return (
     <li className="list-none">
       <button

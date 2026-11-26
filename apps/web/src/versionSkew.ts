@@ -13,6 +13,8 @@ import * as Schema from "effect/Schema";
 
 import { APP_VERSION } from "./branding";
 import { getLocalStorageItem, setLocalStorageItem } from "./hooks/useLocalStorage";
+import { msg } from "gt-react";
+import { m, type MessageResolver } from "./i18n/messages";
 
 export interface VersionMismatch {
   readonly clientVersion: string;
@@ -50,6 +52,7 @@ function versionCore(version: string): string {
 export function resolveVersionMismatch(
   serverVersion: string | null | undefined,
   clientVersion: string = APP_VERSION,
+  resolve: MessageResolver = m,
 ): VersionMismatch | null {
   const normalizedClientVersion = normalizeVersion(clientVersion);
   const normalizedServerVersion = normalizeVersion(serverVersion);
@@ -76,7 +79,9 @@ export function resolveVersionMismatch(
   return {
     clientVersion: normalizedClientVersion,
     serverVersion: normalizedServerVersion,
-    hint: "Version mismatch. Try syncing the client and server to the same Supaterm version.",
+    hint: resolve(
+      msg("Version mismatch. Try syncing the client and server to the same Supaterm version."),
+    ),
   };
 }
 
@@ -122,10 +127,12 @@ export function serverUpdatePolicyDenial(
   policy: ManagedPolicySummary | undefined,
   selfUpdate: ServerSelfUpdateCapability | null,
   targetVersion: string,
+  resolve: MessageResolver = m,
 ): string | undefined {
   return managedServerUpdateDenial(
     policy,
     selfUpdate === "desktop-managed" ? undefined : targetVersion,
+    resolve,
   );
 }
 
@@ -150,10 +157,6 @@ export function manualServerUpdateCommand(
   const runner =
     installation?.kind === "pnpm-dlx" ? "pnpm dlx" : installation?.kind === "bunx" ? "bunx" : "npx";
   return `${runner} supaterm@${targetVersion}`;
-}
-
-export function serverUpdateGuidance(capability: ServerSelfUpdateCapability): string {
-  return capability === "desktop-managed" ? "Update the desktop app" : "Update to stay in sync";
 }
 
 export function buildVersionMismatchDismissalKey(

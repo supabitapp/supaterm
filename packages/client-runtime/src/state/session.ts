@@ -10,7 +10,6 @@ import {
   sessionGrantsScope,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
@@ -24,7 +23,6 @@ import * as EnvironmentRegistry from "../connection/registry.ts";
 import type { ConnectionRoute } from "../connection/catalog.ts";
 import { mapRemoteEnvironmentError } from "../connection/errors.ts";
 import {
-  connectionRouteLatencyLabel,
   measureConnectionRouteLatency,
   type ConnectionRouteLatency,
 } from "../connection/routeLatency.ts";
@@ -42,8 +40,9 @@ import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAut
 import { followStreamInEnvironment } from "./environmentStreams.ts";
 
 /** @public Required to name the error in consumers' inferred session results. */
-export class SessionHttpClientUnavailable extends Data.TaggedError(
+export class SessionHttpClientUnavailable extends Schema.TaggedError<SessionHttpClientUnavailable>()(
   "SessionHttpClientUnavailable",
+  {},
 ) {}
 
 function initialConfigOption<E>(
@@ -89,9 +88,13 @@ export function sessionDeniesScope(
   return result._tag === "Failure" && isSessionRejection(result.cause);
 }
 
+const isRemoteEnvironmentAuthUndeclaredStatusError = Schema.is(
+  RemoteEnvironmentAuthUndeclaredStatusError,
+);
+
 function isSessionRejection(cause: Cause.Cause<unknown>): boolean {
   const error = Option.getOrNull(Cause.findErrorOption(cause));
-  if (error instanceof RemoteEnvironmentAuthUndeclaredStatusError) {
+  if (isRemoteEnvironmentAuthUndeclaredStatusError(error)) {
     return error.status === 401 || error.status === 403;
   }
   return isSessionRejectionError(error);
@@ -324,17 +327,13 @@ function makeEnvironmentSessionAtoms<R, E>(
           `environment-route-latency:${route.target.environmentId}:${connectionRouteId(route.target)}`,
         ),
       );
-    const labelAtom = Atom.make((get) => {
+    const latencyAtom = Atom.make((get): ConnectionRouteLatency | null => {
       const result = get(resultAtom);
-      return connectionRouteLatencyLabel(
-        result.waiting || result._tag === "Initial"
-          ? null
-          : AsyncResult.getOrElse(result, (): ConnectionRouteLatency => ({
-              status: "unreachable",
-            })),
-      );
+      return result.waiting || result._tag === "Initial"
+        ? null
+        : AsyncResult.getOrElse(result, (): ConnectionRouteLatency => ({ status: "unreachable" }));
     });
-    return { resultAtom, labelAtom };
+    return { resultAtom, latencyAtom };
   });
 
   const relayGatewayAtom = runtime.atom(Effect.serviceOption(RelayGateway));

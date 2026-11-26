@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import { useState, type CSSProperties } from "react";
 
 export function BrightnessSlider({
@@ -11,6 +12,7 @@ export function BrightnessSlider({
   disabled: boolean;
   onCommit: (brightness: number) => void;
 }) {
+  const gt = useGT();
   const [draft, setDraft] = useState<number | null>(null);
   const value = draft ?? brightness;
   const style = {
@@ -33,7 +35,7 @@ export function BrightnessSlider({
         {value}%
       </output>
       <input
-        aria-label="Brightness"
+        aria-label={gt("Brightness")}
         className="settings-slider min-w-0 flex-1"
         disabled={disabled}
         id={id}

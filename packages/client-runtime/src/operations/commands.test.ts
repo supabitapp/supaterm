@@ -29,6 +29,7 @@ import * as Fiber from "effect/Fiber";
 import * as Stream from "effect/Stream";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Schema from "effect/Schema";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as TestClock from "effect/testing/TestClock";
 import { RpcClientError } from "effect/rpc";
@@ -45,7 +46,9 @@ import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import { v2Now, v2Projection, v2ThreadId } from "../state/orchestrationV2TestFixtures.ts";
 import {
   archiveThread,
+  editQueuedRun,
   interruptThreadTurn,
+  promoteQueuedRun,
   revertThreadCheckpoint,
   resumeThreadQueue,
   startThreadTurn,
@@ -55,6 +58,8 @@ const layerTestRandom = Layer.succeed(
   SecureRandom.SecureRandom,
   SecureRandom.make((size) => new Uint8Array(size)),
 );
+
+class Refused extends Schema.TaggedError<Refused>()("Refused", {}) {}
 
 const TARGET = new PrimaryConnectionTarget({
   environmentId: EnvironmentId.make("environment-1"),
@@ -77,6 +82,7 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
   readonly projectionRequests?: ThreadId[];
   readonly advertiseThreadStop?: boolean;
   readonly advertiseQueuedRunStart?: boolean;
+  readonly advertiseQueuedRunModelEdit?: boolean;
 }) {
   const client = {
     [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command: OrchestrationV2Command) =>
@@ -125,6 +131,7 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
         capabilities: {
           ...(input.advertiseThreadStop === true ? { threadStop: true } : {}),
           ...(input.advertiseQueuedRunStart === true ? { queuedRunStart: true } : {}),
+          ...(input.advertiseQueuedRunModelEdit === true ? { queuedRunModelEdit: true } : {}),
         },
       },
     } as never),
@@ -211,6 +218,80 @@ describe("V2 environment commands", () => {
         { type: "queue.resume", commandId: "send-selected", threadId: v2ThreadId },
       ]);
     }).pipe(Effect.provide(layerTestRandom)),
+  );
+
+  it.effect.each([
+    { applies: true, follows: false, model: "model-b", sent: true },
+    { applies: false, follows: false, model: "model-b", sent: false },
+    { applies: false, follows: false, model: "model-a", sent: true },
+    { applies: false, follows: true, model: "thread-model", sent: true },
+    { applies: false, follows: true, model: "model-a", sent: false },
+  ])(
+    "sends a queued edit's model $model to a server applying it $applies, following the thread $follows: $sent",
+    ({ applies, follows, model, sent }) =>
+      Effect.gen(function* () {
+        const commands: OrchestrationV2Command[] = [];
+        const instanceId = ProviderInstanceId.make("codex");
+        const supervisor = yield* makeSupervisor({
+          commands,
+          projects: [],
+          advertiseQueuedRunModelEdit: applies,
+          projection: {
+            ...v2Projection,
+            thread: {
+              ...v2Projection.thread,
+              modelSelection: { instanceId, model: "thread-model" },
+            },
+            runs: [
+              {
+                id: RunId.make("queued"),
+                status: "queued",
+                userMessageId: MessageId.make("queued-message"),
+                modelSelection: { instanceId, model: "model-a" },
+              },
+            ],
+            messages: [
+              {
+                id: MessageId.make("queued-message"),
+                ...(follows ? { followsThreadSelection: true } : {}),
+              },
+            ],
+          } as unknown as OrchestrationV2ThreadProjection,
+        });
+        const result = yield* editQueuedRun({
+          commandId: CommandId.make("edit"),
+          threadId: v2ThreadId,
+          runId: RunId.make("queued"),
+          text: "Revised prompt",
+          modelSelection: { instanceId, model },
+        }).pipe(
+          Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+          Effect.result,
+        );
+
+        if (!sent) {
+          expect(commands).toEqual([]);
+          expect(result).toMatchObject({
+            _tag: "Failure",
+            failure: {
+              _tag: "EnvironmentRpcUnavailableError",
+              message:
+                "Update Supaterm on Test environment to change a queued message's model. Your edit is still in the composer.",
+            },
+          });
+        } else {
+          expect(commands).toEqual([
+            {
+              type: "queued-run.edit",
+              commandId: "edit",
+              threadId: v2ThreadId,
+              runId: "queued",
+              text: "Revised prompt",
+              modelSelection: { instanceId, model },
+            },
+          ]);
+        }
+      }).pipe(Effect.provide(layerTestRandom)),
   );
 
   it.effect("preserves caller command ids for idempotent V2 commands", () =>
@@ -604,6 +685,125 @@ describe("V2 environment commands", () => {
     }).pipe(Effect.provide(layerTestRandom)),
   );
 
+  const turnSends = [
+    {
+      name: "new thread's first message",
+      method: ORCHESTRATION_V2_WS_METHODS.launchThread,
+      send: (commandId: CommandId) =>
+        startThreadTurn({
+          commandId,
+          threadId: v2ThreadId,
+          message: {
+            messageId: MessageId.make(commandId),
+            role: "user",
+            text: "hi",
+            attachments: [],
+          },
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          bootstrap: {
+            createThread: {
+              projectId: ProjectId.make("project-1"),
+              title: "Thread",
+              modelSelection: v2Projection.thread.modelSelection,
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              branch: null,
+              worktreePath: null,
+              createdAt: "2026-06-20T00:00:00.000Z",
+            },
+          },
+        }),
+    },
+    {
+      name: "queued message sent now",
+      method: ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      send: (commandId: CommandId) =>
+        resumeThreadQueue({ commandId, threadId: v2ThreadId, runId: RunId.make("queued") }),
+    },
+    {
+      name: "queued message steered",
+      method: ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      send: (commandId: CommandId) =>
+        promoteQueuedRun({
+          commandId,
+          threadId: v2ThreadId,
+          queuedRunId: RunId.make("queued"),
+          targetRunId: RunId.make("running"),
+        }),
+    },
+  ] as const;
+
+  const sendFailingFirstAttempt = Effect.fn("TestEnvironmentCommands.sendFailingFirstAttempt")(
+    function* (turnSend: (typeof turnSends)[number], failure: Effect.Effect<never, Refused>) {
+      const supervisor = yield* makeSupervisor({ commands: [], projects: [], launches: [] });
+      const healthySession = Option.getOrThrow(yield* SubscriptionRef.get(supervisor.session));
+      const attempts: string[] = [];
+      const firstAttemptFailed = yield* Deferred.make<void>();
+      const healthyMethod = (
+        healthySession.client as unknown as Record<
+          string,
+          (input: unknown) => Effect.Effect<unknown>
+        >
+      )[turnSend.method]!;
+      const failingClient = {
+        ...healthySession.client,
+        [turnSend.method]: (input: { readonly commandId: CommandId }) =>
+          Effect.gen(function* () {
+            attempts.push(input.commandId);
+            if (attempts.length > 1) return yield* healthyMethod(input);
+            yield* SubscriptionRef.set(supervisor.session, Option.none());
+            yield* Deferred.succeed(firstAttemptFailed, undefined);
+            return yield* failure;
+          }),
+      } as unknown as WsRpcProtocolClient;
+      yield* SubscriptionRef.set(
+        supervisor.session,
+        Option.some({ ...healthySession, client: failingClient }),
+      );
+      type TurnSend = ReturnType<typeof turnSend.send>;
+      const send: Effect.Effect<
+        Effect.Success<TurnSend>,
+        Effect.Error<TurnSend>,
+        Effect.Services<TurnSend>
+      > = turnSend.send(CommandId.make("command-turn-send"));
+      const sendFiber = yield* send.pipe(
+        Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+        Effect.forkChild,
+      );
+      yield* Deferred.await(firstAttemptFailed);
+      yield* SubscriptionRef.set(
+        supervisor.session,
+        Option.some({ ...healthySession, client: failingClient }),
+      );
+      return { exit: yield* Fiber.await(sendFiber), attempts };
+    },
+  );
+
+  it.effect.each(turnSends)("resends a $name lost to a session close", (turnSend) =>
+    Effect.gen(function* () {
+      const { exit, attempts } = yield* sendFailingFirstAttempt(
+        turnSend,
+        Effect.failCause(Cause.interrupt()),
+      );
+
+      expect(attempts).toEqual(["command-turn-send", "command-turn-send"]);
+      expect(Exit.isSuccess(exit)).toBe(true);
+    }).pipe(Effect.provide(layerTestRandom)),
+  );
+
+  it.effect("doesn't resend a new thread's first message the server refused", () =>
+    Effect.gen(function* () {
+      const { exit, attempts } = yield* sendFailingFirstAttempt(
+        turnSends[0],
+        Effect.fail(new Refused()),
+      );
+
+      expect(attempts).toEqual(["command-turn-send"]);
+      expect(Exit.isFailure(exit)).toBe(true);
+    }).pipe(Effect.provide(layerTestRandom)),
+  );
+
   it.effect("Stop with no run left ends the thread's pull request watches", () =>
     Effect.gen(function* () {
       const link = {
@@ -735,6 +935,83 @@ describe("V2 environment commands", () => {
   );
 
   describe("revertThreadCheckpoint", () => {
+    it.effect("rolls back to the thread's own baseline, not a tracked repository's", () =>
+      Effect.gen(function* () {
+        const scopeId = CheckpointScopeId.make("checkpoint-scope-root");
+        const repositoryScopeId = CheckpointScopeId.make("checkpoint-scope-repository");
+        const checkpointId = CheckpointId.make("checkpoint-thread-start");
+        const projection: OrchestrationV2ThreadProjection = {
+          ...v2Projection,
+          checkpoints: [
+            {
+              id: checkpointId,
+              threadId: v2ThreadId,
+              scopeId,
+              runId: null,
+              nodeId: NodeId.make("node-run-1"),
+              parentCheckpointId: null,
+              ordinalWithinScope: 0,
+              appRunOrdinal: null,
+              ref: CheckpointRef.make("refs/supaterm/thread-start"),
+              status: "ready",
+              files: [],
+              capturedAt: v2Now,
+            },
+            // A tracked repository's first baseline, recorded after the thread's own.
+            {
+              id: CheckpointId.make("checkpoint-repository-start"),
+              threadId: v2ThreadId,
+              scopeId: repositoryScopeId,
+              runId: null,
+              nodeId: NodeId.make("node-run-1"),
+              parentCheckpointId: null,
+              ordinalWithinScope: 0,
+              appRunOrdinal: null,
+              ref: CheckpointRef.make("refs/supaterm/repository-start"),
+              status: "ready",
+              files: [],
+              capturedAt: v2Now,
+            },
+          ],
+          checkpointScopes: [
+            {
+              id: repositoryScopeId,
+              threadId: v2ThreadId,
+              runId: null,
+              nodeId: NodeId.make("node-run-1"),
+              parentScopeId: scopeId,
+              providerThreadId: null,
+              kind: "manual",
+              ordinalWithinParent: 1,
+              advancesAppRunCount: false,
+              cwd: "/workspace/api",
+              label: "api",
+              repositoryPath: "/workspace/api",
+              createdAt: v2Now,
+            },
+          ],
+        };
+        const commands: OrchestrationV2Command[] = [];
+        const supervisor = yield* makeSupervisor({ commands, projects: [], projection });
+
+        yield* revertThreadCheckpoint({
+          commandId: CommandId.make("rollback-thread-start"),
+          threadId: v2ThreadId,
+          turnCount: 0,
+        }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
+
+        expect(commands).toEqual([
+          {
+            type: "checkpoint.rollback",
+            commandId: "rollback-thread-start",
+            threadId: v2ThreadId,
+            scopeId,
+            checkpointId,
+          },
+        ]);
+      }).pipe(Effect.provide(layerTestRandom)),
+    );
+
     const checkpoint = (input: {
       readonly id: string;
       readonly ordinalWithinScope: number;

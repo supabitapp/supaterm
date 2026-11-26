@@ -35,6 +35,8 @@ import {
   waitForComposerDraftsLoaded,
 } from "../state/use-composer-drafts";
 import { loadLocalAttachmentPreview } from "./localAttachmentPreview";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export interface NativeContextClipboard {
   readonly text: string;
@@ -58,7 +60,7 @@ export function writeComposerContextClipboard(
   const encoded = encodeComposerContextFragment(fragment);
   if (!encoded)
     return Promise.reject(
-      new Error("This context selection is too large to copy. Select fewer items."),
+      new Error(m(msg("This context selection is too large to copy. Select fewer items."))),
     );
   return nativeClipboard().writeContextClipboard(text, encoded);
 }
@@ -89,7 +91,7 @@ export async function importComposerContextClipboard(
   const skippedIds = new Set(skippedThreads.map((record) => record.contextId));
   const retained = imported.context.records.filter((record) => !skippedIds.has(record.contextId));
   if (existingContextCount + retained.length > COMPOSER_CONTEXT_MAX_RECORDS)
-    throw new Error("Remove some context items from the draft before pasting more.");
+    throw new Error(m(msg("Remove some context items from the draft before pasting more.")));
   const attachments: DraftComposerAttachment[] = [];
   const records: ComposerContextRecord[] = [];
   const failures: string[] = [];
@@ -102,7 +104,7 @@ export async function importComposerContextClipboard(
       }
       try {
         if (existingCount + attachments.length >= PROVIDER_SEND_TURN_MAX_ATTACHMENTS)
-          throw new Error("Attachment limit reached");
+          throw new Error(m(msg("Attachment limit reached")));
         const file = await importAttachment(record, fragment.source.environmentId, signal);
         attachments.push(file);
         records.push({ ...record, attachmentId: file.id });
@@ -170,7 +172,7 @@ async function importAttachment(
   const connection = appAtomRegistry.get(
     environmentSession.preparedConnectionValueAtom(environmentId),
   );
-  if (Option.isNone(connection)) throw new Error("Reconnect to the source environment");
+  if (Option.isNone(connection)) throw new Error(m(msg("Reconnect to the source environment")));
   const result = await executeAtomQuery(
     appAtomRegistry,
     assetEnvironment.createUrl({
@@ -184,7 +186,7 @@ async function importAttachment(
   if (result._tag === "Failure") throw squashAtomCommandFailure(result);
   checkAborted(signal);
   const url = resolveAssetUrl(connection.value.httpBaseUrl, result.value.relativeUrl);
-  if (!url) throw new Error("Attachment URL unavailable");
+  if (!url) throw new Error(m(msg("Attachment URL unavailable")));
   const temporary = await downloadAttachmentForPreview({
     attachment: { name: record.name, mimeType: record.mimeType },
     url,

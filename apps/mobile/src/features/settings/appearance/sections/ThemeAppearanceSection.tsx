@@ -20,14 +20,15 @@ import {
 import { getMobileUniwindThemeName } from "../../../../lib/mobileThemeRuntime";
 import { cn } from "../../../../lib/cn";
 import { useAppearancePreferences } from "../AppearancePreferencesProvider";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const APPEARANCE_MODES: ReadonlyArray<{
   readonly id: MobileThemeMode;
   readonly label: string;
 }> = [
-  { id: "system", label: "System" },
-  { id: "light", label: "Light" },
-  { id: "dark", label: "Dark" },
+  { id: "system", label: msg("System", { $context: "appearance follows the system" }) },
+  { id: "light", label: msg("Light", { $context: "light appearance" }) },
+  { id: "dark", label: msg("Dark", { $context: "dark appearance" }) },
 ];
 
 const previewPercentage = (value: number) => `${value * 100}%`;
@@ -124,13 +125,22 @@ function ThemeCard(props: {
   readonly onSelect: (appearance: MobileThemeAppearance) => void;
   readonly themeId: MobileThemeId;
 }) {
+  const gt = useGT();
   const appearances = (["light", "dark"] as const).filter((appearance) =>
     mobileThemeSupportsAppearance(props.themeId, appearance),
   );
   const choice = (appearance: MobileThemeAppearance, selected: boolean) => (
     <Pressable
-      accessibilityHint={`Sets the ${appearance} appearance only`}
-      accessibilityLabel={`${props.label} ${appearance} theme`}
+      accessibilityHint={
+        appearance === "light"
+          ? gt("Sets the light appearance only")
+          : gt("Sets the dark appearance only")
+      }
+      accessibilityLabel={
+        appearance === "light"
+          ? gt("{theme} light theme", { theme: props.label })
+          : gt("{theme} dark theme", { theme: props.label })
+      }
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled, selected }}
       className={cn(
@@ -160,10 +170,12 @@ function ThemeCard(props: {
       <Pressable
         accessibilityHint={
           appearances.length === 2
-            ? "Sets both light and dark appearances"
-            : `Sets the ${appearances[0]} appearance only`
+            ? gt("Sets both light and dark appearances")
+            : appearances[0] === "light"
+              ? gt("Sets the light appearance only")
+              : gt("Sets the dark appearance only")
         }
-        accessibilityLabel={`${props.label} theme`}
+        accessibilityLabel={gt("{theme} theme", { theme: props.label })}
         accessibilityRole="button"
         accessibilityState={{
           disabled: props.disabled,
@@ -266,9 +278,10 @@ function ModeCard(props: {
   readonly selected: boolean;
   readonly themeIds: MobileThemeIds;
 }) {
+  const gt = useGT();
   return (
     <Pressable
-      accessibilityLabel={`${props.label} appearance`}
+      accessibilityLabel={gt("{mode} appearance", { mode: props.label })}
       accessibilityRole="radio"
       accessibilityState={{ checked: props.selected, disabled: props.disabled }}
       className={cn(
@@ -301,6 +314,8 @@ function SectionLabel({ children }: { readonly children: string }) {
 }
 
 export function ThemeAppearanceSection() {
+  const gt = useGT();
+  const m = useMessages();
   const {
     isReady,
     setThemeIdForAppearance,
@@ -319,13 +334,13 @@ export function ThemeAppearanceSection() {
   return (
     <View className="gap-6">
       <View className="gap-2">
-        <SectionLabel>Color scheme</SectionLabel>
+        <SectionLabel>{gt("Color scheme")}</SectionLabel>
         <View accessibilityRole="radiogroup" className="flex-row gap-2">
           {APPEARANCE_MODES.map((mode) => (
             <ModeCard
               disabled={!isReady}
               key={mode.id}
-              label={mode.label}
+              label={m(mode.label)}
               mode={mode.id}
               onPress={() => select(mode.id !== themeMode, () => setThemeMode(mode.id))}
               selected={mode.id === themeMode}
@@ -336,7 +351,7 @@ export function ThemeAppearanceSection() {
       </View>
 
       <View className="gap-3">
-        <SectionLabel>Themes</SectionLabel>
+        <SectionLabel>{gt("Themes")}</SectionLabel>
         <View className="flex-row flex-wrap gap-3">
           {MOBILE_THEME_OPTIONS.filter(
             (theme) => theme.id !== "material-you" || systemColorsAvailable,

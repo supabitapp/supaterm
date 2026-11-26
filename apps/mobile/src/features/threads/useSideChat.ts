@@ -16,9 +16,11 @@ import {
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
+import { msg, useMessages } from "gt-react-native";
 import { useRef } from "react";
 
 import * as Dialog from "../../components/ui/Dialog";
+import { m } from "../../i18n/messages";
 import { makeQueuedMessageMetadata } from "../../lib/commandMetadata";
 import {
   describeUnavailableModelSelection,
@@ -47,6 +49,7 @@ export function useSideChatDisabledReason(
   environmentId: EnvironmentId | null,
   parent: EnvironmentThreadShell | null,
 ): string | null {
+  const messages = useMessages();
   const serverConfig = useEnvironmentServerConfig(environmentId);
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const worktreePending = useAtomValue(
@@ -56,20 +59,23 @@ export function useSideChatDisabledReason(
           scopeThreadRef(parent.environmentId, parent.id),
         ),
   );
-  return sideChatStartBlockedReason({
-    parent:
-      parent === null
-        ? { kind: "draft", sideChat: false }
-        : {
-            kind: "thread",
-            lineage: parent.lineage,
-            deletedAt: parent.deletedAt,
-            worktreePending,
-          },
-    canOperate,
-    supported:
-      serverConfig === null ? null : serverConfig.environment.capabilities.sideChats === true,
-  });
+  return sideChatStartBlockedReason(
+    {
+      parent:
+        parent === null
+          ? { kind: "draft", sideChat: false }
+          : {
+              kind: "thread",
+              lineage: parent.lineage,
+              deletedAt: parent.deletedAt,
+              worktreePending,
+            },
+      canOperate,
+      supported:
+        serverConfig === null ? null : serverConfig.environment.capabilities.sideChats === true,
+    },
+    messages,
+  );
 }
 
 /** The attachments and context `/side` carries from the parent's composer. */
@@ -115,6 +121,7 @@ export async function startSideChat(input: {
     return null;
   }
   const result = await sendSideChatFirstMessage({
+    resolve: m,
     registry: appAtomRegistry,
     forkSideChat: threadEnvironment.forkSideChat,
     readThread,
@@ -140,7 +147,7 @@ export async function startSideChat(input: {
   });
   if (result.kind === "busy") return null;
   if (result.kind === "failed") {
-    Dialog.alert("Side chat not started", result.reason);
+    Dialog.alert(m(msg("Side chat not started")), result.reason);
     return null;
   }
   return readThread(targetRef) === null ? "queued" : "opened";
@@ -148,7 +155,10 @@ export async function startSideChat(input: {
 
 /** The side chat's message is queued, but the side chat has not reached this device yet. */
 export function alertSideChatQueued() {
-  Dialog.alert("Side chat started", "It opens from its thread once it reaches this device.");
+  Dialog.alert(
+    m(msg("Side chat started")),
+    m(msg("It opens from its thread once it reaches this device.")),
+  );
 }
 
 const unsentSideChatIds = new Map<string, ThreadId>();

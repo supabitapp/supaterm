@@ -4,6 +4,14 @@ import {
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -94,6 +102,14 @@ const snapshot = {
 } as const;
 let menuAction: ((action: string) => void) | undefined;
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((fulfill) => {
+    resolve = fulfill;
+  });
+  return { promise, resolve };
+}
+
 function setup() {
   vi.clearAllMocks();
   Object.assign(state, {
@@ -126,9 +142,10 @@ async function renderShortcut() {
   stack.defer(() => {
     delete window.desktopBridge;
   });
-  stack.use(await render(<ReopenClosedViewShortcut />));
+  const screen = stack.use(await render(<ReopenClosedViewShortcut />));
   const environment = stack.move();
   return {
+    router: screen.router!,
     /** Attaches an element to the document until the test ends. */
     append(element: HTMLElement) {
       document.body.append(element);
@@ -152,6 +169,43 @@ function press(target: Element = document.body) {
 }
 
 describe("root reopen shortcut", () => {
+  it.each([
+    { action: "switch routes", goBack: false, expectedPath: "/newer" },
+    { action: "leave and return", goBack: true, expectedPath: "/" },
+  ])(
+    "restores both queued views without navigating when you $action during the reopen",
+    async ({ goBack, expectedPath }) => {
+      setup();
+      const store = useClosedViewStore.getState();
+      store.remember({ kind: "panel-tab", threadRef: ref, surface: { kind: "diff", id: "diff" } });
+      store.remember({ kind: "browser", threadRef: ref, snapshot });
+      const result = deferred<ReturnType<typeof AsyncResult.success>>();
+      state.openPreview.mockReturnValue(result.promise);
+      await using view = await renderShortcut();
+      const { history } = view.router;
+      state.navigate.mockImplementation(async () => {
+        history.push("/restored-owner");
+      });
+
+      await act(() => {
+        press();
+        menuAction?.("view.reopenClosed");
+      });
+      await act(() => {
+        history.push("/newer");
+        if (goBack) history.back();
+      });
+      await act(() => result.resolve(AsyncResult.success({ tabId: "new-tab" })));
+
+      expect(useClosedViewStore.getState().entries).toEqual([]);
+      const panel = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, ref);
+      expect(panel.surfaces.map((surface) => surface.id)).toEqual(
+        expect.arrayContaining(["browser:new-tab", "diff"]),
+      );
+      expect(history.location.pathname).toBe(expectedPath);
+    },
+  );
+
   it("serializes deliberate presses while a browser restore waits for RPC", async () => {
     setup();
     useClosedViewStore
@@ -176,6 +230,53 @@ describe("root reopen shortcut", () => {
     });
     expect(state.navigate).toHaveBeenCalledTimes(2);
     expect(useClosedViewStore.getState().entries).toEqual([]);
+  });
+
+  it("follows both queued restores from a page with an allowing navigation blocker", async () => {
+    setup();
+    const olderRef = { ...ref, threadId: "thread-2" } as ScopedThreadRef;
+    const store = useClosedViewStore.getState();
+    store.remember({
+      kind: "panel-tab",
+      threadRef: olderRef,
+      surface: { kind: "diff", id: "diff" },
+    });
+    store.remember({ kind: "browser", threadRef: ref, snapshot });
+    const opened = deferred<ReturnType<typeof AsyncResult.success>>();
+    state.openPreview.mockReturnValue(opened.promise);
+
+    const history = createMemoryHistory({ initialEntries: ["/welcome"] });
+    const root = createRootRoute({
+      component: () => (
+        <>
+          <ReopenClosedViewShortcut />
+          <Outlet />
+        </>
+      ),
+    });
+    const router = createRouter({
+      history,
+      routeTree: root.addChildren([
+        createRoute({ getParentRoute: () => root, path: "welcome" }),
+        createRoute({ getParentRoute: () => root, path: "$environmentId/$threadId" }),
+      ]),
+    });
+    state.navigate.mockImplementation(router.navigate);
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    // The test supplies its own routes and history.
+    await using _view = await render(<RouterProvider router={router} />, { router: false });
+    using _blocker = {
+      [Symbol.dispose]: history.block({ blockerFn: () => false, enableBeforeUnload: false }),
+    };
+
+    await act(() => {
+      press();
+      press();
+    });
+    await act(() => opened.resolve(AsyncResult.success({ tabId: "new-tab" })));
+
+    expect(useClosedViewStore.getState().entries).toEqual([]);
+    expect(history.location.pathname).toBe("/remote/thread-2");
   });
 
   it("does not create a second browser when navigation fails after restoring it", async () => {

@@ -2,6 +2,7 @@ import { ArrowUpIcon, BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "@supat
 import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import { composerFileLinksToPlainText } from "@supaterm/shared/composerMentionTokens";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { RelativeTime } from "../RelativeTime";
@@ -12,6 +13,8 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerBanner } from "./ComposerBanner";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 const SNIPPET_MAX_CHARS = 90;
 
@@ -19,9 +22,11 @@ function missingImageCount(entry: PromptStashEntry): number {
   return entry.droppedImageNames.length + (entry.unreadableImageNames?.length ?? 0);
 }
 
-export function stashEntrySnippet(entry: PromptStashEntry): string {
+export function stashEntrySnippet(entry: PromptStashEntry, resolve: MessageResolver = m): string {
   const trimmed = assistantCitationsToPlainText(
-    replaceComposerContextReferences(entry.prompt, (reference) => reference.label),
+    composerFileLinksToPlainText(
+      replaceComposerContextReferences(entry.prompt, (reference) => reference.label),
+    ),
   )
     .trim()
     .replace(/\s+/g, " ");
@@ -36,10 +41,25 @@ export function stashEntrySnippet(entry: PromptStashEntry): string {
   const fileCount = entry.files?.length ?? 0;
   const attachmentCount = imageCount + fileCount;
   if (attachmentCount === 0) {
-    return "(empty)";
+    return resolve(msg("(empty)", { $context: "a stashed prompt with no text or attachments" }));
   }
-  const label = imageCount > 0 && fileCount > 0 ? "attachment" : fileCount > 0 ? "file" : "image";
-  return `(${attachmentCount} ${label}${attachmentCount === 1 ? "" : "s"})`;
+  return imageCount > 0 && fileCount > 0
+    ? resolve(
+        msg("{count, plural, one {({count} attachment)} other {({count} attachments)}}", {
+          count: attachmentCount,
+        }),
+      )
+    : fileCount > 0
+      ? resolve(
+          msg("{count, plural, one {({count} file)} other {({count} files)}}", {
+            count: attachmentCount,
+          }),
+        )
+      : resolve(
+          msg("{count, plural, one {({count} image)} other {({count} images)}}", {
+            count: attachmentCount,
+          }),
+        );
 }
 
 /**
@@ -56,6 +76,8 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   onSendAll: () => void;
   onClose: () => void;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const {
     entries,
     stashShortcutLabel,
@@ -100,6 +122,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes a capture-phase window keydown listener for stash navigation, restore, delete and Escape
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
       const target = event.target;
       if (
         !(target instanceof Node) ||
@@ -178,12 +201,12 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
           <button
             type="button"
             className="flex cursor-pointer items-center gap-1 outline-none before:absolute before:inset-0 before:rounded-md focus-visible:before:outline-2 focus-visible:before:-outline-offset-2 focus-visible:before:outline-ring"
-            aria-label="Close stash"
+            aria-label={gt("Close stash")}
             aria-expanded="true"
             onPointerDown={(event) => event.preventDefault()}
             onClick={onClose}
           >
-            Stash
+            {gt("Stash", { $context: "noun, saved prompts set aside for later" })}
             <ComposerBanner.Count>{entries.length}</ComposerBanner.Count>
           </button>
         </ComposerBanner.Content>
@@ -198,7 +221,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                     variant="outline"
                     className="z-10"
                     aria-disabled={sendAllBlockedReason !== null}
-                    aria-label={sendAllArmed ? "Confirm send all" : "Send all"}
+                    aria-label={sendAllArmed ? gt("Confirm send all") : gt("Send all")}
                     onPointerDown={(event) => event.preventDefault()}
                     {...(sendAllBlockedReason === null
                       ? sendAllConfirm.bind("send-all", onSendAll)
@@ -211,18 +234,21 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                 </InlineConfirmIcon>
                 <span className="inline-grid" aria-hidden>
                   <span className={cn("col-start-1 row-start-1", sendAllArmed && "invisible")}>
-                    Send all
+                    <T>Send all</T>
                   </span>
                   <span className={cn("col-start-1 row-start-1", !sendAllArmed && "invisible")}>
-                    Confirm
+                    <T context="button, confirms sending every stashed prompt">Confirm</T>
                   </span>
                 </span>
               </TooltipTrigger>
               <TooltipPopup>
                 {sendAllBlockedReason ??
                   (sendAllArmed
-                    ? `Click again to send ${entries.length === 1 ? "this prompt" : `all ${entries.length} prompts`}`
-                    : "Send each prompt as its own message, oldest first")}
+                    ? gt(
+                        "{count, plural, =1 {Click again to send this prompt} other {Click again to send all {count} prompts}}",
+                        { count: entries.length },
+                      )
+                    : gt("Send each prompt as its own message, oldest first"))}
               </TooltipPopup>
             </Tooltip>
           )}
@@ -230,15 +256,21 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
         </ComposerBanner.Actions>
       </ComposerBanner.Row>
       <ComposerBanner.Scroll className="flex flex-col">
-        <ComposerBanner.Children render={<ul role="list" />} aria-label="Stashed prompts">
+        <ComposerBanner.Children render={<ul role="list" />} aria-label={gt("Stashed prompts")}>
           {entries.length === 0 ? (
             <ComposerBanner.Row render={<li />}>
               <ComposerBanner.Icon />
               <ComposerBanner.Content className="text-muted-foreground">
-                Nothing stashed yet.
-                {stashShortcutLabel
-                  ? ` Press ${stashShortcutLabel} with a prompt in the composer to stash it.`
-                  : null}
+                <T>Nothing stashed yet.</T>
+                {stashShortcutLabel ? (
+                  <>
+                    {" "}
+                    <T>
+                      Press <Var>{stashShortcutLabel}</Var> with a prompt in the composer to stash
+                      it.
+                    </T>
+                  </>
+                ) : null}
               </ComposerBanner.Content>
             </ComposerBanner.Row>
           ) : (
@@ -265,23 +297,29 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                     type="button"
                     className="min-w-0 flex-1 cursor-pointer truncate text-left text-foreground/80 outline-none before:absolute before:inset-0 before:rounded-sm focus-visible:before:ring-2 focus-visible:before:ring-inset focus-visible:before:ring-ring"
                     data-stash-restore={entry.id}
-                    aria-label={`Restore stashed prompt: ${stashEntrySnippet(entry)}`}
+                    aria-label={gt("Restore stashed prompt: {snippet}", {
+                      snippet: stashEntrySnippet(entry, messages),
+                    })}
                     onPointerDown={(event) => event.preventDefault()}
                     onClick={() => onRestore(entry)}
                   >
-                    {stashEntrySnippet(entry)}
+                    {stashEntrySnippet(entry, messages)}
                   </button>
                 </ComposerBanner.Content>
                 <ComposerBanner.Actions>
                   {entry.pendingImageCount ? (
                     <span className="shrink-0 text-muted-foreground">
-                      saving {entry.pendingImageCount} image
-                      {entry.pendingImageCount === 1 ? "" : "s"}…
+                      {gt(
+                        "{count, plural, one {saving {count} image…} other {saving {count} images…}}",
+                        { count: entry.pendingImageCount },
+                      )}
                     </span>
                   ) : missingImageCount(entry) > 0 ? (
                     <span className="shrink-0 text-warning-foreground">
-                      {missingImageCount(entry)} image
-                      {missingImageCount(entry) === 1 ? "" : "s"} dropped
+                      {gt(
+                        "{count, plural, one {{count} image dropped} other {{count} images dropped}}",
+                        { count: missingImageCount(entry) },
+                      )}
                     </span>
                   ) : null}
                   {entry.attachments.length > 0 ? (
@@ -311,13 +349,15 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                   </time>
                   <InlineConfirmTooltip
                     armed={confirm.armed === entry.id}
-                    tip="Delete stashed prompt"
-                    armedTip="Click again to delete this stashed prompt"
+                    tip={gt("Delete stashed prompt")}
+                    armedTip={gt("Click again to delete this stashed prompt")}
                     render={
                       <ComposerBanner.Dismiss
                         className="z-10"
                         aria-label={
-                          confirm.armed === entry.id ? "Confirm delete" : "Delete stashed prompt"
+                          confirm.armed === entry.id
+                            ? gt("Confirm delete")
+                            : gt("Delete stashed prompt")
                         }
                         onPointerDown={(event) => event.preventDefault()}
                         {...confirm.bind(entry.id, () => onDelete(entry))}

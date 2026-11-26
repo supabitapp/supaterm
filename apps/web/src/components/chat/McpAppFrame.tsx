@@ -35,7 +35,9 @@ import { useTurnItemDetail } from "~/state/queries";
 import { mcpAppEnvironment } from "~/state/mcpApps";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { observeResize } from "~/lib/observeResize";
+import { attachMcpAppDocumentLink } from "./mcpAppDocumentLink";
 import { useNativeTitlebarHeight } from "~/lib/windowControlsOverlay";
+import { T, useGT, Var } from "gt-react";
 
 const fullscreenSupported =
   typeof HTMLElement !== "undefined" && "popover" in HTMLElement.prototype;
@@ -81,6 +83,7 @@ export function McpAppFrame(props: {
 
   readonly onFullscreenChange?: (fullscreen: boolean) => void;
 }) {
+  const gt = useGT();
   const { app } = props;
   const theme = useHtmlRenderTheme();
   const nativeTitlebarHeight = useNativeTitlebarHeight();
@@ -256,22 +259,30 @@ export function McpAppFrame(props: {
       const approved = await requestConfirmDialog(message);
 
       if (approved === undefined) {
-        throw new McpAppHostRefusal("Supaterm could not ask for approval here.");
+        throw new McpAppHostRefusal({ message: "Supaterm could not ask for approval here." });
       }
       return approved;
     };
-    const target = () => frameRef.current?.contentWindow ?? null;
+    const documentLink = attachMcpAppDocumentLink(frame, (data) => host.receive(data));
 
     const requests = makeMcpAppRequests({
       target: () => readLive().props,
       commands: readLive,
       confirmTool: async ({ name, title, arguments: args }) =>
         (await ask(
-          `Allow ${app.server} to run ${title ?? name}?\n${JSON.stringify(args, null, 2)}`,
+          gt("Allow {server} to run {tool}?\n{input}", {
+            server: app.server,
+            tool: title ?? name,
+            input: JSON.stringify(args, null, 2),
+          }),
         )) === true,
       confirmDownload: async (files) =>
-        (await ask(`Save ${files.map((file) => file.name).join(", ")} from ${app.server}?`)) ===
-        true,
+        (await ask(
+          gt("Save {names} from {server}?", {
+            names: files.map((file) => file.name).join(", "),
+            server: app.server,
+          }),
+        )) === true,
       saveFile: ({ name, mimeType, bytes }) =>
         saveBlob(new Blob([bytes.slice()], { type: mimeType }), name),
     });
@@ -279,20 +290,23 @@ export function McpAppFrame(props: {
       app,
       hostVersion: APP_VERSION,
 
-      post: (message) => target()?.postMessage(message, "*"),
+      post: documentLink.post,
       hostContext,
       ...requests,
       openLink: async (url) => {
         if (document.activeElement !== frameRef.current || !navigator.userActivation?.isActive) {
-          throw new McpAppHostRefusal("Links open only from a click in the app.");
+          throw new McpAppHostRefusal({ message: "Links open only from a click in the app." });
         }
         window.open(url, "_blank", "noopener,noreferrer");
       },
       sendMessage: async (text) => {
         const send = readLive().props.onSendMessage;
-        if (send === undefined) throw new McpAppHostRefusal("Messages are not available here.");
-        const approved = await ask(`Send this message from ${app.server}?\n${text}`);
-        if (approved !== true) throw new McpAppHostRefusal("Declined by the user.");
+        if (send === undefined)
+          throw new McpAppHostRefusal({ message: "Messages are not available here." });
+        const approved = await ask(
+          gt("Send this message from {server}?\n{text}", { server: app.server, text }),
+        );
+        if (approved !== true) throw new McpAppHostRefusal({ message: "Declined by the user." });
         await send(text);
       },
       requestDisplayMode: async (mode) => {
@@ -329,12 +343,9 @@ export function McpAppFrame(props: {
       },
     });
     hostRef.current = host;
-    const receive = (event: MessageEvent) => {
-      if (event.source !== null && event.source === target()) host.receive(event.data);
-    };
-    window.addEventListener("message", receive);
+    window.addEventListener("message", documentLink.receive);
     return () => {
-      window.removeEventListener("message", receive);
+      window.removeEventListener("message", documentLink.receive);
 
       void host.teardown();
       hostRef.current = null;
@@ -357,7 +368,11 @@ export function McpAppFrame(props: {
   if (closed) {
     return (
       <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-muted-foreground text-xs">
-        <span>The {app.server} app was closed</span>
+        <span>
+          <T>
+            The <Var>{app.server}</Var> app was closed
+          </T>
+        </span>
         <Button
           size="xs"
           variant="ghost"
@@ -367,7 +382,7 @@ export function McpAppFrame(props: {
             setClosed(false);
           }}
         >
-          Show app
+          <T>Show app</T>
         </Button>
       </div>
     );
@@ -399,7 +414,7 @@ export function McpAppFrame(props: {
           >
             <span className="truncate">{app.server}</span>
             <Button
-              aria-label="Exit full screen"
+              aria-label={gt("Exit full screen")}
               size="icon-sm"
               variant="ghost"
               onClick={() => setDisplayMode("inline")}
@@ -410,7 +425,9 @@ export function McpAppFrame(props: {
         ) : null}
         {navigatedAway ? (
           <p className="flex size-full items-center justify-center text-muted-foreground text-xs">
-            The {app.server} app left its page and was stopped
+            <T>
+              The <Var>{app.server}</Var> app left its page and was stopped
+            </T>
           </p>
         ) : src !== null ? (
           <iframe
@@ -426,7 +443,9 @@ export function McpAppFrame(props: {
           />
         ) : asset._tag === "Failure" ? (
           <p className="flex size-full items-center justify-center text-muted-foreground text-xs">
-            Unable to load the {app.server} app
+            <T>
+              Unable to load the <Var>{app.server}</Var> app
+            </T>
           </p>
         ) : null}
       </div>

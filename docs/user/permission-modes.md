@@ -18,8 +18,10 @@ and modes you choose in a draft keep their permissions.
 An administrator can cap the modes available on a machine with a
 [managed policy](./managed-policy.md#permission-modes); modes above the cap show who manages them.
 
-Approve or reject requests in the conversation to let the agent continue. You can also send a
-message instead: it declines the waiting requests and redirects the agent with your message.
+Approve or reject requests in the conversation to let the agent continue. On web and desktop, each
+request shows on its own row where the agent is waiting, with the full command or file list; on
+mobile it appears above the composer. You can also send a message instead: it declines the waiting
+requests and redirects the agent with your message.
 Permission modes do not prevent the agent from asking questions about the task. Subagent approval
 requests appear in the parent conversation with the subagent's name, so you can respond without
 switching threads.
@@ -52,6 +54,10 @@ session-wide choice, because Grok would remember that command for the whole proj
 
 ACP Registry agents run their own tools in their own mode; Supaterm answers their approval requests
 by the permission mode. See [ACP Registry permissions](./providers-acp.md#permissions-and-terminals).
+
+In **Full access**, commands that Codex's dangerous-command check would ask about run without
+asking. Codex still asks before network access its managed network settings don't allow, unless
+you already allowed commands for the session.
 
 In **Full access**, Supaterm approves every permission request from Claude, including its own
 safety checks and actions that match an ask rule in your Claude settings. In other modes, a Claude

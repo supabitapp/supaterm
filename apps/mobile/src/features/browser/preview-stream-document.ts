@@ -12,6 +12,11 @@ export interface PreviewStreamConfiguration {
   readonly tabId: string;
   readonly interactive: boolean;
   readonly background: string;
+  /** Translated in React Native: the WebView cannot load the catalogs. */
+  readonly labels: {
+    readonly page: string;
+    readonly pageInput: string;
+  };
 }
 
 export type PreviewStreamMessage =
@@ -35,6 +40,7 @@ export function previewStreamDocument(configuration: string, script: string) {
   const safeConfiguration = configuration.replace(/</g, "\\u003c");
   const safeScript = script.replace(/<\/script/gi, "<\\/script");
   const failure = `window.ReactNativeWebView.postMessage(JSON.stringify({type:"status",status:"error",detail:"Browser viewer stopped unexpectedly."}));`;
+  // oxlint-disable-next-line supaterm/no-untranslated-copy -- WebView document markup
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
   html, body { height: 100%; overflow: hidden; }

@@ -49,6 +49,8 @@ import {
   type HardwareKeyboardCommand,
 } from "./hardwareKeyboardCommands";
 import { selectWorkspaceDetail } from "../layout/workspace/workspace-detail-selection";
+import { msg, useMessages } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const EMPTY_COPY_FEEDBACK: GitActionProgress = {
   phase: "idle",
@@ -81,6 +83,7 @@ export function HardwareKeyboardCommandProvider({
   children,
   pathname,
 }: PropsWithChildren<{ readonly pathname: string }>) {
+  const messages = useMessages();
   const navigation = useNavigation();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
@@ -96,14 +99,17 @@ export function HardwareKeyboardCommandProvider({
     () =>
       activeThreadRef === null
         ? null
-        : resolveThreadReferenceCopyTarget({
-            threadRef: activeThreadRef,
-            title: activeThread?.title ?? "",
-            pullRequests: activeThread?.pullRequests,
-            linkedPullRequestUrl:
-              (activeThread?.linkedPullRequest ?? activeThread?.branchPullRequest)?.url ?? null,
-          }),
-    [activeThread, activeThreadRef],
+        : resolveThreadReferenceCopyTarget(
+            {
+              threadRef: activeThreadRef,
+              title: activeThread?.title ?? "",
+              pullRequests: activeThread?.pullRequests,
+              linkedPullRequestUrl:
+                (activeThread?.linkedPullRequest ?? activeThread?.branchPullRequest)?.url ?? null,
+            },
+            messages,
+          ),
+    [activeThread, activeThreadRef, messages],
   );
   const [copyFeedback, setCopyFeedback] = useState<GitActionProgress>(EMPTY_COPY_FEEDBACK);
   const copyRequestIdRef = useRef(0);
@@ -198,8 +204,12 @@ export function HardwareKeyboardCommandProvider({
             });
             if (!ready) {
               Dialog.alert(
-                "Fork created",
-                "Its thread data did not reach this client. Reconnect and try opening it from the thread list.",
+                m(msg("Fork created")),
+                m(
+                  msg(
+                    "Its thread data did not reach this client. Reconnect and try opening it from the thread list.",
+                  ),
+                ),
               );
               return;
             }
@@ -231,7 +241,7 @@ export function HardwareKeyboardCommandProvider({
               : {
                   phase: "error",
                   label: copyTarget.failureTitle,
-                  description: "Try again.",
+                  description: m(msg("Try again.")),
                 },
           );
         });

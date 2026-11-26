@@ -145,6 +145,34 @@ describe("sending all", () => {
   });
 });
 
+describe("IME composition", () => {
+  it("leaves composition keys alone while the stash is open", async () => {
+    await using _fixture = await setup();
+
+    const onRestore = vi.fn();
+    const onClose = vi.fn();
+    await renderMenu({ onRestore, onClose });
+    const keydown = (init: KeyboardEventInit) => {
+      const event = new KeyboardEvent("keydown", { ...init, bubbles: true, cancelable: true });
+      return act(async () => {
+        document.body.dispatchEvent(event);
+      }).then(() => event);
+    };
+
+    for (const composing of [{ isComposing: true }, { keyCode: 229 }]) {
+      for (const key of ["ArrowDown", "Enter", "Escape"]) {
+        const event = await keydown({ key, ...composing });
+        expect(event.defaultPrevented, `${key} ${JSON.stringify(composing)}`).toBe(false);
+      }
+    }
+    expect(onRestore).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    await keydown({ key: "Enter" });
+    expect(onRestore).toHaveBeenCalledOnce();
+  });
+});
+
 async function setup() {
   container = document.createElement("div");
   document.body.append(container);

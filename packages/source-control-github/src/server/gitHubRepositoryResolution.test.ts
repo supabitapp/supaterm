@@ -197,6 +197,33 @@ describe("gitHubApiHostForRemote", () => {
     );
     assert.strictEqual(gitHubApiHostForRemote("git@gitlab.com:a/b.git"), null);
   });
+
+  it("ignores a secondary remote whose host is not a valid URL host", () => {
+    for (const url of [
+      "git@nas.08:team/repo.git",
+      "git@08:team/repo.git",
+      "git@node.256:team/repo.git",
+      "git@[2001:db8::1]:team/repo.git",
+    ]) {
+      const remotes = [
+        "origin\tgit@github.com:supabitapp/supaterm.git (fetch)",
+        `backup\t${url} (fetch)`,
+      ].join("\n");
+      assert.deepStrictEqual(
+        resolveGitHubRepository({
+          remotes,
+          resolved: "",
+          hostHint: undefined,
+          defaultHost: "github.com",
+        }),
+        {
+          host: "github.com",
+          locator: { host: "github.com", owner: "supabitapp", name: "supaterm" },
+        },
+        url,
+      );
+    }
+  });
 });
 
 describe("github.com-<name> SSH aliases", () => {

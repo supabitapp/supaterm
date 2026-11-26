@@ -11,7 +11,6 @@ import {
   RuntimeMode,
 } from "@supaterm/contracts";
 import type { deriveThreadStructureRuntime } from "@supaterm/client-runtime/state/thread-execution";
-import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { useNavigate } from "@tanstack/react-router";
 import { toastManager } from "../ui/toast";
 import { resolveAppModelSelectionForInstance } from "../../modelSelection";
@@ -21,15 +20,18 @@ import {
   threadHasStarted,
 } from "../../lib/chatThreadActions";
 import {
+  composerTargetKey,
   type DraftThreadEnvMode,
   isSameModel,
   useComposerDraftStore,
 } from "../../composerDraftStore";
+import { cancelHeldComposerSend } from "./preparingComposerImages";
 import {
   getStartedThreadModelChangeBlockReason,
   deriveLockedProvider,
   makeModelDisabledReason,
 } from "../ChatView.logic";
+import { useMessages } from "gt-react";
 
 interface ComposerSelectionInput {
   readonly environmentId: EnvironmentId;
@@ -55,6 +57,7 @@ interface ComposerSelectionInput {
  * and where a new thread runs (local or a new worktree, from the remote's tip or not).
  */
 export function useComposerSelection(input: ComposerSelectionInput) {
+  const messages = useMessages();
   const {
     environmentId,
     composerDraftTarget,
@@ -82,6 +85,7 @@ export function useComposerSelection(input: ComposerSelectionInput) {
 
   const handleRuntimeModeChange = (mode: RuntimeMode) => {
     if (mode === runtimeMode) return;
+    cancelHeldComposerSend(composerTargetKey(composerDraftTarget));
     setComposerDraftRuntimeMode(composerDraftTarget, mode);
     if (isLocalDraftThread) {
       setDraftThreadContext(composerDraftTarget, { runtimeMode: mode });
@@ -112,6 +116,7 @@ export function useComposerSelection(input: ComposerSelectionInput) {
           currentProviderInstanceId: runtimeProviderInstanceId,
         }
       : null,
+    messages,
   );
 
   const onProviderModelSelect = (
@@ -120,6 +125,7 @@ export function useComposerSelection(input: ComposerSelectionInput) {
     options?: { focusComposer?: boolean },
   ) => {
     if (!activeThread) return;
+    cancelHeldComposerSend(composerTargetKey(composerDraftTarget));
     const entry = providerStatuses.find((snapshot) => snapshot.instanceId === instanceId);
     const resolvedDriverKind = entry?.driver ?? null;
     if (
@@ -156,8 +162,7 @@ export function useComposerSelection(input: ComposerSelectionInput) {
       model,
       { preserveUnavailableSelection: true },
     );
-    const threadRef = scopeThreadRef(activeThread.environmentId, activeThread.id);
-    const storedDraft = useComposerDraftStore.getState().getComposerDraft(threadRef);
+    const storedDraft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
     const draft = draftModelSelectionApplies(storedDraft, threadHasStarted(activeThread))
       ? storedDraft
       : null;
@@ -174,7 +179,7 @@ export function useComposerSelection(input: ComposerSelectionInput) {
         shownSelection.model === resolvedModel)
     ) {
       // Re-picking the shown model keeps its options and saves it again if that save failed.
-      if (resolvedModel && !isLocalDraftThread) applyThreadModelPick(threadRef);
+      if (resolvedModel && !isLocalDraftThread) applyThreadModelPick(composerDraftTarget);
       if (options?.focusComposer !== false) scheduleComposerFocus();
       return;
     }
@@ -214,17 +219,18 @@ export function useComposerSelection(input: ComposerSelectionInput) {
       if (options?.focusComposer !== false) scheduleComposerFocus();
       return;
     }
-    setComposerDraftModelSelection(threadRef, nextModelSelection, {
+    setComposerDraftModelSelection(composerDraftTarget, nextModelSelection, {
       explicit: true,
       replaceOptions: true,
     });
     setStickyComposerModelSelection(nextModelSelection);
-    if (!isLocalDraftThread) applyThreadModelPick(threadRef);
+    if (!isLocalDraftThread) applyThreadModelPick(composerDraftTarget);
     if (options?.focusComposer !== false) scheduleComposerFocus();
   };
   const onProviderModelSelectStable = useStableCallback(onProviderModelSelect);
   const onEnvModeChange = (mode: DraftThreadEnvMode) => {
     if (multipleModelSelections !== null) return;
+    cancelHeldComposerSend(composerTargetKey(composerDraftTarget));
     if (isLocalDraftThread) {
       setDraftThreadContext(composerDraftTarget, {
         envMode: mode,
@@ -240,6 +246,7 @@ export function useComposerSelection(input: ComposerSelectionInput) {
   const onEnvModeChangeStable = useStableCallback(onEnvModeChange);
 
   const onStartFromOriginChange = (nextStartFromOrigin: boolean) => {
+    cancelHeldComposerSend(composerTargetKey(composerDraftTarget));
     if (isLocalDraftThread) {
       setDraftThreadContext(composerDraftTarget, {
         startFromOrigin: nextStartFromOrigin,

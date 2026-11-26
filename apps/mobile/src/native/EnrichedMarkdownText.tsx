@@ -15,15 +15,27 @@ import {
 } from "../lib/markdownDocument";
 import { markdownMermaidMedia } from "../lib/markdownMermaidMedia";
 import { NativeMermaidBlock } from "./NativeMermaidBlock";
-import { isValidElement, useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  isValidElement,
+  useCallback,
+  useMemo,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { Platform, Share, StyleSheet, useWindowDimensions, View } from "react-native";
 import {
   EnrichedMarkdownText,
+  type AccessibilityLabels,
+  type MarkdownCodeBlock,
   type MarkdownImageBlock,
   type MarkdownImageOccurrence,
   type MarkdownLinkOccurrence,
   type MarkdownStyle,
+  type TextSelectionMenuConfig,
 } from "react-native-enriched-markdown";
+import { codeFenceRenderer } from "./codeBlockMarkdown";
+import { HighlightedCodeBlock } from "./HighlightedCodeBlock";
 import type { SelectableMarkdownTextProps } from "./SelectableMarkdownText.types";
 
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
@@ -31,11 +43,13 @@ import { Menu } from "../components/ui/Menu";
 import { useEnrichedLinkVariants } from "./useEnrichedLinkVariants";
 import { useRetryingImageSource } from "./useRetryingImageSource";
 import { copyTextWithHaptic } from "../lib/copyTextWithHaptic";
+import type { HighlightScheme } from "../lib/highlights";
 import {
   ENRICHED_INLINE_FILE_LINK_REGEX,
   enrichedSkillLinkRegex,
   enrichedLinkVariantPattern,
 } from "../lib/enrichedLinkPresentation";
+import { useGT } from "gt-react-native";
 
 function enrichedStyle(
   style: SelectableMarkdownTextProps["textStyle"],
@@ -166,6 +180,53 @@ function enrichedStyle(
   };
 }
 
+/**
+ * Math fences, as web draws them, and code enriched-markdown cannot colour. Mermaid fences turn
+ * into images before parsing (markdownMermaidMedia), so one that reaches here is unclosed and stays native.
+ */
+function codeBlockElement(
+  block: MarkdownCodeBlock,
+  textStyle: SelectableMarkdownTextProps["textStyle"],
+  markdownStyle: MarkdownStyle,
+  mathRenderingEnabled: boolean,
+  scheme: HighlightScheme,
+  accessibilityLabels: AccessibilityLabels,
+  selectionMenuConfig: TextSelectionMenuConfig,
+): ReactElement | undefined {
+  const renderer = codeFenceRenderer(block.language, mathRenderingEnabled);
+  if (renderer.kind === "math") {
+    return block.isComplete ? (
+      <EnrichedMarkdownText
+        // A blank line would end the paragraph, and so the math, early.
+        markdown={`$$\n${block.code.replace(/\n\s*\n/g, "\n").trim()}\n$$`}
+        markdownStyle={markdownStyle}
+        md4cFlags={{ latexMath: true }}
+        containerStyle={{ flexShrink: 1, minWidth: 0 }}
+        flavor="github"
+        selectable
+        selectionColor={textStyle.selectionColor}
+        selectionHandleColor={textStyle.selectionHandleColor}
+        accessibilityLabels={accessibilityLabels}
+        selectionMenuConfig={selectionMenuConfig}
+      />
+    ) : undefined;
+  }
+  if (renderer.kind === "highlight" && markdownStyle.codeBlock) {
+    return (
+      <HighlightedCodeBlock
+        code={block.code}
+        fence={block.language}
+        language={renderer.language}
+        complete={block.isComplete}
+        scheme={scheme}
+        textStyle={textStyle}
+        codeStyle={markdownStyle.codeBlock}
+      />
+    );
+  }
+  return undefined;
+}
+
 const NO_PARSED_LINKS: {
   readonly urls: ReadonlyArray<string>;
   readonly bareUrls: ReadonlyArray<string>;
@@ -176,8 +237,42 @@ function sameStrings(left: ReadonlyArray<string>, right: ReadonlyArray<string>) 
 }
 
 export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
+  const gt = useGT();
   const { renderImage, resolveImageSource, fileEmbedLabel } = props;
   const { themeAppearance, mathRenderingEnabled } = useAppearancePreferences();
+  // The library fills in {n}, {content} and {speech} itself when VoiceOver or TalkBack speaks.
+  const accessibilityLabels = useMemo<AccessibilityLabels>(
+    () => ({
+      list: {
+        bulletPoint: gt("Bullet point"),
+        nestedBulletPoint: gt("Nested bullet point"),
+        orderedItem: gt("List item {n}", { n: "{n}" }),
+        nestedOrderedItem: gt("Nested list item {n}", { n: "{n}" }),
+      },
+      blockquote: { quote: gt("Blockquote"), nestedQuote: gt("Nested blockquote") },
+      table: { row: gt("Row {n}: {content}", { n: "{n}", content: "{content}" }) },
+      math: { equation: gt("Math: {speech}", { speech: "{speech}" }) },
+      codeBlock: { wrap: gt("Wrap lines"), unwrap: gt("Disable line wrap") },
+      rotor: {
+        headings: gt("Headings", { $context: "screen reader rotor category" }),
+        links: gt("Links", { $context: "screen reader rotor category" }),
+        images: gt("Images", { $context: "screen reader rotor category" }),
+      },
+    }),
+    [gt],
+  );
+  // The library's built-in selection menu items default to English labels.
+  const selectionMenuConfig = useMemo<TextSelectionMenuConfig>(
+    () => ({
+      copy: { label: gt("Copy", { $context: "verb" }) },
+      copyAsMarkdown: { label: gt("Copy as Markdown") },
+      copyImageUrl: {
+        label: gt("Copy Image URL"),
+        pluralLabels: { other: gt("Copy {count} Image URLs", { count: "{count}" }) },
+      },
+    }),
+    [gt],
+  );
   const {
     markdown,
     sources: mermaidSources,
@@ -255,9 +350,9 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
             const menu = fileContextMenu?.(url) ?? {
               title: url,
               actions: [
-                { id: "enriched-open-link", title: "Open link" },
-                { id: "enriched-copy-link", title: "Copy link" },
-                { id: "enriched-share-link", title: "Share link" },
+                { id: "enriched-open-link", title: gt("Open link") },
+                { id: "enriched-copy-link", title: gt("Copy link") },
+                { id: "enriched-share-link", title: gt("Share link") },
               ],
             };
             return [
@@ -307,16 +402,21 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     [props.selectionMenuItems],
   );
   const { fontScale } = useWindowDimensions();
-  const markdownStyle = useMemo(() => {
+  const baseMarkdownStyle = useMemo(() => {
     const style = enrichedStyle(props.textStyle, themeAppearance === "dark", fontScale);
     return {
       ...style,
       paragraph: props.textAlign
         ? { ...style.paragraph, textAlign: props.textAlign }
         : style.paragraph,
-      linkVariants,
     };
-  }, [props.textStyle, props.textAlign, themeAppearance, fontScale, linkVariants]);
+  }, [props.textStyle, props.textAlign, themeAppearance, fontScale]);
+  // Link variants change as a message streams. The code renderer reads only the base style, so
+  // it stays the same function and the library keeps its rendered blocks.
+  const markdownStyle = useMemo(
+    () => ({ ...baseMarkdownStyle, linkVariants }),
+    [baseMarkdownStyle, linkVariants],
+  );
   const renderDiagram = props.isStreaming ? null : (props.renderDiagram ?? null);
   const renderImageBlock = useCallback(
     (block: MarkdownImageBlock) => {
@@ -338,8 +438,30 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     },
     [mermaidSources, props.textStyle, renderImage, renderDiagram],
   );
-  const renderers =
-    renderImage || mermaidSources.size > 0 ? { image: renderImageBlock } : undefined;
+  const renderCodeBlock = useCallback(
+    (block: MarkdownCodeBlock) =>
+      codeBlockElement(
+        block,
+        props.textStyle,
+        baseMarkdownStyle,
+        mathRenderingEnabled,
+        themeAppearance,
+        accessibilityLabels,
+        selectionMenuConfig,
+      ),
+    [
+      props.textStyle,
+      baseMarkdownStyle,
+      mathRenderingEnabled,
+      themeAppearance,
+      accessibilityLabels,
+      selectionMenuConfig,
+    ],
+  );
+  const renderers = {
+    image: renderImage || mermaidSources.size > 0 ? renderImageBlock : undefined,
+    code: renderCodeBlock,
+  };
   const retryingImageSource = useRetryingImageSource(resolveImageSource);
   // A Mermaid placeholder image is replaced by its diagram, so it never asks for a source.
   const resolveNativeImageSource = useMemo(
@@ -356,8 +478,8 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
             const menu = props.fileContextMenu?.(url) ?? {
               title: url,
               actions: [
-                { id: "enriched-open-link", title: "Open link" },
-                { id: "enriched-copy-link", title: "Copy link" },
+                { id: "enriched-open-link", title: gt("Open link") },
+                { id: "enriched-copy-link", title: gt("Copy link") },
               ],
             };
             setActiveMenu({ url, menu });
@@ -391,6 +513,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
           flavor="github"
           selectable
           selectionClipboard={selectionClipboard}
+          selectionMenuConfig={selectionMenuConfig}
           contextMenuItems={contextMenuItems}
           selectionColor={props.textStyle.selectionColor}
           selectionHandleColor={props.textStyle.selectionHandleColor}
@@ -410,6 +533,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
           onLinkLongPress={onLinkLongPress}
           linkContextMenuItems={linkContextMenuItems}
           linkPillContent={linkPillContent}
+          accessibilityLabels={accessibilityLabels}
         />
       </View>
     );

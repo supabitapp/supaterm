@@ -8,18 +8,20 @@ import { writeTextToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+import { m, type MessageResolver } from "../../i18n/messages";
+import { msg } from "gt-react";
 
 export function feedbackBannerItem(
   submission: CodexFeedbackSubmission,
   onDismiss: () => void,
+  resolve: MessageResolver = m,
 ): ComposerBannerStackItem | null {
-  const notice = codexFeedbackNotice(submission);
+  const notice = codexFeedbackNotice(submission, resolve);
   if (!notice) return null;
   return {
     id: `feedback:${submission.id}`,
     variant:
       submission.status === "failed" ? "error" : submission.status === "sent" ? "success" : "info",
-    priority: submission.status === "uploading" ? "activity" : "notice",
     icon: <MessageSquareIcon />,
     ...notice,
     actions:
@@ -32,18 +34,19 @@ export function feedbackBannerItem(
               (error: unknown) => {
                 toastManager.add({
                   type: "error",
-                  title: "Could not copy thread ID",
-                  description: error instanceof Error ? error.message : "An error occurred.",
+                  title: m(msg("Could not copy thread ID")),
+                  description:
+                    error instanceof Error ? error.message : m(msg("An error occurred.")),
                 });
               },
             );
           }}
         >
-          Copy ID
+          {resolve(msg("Copy ID"))}
         </Button>
       ) : undefined,
     ...(submission.status !== "uploading"
-      ? { dismissLabel: "Dismiss feedback notice", onDismiss }
+      ? { dismissLabel: resolve(msg("Dismiss feedback notice")), onDismiss }
       : {}),
   };
 }

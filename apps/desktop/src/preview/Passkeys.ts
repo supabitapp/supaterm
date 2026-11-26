@@ -7,6 +7,8 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
 const PackageMetadata = Schema.Struct({
   supatermWebAuthn: Schema.optional(Schema.Struct({ touchIdKeychainAccessGroup: Schema.String })),
@@ -24,7 +26,7 @@ export class PreviewPasskeys extends Context.Service<
 const accountLabel = (account: Electron.WebAuthnAccount) =>
   account.displayName && account.name && account.displayName !== account.name
     ? `${account.displayName} (${account.name})`
-    : (account.name ?? account.displayName ?? "Unnamed passkey");
+    : (account.name ?? account.displayName ?? m(msg("Unnamed passkey")));
 
 const chooseAccount = async (details: Electron.SelectWebauthnAccountDetails) => {
   if (details.accounts.length === 1) return details.accounts[0]?.credentialId;
@@ -34,9 +36,9 @@ const chooseAccount = async (details: Electron.SelectWebauthnAccountDetails) => 
   const parent = owner ? BrowserWindow.fromWebContents(owner) : null;
   const options: Electron.MessageBoxOptions = {
     type: "none",
-    message: "Choose a passkey",
+    message: m(msg("Choose a passkey")),
     detail: details.relyingPartyId,
-    buttons: [...details.accounts.map(accountLabel), "Cancel"],
+    buttons: [...details.accounts.map(accountLabel), m(msg("Cancel"))],
     cancelId: details.accounts.length,
     defaultId: 0,
     noLink: true,
@@ -46,6 +48,15 @@ const chooseAccount = async (details: Electron.SelectWebauthnAccountDetails) => 
     : await dialog.showMessageBox(options);
   return details.accounts[response]?.credentialId;
 };
+
+class PasskeyConfigurationError extends Schema.TaggedError<PasskeyConfigurationError>()(
+  "PasskeyConfigurationError",
+  { cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return "Could not configure Touch ID passkeys.";
+  }
+}
 
 /** @public */
 export const make = Effect.gen(function* () {
@@ -64,7 +75,10 @@ export const make = Effect.gen(function* () {
     configure:
       keychainAccessGroup === undefined
         ? Effect.void
-        : Effect.try(() => app.configureWebAuthn({ touchID: { keychainAccessGroup } })).pipe(
+        : Effect.try({
+            try: () => app.configureWebAuthn({ touchID: { keychainAccessGroup } }),
+            catch: (cause) => new PasskeyConfigurationError({ cause }),
+          }).pipe(
             Effect.catch((error) =>
               Effect.logWarning("Could not configure Touch ID passkeys", { cause: error }),
             ),

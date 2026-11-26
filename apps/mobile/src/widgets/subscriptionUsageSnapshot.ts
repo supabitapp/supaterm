@@ -8,8 +8,34 @@ import {
   type LimitPresentations,
 } from "@supaterm/shared/usageLimits";
 
+import { msg } from "gt-react-native";
+
+import { m, type MessageResolver } from "../i18n/messages";
+
 import { providerColors } from "../features/usage/providerColors";
 import type { WidgetTheme } from "./widgetTheme";
+
+/**
+ * Copy for the widget, which runs without the app's catalogs. `{name}` tokens are filled in by the
+ * widget; `moreInApp` is keyed by count.
+ */
+export interface SubscriptionUsageText {
+  refresh: string;
+  noSessionLimit: string;
+  noWeeklyLimit: string;
+  subscriptionRemaining: string;
+  percentLeft: string;
+  windowPercentLeft: string;
+  left: string;
+  notApplicable: string;
+  openApp: string;
+  noLimits: string;
+  asOf: string;
+  tapToConnect: string;
+  providerAccessibility: string;
+  windowAccessibility: string;
+  moreInApp: Record<string, string>;
+}
 
 export interface WidgetLimitAccount {
   name: string;
@@ -25,6 +51,7 @@ export interface WidgetLimitAccount {
 export interface SubscriptionUsageSnapshot {
   theme?: WidgetTheme;
   url?: string;
+  text?: SubscriptionUsageText;
   checkedAt: number;
   providers: Array<{
     name: string;
@@ -67,10 +94,11 @@ export function createWidgetRefresher<Id>(refresh: (id: Id) => Promise<unknown>)
 }
 
 // Widget snapshots must not persist account emails.
-function accountName(account: LimitAccount) {
+function accountName(account: LimitAccount, resolve: MessageResolver) {
   if (account.displayName && !account.displayName.includes("@")) return account.displayName;
   const email = account.email ?? account.displayName;
-  if (!email?.includes("@")) return "Account";
+  if (!email?.includes("@"))
+    return resolve(msg("Account", { $context: "an unnamed provider account" }));
   const [local = "", domain = ""] = email.split("@");
   return `${local[0] ?? ""}${domain[0] ?? ""}`.toUpperCase();
 }
@@ -85,11 +113,11 @@ function clockLabel(at: number, from: number) {
   );
 }
 
-function widgetAccounts(window: LimitPoolWindow): WidgetLimitAccount[] {
+function widgetAccounts(window: LimitPoolWindow, resolve: MessageResolver): WidgetLimitAccount[] {
   const seen = new Map<string, number>();
   return window.columns.map((column) => {
     // Redacted initials can collide, and the widget keys segments by name.
-    const base = accountName(column.account);
+    const base = accountName(column.account, resolve);
     const count = (seen.get(base) ?? 0) + 1;
     seen.set(base, count);
     const color = normalizeProviderAccentColor(column.account.accentColor);
@@ -119,11 +147,67 @@ function widgetAccounts(window: LimitPoolWindow): WidgetLimitAccount[] {
 const isUpcoming = (reset: LimitPoolWindow["resets"][number]) =>
   reset.at > Date.parse(reset.member.account.limits.checkedAt);
 
+const resetTime = (at: number) =>
+  new Date(at).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+function subscriptionUsageText(
+  resolve: MessageResolver,
+  maxHiddenWindows: number,
+): SubscriptionUsageText {
+  return {
+    refresh: resolve(msg("Open {app} to refresh", { app: "Supaterm" })),
+    noSessionLimit: resolve(msg("No session limit reported")),
+    noWeeklyLimit: resolve(msg("No weekly limit reported")),
+    subscriptionRemaining: resolve(msg("Subscription remaining")),
+    percentLeft: resolve(msg("{remaining}% left", { remaining: "{remaining}" })),
+    windowPercentLeft: resolve(
+      msg("{window} · {remaining}% left", { window: "{window}", remaining: "{remaining}" }),
+    ),
+    left: resolve(msg("left", { $context: "follows a bold percentage, as in 40% left" })),
+    notApplicable: resolve(msg("N/A", { $context: "no usage limit for the chosen period" })),
+    openApp: resolve(msg("Open {app}", { app: "Supaterm" })),
+    noLimits: resolve(msg("No subscription limits available.")),
+    asOf: resolve(msg("As of {time}", { time: "{time}" })),
+    tapToConnect: resolve(msg("Tap to connect in {app}", { app: "Supaterm" })),
+    providerAccessibility: resolve(
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- placeholders the widget fills in
+      msg("{provider}. {detail}.", { provider: "{provider}", detail: "{detail}" }),
+    ),
+    windowAccessibility: resolve(
+      msg("{provider}, {window}, {remaining} percent remaining. {reset}. {detail}.", {
+        provider: "{provider}",
+        window: "{window}",
+        remaining: "{remaining}",
+        reset: "{reset}",
+        // oxlint-disable-next-line supaterm/no-untranslated-copy -- placeholders the widget fills in
+        detail: "{detail}",
+      }),
+    ),
+    moreInApp: Object.fromEntries(
+      Array.from({ length: maxHiddenWindows }, (_, index) => [
+        String(index + 1),
+        resolve(
+          msg("{count, plural, one {{count} more in {app}} other {{count} more in {app}}}", {
+            count: index + 1,
+            app: "Supaterm",
+          }),
+        ),
+      ]),
+    ),
+  };
+}
+
 function subscriptionUsageProps(
   accounts: readonly LimitAccount[],
   now: number,
   configuredDrivers: ReadonlySet<string>,
   maxWindowsPerProvider: number,
+  resolve: MessageResolver,
 ): SubscriptionUsageSnapshot {
   const pools = collectLimitPools(accounts, now);
   const checked = accounts.flatMap((account) =>
@@ -149,7 +233,7 @@ function subscriptionUsageProps(
           {
             name,
             colors,
-            detail: "No limits available",
+            detail: resolve(msg("No limits available")),
             windows: [],
             expiresAt: 0,
             totalWindows: 0,
@@ -181,10 +265,17 @@ function subscriptionUsageProps(
           name,
           colors,
           detail: !fresh
-            ? "Open Supaterm to refresh"
+            ? resolve(msg("Open {app} to refresh", { app: "Supaterm" }))
             : pool.accounts.length > 1
-              ? `${pool.accounts.length} accounts · pooled`
-              : "Subscription remaining",
+              ? resolve(
+                  msg(
+                    "{count, plural, one {{count} account · pooled} other {{count} accounts · pooled}}",
+                    {
+                      count: pool.accounts.length,
+                    },
+                  ),
+                )
+              : resolve(msg("Subscription remaining")),
           expiresAt: fresh ? expiresAt : 0,
           totalWindows: fresh ? pool.windows.length : 0,
           windows: fresh
@@ -193,16 +284,11 @@ function subscriptionUsageProps(
                 label: window.label,
                 remaining: Math.round(window.remainingPercent),
                 reset: window.resets[0]
-                  ? `${isUpcoming(window.resets[0]) ? "Next reset" : "Reset"} ${new Date(
-                      window.resets[0].at,
-                    ).toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}`
-                  : "Reset time unavailable",
-                accounts: widgetAccounts(window),
+                  ? isUpcoming(window.resets[0])
+                    ? resolve(msg("Next reset {time}", { time: resetTime(window.resets[0].at) }))
+                    : resolve(msg("Reset {time}", { time: resetTime(window.resets[0].at) }))
+                  : resolve(msg("Reset time unavailable")),
+                accounts: widgetAccounts(window, resolve),
               }))
             : [],
         },
@@ -215,6 +301,7 @@ export function buildSubscriptionUsageSnapshot(
   presentations: LimitPresentations,
   url: string,
   maxWindowsPerProvider = 6,
+  resolve: MessageResolver = m,
 ): SubscriptionUsageSnapshot {
   const configuredDrivers = new Set(
     [...presentations.values()].flatMap((presentation) =>
@@ -229,14 +316,21 @@ export function buildSubscriptionUsageSnapshot(
         .map((provider) => provider.driver),
     ),
   );
+  const props = subscriptionUsageProps(
+    collectLimitAccounts(presentations),
+    0,
+    configuredDrivers,
+    maxWindowsPerProvider,
+    resolve,
+  );
   return {
-    ...subscriptionUsageProps(
-      collectLimitAccounts(presentations),
-      0,
-      configuredDrivers,
-      maxWindowsPerProvider,
-    ),
+    ...props,
     url,
+    // The Android widget counts hidden rows across providers, a note row included.
+    text: subscriptionUsageText(
+      resolve,
+      props.providers.reduce((sum, provider) => sum + Math.max(1, provider.totalWindows), 0),
+    ),
   };
 }
 
@@ -250,7 +344,13 @@ export function subscriptionUsageTimeline(snapshot: SubscriptionUsageSnapshot, n
       ...snapshot,
       providers: snapshot.providers.map((provider) =>
         provider.windows.length > 0 && provider.expiresAt <= date
-          ? { ...provider, detail: "Open Supaterm to refresh", windows: [], totalWindows: 0 }
+          ? {
+              ...provider,
+              detail:
+                snapshot.text?.refresh ?? m(msg("Open {app} to refresh", { app: "Supaterm" })),
+              windows: [],
+              totalWindows: 0,
+            }
           : provider,
       ),
     },

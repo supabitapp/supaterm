@@ -43,6 +43,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Spinner } from "../ui/spinner";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { togglePairingScopeSelection } from "./ConnectionsSettings.logic";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const PERMISSION_SCOPES = {
   standard: AuthStandardClientScopes,
@@ -57,19 +58,22 @@ const PERMISSION_SCOPES = {
 const PERMISSION_PRESETS = [
   {
     value: "standard",
-    label: "Full access",
-    description:
+    label: msg("Full access"),
+    description: msg(
       "Run agents, work with files, use terminals, and manage device access with the permissions you can share.",
+    ),
   },
   {
     value: "read-only",
-    label: "Read only",
-    description: "Follow threads, browse files, and view terminal output without making changes.",
+    label: msg("Read only"),
+    description: msg(
+      "Follow threads, browse files, and view terminal output without making changes.",
+    ),
   },
   {
     value: "custom",
-    label: "Custom",
-    description: "Choose which of your permissions to share with this device.",
+    label: msg("Custom", { $context: "permission preset" }),
+    description: msg("Choose which of your permissions to share with this device."),
   },
 ] as const;
 
@@ -89,6 +93,13 @@ export function CreatePairingLinkDialog({
     relay?: RelayConnectionInfo,
   ) => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
+  const presets = PERMISSION_PRESETS.map((item) => ({
+    ...item,
+    label: m(item.label),
+    description: m(item.description),
+  }));
   const prepareRelay = useAtomCommand(serverEnvironment.prepareRelay, { reportFailure: false });
   const createPairingCredential = useAtomCommand(authEnvironment.createPairingCredential, {
     reportFailure: false,
@@ -109,9 +120,9 @@ export function CreatePairingLinkDialog({
   );
   const canCreate = selectedScopes.length > 0 && (!relayEnabled || canPrepareRelay);
   const buttonLabel = {
-    idle: "Create link and QR code",
-    relay: "Preparing connection…",
-    creating: "Creating link…",
+    idle: gt("Create link and QR code"),
+    relay: gt("Preparing connection…"),
+    creating: gt("Creating link…"),
   }[stage];
 
   const createLink = async () => {
@@ -148,8 +159,8 @@ export function CreatePairingLinkDialog({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Could not create pairing link",
-          description: error instanceof Error ? error.message : "Try creating the link again.",
+          title: gt("Could not create pairing link"),
+          description: error instanceof Error ? error.message : gt("Try creating the link again."),
         }),
       );
     }
@@ -173,7 +184,7 @@ export function CreatePairingLinkDialog({
         render={
           <Button ref={triggerRef} size="xs">
             <PlusIcon aria-hidden />
-            Add device
+            <T>Add device</T>
           </Button>
         }
       />
@@ -183,31 +194,35 @@ export function CreatePairingLinkDialog({
         initialFocus={canCreate ? createButtonRef : undefined}
       >
         <DialogHeader>
-          <DialogTitle>Add a device</DialogTitle>
+          <DialogTitle>
+            <T>Add a device</T>
+          </DialogTitle>
           <DialogDescription>
-            Next, you’ll get a one-time link and QR&nbsp;code to connect your other device.
+            <T>Next, you’ll get a one-time link and QR&nbsp;code to connect your other device.</T>
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
           <label className="block space-y-2">
             <span className="flex items-baseline gap-2 text-sm font-medium">
-              Device name
-              <span className="text-xs font-normal text-muted-foreground">Optional</span>
+              <T>Device name</T>
+              <span className="text-xs font-normal text-muted-foreground">
+                <T>Optional</T>
+              </span>
             </span>
             <Input
               size="comfortable"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
-              placeholder="e.g. Living room iPad"
+              placeholder={gt("e.g. Living room iPad")}
               disabled={pending}
             />
           </label>
           <div className="space-y-2">
             <label htmlFor={permissionsId} className="block text-sm font-medium">
-              Permissions
+              <T>Permissions</T>
             </label>
             <Select
-              items={PERMISSION_PRESETS}
+              items={presets}
               value={preset}
               disabled={pending}
               onValueChange={(value) => {
@@ -220,7 +235,7 @@ export function CreatePairingLinkDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectPopup>
-                {PERMISSION_PRESETS.map((item) => (
+                {presets.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
@@ -228,7 +243,7 @@ export function CreatePairingLinkDialog({
               </SelectPopup>
             </Select>
             <p className="min-h-10 text-xs leading-5 text-muted-foreground">
-              {PERMISSION_PRESETS.find((item) => item.value === preset)?.description}
+              {presets.find((item) => item.value === preset)?.description}
             </p>
           </div>
           {preset === "custom" ? (
@@ -250,14 +265,16 @@ export function CreatePairingLinkDialog({
                       }
                     />
                     <span className="min-w-0 space-y-0.5">
-                      <span className="block text-xs font-medium">{title}</span>
+                      <span className="block text-xs font-medium">{m(title)}</span>
                       <span className="block text-xs leading-5 text-muted-foreground">
-                        {description}
+                        {m(description)}
                       </span>
                       {scope === AuthTerminalOperateScope && selectedScopes.includes(scope) ? (
                         <span className="block text-xs text-warning">
-                          Terminal commands can read or change files within the server account’s
-                          permissions.
+                          <T>
+                            Terminal commands can read or change files within the server account’s
+                            permissions.
+                          </T>
                         </span>
                       ) : null}
                     </span>
@@ -268,14 +285,16 @@ export function CreatePairingLinkDialog({
           ) : null}
           <div className="min-h-10 text-xs leading-5" aria-live="polite">
             {selectedScopes.length === 0 ? (
-              <p className="text-destructive">Select at least one permission to continue.</p>
+              <p className="text-destructive">
+                <T>Select at least one permission to continue.</T>
+              </p>
             ) : selectedScopes.includes(AuthAccessWriteScope) ? (
               <p className="text-warning">
-                This device can also give or revoke access to other devices.
+                <T>This device can also give or revoke access to other devices.</T>
               </p>
             ) : (
               <p className="text-muted-foreground">
-                You can revoke this device’s access anytime in Authorized clients.
+                <T>You can revoke this device’s access anytime in Authorized clients.</T>
               </p>
             )}
           </div>
@@ -287,7 +306,7 @@ export function CreatePairingLinkDialog({
             disabled={pending}
             onClick={() => setOpen(false)}
           >
-            Cancel
+            <T>Cancel</T>
           </Button>
           <Button
             ref={createButtonRef}

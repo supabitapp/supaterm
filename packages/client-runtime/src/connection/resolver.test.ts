@@ -181,7 +181,8 @@ describe("ConnectionResolver", () => {
         environmentId: ENVIRONMENT_ID,
         label: "Primary",
         httpBaseUrl: "http://127.0.0.1:3777",
-        socketUrl: "ws://127.0.0.1:3777/ws?orchestrationProtocol=2",
+        socketUrl:
+          "ws://127.0.0.1:3777/ws?orchestrationProtocol=2&clientCapabilities=settingsSecretReferences%2CgitRefNames",
         httpAuthorization: null,
         target,
         // The shell reads the server's build and shell flags here before the socket opens.

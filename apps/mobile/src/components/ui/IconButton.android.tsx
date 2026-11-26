@@ -5,7 +5,7 @@ import {
   FilledTonalIconButton,
   IconButton as ComposeIconButton,
 } from "@expo/ui/jetpack-compose";
-import { size } from "@expo/ui/jetpack-compose/modifiers";
+import { semantics, size } from "@expo/ui/jetpack-compose/modifiers";
 import { View } from "react-native";
 
 import { useControlTheme } from "./useControlTheme";
@@ -57,7 +57,12 @@ export function IconButton(props: IconButtonProps) {
           <Component
             onClick={props.onPress}
             enabled={!props.disabled}
-            modifiers={[size(buttonSize, buttonSize)]}
+            modifiers={[
+              size(buttonSize, buttonSize),
+              ...(props.accessibilityLabel
+                ? [semantics({ contentDescription: props.accessibilityLabel })]
+                : []),
+            ]}
             colors={
               variant === "standard"
                 ? undefined

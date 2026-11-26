@@ -15,6 +15,7 @@ import type { ModelOption } from "../../lib/modelOptions";
 import { getReasoningOptionDescriptor } from "../../lib/providerOptions";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { selectableChoices } from "./thread-settings-options";
+import { useGT } from "gt-react-native";
 
 export function ComposerModelControl(props: {
   readonly descriptors: ReadonlyArray<ProviderOptionDescriptor>;
@@ -26,6 +27,7 @@ export function ComposerModelControl(props: {
   readonly disabled?: boolean;
   readonly onPress: () => void;
 }) {
+  const gt = useGT();
   const { themeVariables } = useAppearancePreferences();
   const descriptor = getReasoningOptionDescriptor(props.descriptors);
   const promptTraits = getPromptControlledTraits(props.descriptors, props.prompt);
@@ -42,13 +44,13 @@ export function ComposerModelControl(props: {
       : descriptor && (descriptor.type === "boolean" || selectableChoices(descriptor).length > 0)
         ? typeof currentValue === "boolean"
           ? currentValue
-            ? "On"
-            : "Off"
+            ? gt("On")
+            : gt("Off")
           : (getProviderOptionCurrentLabel(
               descriptor,
               props.selectedModel,
               props.reportedModelSelection,
-            ) ?? "Default")
+            ) ?? gt("Default"))
         : undefined;
   const badge = props.modelOption?.providerBadge;
   const providerNameLabel = badge
@@ -63,14 +65,12 @@ export function ComposerModelControl(props: {
 
   return (
     <ComposerInlineControl
-      accessibilityLabel={`Model and reasoning settings: ${[
-        props.label,
-        badge?.showBadge ? badge.displayName : null,
-        reasoningLabel,
-      ]
-        .filter(Boolean)
-        .join(", ")}`}
-      accessibilityHint="Choose a model and reasoning level"
+      accessibilityLabel={gt("Model and reasoning settings: {details}", {
+        details: [props.label, badge?.showBadge ? badge.displayName : null, reasoningLabel]
+          .filter(Boolean)
+          .join(", "),
+      })}
+      accessibilityHint={gt("Choose a model and reasoning level")}
       compact
       disabled={props.disabled}
       emphasized

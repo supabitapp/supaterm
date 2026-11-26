@@ -17,6 +17,8 @@ import { environmentCatalog } from "../connection/catalog";
 import { createRemoteEnvironmentProjectionAtoms } from "./remote-environment-projections";
 import { serverEnvironment } from "./server";
 import { connectPairingUrl as connectPairingUrlCommand } from "../connection/onboarding";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 const connectionPairingUrlAtom = Atom.make("").pipe(
   Atom.keepAlive,
@@ -54,14 +56,15 @@ export async function pairEnvironment(
     return { ok: true, error: null };
   }
   const error = Cause.squash(result.cause);
-  const message = error instanceof Error ? error.message : "Failed to pair with the environment.";
+  const message =
+    error instanceof Error ? error.message : m(msg("Failed to pair with the environment."));
   if (
     error !== null &&
     typeof error === "object" &&
     "reason" in error &&
     error.reason === "unsupported"
   ) {
-    Dialog.alert("Client not supported", message);
+    Dialog.alert(m(msg("Client not supported")), message);
     return { ok: false, error: null };
   }
   return { ok: false, error: message };
@@ -170,12 +173,17 @@ export function useRemoteConnections() {
       return;
     }
     Dialog.alert(
-      "Remove from this device?",
-      `Forget ${environment.environmentLabel} and its cached threads on this device. Switch it off instead to keep it saved.`,
+      m(msg("Remove from this device?")),
+      m(
+        msg(
+          "Forget {name} and its cached threads on this device. Switch it off instead to keep it saved.",
+          { name: environment.environmentLabel },
+        ),
+      ),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: m(msg("Cancel")), style: "cancel" },
         {
-          text: "Remove",
+          text: m(msg("Remove")),
           style: "destructive",
           onPress: () => {
             void controller.removeEnvironment(environmentId);

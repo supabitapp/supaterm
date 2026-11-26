@@ -10,6 +10,7 @@ import { ProjectFavicon } from "./ProjectFavicon";
 import { ThreadHoverCard } from "./ThreadHoverCard";
 import { ThreadPullRequestsMiniList } from "./ThreadStatusIndicators";
 import { MiddleTruncate } from "./ui/middle-truncate";
+import { T, useGT } from "gt-react";
 
 type ChipProject = NonNullable<ReturnType<typeof useProject>>;
 
@@ -20,6 +21,7 @@ export function ThreadChipHoverCard(props: {
   available: boolean;
   unreadable: boolean;
 }) {
+  const gt = useGT();
   const { shell } = props;
   const providers = useEnvironmentProviders();
   const instanceId = shell
@@ -48,7 +50,9 @@ export function ThreadChipHoverCard(props: {
       }
     >
       {props.available ? null : (
-        <div className="text-muted-foreground">Thread no longer available</div>
+        <div className="text-muted-foreground">
+          <T>Thread no longer available</T>
+        </div>
       )}
       {props.project ? (
         <div className="flex min-w-0 items-center gap-2">
@@ -77,8 +81,9 @@ export function ThreadChipHoverCard(props: {
         <div className="flex min-w-0 items-start gap-2 text-warning">
           <CircleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0 stroke-current" />
           <div className="min-w-0 flex-1 wrap-break-word">
-            On another machine, so this machine's agent can't read it. Remove it or switch back to
-            send.
+            {gt(
+              "On another machine, so this machine's agent can't read it. Remove it or switch back to send.",
+            )}
           </div>
         </div>
       ) : null}

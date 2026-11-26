@@ -1,3 +1,5 @@
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 export interface ThirdPartyLicenseEntry {
   readonly bundles: ReadonlyArray<string>;
   readonly kind: "custom" | "package";
@@ -98,19 +100,24 @@ export function filterThirdPartyLicenseEntries(
 
 const BUNDLE_LABELS: Readonly<Record<string, string>> = {
   android: "Android",
-  assets: "Assets",
-  desktop: "Desktop",
-  "device-tools": "Device tools",
+  assets: msg("Assets"),
+  desktop: msg("Desktop"),
+  "device-tools": msg("Device tools"),
   ios: "iOS",
-  mobile: "Mobile",
-  server: "Server",
-  web: "Web",
+  mobile: msg("Mobile"),
+  server: msg("Server"),
+  web: msg("Web"),
 };
 
-export function formatLicenseBundles(bundles: ReadonlyArray<string>): string {
+export function formatLicenseBundles(
+  bundles: ReadonlyArray<string>,
+  resolve: MFunctionType = mFallback,
+): string {
   return bundles
     .map((bundle) =>
-      Object.prototype.hasOwnProperty.call(BUNDLE_LABELS, bundle) ? BUNDLE_LABELS[bundle] : bundle,
+      Object.prototype.hasOwnProperty.call(BUNDLE_LABELS, bundle)
+        ? resolve(BUNDLE_LABELS[bundle]!)
+        : bundle,
     )
     .join(", ");
 }

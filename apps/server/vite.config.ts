@@ -82,6 +82,11 @@ export default mergeConfig(
           dependsOn: ["@supaterm/web#build"],
           cache: false,
         },
+        // A local tsbuildinfo is leftover build state, not a typecheck input.
+        typecheck: {
+          command: "effect-tsgo tsrs --noEmit",
+          cache: { input: [{ auto: true }, "!*.tsbuildinfo"] },
+        },
       },
     },
     pack: {
@@ -98,13 +103,13 @@ export default mergeConfig(
           },
         },
       ],
-      // The executable embeds the bootstrap and the CLI as an asset; the history worker becomes
-      // a hidden subcommand there instead of a sibling script.
+      // The executable embeds the bootstrap and the CLI as an asset; the history and process
+      // launcher workers become hidden subcommands there instead of sibling scripts.
       entry: packBootstrap
         ? ["src/bin.ts"]
         : packExecutable
           ? ["src/binMain.ts"]
-          : ["src/bin.ts", "src/claude-history-worker.ts"],
+          : ["src/bin.ts", "src/claude-history-worker.ts", "src/process-launcher.ts"],
       outDir: packBootstrap ? "dist-exe" : packExecutable ? cliAssetDir : "dist",
       sourcemap: !packExecutable,
       clean: true,

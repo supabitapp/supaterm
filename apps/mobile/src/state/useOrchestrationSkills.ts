@@ -9,6 +9,7 @@ import {
   runOrchestrationSkillsAction,
   type OrchestrationSkillsEnvironment,
 } from "@supaterm/client-runtime/orchestrationSkills";
+import { useGT } from "gt-react-native";
 
 /** The caller keys this component by selection, isolating in-flight results after a scope change. */
 export function useOrchestrationSkills(
@@ -18,6 +19,7 @@ export function useOrchestrationSkills(
     "orchestrationSkillsStatus" | "orchestrationSkillsInstall" | "orchestrationSkillsUninstall"
   >,
 ) {
+  const gt = useGT();
   const [selection] = useState(environments);
   const permitted = useEnvironmentsWithScope(selection, AuthProvidersManageScope);
   const read = useAtomCommand(commands.orchestrationSkillsStatus, { reportFailure: false });
@@ -83,17 +85,19 @@ export function useOrchestrationSkills(
     const prefix = selection.length > 1 ? `${entry.label}: ` : "";
     if (!entry.status)
       return [
-        `${prefix}Could not manage skills. Check the connection and provider folder permissions, then retry.`,
+        `${prefix}${gt("Could not manage skills. Check the connection and provider folder permissions, then retry.")}`,
       ];
     return [
       ...(!entry.canManage
-        ? [`${prefix}This connection does not have permission to manage provider skills.`]
+        ? [`${prefix}${gt("This connection does not have permission to manage provider skills.")}`]
         : []),
       ...(entry.status.targets.length === 0
-        ? [`${prefix}No providers support native skill installation.`]
+        ? [`${prefix}${gt("No providers support native skill installation.")}`]
         : []),
       ...(entry.status.unsupportedProviders.length > 0
-        ? [`${prefix}Not supported: ${entry.status.unsupportedProviders.join(", ")}.`]
+        ? [
+            `${prefix}${gt("Not supported: {providers}.", { providers: entry.status.unsupportedProviders.join(", ") })}`,
+          ]
         : []),
     ];
   });

@@ -563,20 +563,39 @@ describe("deriveMessagesTimelineRows", () => {
       expect(rows.some((row) => row.kind === "event")).toBe(false);
       expect(workRows[0]).not.toMatchObject({ expanded: true });
       expect(workRows[0]).not.toMatchObject({ groupDisclosure: "open" });
-      const approvalWaitRows = [entries, entries.slice(1, 2)].flatMap((timelineEntries) =>
-        deriveMessagesTimelineRows({
-          timelineEntries,
-          awaitingApproval: true,
-          isWorking: status === "waiting",
-          runningRunId: fixture.runId,
-          activeTurnStartedAt: fixture.time(0),
-          turnDiffSummaries: [],
-          supportsConversationRollback: false,
+      const pendingRows = deriveMessagesTimelineRows({
+        timelineEntries: entries,
+        pendingApprovalRequestIds: new Set([RuntimeRequestId.make("approval-request")]),
+        isWorking: status === "waiting",
+        runningRunId: fixture.runId,
+        activeTurnStartedAt: fixture.time(0),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(pendingRows.filter((row) => row.kind === "work")).toContainEqual(
+        expect.objectContaining({
+          groupedEntries: [expect.objectContaining({ itemType: "approval_request" })],
+          groupDisclosure: null,
         }),
       );
-      expect(approvalWaitRows.some((row) => row.kind === "thinking")).toBe(false);
       expect(
-        approvalWaitRows.some(
+        pendingRows
+          .filter((row) => row.kind === "work-live")
+          .flatMap((row) => row.groupedEntries)
+          .some((entry) => entry.itemType === "approval_request"),
+      ).toBe(false);
+      const approvalOnlyRows = deriveMessagesTimelineRows({
+        timelineEntries: entries.slice(1, 2),
+        pendingApprovalRequestIds: new Set([RuntimeRequestId.make("approval-request")]),
+        isWorking: status === "waiting",
+        runningRunId: fixture.runId,
+        activeTurnStartedAt: fixture.time(0),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+      expect(approvalOnlyRows.some((row) => row.kind === "thinking")).toBe(false);
+      expect(
+        approvalOnlyRows.some(
           (row) => (row.kind === "work-live" || row.kind === "thinking") && row.active,
         ),
       ).toBe(false);
@@ -1265,8 +1284,8 @@ describe("deriveMessagesTimelineRows", () => {
     expect(assistantRows[1]?.assistantCopyStreaming).toBe(true);
   });
 
-  it("projects assistant diffs and rewinds the first visible run to thread start after a rewind", () => {
-    const assistantTurnDiffSummary = {
+  it("rewinds the first visible run to thread start after a rewind", () => {
+    const checkpoint = {
       runId: "turn-1" as never,
       completedAt: "2026-01-01T00:00:30Z",
       assistantMessageId: "assistant-1" as never,
@@ -1310,7 +1329,7 @@ describe("deriveMessagesTimelineRows", () => {
       ],
       isWorking: false,
       activeTurnStartedAt: null,
-      turnDiffSummaries: [assistantTurnDiffSummary],
+      turnDiffSummaries: [checkpoint],
       supportsConversationRollback: true,
       threadStartCheckpointAvailable: true,
     });
@@ -1319,13 +1338,7 @@ describe("deriveMessagesTimelineRows", () => {
       (row): row is Extract<(typeof rows)[number], { kind: "message" }> =>
         row.kind === "message" && row.message.role === "user",
     );
-    const assistantRow = rows.find(
-      (row): row is Extract<(typeof rows)[number], { kind: "message" }> =>
-        row.kind === "message" && row.message.role === "assistant",
-    );
-
     expect(userRow?.revertTurnCount).toBe(0);
-    expect(assistantRow?.assistantTurnDiffSummary).toBe(assistantTurnDiffSummary);
   });
 
   it("folds the first assistant message and settled work before the terminal response", () => {
@@ -2063,7 +2076,7 @@ describe("deriveMessagesTimelineRows", () => {
     expect(rows.at(-1)).toMatchObject({ kind: "thinking" });
   });
 
-  it("does not show Thinking once the open run's provider turn has ended", () => {
+  it("does not show Thinking once the provider turn has ended or its reply is streaming", () => {
     const input = {
       timelineEntries: [
         {
@@ -2099,6 +2112,29 @@ describe("deriveMessagesTimelineRows", () => {
       latestRun: { ...input.latestRun, turnEnded: true },
     });
     expect(ended.some((row) => row.kind === "thinking")).toBe(false);
+
+    const streamingReply = deriveMessagesTimelineRows({
+      ...input,
+      timelineEntries: [
+        ...input.timelineEntries,
+        {
+          id: "assistant-entry",
+          kind: "message" as const,
+          createdAt: "2026-01-01T00:00:05Z",
+          message: {
+            id: "assistant" as never,
+            role: "assistant" as const,
+            text: "Here is the first paragraph of the answer",
+            runId: "turn-1" as never,
+            createdAt: "2026-01-01T00:00:05Z",
+            updatedAt: "2026-01-01T00:00:06Z",
+            streaming: true,
+          },
+        },
+      ],
+    });
+    expect(streamingReply.at(-1)?.id).toBe("assistant-entry");
+    expect(streamingReply.some((row) => row.kind === "thinking")).toBe(false);
   });
 
   it("does not fold the active in-progress turn", () => {
@@ -3233,11 +3269,11 @@ describe("deriveMessagesTimelineRows", () => {
     const deriveRows = (
       toolLifecycleStatus: "inProgress" | "completed" | "failed" | "declined" | null,
       workGroupDisclosures?: WorkGroupDisclosures,
-      awaitingApproval = false,
+      pendingApprovalRequestIds?: ReadonlySet<RuntimeRequestId>,
     ) =>
       deriveMessagesTimelineRows({
         ...(workGroupDisclosures ? { workGroupDisclosures } : {}),
-        awaitingApproval,
+        ...(pendingApprovalRequestIds ? { pendingApprovalRequestIds } : {}),
         timelineEntries:
           toolLifecycleStatus === null
             ? []
@@ -3289,7 +3325,9 @@ describe("deriveMessagesTimelineRows", () => {
       id: "live-activity-row",
       active: true,
     });
-    expect(deriveRows("failed", undefined, true).at(-1)).toMatchObject({
+    expect(
+      deriveRows("failed", undefined, new Set([RuntimeRequestId.make("approval")])).at(-1),
+    ).toMatchObject({
       kind: "thinking",
       id: "live-activity-row",
       active: false,
@@ -3800,7 +3838,7 @@ describe("computeStableMessagesTimelineRows", () => {
         runId,
         createdAt: startedAt,
         updatedAt: startedAt,
-        streaming: true,
+        streaming: false,
       },
     };
     const initial = computeStableMessagesTimelineRows(
@@ -4177,9 +4215,11 @@ describe("v2 run and attempt history", () => {
       toolCallVisibility: "hideSuccessful" | "hideAll" | "zen",
       latestRun?: typeof ended | typeof running,
       revealed: { readonly cited?: string; readonly jumped?: string } = {},
+      pendingApprovalRequestIds?: ReadonlySet<RuntimeRequestId>,
     ) =>
       deriveMessagesTimelineRows({
         timelineEntries,
+        ...(pendingApprovalRequestIds ? { pendingApprovalRequestIds } : {}),
         expandedRunIds: new Set([runId]),
         isWorking: latestRun !== undefined,
         ...(latestRun ? { latestRun } : {}),
@@ -4257,6 +4297,27 @@ describe("v2 run and attempt history", () => {
       },
     };
     expect(rows([user, step, created, final], "zen")).toEqual(["user", "created", "final"]);
+    const approvalRequestId = RuntimeRequestId.make("zen-approval");
+    const approval: TimelineEntry = {
+      id: "approval",
+      kind: "work",
+      createdAt: at(12),
+      entry: {
+        id: "approval",
+        createdAt: at(12),
+        runId,
+        label: "Command approval",
+        tone: "tool",
+        itemType: "approval_request",
+        projectedItem: {
+          item: { type: "approval_request", requestId: approvalRequestId },
+        } as never,
+      },
+    };
+    expect(rows([user, step, approval, final], "zen")).toEqual(["user", "final"]);
+    expect(
+      rows([user, step, approval, final], "zen", undefined, {}, new Set([approvalRequestId])),
+    ).toEqual(["user", "approval", "final"]);
     const thought: TimelineEntry = {
       id: "thought",
       kind: "work",
@@ -5039,6 +5100,7 @@ describe("streaming v2 row projection", () => {
     const previous = deriveMessagesTimelineRowsWithState({
       ...initial.input,
       availableRevertTurnCounts: new Set([0]),
+      pendingApprovalRequestIds: new Set<RuntimeRequestId>(),
     });
     Object.freeze(previous.rows);
     for (const row of previous.rows) Object.freeze(row);
@@ -5056,6 +5118,7 @@ describe("streaming v2 row projection", () => {
       latestRun: { ...initial.input.latestRun },
       turnDiffSummaries: initial.input.turnDiffSummaries.map((summary) => ({ ...summary })),
       availableRevertTurnCounts: new Set([0]),
+      pendingApprovalRequestIds: new Set<RuntimeRequestId>(),
     };
     const next = deriveMessagesTimelineRowsWithState(input, previous);
     expect(next.rows).toEqual(
@@ -5947,7 +6010,6 @@ it("keeps the working header in place across worktree setup handoff", () => {
     "worktree-setup",
     "working",
     "message",
-    "thinking",
   ]);
 
   const stage = (id: "agent" | "setup-script", status: "done" | "running") =>
@@ -6178,7 +6240,28 @@ describe("failed turn transcript", () => {
       );
       expect(work.at(-1)?.detail).toBe("The provider stopped this turn.\nRetry later.");
       expect(work.at(-1)?.createdAt).toBe("2026-09-20T12:00:00.000Z");
-      if (isLatest) return;
+      if (isLatest) {
+        // The recovery notice hides the failure row; the run's work stays grouped.
+        const noticeRows = deriveMessagesTimelineRows({
+          timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+            visibleTurnItems: items.filter((row) => row.item.type !== "error"),
+          }),
+          latestRun: {
+            runId,
+            status: "failed",
+            startedAt: DateTime.formatIso(at),
+            completedAt: DateTime.formatIso(at),
+          },
+          usageLimitRunId: runId,
+          isWorking: false,
+          turnDiffSummaries: [],
+          supportsConversationRollback: false,
+        });
+        expect(noticeRows.find((row) => row.kind === "work-toggle")).toEqual(
+          expect.objectContaining({ hiddenCount: 3, expanded: false }),
+        );
+        return;
+      }
       const entriesWithoutTools = deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: items.filter((row) => row.item.type !== "command_execution"),
       });
@@ -6475,27 +6558,29 @@ describe("parent run waiting on foreground subagents", () => {
     expect(liveRow([], "hideAll")).toEqual({ ...thinking, label: "Waiting on 2 subagents" });
   });
 
-  const reply: OrchestrationV2TurnItem = {
-    ...base("reply", 5),
-    status: "completed",
-    type: "assistant_message",
-    messageId: MessageId.make("reply"),
-    text: "Two are still reading.",
-    streaming: false,
-  };
-  const command: OrchestrationV2TurnItem = {
-    ...base("command", 5),
-    status: "running",
-    completedAt: null,
-    type: "command_execution",
-    input: "sleep 5",
-  };
+  // regression: #40551 a finished status after the children is the parent parking, not new work
+  it("names the running children when the parent's finished status message follows them", () => {
+    const status: OrchestrationV2TurnItem = {
+      ...base("status", 5),
+      status: "completed",
+      type: "assistant_message",
+      messageId: MessageId.make("status"),
+      text: "Subagents launched; waiting for them to report back.",
+      streaming: false,
+    };
+    expect(liveRow([status])).toEqual({ ...thinking, label: "Waiting on 2 subagents" });
+    expect(liveRow([{ ...status, runId: RunId.make("other-run") }])).toEqual(thinking);
+  });
 
-  it.each([
-    ["newer parent work", reply, undefined],
-    ["a newer parent command that Hide all hides", command, "hideAll"],
-  ] as const)("keeps Thinking once %s follows the children", (_, later, visibility) => {
-    expect(liveRow([later], visibility)).toEqual(thinking);
+  it("keeps Thinking when a hidden newer parent command follows the children", () => {
+    const command: OrchestrationV2TurnItem = {
+      ...base("command", 5),
+      status: "running",
+      completedAt: null,
+      type: "command_execution",
+      input: "sleep 5",
+    };
+    expect(liveRow([command], "hideAll")).toEqual(thinking);
   });
 });
 

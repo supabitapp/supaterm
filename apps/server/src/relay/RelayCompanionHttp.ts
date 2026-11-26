@@ -97,7 +97,10 @@ export function layer(staticDir: string) {
       const fs = yield* FileSystem.FileSystem;
       const root = yield* fs.realPath(staticDir);
       const pathname = new URL(request.url, "http://companion").pathname;
-      const decoded = yield* Effect.try(() => decodeURIComponent(pathname));
+      const decoded = yield* Effect.try({
+        try: () => decodeURIComponent(pathname),
+        catch: () => new CompanionControlError({ reason: "The request path is not valid." }),
+      });
       const candidate = path.resolve(root, `.${decoded}`);
       const real = yield* fs
         .realPath(candidate)

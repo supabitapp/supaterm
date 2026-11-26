@@ -9,6 +9,7 @@ import {
   type ScheduledTask,
 } from "@supaterm/contracts";
 import {
+  changeDraftProject,
   createDraft,
   editDraft,
   scheduledTaskDefaultModel,
@@ -173,5 +174,17 @@ describe("scheduled task worktree base", () => {
       editDraft({ ...rootTask, workspaceStrategy: { type: "worktree", baseRef: "release" } })
         .baseRef,
     ).toBe("release");
+  });
+
+  it("keeps the saved repositories through an edit, and drops them for another project", () => {
+    const workspaceStrategy = {
+      type: "worktree",
+      baseRef: "release",
+      startFromOrigin: true,
+      repositories: [{ path: "/work/api" }],
+    } as const;
+    const draft = editDraft({ ...rootTask, workspaceStrategy });
+    expect(draft.repositories).toEqual(["/work/api"]);
+    expect(changeDraftProject(draft, ProjectId.make("other-project")).repositories).toBeUndefined();
   });
 });

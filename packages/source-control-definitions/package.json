@@ -9,12 +9,13 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "effect-tsgo tsrs --noEmit"
   },
   "dependencies": {
     "@supaterm/source-control-azure-devops": "workspace:*",
     "@supaterm/source-control-bitbucket": "workspace:*",
     "@supaterm/source-control-core": "workspace:*",
+    "@supaterm/source-control-cursor-origin": "workspace:*",
     "@supaterm/source-control-forgejo": "workspace:*",
     "@supaterm/source-control-gitcafe": "workspace:*",
     "@supaterm/source-control-github": "workspace:*",

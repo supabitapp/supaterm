@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema";
 import type { DeviceHostSummary, DeviceSummary, EnvironmentId } from "@supaterm/contracts";
 import { useRef, useState } from "react";
 import {
@@ -9,6 +10,9 @@ import { DeviceControlsRail } from "./DeviceControlsRail";
 import { DeviceStreamView } from "./DeviceStreamView";
 import { DeviceToolsPanel } from "./DeviceToolsPanel";
 import { useDeviceControls } from "./useDeviceControls";
+import { useGT } from "gt-react";
+
+const isDeviceScreenshotError = Schema.is(DeviceScreenshotError);
 
 const DOWNLOAD_URL_LIFETIME_MS = 60_000;
 
@@ -23,6 +27,7 @@ export function DeviceWorkspace(props: {
   onClose: () => void;
   onPowerOff: () => void;
 }) {
+  const gt = useGT();
   const [toolsOpen, setToolsOpen] = useState(false);
   const [axOverlay, setAxOverlay] = useState(false);
   const [screenshotPending, setScreenshotPending] = useState(false);
@@ -59,10 +64,10 @@ export function DeviceWorkspace(props: {
         window.setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
       })
       .catch((cause: unknown) => {
-        if (cause instanceof DeviceScreenshotError && cause.status === 401)
+        if (isDeviceScreenshotError(cause) && cause.status === 401)
           refreshDeviceHubAccess(props.environmentId);
         setScreenshotError(
-          cause instanceof Error ? cause.message : "Screenshot capture failed. Try again.",
+          cause instanceof Error ? cause.message : gt("Screenshot capture failed. Try again."),
         );
       })
       .finally(() => {

@@ -109,6 +109,7 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   request: HttpServerRequest.HttpServerRequest,
   upstreamUrl: string,
   protocols: ReadonlyArray<string> = [],
+  headers: Readonly<Record<string, string>> = {},
 ) {
   const incoming = NodeHttpServerRequest.toIncomingMessage(request);
   // Video doesn't compress, and deflate queues frames where `writableLength` can't see them.
@@ -128,6 +129,7 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   const upstream = yield* Socket.makeWebSocket(upstreamUrl, {
     openTimeout: "10 seconds",
     ...(protocols.length > 0 ? { protocols: [...protocols] } : {}),
+    ...(Object.keys(headers).length > 0 ? { headers: { ...headers } } : {}),
   }).pipe(Effect.provide(upstreamWebSocketConstructor));
   yield* Effect.scoped(
     Effect.gen(function* () {
@@ -204,11 +206,13 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
   const headers: Record<string, string> = {};
   for (const [name, value] of Object.entries(response.headers)) {
     // A cookie from an upstream such as an Expo Simulators session's preview host would land on Supaterm's origin.
+    // Clear-Site-Data likewise applies to the origin that serves it.
     if (
       name === "content-encoding" ||
       name === "transfer-encoding" ||
       name === "connection" ||
-      name === "set-cookie"
+      name === "set-cookie" ||
+      name === "clear-site-data"
     ) {
       continue;
     }
@@ -216,6 +220,9 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
   }
   // Long-lived MJPEG and AVCC responses must not be buffered by compression.
   headers["cache-control"] = "no-store, no-transform";
+  // Hub responses are data and streams; none renders as a page on this origin.
+  headers["x-content-type-options"] = "nosniff";
+  headers["content-security-policy"] = "default-src 'none'; sandbox";
   const body = headers["content-type"]?.startsWith("multipart/x-mixed-replace")
     ? repeatStillFrame(response.stream)
     : response.stream;
@@ -285,13 +292,21 @@ const handler = Effect.gen(function* () {
     return HttpServerResponse.text("Not Found", { status: 404 });
   }
   const upstreamUrl = routed?.url ?? `${ready.hub.origin}${hubPath}${search}`;
+  const upstreamHeaders =
+    routed?.headers ??
+    (ready.hub.token === undefined ? undefined : { authorization: `Bearer ${ready.hub.token}` });
   if (upgrade) {
     return yield* Effect.raceFirst(
-      proxyWebSocket(request, upstreamUrl.replace(/^http/, "ws"), routed?.protocols),
+      proxyWebSocket(
+        request,
+        upstreamUrl.replace(/^http/, "ws"),
+        routed?.protocols,
+        upstreamHeaders,
+      ),
       invalidated.pipe(Effect.as(HttpServerResponse.empty())),
     );
   }
-  return yield* proxyHttp(request, upstreamUrl, invalidated, routed?.headers);
+  return yield* proxyHttp(request, upstreamUrl, invalidated, upstreamHeaders);
 });
 
 export const layer = HttpRouter.add("*", `${DeviceService.DEVICE_HUB_ROUTE_PREFIX}/*`, handler);

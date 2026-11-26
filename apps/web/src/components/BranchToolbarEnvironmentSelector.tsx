@@ -27,6 +27,7 @@ import {
   useComboboxFilter,
 } from "./ui/combobox";
 import { Kbd } from "./ui/kbd";
+import { T, useGT } from "gt-react";
 
 interface BranchToolbarEnvironmentSelectorProps {
   autoEnvironmentLabel?: string | undefined;
@@ -54,6 +55,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   displayMode = "toolbar",
   onAddToMachine,
 }: BranchToolbarEnvironmentSelectorProps) {
+  const gt = useGT();
   const composerFloatingLayerProps = useComposerMenuProps();
   const hostShortcut = useShortcutLabel(displayMode === "toolbar" ? "composer.host" : null);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -67,13 +69,13 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
 
   const environmentItems = [
     ...(onAutoEnvironment
-      ? [{ value: AUTO_VALUE, label: autoEnvironmentLabel ?? "Auto balance" }]
+      ? [{ value: AUTO_VALUE, label: autoEnvironmentLabel ?? gt("Auto balance") }]
       : []),
     ...availableEnvironments.map((env) => ({
       value: environmentValue(env.environmentId),
       label: env.label,
     })),
-    ...(onAddToMachine ? [{ value: ADD_MACHINE_VALUE, label: "Add to another machine" }] : []),
+    ...(onAddToMachine ? [{ value: ADD_MACHINE_VALUE, label: gt("Add to another machine") }] : []),
   ];
   const filteredEnvironmentItems = environmentItems.filter((item) =>
     hostFilter.contains(item.label, query),
@@ -119,14 +121,14 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
           className={displayMode === "panel" ? THREAD_DETAILS_PANEL_ICON_CLASS : "size-3 shrink-0"}
         />
         <ComposerContextLabel displayMode={displayMode}>
-          {activeEnvironment?.label ?? "Run on"}
+          {activeEnvironment?.label ?? gt("Run on")}
         </ComposerContextLabel>
       </span>
     );
     return (
       <Tooltip>
         <TooltipTrigger render={lockedRow} />
-        <TooltipPopup>{activeEnvironment?.label ?? "Run on"}</TooltipPopup>
+        <TooltipPopup>{activeEnvironment?.label ?? gt("Run on")}</TooltipPopup>
       </Tooltip>
     );
   }
@@ -158,7 +160,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
             <ThreadDetailsComboboxControl
               panel={displayMode === "panel"}
               className="min-w-0 max-w-full"
-              aria-label="Run on"
+              aria-label={gt("Run on")}
               data-composer-shortcut="composer.host"
               data-composer-context-control
             />
@@ -180,11 +182,11 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
             />
           )}
           <ComposerContextLabel displayMode={displayMode}>
-            {autoEnvironmentLabel ?? activeEnvironment?.label ?? "Run on"}
+            {autoEnvironmentLabel ?? activeEnvironment?.label ?? gt("Run on")}
           </ComposerContextLabel>
         </TooltipTrigger>
         <TooltipPopup shortcut={hostShortcut}>
-          {autoEnvironmentLabel ?? activeEnvironment?.label ?? "Run on"}
+          {autoEnvironmentLabel ?? activeEnvironment?.label ?? gt("Run on")}
         </TooltipPopup>
       </Tooltip>
       <ComboboxPopup
@@ -197,12 +199,14 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
       >
         <ComboboxSearchInput
           autoFocus
-          aria-label="Search hosts"
-          placeholder="Search hosts..."
+          aria-label={gt("Search hosts")}
+          placeholder={gt("Search hosts...")}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <ComboboxEmpty>No matches found.</ComboboxEmpty>
+        <ComboboxEmpty>
+          <T>No matches found.</T>
+        </ComboboxEmpty>
         <ComboboxList>
           {(item: (typeof environmentItems)[number]) => (
             <ComboboxItem key={item.value} value={item}>

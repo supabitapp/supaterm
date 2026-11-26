@@ -15,6 +15,7 @@ const TYPE_TO_FOCUS_INTERACTIVE_SELECTOR = [
   "button",
   "a[href]",
   "summary",
+  "video[controls]",
   '[role="application"]',
   '[role="button"]',
   '[role="checkbox"]',

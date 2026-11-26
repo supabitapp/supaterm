@@ -9,6 +9,8 @@ import {
   COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS,
 } from "@supaterm/contracts";
 import type {
+  ChatFileAttachment,
+  ChatImageAttachment,
   ComposerContextId,
   ComposerContextRecord,
   EnvironmentId,
@@ -51,6 +53,9 @@ import {
   type TerminalContextDraft,
 } from "./terminalContext";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
+import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
+import { changeRequestTermKind } from "~/components/pullRequest/changeRequestTerm";
 
 const PREVIEW_LABEL_MAX_CHARS = 48;
 const RESPONSE_LABEL_MAX_CHARS = 64;
@@ -73,14 +78,41 @@ function basename(filePath: string): string {
   return filePath.split(/[\\/]/).at(-1) ?? filePath;
 }
 
-export function reviewCommentContextLabel(comment: ReviewCommentPresentation): string {
+function diffRangeLabel(
+  start: string,
+  end: string | undefined,
+  before: boolean,
+  resolve: MessageResolver | undefined,
+): string {
+  if (resolve === undefined) {
+    return `L${start}${end ? ` to L${end}` : ""}${before ? " (before)" : ""}`;
+  }
+  if (end === undefined) {
+    return before
+      ? resolve(msg("L{start} (before)", { $context: "line in the old version of a diff" }), {
+          start,
+        })
+      : `L${start}`;
+  }
+  return before
+    ? resolve(
+        msg("L{start} to L{end} (before)", { $context: "line range in the old version of a diff" }),
+        { start, end },
+      )
+    : resolve(msg("L{start} to L{end}", { $context: "line range in a diff" }), { start, end });
+}
+
+export function reviewCommentContextLabel(
+  comment: ReviewCommentPresentation,
+  resolve?: MessageResolver,
+): string {
   const pullRequestNumber = pullRequestContextNumber(comment);
   if (isPullRequestSummaryContext(comment) && pullRequestNumber !== null) {
     return `#${pullRequestNumber}`;
   }
   const diffRange = /^([+-])(\d+)(?: to \1(\d+))?$/u.exec(comment.rangeLabel);
   const rangeLabel = diffRange
-    ? `L${diffRange[2]}${diffRange[3] ? ` to L${diffRange[3]}` : ""}${diffRange[1] === "-" ? " (before)" : ""}`
+    ? diffRangeLabel(diffRange[2]!, diffRange[3], diffRange[1] === "-", resolve)
     : comment.rangeLabel;
   const sectionPullRequest = /^pull-request:(\d+)$/u.exec(comment.sectionId)?.[1];
   const prefix = sectionPullRequest === undefined ? "" : `#${sectionPullRequest} `;
@@ -112,16 +144,60 @@ export function pullRequestContextDisplayState(
   return pullRequest.state === "open" && pullRequest.isDraft ? "draft" : pullRequest.state;
 }
 
-export function pullRequestContextKindLabel(comment: ReviewCommentPresentation): string {
+export function pullRequestContextKindLabel(
+  comment: ReviewCommentPresentation,
+  resolve?: MessageResolver,
+): string {
   const url = comment.pullRequest?.url;
   const host = url === undefined ? null : sourceControlClients.findByChangeRequestUrl(url);
   const term = (host ?? sourceControlClients.get(undefined)).changeRequest.singular;
   const state = pullRequestContextDisplayState(comment);
+  if (resolve !== undefined) {
+    const variables = { term: changeRequestTermKind({ singular: term }) };
+    switch (state) {
+      case null:
+        return resolve(
+          msg("{term, select, mr {Merge request} cr {Change request} other {Pull request}}"),
+          variables,
+        );
+      case "open":
+        return resolve(
+          msg(
+            "{term, select, mr {Open merge request} cr {Open change request} other {Open pull request}}",
+          ),
+          variables,
+        );
+      case "draft":
+        return resolve(
+          msg(
+            "{term, select, mr {Draft merge request} cr {Draft change request} other {Draft pull request}}",
+          ),
+          variables,
+        );
+      case "merged":
+        return resolve(
+          msg(
+            "{term, select, mr {Merged merge request} cr {Merged change request} other {Merged pull request}}",
+          ),
+          variables,
+        );
+      case "closed":
+        return resolve(
+          msg(
+            "{term, select, mr {Closed merge request} cr {Closed change request} other {Closed pull request}}",
+          ),
+          variables,
+        );
+    }
+  }
   if (state === null) return capitalizeTerm(term);
   return `${capitalizeTerm(state)} ${term}`;
 }
 
-export function previewAnnotationContextLabel(annotation: PreviewAnnotationPayload): string {
+export function previewAnnotationContextLabel(
+  annotation: PreviewAnnotationPayload,
+  resolve: MessageResolver = m,
+): string {
   const comment = annotation.comment.trim().replace(/\s+/g, " ");
   if (comment) {
     if (comment.length <= PREVIEW_LABEL_MAX_CHARS) return comment;
@@ -131,7 +207,7 @@ export function previewAnnotationContextLabel(annotation: PreviewAnnotationPaylo
     if (previous >= 0xd800 && previous <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end -= 1;
     return `${comment.slice(0, end)}…`;
   }
-  return annotation.pageTitle?.trim() || "Preview annotation";
+  return annotation.pageTitle?.trim() || resolve(msg("Preview annotation"));
 }
 
 export function terminalContextReference(context: TerminalContextDraft): ComposerContextReference {
@@ -364,38 +440,58 @@ export function fileContextReference(file: ComposerFileAttachment): ComposerCont
   };
 }
 
+export type ComposerContextAttachment =
+  | ComposerImageAttachment
+  | ComposerFileAttachment
+  | (Omit<ComposerImageAttachment, "file"> & {
+      readonly file: File | null;
+      readonly uploadedAttachmentId?: string | undefined;
+    })
+  | ChatImageAttachment
+  | ChatFileAttachment;
+
 export interface BoundComposerAttachment {
-  attachment: ComposerImageAttachment | ComposerFileAttachment;
+  attachment: ComposerContextAttachment;
   attachmentId: string;
+  contextId?: ComposerContextId | undefined;
 }
 
 export function uploadedAttachmentContextRecord(
-  attachment: ComposerImageAttachment | ComposerFileAttachment,
+  attachment: ComposerContextAttachment,
   upload: AttachmentUploadState | undefined,
+  contextId?: ComposerContextId,
 ): ImageContextRecord | FileContextRecord | null {
   const attachmentId =
-    attachment.type === "file" && attachment.uploadedAttachmentId !== undefined
+    "uploadedAttachmentId" in attachment && attachment.uploadedAttachmentId !== undefined
       ? attachment.uploadedAttachmentId
       : upload?.status === "ready"
         ? upload.attachmentId
         : undefined;
-  return attachmentId === undefined ? null : attachmentContextRecord({ attachment, attachmentId });
+  return attachmentId === undefined
+    ? null
+    : attachmentContextRecord({ attachment, attachmentId, contextId });
 }
 
 export function attachmentContextRecord(
   bound: BoundComposerAttachment,
 ): ImageContextRecord | FileContextRecord {
-  const { attachment, attachmentId } = bound;
+  const { attachment, attachmentId, contextId } = bound;
   const base = {
     version: 1 as const,
-    contextId: toKindScopedComposerContextId(attachment.type, attachment.id),
+    contextId: contextId ?? toKindScopedComposerContextId(attachment.type, attachment.id),
     label: sanitizeComposerContextLabel(attachment.name, attachment.type),
     attachmentId,
     name: attachment.name,
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
   };
-  return attachment.type === "image" ? { ...base, kind: "image" } : { ...base, kind: "file" };
+  return attachment.type === "image"
+    ? {
+        ...base,
+        kind: "image",
+        ...(attachment.source !== undefined ? { source: attachment.source } : {}),
+      }
+    : { ...base, kind: "file" };
 }
 
 export function buildMessageContext(input: {

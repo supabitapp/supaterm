@@ -15,6 +15,13 @@ export const ORCHESTRATION_PROTOCOL_VERSION_TEXT = "2";
 export const ORCHESTRATION_PROTOCOL_QUERY_PARAM = "orchestrationProtocol";
 export const ORCHESTRATION_PROTOCOL_HEADER = "x-supaterm-orchestration-protocol";
 
+/** Wire shapes a client understands, comma-separated; a client that omits one gets the older shape. */
+export const CLIENT_CAPABILITIES_QUERY_PARAM = "clientCapabilities";
+/** Secret fields may hold a secret provider reference instead of a string. */
+export const SETTINGS_SECRET_REFERENCES_CAPABILITY = "settingsSecretReferences";
+/** Ref names keep Unicode whitespace at their edges, which older clients trim off. */
+export const GIT_REF_NAMES_CAPABILITY = "gitRefNames";
+
 export const ExecutionEnvironmentPlatformOs = Schema.Literals([
   "darwin",
   "linux",
@@ -97,6 +104,7 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
       foreground runs). */
   serverSelfUpdate: ForwardCompatibleOptional(ServerSelfUpdateCapability),
   threadStop: Schema.optionalKey(Schema.Boolean),
+  issues: Schema.optionalKey(Schema.Boolean),
   /** Side chats: hidden `lineage.sideChat` forks. Older servers ignore the fork flag. */
   sideChats: Schema.optionalKey(Schema.Boolean),
   vcsBranchStatus: Schema.optionalKey(Schema.Boolean),
@@ -115,6 +123,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   previewTunnelSetting: Schema.optionalKey(Schema.Boolean),
   /** Server answers server.getNpmRelease using its configured npm registry. */
   npmReleaseLookup: Schema.optionalKey(Schema.Boolean),
+  /** Serves `server.checkSecretSource`; hide the secret check where it is absent. */
+  secretSourceCheck: Schema.optionalKey(Schema.Boolean),
   /** Manual commands must update this install, not the host's default global prefix. */
   serverInstallation: ForwardCompatibleOptional(ServerInstallation),
   serverSelfUpdateProgress: Schema.optionalKey(Schema.Boolean),
@@ -167,6 +177,15 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Server holds a steer sent while a run prepares or starts and delivers it once the provider
       turn runs; older servers reject that steer. */
   deferredSteering: Schema.optionalKey(Schema.Boolean),
+  /** Refuses a review whose `expectedHeadSha` is no longer the head. Older servers drop the
+      field, and the host then reviews its newest commit. */
+  pullRequestReviewHeadPin: Schema.optionalKey(Schema.Boolean),
+  /** Serves a draft's workspace file with `disposition: "attachment"`. Older servers drop the
+      field and refuse text files, so a draft keeps its first megabyte there. */
+  draftFileDownloads: Schema.optionalKey(Schema.Boolean),
+  /** Applies the `modelSelection` of queued-run.edit. Older servers save the text and keep the
+      run's model. */
+  queuedRunModelEdit: Schema.optionalKey(Schema.Boolean),
   /**
    * The server config's flags of the same names. A server that names them here lets a client
    * load the shell snapshot before the socket opens, and answers its `resumeFrom`.
@@ -175,6 +194,10 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   shellOlderDone: Schema.optionalKey(Schema.Boolean),
   /** Publishes a pull request refresh when linked-thread answers change; older servers need polling. */
   linkedThreadRefreshes: Schema.optionalKey(Schema.Boolean),
+  /** Answers `issues.linkedThreads`, the threads an issue is linked to. */
+  issueLinkedThreads: Schema.optionalKey(Schema.Boolean),
+  /** Keeps more than one account per standalone issue tracker; older servers keep one. */
+  issueTrackerAccounts: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 

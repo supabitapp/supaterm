@@ -16,6 +16,7 @@ function Harness({ ref }: { ref: Ref<(bottom: number) => void> }) {
       <ScrollToEndPill
         show
         bottom={bottom}
+        summary={null}
         composerOverlay={overlay}
         onScrollToEnd={() => undefined}
       />

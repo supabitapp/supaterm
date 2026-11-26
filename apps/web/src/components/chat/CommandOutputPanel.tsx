@@ -13,6 +13,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useEnvironmentQuery } from "../../state/query";
 import { useInitialOutputReady } from "./timelineRowContext";
+import { T, Var, useGT } from "gt-react";
 
 // Within this many pixels of the end still counts as following the output.
 const FOLLOW_SLACK_PX = 8;
@@ -51,6 +52,7 @@ export function CommandOutputPanel(props: {
   readonly waitingLabel?: string;
   readonly onInitialOutputReady?: (() => void) | undefined;
 }) {
+  const gt = useGT();
   const { data, error } = useEnvironmentQuery(props.output);
   useInitialOutputReady(data === null && !error, props.onInitialOutputReady);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -67,9 +69,21 @@ export function CommandOutputPanel(props: {
   });
 
   if (text.length === 0) {
-    if (error) return <div className="text-destructive">Couldn&apos;t load output: {error}</div>;
-    if (data === null) return <div className="text-muted-foreground italic">Loading output…</div>;
-    const label = data.running ? props.waitingLabel : "No output.";
+    if (error)
+      return (
+        <div className="text-destructive">
+          <T>
+            Couldn&apos;t load output: <Var>{error}</Var>
+          </T>
+        </div>
+      );
+    if (data === null)
+      return (
+        <div className="text-muted-foreground italic">
+          <T>Loading output…</T>
+        </div>
+      );
+    const label = data.running ? props.waitingLabel : gt("No output.");
     return label === undefined ? null : <div className="text-muted-foreground italic">{label}</div>;
   }
   // Parsed after the layout effect, the last hook, so the compiler caches it on text and theme.
@@ -86,7 +100,11 @@ export function CommandOutputPanel(props: {
         }}
         className="max-h-80 min-h-0 flex-auto overflow-auto text-muted-foreground"
       >
-        {data?.output.truncated ? <div className="italic">Earlier output not shown</div> : null}
+        {data?.output.truncated ? (
+          <div className="italic">
+            <T>Earlier output not shown</T>
+          </div>
+        ) : null}
         {spans.map((span, index) =>
           span.style === null ? (
             span.text

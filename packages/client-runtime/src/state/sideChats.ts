@@ -16,6 +16,8 @@ import {
   runAtomCommand,
   squashAtomCommandFailure,
 } from "./runtime.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type SideChatParent =
   /** A thread that exists only on this client until its first send. */
@@ -32,25 +34,34 @@ export type SideChatParent =
  * Why `parent` cannot start a side chat, or null when it can. Mirrors the server's side chat fork
  * refusals; a parent still in its first turn is allowed, its side chat starts from a digest.
  */
-export function sideChatStartBlockedReason(input: {
-  readonly parent: SideChatParent;
-  readonly canOperate: boolean;
-  /** The environment's `sideChats` capability, or null while its server config loads. */
-  readonly supported: boolean | null;
-}): string | null {
+export function sideChatStartBlockedReason(
+  input: {
+    readonly parent: SideChatParent;
+    readonly canOperate: boolean;
+    /** The environment's `sideChats` capability, or null while its server config loads. */
+    readonly supported: boolean | null;
+  },
+  resolve: MFunctionType = mFallback,
+): string | null {
   const { parent } = input;
   if (parent.kind === "draft" ? parent.sideChat : parent.lineage.sideChat === true) {
-    return "Side chats cannot start side chats.";
+    return resolve(msg("Side chats cannot start side chats."));
   }
   if (parent.kind === "thread" && parent.lineage.relationshipToParent === "subagent") {
-    return "Subagent threads cannot start side chats.";
+    return resolve(msg("Subagent threads cannot start side chats."));
   }
-  if (!input.canOperate) return "This connection cannot start side chats.";
-  if (input.supported === null) return "Side chats are not ready yet. Try again in a moment.";
-  if (!input.supported) return "Update this environment's Supaterm server to use side chats.";
-  if (parent.kind === "draft") return "Side chats start after the first message.";
-  if (parent.deletedAt != null) return "This thread was deleted.";
-  if (parent.worktreePending) return "Available once the thread's worktree is set up.";
+  if (!input.canOperate) return resolve(msg("This connection cannot start side chats."));
+  if (input.supported === null) {
+    return resolve(msg("Side chats are not ready yet. Try again in a moment."));
+  }
+  if (!input.supported) {
+    return resolve(msg("Update this environment's Supaterm server to use side chats."));
+  }
+  if (parent.kind === "draft") return resolve(msg("Side chats start after the first message."));
+  if (parent.deletedAt != null) return resolve(msg("This thread was deleted."));
+  if (parent.worktreePending) {
+    return resolve(msg("Available once the thread's worktree is set up."));
+  }
   return null;
 }
 
@@ -104,7 +115,9 @@ export async function sendSideChatFirstMessage<A>(input: {
   readonly targetThreadId: ThreadId;
   readonly creationSource: OrchestrationV2CreationSource;
   readonly enqueue: () => Promise<A>;
+  readonly resolve?: MFunctionType;
 }): Promise<SideChatFirstMessageResult<A>> {
+  const resolve = input.resolve ?? mFallback;
   const targetRef = scopeThreadRef(input.parentRef.environmentId, input.targetThreadId);
   const key = scopedThreadKey(targetRef);
   if (firstMessagesInFlight.has(key)) return { kind: "busy" };
@@ -121,6 +134,7 @@ export async function sendSideChatFirstMessage<A>(input: {
           input: {
             sourceThreadId: input.parentRef.threadId,
             targetThreadId: input.targetThreadId,
+            // oxlint-disable-next-line supaterm/no-untranslated-copy -- thread title stored on the server
             title: "Side chat",
             creationSource: input.creationSource,
           },
@@ -130,12 +144,13 @@ export async function sendSideChatFirstMessage<A>(input: {
       // A retry whose earlier fork landed is refused as a duplicate; its shell says so.
       if (fork._tag === "Failure" && !forked()) {
         if (isAtomCommandInterrupted(fork)) {
-          return { kind: "failed", reason: "Starting the side chat was cancelled." };
+          return { kind: "failed", reason: resolve(msg("Starting the side chat was cancelled.")) };
         }
         const error = squashAtomCommandFailure(fork);
         return {
           kind: "failed",
-          reason: error instanceof Error ? error.message : "Could not start a side chat.",
+          reason:
+            error instanceof Error ? error.message : resolve(msg("Could not start a side chat.")),
         };
       }
       if (!forked()) await input.waitForThread(targetRef);
@@ -144,7 +159,10 @@ export async function sendSideChatFirstMessage<A>(input: {
   } catch (error) {
     return {
       kind: "failed",
-      reason: error instanceof Error ? error.message : "Could not send the side chat's message.",
+      reason:
+        error instanceof Error
+          ? error.message
+          : resolve(msg("Could not send the side chat's message.")),
     };
   } finally {
     firstMessagesInFlight.delete(key);

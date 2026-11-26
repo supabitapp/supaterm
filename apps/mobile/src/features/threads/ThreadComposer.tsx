@@ -133,6 +133,7 @@ import {
   useThreadSettingsSheetPresentation,
   type NavigationWithFinishTransitioning,
 } from "./use-thread-settings-sheet-presentation";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 
 export const COMPOSER_COLLAPSED_CHROME = 60;
 
@@ -230,15 +231,15 @@ const COMPOSER_ATTACHMENT_ENTERING =
 const AnimatedGlassSurface = Animated.createAnimatedComponent(GlassSurface);
 
 const FOLLOW_UP_ACTION_LABEL = {
-  queue: "Queue",
-  steer: "Steer now",
-  restart: "Restart turn",
+  queue: msg("Queue", { $context: "verb, send after the current turn" }),
+  steer: msg("Steer now"),
+  restart: msg("Restart turn"),
 } as const;
 
 const FOLLOW_UP_ACTION_SUBTITLE = {
-  queue: "Run after the current turn",
-  steer: "Interrupt what the agent is doing",
-  restart: "Start the turn over with this message",
+  queue: msg("Run after the current turn"),
+  steer: msg("Interrupt what the agent is doing"),
+  restart: msg("Start the turn over with this message"),
 } as const;
 
 function SendActionButton(props: {
@@ -248,6 +249,8 @@ function SendActionButton(props: {
   readonly disabled: boolean;
   readonly onSend: (followUp?: ActiveTurnComposerAction) => void;
 }) {
+  const m = useMessages();
+  const gt = useGT();
   const { presentation } = props;
   const button = (
     <ComposerActionButton
@@ -270,7 +273,7 @@ function SendActionButton(props: {
   );
   return (
     <Menu
-      accessibilityLabel="Choose how to send this message"
+      accessibilityLabel={gt("Choose how to send this message")}
       shouldOpenOnLongPress
       preservesKeyboard
       onOpenMenu={() => {
@@ -280,8 +283,8 @@ function SendActionButton(props: {
       }}
       actions={actions.map((action) => ({
         id: action,
-        title: FOLLOW_UP_ACTION_LABEL[action],
-        subtitle: FOLLOW_UP_ACTION_SUBTITLE[action],
+        title: m(FOLLOW_UP_ACTION_LABEL[action]),
+        subtitle: m(FOLLOW_UP_ACTION_SUBTITLE[action]),
         state: action === presentation.action ? ("on" as const) : ("off" as const),
       }))}
       onPressAction={({ nativeEvent }) => {
@@ -373,6 +376,8 @@ function focusComposerEditor(editorRef: RefObject<ComposerEditorHandle | null>) 
 export const THREAD_COMPOSER_BOTTOM_GUTTER = 6;
 
 export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps) {
+  const gt = useGT();
+  const messages = useMessages();
   const project = useProject(scopeProjectRef(props.environmentId, props.selectedThread.projectId));
   const { themeVariables: materialTheme } = useAppearancePreferences();
   const composerPanel = materialTheme["--color-composer-panel"];
@@ -384,6 +389,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const [isFocused, setIsFocused] = useState(false);
   const pendingPastedTextAttachmentCountRef = useRef(0);
   const pendingNativeImagePasteCountRef = useRef(0);
+  const [pendingNativeImageCount, setPendingNativeImageCount] = useState(0);
   const [pendingPastedTextAttachmentCount, setPendingPastedTextAttachmentCount] = useState(0);
   const settingsRoutePresentedRef = useRef(false);
   const settingsSheetPresentation = useThreadSettingsSheetPresentation({
@@ -508,18 +514,21 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     codexFeedback: selectedProviderStatus?.driver === "codex",
     freshSession: props.onFreshSession !== undefined && draftContext === undefined,
   });
-  const sendPresentation = resolveComposerSendPresentation({
-    editingQueuedMessage: queuedEdit !== null,
-    running: props.activeThreadBusy && !draftRunsLocally,
-    canSteer: props.canSteerActiveTurn,
-    followUpBehavior: props.followUpBehavior,
-    deliveryDeferred:
-      !draftRunsLocally &&
-      (props.connectionState !== "connected" ||
-        props.queueCount > 0 ||
-        attachmentsUploading ||
-        props.awaitingCreation),
-  });
+  const sendPresentation = resolveComposerSendPresentation(
+    {
+      editingQueuedMessage: queuedEdit !== null,
+      running: props.activeThreadBusy && !draftRunsLocally,
+      canSteer: props.canSteerActiveTurn,
+      followUpBehavior: props.followUpBehavior,
+      deliveryDeferred:
+        !draftRunsLocally &&
+        (props.connectionState !== "connected" ||
+          props.queueCount > 0 ||
+          attachmentsUploading ||
+          props.awaitingCreation),
+    },
+    messages,
+  );
   const sendLabel = sendPresentation.label;
   const openUsageLimits = () => {
     const report = collectProviderUsageLimits(
@@ -529,7 +538,10 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     );
     onShowUsageLimits(report);
     if (!report) {
-      Dialog.alert("Usage limits unavailable", "This provider does not currently report limits.");
+      Dialog.alert(
+        gt("Usage limits unavailable"),
+        gt("This provider does not currently report limits."),
+      );
     }
     return report !== null;
   };
@@ -562,7 +574,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   });
   const voiceInput = useVoiceInputController({
     ownerKey: composerDraftKey,
-    label: props.selectedThread.title || "Untitled thread",
+    label: props.selectedThread.title || gt("Untitled thread"),
     readDraftMessage: () => getComposerDraftSnapshot(composerDraftKey).text,
     selection: composerMenu.selection,
     onChangeDraftMessage: (text) => setComposerDraftText(composerDraftKey, text),
@@ -596,6 +608,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
+    messages,
   );
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const isExpanded =
@@ -610,18 +623,21 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     : COMPACT_SURFACE_INSET;
   const showsCompactDictation = isVoiceInputPresented && !isExpanded;
   const isToolbarVisible = isExpanded || isVoiceInputPresented;
-  const attachmentBlockReason = composerAttachmentUploadBlockReason({
-    environmentId: props.environmentId,
-    attachments: draftAttachments,
-    connected: props.connectionState === "connected",
-    serverConfig: props.serverConfig,
-    states: uploadStates,
-  });
+  const attachmentBlockReason = composerAttachmentUploadBlockReason(
+    {
+      environmentId: props.environmentId,
+      attachments: draftAttachments,
+      connected: props.connectionState === "connected",
+      serverConfig: props.serverConfig,
+      states: uploadStates,
+    },
+    messages,
+  );
   const contextImports = useAtomValue(composerContextImportsAtom);
   const sendBlockedReason =
-    (queuedEdit?.saving === true ? "Saving…" : null) ??
+    (queuedEdit?.saving === true ? gt("Saving…") : null) ??
     props.sendBlockedReason ??
-    (pendingPastedTextAttachmentCount > 0 ? "Attaching pasted text" : null) ??
+    (pendingPastedTextAttachmentCount > 0 ? gt("Attaching pasted text") : null) ??
     attachmentBlockReason;
   const canSubmitDraft =
     (props.canOperateThread || props.connectionState !== "connected") &&
@@ -708,7 +724,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     }
     const sideChatCommand = resolveSideChatCommand(draftMessage, sideChat.disabledReason);
     if (sideChatCommand.kind === "refuse") {
-      Dialog.alert("Side chat not started", sideChatCommand.reason);
+      Dialog.alert(gt("Side chat not started"), sideChatCommand.reason);
       return;
     }
     if (sideChatCommand.kind === "start") {
@@ -814,7 +830,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       {showStopAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Stop agent"
+          accessibilityLabel={gt("Stop agent")}
           disabled={!props.canOperateThread}
           icon="stop.fill"
           variant="danger"
@@ -826,7 +842,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       ) : showResumeAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Resume thread"
+          accessibilityLabel={gt("Resume thread")}
           disabled={resumingQueue || !props.canOperateThread}
           icon="play"
           variant="primary"
@@ -837,7 +853,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       ) : showSuggestionAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Use suggested prompt"
+          accessibilityLabel={gt("Use suggested prompt")}
           disabled={isSubmissionLocked}
           icon="text.bubble"
           variant="primary"
@@ -916,7 +932,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
         ) : null}
         {modelUnavailable ? (
           <Button
-            label="Model unavailable. Open model settings."
+            label={gt("Model unavailable. Open model settings.")}
             tone="text"
             onPress={openSettings}
           />
@@ -987,7 +1003,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 />
               </Animated.View>
             ) : null}
-            {isExpanded && stripAttachments.length > 0 ? (
+            {isExpanded && (stripAttachments.length > 0 || pendingNativeImageCount > 0) ? (
               <Animated.View
                 className="px-[14px] pb-2.5"
                 entering={COMPOSER_ATTACHMENT_ENTERING}
@@ -996,6 +1012,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 <ComposerAttachmentStrip
                   environmentId={props.environmentId}
                   attachments={stripAttachments}
+                  pendingImageCount={pendingNativeImageCount}
                   onRemove={isSubmissionLocked ? () => undefined : props.onRemoveDraftImage}
                   onPressPreview={isSubmissionLocked ? undefined : onPressPreview}
                   onPressVideo={isSubmissionLocked ? undefined : onPressVideo}
@@ -1054,10 +1071,15 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 onPasteImages={(uris) => {
                   if (isSubmissionLocked) return;
                   pendingNativeImagePasteCountRef.current += 1;
+                  setPendingNativeImageCount((count) => count + uris.length);
                   void nativeImageSubmit.pasteImages(uris).finally(() => {
                     pendingNativeImagePasteCountRef.current -= 1;
+                    setPendingNativeImageCount((count) => count - uris.length);
                   });
                 }}
+                onPasteImagesPending={(delta) =>
+                  setPendingNativeImageCount((count) => count + delta)
+                }
                 onPasteText={(paste) => {
                   if (isSubmissionLocked) return;
                   const insertPaste = () => {
@@ -1114,8 +1136,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                       insertPaste();
                     } else {
                       Dialog.alert(
-                        "Pasted text is too large for this message",
-                        "Remove some text or an attachment, then paste again.",
+                        gt("Pasted text is too large for this message"),
+                        gt("Remove some text or an attachment, then paste again."),
                       );
                     }
                     return;
@@ -1136,7 +1158,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 alternateSubmitTitle={
                   sendPresentation.alternate === null
                     ? sendPresentation.label
-                    : FOLLOW_UP_ACTION_LABEL[sendPresentation.alternate]
+                    : messages(FOLLOW_UP_ACTION_LABEL[sendPresentation.alternate])
                 }
                 scrollEnabled={isExpanded}
                 singleLineCentered={!isExpanded}
@@ -1275,7 +1297,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
 
         {props.connectionState === "connected" && operateDenied ? (
           <Text className="pt-2 text-xs text-foreground-muted">
-            This connection cannot control this task. You can still edit your draft.
+            <T>This connection cannot control this task. You can still edit your draft.</T>
           </Text>
         ) : null}
       </Animated.View>

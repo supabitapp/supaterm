@@ -1,6 +1,7 @@
-// @effect-diagnostics preferSchemaOverJson:off
+// @effect-diagnostics globalJsonInEffect:off
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import type * as AcpSchema from "effect-acp/compat";
@@ -26,15 +27,20 @@ interface Connection {
   nextRequestId: number;
 }
 
-export class AcpMcpOverAcpError extends Error {
-  readonly _tag = "AcpMcpOverAcpError";
-  override readonly name = "AcpMcpOverAcpError";
-}
+export class AcpMcpOverAcpError extends Schema.TaggedError<AcpMcpOverAcpError>()(
+  "AcpMcpOverAcpError",
+  { message: Schema.String, cause: Schema.optional(Schema.Defect()) },
+) {}
+
+const isAcpMcpOverAcpError = Schema.is(AcpMcpOverAcpError);
 
 const bridgeError = (cause: unknown): AcpMcpOverAcpError =>
-  cause instanceof AcpMcpOverAcpError
+  isAcpMcpOverAcpError(cause)
     ? cause
-    : new AcpMcpOverAcpError(cause instanceof Error ? cause.message : String(cause), { cause });
+    : new AcpMcpOverAcpError({
+        message: cause instanceof Error ? cause.message : String(cause),
+        cause,
+      });
 
 const asEnvelope = (value: unknown): JsonRpcEnvelope | null =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -95,7 +101,9 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
           const connection = connections.get(connectionId);
           return connection === undefined
             ? Effect.fail(
-                new AcpMcpOverAcpError(`Unknown MCP-over-ACP connection "${connectionId}".`),
+                new AcpMcpOverAcpError({
+                  message: `Unknown MCP-over-ACP connection "${connectionId}".`,
+                }),
               )
             : Effect.succeed(connection);
         });
@@ -115,9 +123,9 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
           Effect.gen(function* () {
             const body = JSON.stringify(message);
             if (Buffer.byteLength(body) > MAX_MESSAGE_BYTES) {
-              return yield* Effect.fail(
-                new AcpMcpOverAcpError("MCP-over-ACP message exceeds 8 MiB."),
-              );
+              return yield* new AcpMcpOverAcpError({
+                message: "MCP-over-ACP message exceeds 8 MiB.",
+              });
             }
             const response = yield* Effect.tryPromise({
               try: (signal) =>
@@ -144,11 +152,9 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
               yield* Effect.promise(
                 () => response.body?.cancel().catch(() => undefined) ?? Promise.resolve(),
               );
-              return yield* Effect.fail(
-                new AcpMcpOverAcpError(
-                  `Supaterm MCP endpoint responded with HTTP ${response.status}.`,
-                ),
-              );
+              return yield* new AcpMcpOverAcpError({
+                message: `Supaterm MCP endpoint responded with HTTP ${response.status}.`,
+              });
             }
             const payloads = [
               ...(yield* Stream.runCollect(responsePayloads(response, bridgeError))),
@@ -168,7 +174,9 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
           Effect.raceFirst(
             sendNow(connection, message),
             Deferred.await(callsStopped).pipe(
-              Effect.andThen(Effect.fail(new AcpMcpOverAcpError("The MCP call was stopped."))),
+              Effect.andThen(
+                Effect.fail(new AcpMcpOverAcpError({ message: "The MCP call was stopped." })),
+              ),
             ),
           ),
         );
@@ -197,11 +205,9 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
               catch: bridgeError,
             });
             if (!response.ok && response.status !== 404) {
-              return yield* Effect.fail(
-                new AcpMcpOverAcpError(
-                  `Supaterm MCP endpoint rejected disconnect with HTTP ${response.status}.`,
-                ),
-              );
+              return yield* new AcpMcpOverAcpError({
+                message: `Supaterm MCP endpoint rejected disconnect with HTTP ${response.status}.`,
+              });
             }
             yield* Effect.promise(
               () => response.body?.cancel().catch(() => undefined) ?? Promise.resolve(),
@@ -211,7 +217,9 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
               duration: DISCONNECT_TIMEOUT,
               orElse: () =>
                 Effect.fail(
-                  new AcpMcpOverAcpError("Supaterm MCP endpoint did not answer disconnect."),
+                  new AcpMcpOverAcpError({
+                    message: "Supaterm MCP endpoint did not answer disconnect.",
+                  }),
                 ),
             }),
             // Restore a session that failed to close, so a retry or dispose can close it.
@@ -226,12 +234,12 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
       return {
         connect: Effect.fn("mcpOverAcpBridge.connect")(function* (request) {
           if (request.serverId !== "supaterm") {
-            return yield* Effect.fail(
-              new AcpMcpOverAcpError(`Unknown ACP MCP server "${request.serverId}".`),
-            );
+            return yield* new AcpMcpOverAcpError({
+              message: `Unknown ACP MCP server "${request.serverId}".`,
+            });
           }
           if (connections.size >= MAX_CONNECTIONS) {
-            return yield* Effect.fail(new AcpMcpOverAcpError("Too many MCP-over-ACP connections."));
+            return yield* new AcpMcpOverAcpError({ message: "Too many MCP-over-ACP connections." });
           }
           const connectionId = yield* options.allocateConnectionId;
           connections.set(connectionId, {
@@ -254,12 +262,12 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
           const response = payloads.find((payload) => asEnvelope(payload)?.id === id);
           const envelope = asEnvelope(response);
           if (envelope === null) {
-            return yield* Effect.fail(
-              new AcpMcpOverAcpError("MCP server did not return a matching response."),
-            );
+            return yield* new AcpMcpOverAcpError({
+              message: "MCP server did not return a matching response.",
+            });
           }
           if (envelope.error !== undefined) {
-            return yield* Effect.fail(new AcpMcpOverAcpError(errorMessage(envelope.error)));
+            return yield* new AcpMcpOverAcpError({ message: errorMessage(envelope.error) });
           }
           return (envelope.result ?? null) as AcpSchema.MessageMcpResponse;
         }),

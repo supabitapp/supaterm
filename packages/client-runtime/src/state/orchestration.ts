@@ -38,6 +38,8 @@ import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { EnvironmentRpcUnavailableError, request } from "../rpc/client.ts";
 import type { EnvironmentShellState } from "./shell.ts";
 import { fetchEnvironmentThreadTranscript } from "./threadTranscriptHttp.ts";
+import { msg } from "gt-i18n";
+import { translatableMessage } from "../errors/translatable.ts";
 
 // `scan` emits its seed first; skipping it keeps the view "loading" until the first frame.
 const commandOutputViews = <E, R>(frames: Stream.Stream<OrchestrationV2CommandOutputFrame, E, R>) =>
@@ -115,7 +117,7 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
         if (Option.isNone(session)) {
           return yield* new EnvironmentRpcUnavailableError({
             environmentId: supervisor.target.environmentId,
-            message: "The environment has no session.",
+            ...translatableMessage(msg("The environment has no session.")),
           });
         }
         const config = yield* session.value.initialConfig;
@@ -141,7 +143,7 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
         if (Option.isNone(prepared)) {
           return yield* new EnvironmentRpcUnavailableError({
             environmentId: supervisor.target.environmentId,
-            message: "The source environment is not connected.",
+            ...translatableMessage(msg("The source environment is not connected.")),
           });
         }
         return yield* fetchEnvironmentThreadTranscript({

@@ -14,6 +14,7 @@ import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { useThreadShell, useThreadShells } from "../../state/entities";
 import { useEnvironmentQuery } from "../../state/query";
 import { ThreadMcpApp } from "./McpAppWebView";
+import { T, useGT } from "gt-react-native";
 
 type McpAppFullscreenScreenProps = StaticScreenProps<{
   readonly environmentId: string;
@@ -56,17 +57,20 @@ function descendsFrom(
 }
 
 export function McpAppFullscreenScreen({ route }: McpAppFullscreenScreenProps) {
+  const gt = useGT();
   const navigation = useNavigation();
   const { environmentId, threadId, itemId } = route.params;
   if (!environmentId?.trim() || !threadId?.trim() || !itemId?.trim()) {
     return (
       <View className="flex-1 bg-screen">
         <AppBar
-          title="App"
+          title={gt("App")}
           onClose={() => navigation.goBack()}
-          closeAccessibilityLabel="Exit full screen"
+          closeAccessibilityLabel={gt("Exit full screen")}
         />
-        <Text className="m-6 text-sm text-foreground-muted">This app cannot be shown.</Text>
+        <Text className="m-6 text-sm text-foreground-muted">
+          <T>This app cannot be shown.</T>
+        </Text>
       </View>
     );
   }
@@ -91,6 +95,7 @@ function McpAppFullscreen({
   readonly threadId: ThreadId;
   readonly itemId: TurnItemId;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
 
@@ -142,9 +147,9 @@ function McpAppFullscreen({
   return (
     <View className="flex-1 bg-screen">
       <AppBar
-        title={app?.server ?? "App"}
+        title={app?.server ?? gt("App")}
         onClose={onClose}
-        closeAccessibilityLabel="Exit full screen"
+        closeAccessibilityLabel={gt("Exit full screen")}
       />
       <View
         className="flex-1"
@@ -158,7 +163,9 @@ function McpAppFullscreen({
       >
         {app === undefined ? (
           detail.data === undefined ? null : (
-            <Text className="m-6 text-sm text-foreground-muted">This app cannot be shown.</Text>
+            <Text className="m-6 text-sm text-foreground-muted">
+              <T>This app cannot be shown.</T>
+            </Text>
           )
         ) : size.width > 0 ? (
           <ThreadMcpApp

@@ -3,6 +3,7 @@ import { assert, describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import {
   DEFAULT_SERVER_SETTINGS,
+  GitManagerError,
   ProjectId,
   EventId,
   ProviderInstanceId,
@@ -31,6 +32,8 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as PubSub from "effect/PubSub";
@@ -59,7 +62,7 @@ function at(offsetMs: number): DateTime.Utc {
 }
 
 type SettlementShell = OrchestrationV2ThreadShell &
-  Pick<ProjectionStore.ProjectionDoneCandidate, "latestUserAuthoredMessageAt">;
+  Pick<ProjectionStore.ProjectionDoneCandidate, "latestResumingMessageAt">;
 
 function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
   return {
@@ -98,7 +101,7 @@ function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
     latestRunStartedAt: null,
     latestRunCompletedAt: null,
     latestUserMessageAt: null,
-    latestUserAuthoredMessageAt: overrides.latestUserMessageAt ?? null,
+    latestResumingMessageAt: overrides.latestUserMessageAt ?? null,
     createdAt: at(-30 * DAY_MS),
     updatedAt: at(-10 * DAY_MS),
     archivedAt: null,
@@ -416,10 +419,10 @@ describe("resolveAutoMarkDoneAt", () => {
     ).toEqual(shell().createdAt);
   });
 
-  it("marks done on merge after agent-started runs, but not after the user writes again", () => {
+  it("marks done on merge after automatic agent wakes, but not after the thread is resumed", () => {
     const woken = shell({
       latestUserMessageAt: at(-30 * 60 * 1_000),
-      latestUserAuthoredMessageAt: at(-2 * 60 * 60 * 1_000),
+      latestResumingMessageAt: at(-2 * 60 * 60 * 1_000),
       latestRunRequestedAt: at(-30 * 60 * 1_000),
       latestRunCompletedAt: at(-29 * 60 * 1_000),
     });
@@ -434,7 +437,7 @@ describe("resolveAutoMarkDoneAt", () => {
     expect(
       ThreadDoneService.resolveAutoMarkDoneAt({
         ...input,
-        thread: { ...woken, latestUserAuthoredMessageAt: at(-30 * 60 * 1_000) },
+        thread: { ...woken, latestResumingMessageAt: at(-30 * 60 * 1_000) },
       }),
     ).toBeNull();
   });
@@ -820,8 +823,24 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
   const layerDependencies = Layer.mergeAll(
     Layer.mock(ProjectStore.ProjectStoreV2)({
       listShells: () => Ref.get(snapshots).pipe(Effect.map((snapshot) => snapshot.projects)),
+      getShell: (projectId) =>
+        Ref.get(snapshots).pipe(
+          Effect.map((snapshot) =>
+            Option.fromNullishOr(snapshot.projects.find((project) => project.id === projectId)),
+          ),
+        ),
     }),
     Layer.mock(ProjectionStore.ProjectionStoreV2)({
+      getThreadsWithPullRequests: (_threadId, readOptions) =>
+        Ref.get(snapshots).pipe(
+          Effect.map((snapshot) =>
+            snapshot.threads
+              .filter(
+                (thread) => readOptions?.includeArchived === true || thread.archivedAt === null,
+              )
+              .map((thread) => ({ ...thread, pullRequests: thread.pullRequests ?? [] })),
+          ),
+        ),
       ...options.projections,
       getAutoMarkDoneCandidates: (threadId) =>
         Ref.update(candidateReads, (reads) => [...reads, threadId]).pipe(
@@ -1087,6 +1106,67 @@ describe("ThreadDoneServiceV2 worker", () => {
         ]);
         // Pinned threads drop out before any source control lookup.
         expect(yield* Ref.get(fixture.branchCalls)).toEqual([]);
+      }).pipe(Effect.provide(fixture.layer));
+    }),
+  );
+
+  it.effect("keeps idle unlinked branch threads with an open PR under retention", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse(NOW));
+      const earlier = "2026-08-19T00:00:00.000Z";
+      const openPr = makeThread("idle-open", {
+        branch: "open",
+        latestUserMessageAt: DateTime.makeUnsafe(earlier),
+      });
+      const reused = makeThread("idle-reused", { branch: "reused" });
+      const link = persistedLink("open", DateTime.makeUnsafe("2026-06-20T00:00:00.000Z"));
+      const reusedOwner = makeThread("archived-reused-owner", {
+        branch: "reused",
+        archivedAt: DateTime.makeUnsafe("2026-07-02T00:00:00.000Z"),
+        pullRequests: [
+          {
+            ...link,
+            snapshot: { ...link.snapshot!, state: "merged", mergedAt: "2026-07-01T00:00:00.000Z" },
+          },
+        ],
+      });
+      const noPr = makeThread("idle-none", { branch: "none" });
+      const merged = makeThread("idle-merged", { branch: "merged" });
+      const failed = makeThread("idle-failed", { branch: "failed" });
+      const fixture = yield* makeHarness({
+        snapshot: makeSnapshot([openPr, reused, reusedOwner, noPr, merged, failed]),
+        settings: {
+          ...DEFAULT_SERVER_SETTINGS,
+          sidebarAutoMarkDoneAfterDays: 3,
+          sidebarAutoMarkDoneKeepPullRequests: true,
+        },
+        branchPullRequest: ({ branch, cwd }, options) =>
+          branch === "open"
+            ? Effect.succeed(makeBranchPullRequest("open"))
+            : branch === "reused"
+              ? Effect.succeed(
+                  options?.freshGitState === true
+                    ? { ...makeBranchPullRequest("open"), number: 43 }
+                    : { ...makeBranchPullRequest("merged"), mergedAt: "2026-07-01T00:00:00.000Z" },
+                )
+              : branch === "merged"
+                ? Effect.succeed({ ...makeBranchPullRequest("merged"), mergedAt: earlier })
+                : branch === "failed"
+                  ? Effect.fail(
+                      new GitManagerError({
+                        operation: "branchPullRequest",
+                        cwd,
+                        detail: "failed",
+                      }),
+                    )
+                  : Effect.succeed(null),
+      });
+      yield* Effect.gen(function* () {
+        const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+        yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+        expect(
+          (yield* Ref.get(fixture.commands)).map((command) => command.threadId).toSorted(),
+        ).toEqual([failed.id, merged.id, noPr.id]);
       }).pipe(Effect.provide(fixture.layer));
     }),
   );
@@ -2183,7 +2263,7 @@ describe("ThreadDoneServiceV2 worker", () => {
         snapshot: makeSnapshot([
           makeThread("worked-after-merge", {
             branch: "merged-feature",
-            latestUserAuthoredMessageAt: DateTime.makeUnsafe("2026-08-28T06:00:00.000Z"),
+            latestResumingMessageAt: DateTime.makeUnsafe("2026-08-28T06:00:00.000Z"),
           }),
         ]),
         settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneAfterDays: null },
@@ -2313,6 +2393,103 @@ describe("ThreadDoneServiceV2 worker", () => {
       }).pipe(Effect.provide(fixture.layer));
     }),
   );
+
+  it.effect("a merge does not done a local thread on the branch of another thread's PR", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse(NOW));
+      const mergedLink = {
+        ...persistedLink("open", DateTime.makeUnsafe("2026-08-20T00:00:00.000Z")),
+        snapshot: {
+          ...persistedLink("open", DateTime.makeUnsafe("2026-08-20T00:00:00.000Z")).snapshot!,
+          state: "merged" as const,
+          mergedAt: NOW,
+        },
+      };
+      const owner = makeThread("pr-owner", { branch: "feature", pullRequests: [mergedLink] });
+      const sibling = makeThread("local-sibling", {
+        branch: "feature",
+        createdAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+        latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+      });
+      const cachedSibling = makeThread("cached-sibling", {
+        branch: "feature",
+        createdAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+        latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+        branchPullRequest: {
+          projectId: PROJECT_ID,
+          repository: "owner/repository",
+          number: 42,
+          url: "https://example.test/owner/repository/pull/42",
+        },
+      });
+      const legacyOwner = makeThread("legacy-owner", {
+        branch: "feature",
+        createdAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+        latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+        linkedPullRequest: cachedSibling.branchPullRequest,
+      });
+      const fixture = yield* makeHarness({
+        snapshot: makeSnapshot([owner, sibling, legacyOwner, cachedSibling]),
+        settings: {
+          ...DEFAULT_SERVER_SETTINGS,
+          sidebarAutoMarkDoneOnMerge: true,
+          sidebarAutoMarkDoneAfterDays: null,
+        },
+        branchPullRequest: () => Effect.succeed(makeBranchPullRequest("merged")),
+      });
+
+      yield* Effect.gen(function* () {
+        const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+        yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+        yield* fixture.publishMerge;
+        yield* Queue.take(fixture.snapshotReads);
+        yield* reactor.drain;
+
+        expect(
+          [
+            ...new Set((yield* Ref.get(fixture.commands)).map((command) => command.threadId)),
+          ].toSorted(),
+        ).toEqual([legacyOwner.id, owner.id].toSorted());
+      }).pipe(Effect.provide(fixture.layer));
+    }),
+  );
+  it.effect("an archived thread's pull request does not done a local thread on its branch", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse(NOW));
+      const link = persistedLink("open", DateTime.makeUnsafe("2026-08-20T00:00:00.000Z"));
+      const owner = makeThread("archived-owner", {
+        branch: "feature",
+        archivedAt: DateTime.makeUnsafe("2026-08-29T00:00:00.000Z"),
+        pullRequests: [
+          { ...link, snapshot: { ...link.snapshot!, state: "merged", mergedAt: NOW } },
+        ],
+      });
+      const sibling = makeThread("local-sibling", {
+        branch: "feature",
+        createdAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+        latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+      });
+      const fixture = yield* makeHarness({
+        snapshot: makeSnapshot([owner, sibling]),
+        settings: {
+          ...DEFAULT_SERVER_SETTINGS,
+          sidebarAutoMarkDoneOnMerge: true,
+          sidebarAutoMarkDoneAfterDays: null,
+        },
+        branchPullRequest: () => Effect.succeed(makeBranchPullRequest("merged")),
+      });
+
+      yield* Effect.gen(function* () {
+        const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+        yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+        yield* fixture.publishMerge;
+        yield* Queue.take(fixture.snapshotReads);
+        yield* reactor.drain;
+
+        expect(yield* Ref.get(fixture.commands)).toEqual([]);
+      }).pipe(Effect.provide(fixture.layer));
+    }),
+  );
 });
 
 describe("ThreadDoneServiceV2 terminals", () => {
@@ -2362,12 +2539,29 @@ describe("ThreadDoneServiceV2 terminals", () => {
 
   it.effect("runs the done script in the thread's own worktree", () =>
     Effect.gen(function* () {
+      const warnings: string[] = [];
+      const logger = Logger.make(({ logLevel, message }) => {
+        if (logLevel === "Warn") warnings.push(JSON.stringify(message));
+      });
       const shared = appThread("shared-checkout-thread", "done");
       const missing = appThread("removed-worktree-thread", "done", "/worktrees/removed");
       const worktree = appThread("worktree-thread", "done", "/worktrees/thread");
+      const scriptless = makeProject(ProjectId.make("scriptless-project"));
+      const missingScriptless = {
+        ...appThread("removed-worktree-scriptless-thread", "done", "/worktrees/scriptless"),
+        projectId: scriptless.id,
+      };
+      const teardown = {
+        id: "teardown",
+        name: "Teardown",
+        command: "docker compose down",
+        icon: "configure",
+        runOnWorktreeCreate: false,
+        runOnDone: true,
+      } as const;
       const fixture = yield* makeHarness({
-        snapshot: makeSnapshot([]),
-        currentThreads: [shared, missing, worktree],
+        snapshot: makeSnapshot([], [{ ...makeProject(), scripts: [teardown] }, scriptless]),
+        currentThreads: [shared, missing, missingScriptless, worktree],
         existingWorktreePaths: ["/worktrees/thread"],
       });
 
@@ -2376,12 +2570,23 @@ describe("ThreadDoneServiceV2 terminals", () => {
         yield* startHarness(service, fixture.activation, fixture.snapshotReads);
         yield* fixture.publishEvent(doneEvent(shared));
         yield* fixture.publishEvent(doneEvent(missing));
+        yield* fixture.publishEvent(doneEvent(missingScriptless));
         yield* fixture.publishEvent(doneEvent(worktree));
         const run = yield* Queue.take(fixture.scriptRuns);
         assert.strictEqual(run.threadId, worktree.id);
         assert.strictEqual(run.worktreePath, "/worktrees/thread");
         assert.strictEqual(run.trigger, "done");
-      }).pipe(Effect.provide(fixture.layer));
+        // A removed worktree skips a configured done script; the log is its only trace.
+        assert.strictEqual(warnings.length, 1);
+        assert.include(warnings[0], missing.id);
+        assert.include(warnings[0], "/worktrees/removed");
+      }).pipe(
+        Effect.provide(
+          fixture.layer.pipe(
+            Layer.provideMerge(Logger.layer([logger], { mergeWithExisting: false })),
+          ),
+        ),
+      );
     }),
   );
 

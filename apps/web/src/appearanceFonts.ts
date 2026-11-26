@@ -9,6 +9,9 @@ import {
   MIN_INTERFACE_FONT_SIZE,
   MIN_PROMPT_FONT_SIZE,
 } from "@supaterm/contracts";
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "./i18n/messages";
 
 export const DEFAULT_SANS_FONT_FAMILY = "Allo";
 
@@ -58,8 +61,10 @@ export function cssFontFamilies(input: string): string | null {
   return families.length > 0 ? families.join(", ") : null;
 }
 
-export function fontFamilyLabel(family: string): string {
-  return family === SYSTEM_SANS_FONT_FAMILY ? "System" : family;
+export function fontFamilyLabel(family: string, resolve: MessageResolver = m): string {
+  return family === SYSTEM_SANS_FONT_FAMILY
+    ? resolve(msg("System", { $context: "font family, the operating system's UI font" }))
+    : family;
 }
 
 export function appearanceFontStack(custom: string, defaultStack: string): string {

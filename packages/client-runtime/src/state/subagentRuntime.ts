@@ -8,6 +8,8 @@ import type {
   OrchestrationV2TurnItem,
 } from "@supaterm/contracts";
 import { isOrchestrationV2WorkActive, isProviderNativeSubagentThread } from "@supaterm/contracts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type RuntimeSubagentStatus =
   | "pending"
@@ -97,8 +99,12 @@ export function isLiveSubagentTurnItem(item: OrchestrationV2TurnItem): boolean {
   return item.type === "subagent" && isOrchestrationV2WorkActive(item.status);
 }
 
-export function waitingOnSubagentsLabel(count: number): string {
-  return count === 1 ? "Waiting on a subagent" : `Waiting on ${count} subagents`;
+export function waitingOnSubagentsLabel(count: number, resolve: MFunctionType = mFallback): string {
+  return resolve(
+    msg("{count, plural, =1 {Waiting on a subagent} other {Waiting on {count} subagents}}", {
+      count,
+    }),
+  );
 }
 
 export interface SubagentWorkflowGroup {
@@ -411,12 +417,15 @@ export function workflowOpeningParentThreadId(input: {
 }
 
 /** The opening block's heading: the workflow, what it does, and how its agents stand. */
-export function workflowOpeningHeadline(opening: WorkflowOpening): {
+export function workflowOpeningHeadline(
+  opening: WorkflowOpening,
+  resolve: MFunctionType = mFallback,
+): {
   readonly title: string;
   readonly description: string | null;
   readonly agents: string | null;
 } {
-  const title = opening.name ?? opening.description ?? "Workflow";
+  const title = opening.name ?? opening.description ?? resolve(msg("Workflow"));
   const members =
     opening.group === null
       ? []
@@ -438,17 +447,26 @@ export function workflowOpeningHeadline(opening: WorkflowOpening): {
   const agents =
     members.length === 0
       ? null
-      : `${members.length} ${members.length === 1 ? "agent" : "agents"} · ${[
-          "working",
-          "done",
-          "failed",
-          "stopped",
-        ]
-          .flatMap((key) => {
+      : [
+          resolve(
+            msg("{count, plural, one {{count} agent} other {{count} agents}}", {
+              count: members.length,
+            }),
+          ),
+          ...(["working", "done", "failed", "stopped"] as const).flatMap((key) => {
             const count = counts.get(key);
-            return count === undefined ? [] : [`${count} ${key}`];
-          })
-          .join(" · ")}`;
+            if (count === undefined) return [];
+            return [
+              key === "working"
+                ? resolve(msg("{count} working", { count, $context: "subagents still running" }))
+                : key === "done"
+                  ? resolve(msg("{count} done", { count, $context: "subagents finished" }))
+                  : key === "failed"
+                    ? resolve(msg("{count} failed", { count, $context: "subagents failed" }))
+                    : resolve(msg("{count} stopped", { count, $context: "subagents stopped" })),
+            ];
+          }),
+        ].join(" · ");
   return {
     title,
     description:

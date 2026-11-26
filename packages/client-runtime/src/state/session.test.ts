@@ -21,6 +21,7 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as TestClock from "effect/testing/TestClock";
 
 import { BearerConnectionProfile, type ConnectionRoute } from "../connection/catalog.ts";
+import { connectionRouteLatencyLabel } from "../connection/routeLatency.ts";
 import {
   AVAILABLE_CONNECTION_STATE,
   BearerConnectionTarget,
@@ -166,18 +167,18 @@ describe("route latency state", () => {
       });
       const slow = atoms.routeLatencyAtoms(directRoute("slow"));
       const fast = atoms.routeLatencyAtoms(directRoute("fast"));
-      registry.mount(slow.labelAtom);
-      registry.mount(fast.labelAtom);
+      registry.mount(slow.latencyAtom);
+      registry.mount(fast.latencyAtom);
       yield* Deferred.await(slowStarted);
-      expect(registry.get(slow.labelAtom)).toBe("Checking…");
+      expect(connectionRouteLatencyLabel(registry.get(slow.latencyAtom))).toBe("Checking…");
       expect(
         yield* AtomRegistry.getResult(registry, fast.resultAtom, { suspendOnWaiting: true }),
       ).toMatchObject({ status: "reachable" });
-      expect(registry.get(fast.labelAtom)).toMatch(/^\d+ ms$/);
-      expect(registry.get(slow.labelAtom)).toBe("Checking…");
+      expect(connectionRouteLatencyLabel(registry.get(fast.latencyAtom))).toMatch(/^\d+ ms$/);
+      expect(connectionRouteLatencyLabel(registry.get(slow.latencyAtom))).toBe("Checking…");
       yield* Deferred.succeed(slowResponse, Response.json(descriptor));
       yield* AtomRegistry.getResult(registry, slow.resultAtom, { suspendOnWaiting: true });
-      expect(registry.get(slow.labelAtom)).toMatch(/^\d+ ms$/);
+      expect(connectionRouteLatencyLabel(registry.get(slow.latencyAtom))).toMatch(/^\d+ ms$/);
     }),
   );
 
@@ -192,15 +193,15 @@ describe("route latency state", () => {
           }),
       });
       const latency = atoms.routeLatencyAtoms(directRoute("lan"));
-      registry.mount(latency.labelAtom);
+      registry.mount(latency.latencyAtom);
       yield* AtomRegistry.getResult(registry, latency.resultAtom, { suspendOnWaiting: true });
-      expect(registry.get(latency.labelAtom)).toMatch(/^\d+ ms$/);
+      expect(connectionRouteLatencyLabel(registry.get(latency.latencyAtom))).toMatch(/^\d+ ms$/);
       const reordered = atoms.routeLatencyAtoms(directRoute("lan"));
       yield* AtomRegistry.getResult(registry, reordered.resultAtom, { suspendOnWaiting: true });
       expect(requests).toBe(1);
       registry.refresh(reordered.resultAtom);
       yield* AtomRegistry.getResult(registry, latency.resultAtom, { suspendOnWaiting: true });
-      expect(registry.get(latency.labelAtom)).toBe("Unreachable");
+      expect(connectionRouteLatencyLabel(registry.get(latency.latencyAtom))).toBe("Unreachable");
       expect(requests).toBe(2);
     }),
   );
@@ -225,24 +226,24 @@ describe("route latency state", () => {
       });
       const active = atoms.routeLatencyAtoms(ssh);
       const inactive = atoms.routeLatencyAtoms(alternate);
-      registry.mount(active.labelAtom);
-      registry.mount(inactive.labelAtom);
-      yield* AtomRegistry.toStream(registry, active.labelAtom).pipe(
-        Stream.filter((label) => /^\d+ ms$/.test(label)),
+      registry.mount(active.latencyAtom);
+      registry.mount(inactive.latencyAtom);
+      yield* AtomRegistry.toStream(registry, active.latencyAtom).pipe(
+        Stream.filter((latency) => latency?.status === "reachable"),
         Stream.runHead,
       );
-      expect(registry.get(inactive.labelAtom)).toBe("Not measured");
+      expect(connectionRouteLatencyLabel(registry.get(inactive.latencyAtom))).toBe("Not measured");
       expect(probes()).toBe(1);
       yield* SubscriptionRef.set(supervisor.prepared, Option.some(prepared(alternate)));
-      yield* AtomRegistry.toStream(registry, inactive.labelAtom).pipe(
-        Stream.filter((label) => /^\d+ ms$/.test(label)),
+      yield* AtomRegistry.toStream(registry, inactive.latencyAtom).pipe(
+        Stream.filter((latency) => latency?.status === "reachable"),
         Stream.runHead,
       );
-      expect(registry.get(active.labelAtom)).toBe("Not measured");
+      expect(connectionRouteLatencyLabel(registry.get(active.latencyAtom))).toBe("Not measured");
       expect(probes()).toBe(2);
       yield* SubscriptionRef.set(supervisor.session, Option.none());
-      yield* AtomRegistry.toStream(registry, inactive.labelAtom).pipe(
-        Stream.filter((label) => label === "Not measured"),
+      yield* AtomRegistry.toStream(registry, inactive.latencyAtom).pipe(
+        Stream.filter((latency) => latency?.status === "unmeasured"),
         Stream.runHead,
       );
       expect(probes()).toBe(2);
@@ -514,7 +515,10 @@ describe("sessionDeniesScope", () => {
     expect(
       sessionDeniesScope(
         failed(
-          new RemoteEnvironmentAuthUndeclaredStatusError("https://host/api/auth/session", 401),
+          new RemoteEnvironmentAuthUndeclaredStatusError({
+            requestUrl: "https://host/api/auth/session",
+            status: 401,
+          }),
         ),
         "orchestration:read",
       ),
@@ -522,7 +526,10 @@ describe("sessionDeniesScope", () => {
     expect(
       sessionDeniesScope(
         failed(
-          new RemoteEnvironmentAuthUndeclaredStatusError("https://host/api/auth/session", 502),
+          new RemoteEnvironmentAuthUndeclaredStatusError({
+            requestUrl: "https://host/api/auth/session",
+            status: 502,
+          }),
         ),
         "orchestration:read",
       ),

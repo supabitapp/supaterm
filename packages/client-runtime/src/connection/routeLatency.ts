@@ -7,6 +7,8 @@ import { leaseRouteOrigin, ROUTE_CHECK_TIMEOUT_MS } from "./driver.ts";
 import type { ConnectionAttemptError } from "./model.ts";
 import { routeHttpBaseUrl } from "./routes.ts";
 import { fetchRemoteEnvironmentDescriptor } from "../environment/descriptor.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type ConnectionRouteLatency =
   | { readonly status: "reachable"; readonly latencyMs: number }
@@ -59,14 +61,17 @@ export const measureConnectionRouteLatency = Effect.fn("connection.measureRouteL
   },
 );
 
-export function connectionRouteLatencyLabel(latency: ConnectionRouteLatency | null): string {
-  if (latency === null) return "Checking…";
+export function connectionRouteLatencyLabel(
+  latency: ConnectionRouteLatency | null,
+  resolve: MFunctionType = mFallback,
+): string {
+  if (latency === null) return resolve(msg("Checking…"));
   switch (latency.status) {
     case "reachable":
-      return `${latency.latencyMs} ms`;
+      return resolve(msg("{latency} ms", { latency: latency.latencyMs }));
     case "unreachable":
-      return "Unreachable";
+      return resolve(msg("Unreachable"));
     case "unmeasured":
-      return "Not measured";
+      return resolve(msg("Not measured"));
   }
 }

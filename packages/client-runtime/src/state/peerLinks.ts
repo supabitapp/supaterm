@@ -7,6 +7,7 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
 import { AsyncResult, Atom, type AtomRegistry } from "effect/reactivity";
 
 import type { EnvironmentRegistry } from "../connection/registry.ts";
@@ -19,8 +20,10 @@ import { request, subscribe } from "../rpc/client.ts";
 import {
   createEnvironmentRpcCommand,
   createEnvironmentRpcQueryAtomFamily,
-  createEnvironmentSubscriptionAtomFamily,
+  followStreamInEnvironment,
 } from "./runtime.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 /** The environment a client reads through, and the linked environment's thread it reads. */
 export interface LinkedThreadViewTarget {
@@ -64,16 +67,6 @@ export function createPeerLinkEnvironmentAtoms<R, E>(
       registry.refresh(list({ environmentId, input: {} }));
       registry.refresh(names({ environmentId, input: {} }));
     });
-  const threadStream = createEnvironmentSubscriptionAtomFamily(runtime, {
-    label: "environment-data:peer-links:thread-stream",
-    idleTtlMs: 0,
-    subscribe: (input: PeerLinkThreadInput) =>
-      followLinkedThread({
-        items: subscribe(WS_METHODS.peerLinksSubscribeThread, input),
-        historyPage: (cursor) =>
-          request(WS_METHODS.peerLinksThreadHistoryPage, { ...input, cursor }),
-      }),
-  });
   /**
    * What a view of the thread last showed. It outlives the subscription for a while, so coming
    * back to the view shows the thread at once while the stream starts again.
@@ -89,20 +82,55 @@ export function createPeerLinkEnvironmentAtoms<R, E>(
    * last reader, which closes the stream at the linked environment too.
    */
   const threadView = Atom.family((key: string) => {
-    const stream = threadStream(JSON.parse(key) as LinkedThreadViewTarget);
-    return Atom.make((get) => {
-      const live = get(stream);
-      if (AsyncResult.isSuccess(live)) {
-        const kept = lastThreadView(key);
-        get.set(kept, keepLinkedThreadView(get.once(kept), live.value));
-      }
-      return live;
-    }).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-data:peer-links:thread-view:${key}`));
+    const { environmentId, input } = JSON.parse(key) as LinkedThreadViewTarget;
+    const kept = lastThreadView(key);
+    const stream = runtime
+      .atom(({ registry }) =>
+        followStreamInEnvironment(
+          environmentId,
+          Stream.suspend(() =>
+            followLinkedThread({
+              items: subscribe(WS_METHODS.peerLinksSubscribeThread, input),
+              historyPage: (cursor) =>
+                request(WS_METHODS.peerLinksThreadHistoryPage, { ...input, cursor }),
+              previous: registry.get(kept),
+            }),
+          ),
+        ),
+      )
+      .pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-data:peer-links:thread-stream:${key}`));
+    return Atom.readable(
+      (get) => {
+        const live = get(stream);
+        if (AsyncResult.isSuccess(live)) {
+          get.set(kept, keepLinkedThreadView(get.once(kept), live.value));
+        }
+        return live;
+      },
+      (refresh) => refresh(stream),
+    ).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-data:peer-links:thread-view:${key}`));
   });
   return {
     list,
     lists: (environmentIds: ReadonlyArray<EnvironmentId>) => lists(environmentIds.join("\n")),
     names,
+    /**
+     * Rereads `environmentId`'s link names when they lack one of `wanted`, however fresh they
+     * are. Links made elsewhere (the CLI, another client, a batch) are not pushed, so a reader
+     * that meets a machine the names lack asks once more; a read under way already answers it.
+     */
+    refreshNamesLacking: (
+      registry: AtomRegistry.AtomRegistry,
+      environmentId: EnvironmentId,
+      wanted: ReadonlyArray<EnvironmentId>,
+    ) => {
+      const atom = names({ environmentId, input: {} });
+      const result = registry.get(atom);
+      if (!AsyncResult.isSuccess(result) || result.waiting) return;
+      const known = new Set(result.value.links.map((link) => link.environmentId));
+      if (wanted.every((id) => known.has(id))) return;
+      registry.refresh(atom);
+    },
     link: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:peer-links:link",
       tag: WS_METHODS.peerLinksLink,
@@ -173,18 +201,26 @@ export function peerLinkHealth(link: PeerLinkSummary, now: DateTime.Utc): PeerLi
 }
 
 /** How a link's health reads in settings. */
-export function peerLinkHealthText(health: PeerLinkHealth): string {
+export function peerLinkHealthText(
+  health: PeerLinkHealth,
+  resolve: MFunctionType = mFallback,
+): string {
   switch (health.kind) {
     case "expired":
-      return "Expired. Link it again.";
+      return resolve(msg("Expired. Link it again."));
     case "unreachable":
-      return health.detail ?? "Not answering right now.";
+      return health.detail ?? resolve(msg("Not answering right now."));
     case "failing":
       return health.detail;
     case "reachable":
       return health.expiresInDays === null
-        ? "Reachable"
-        : `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}. Link it again to renew.`;
+        ? resolve(msg("Reachable", { $context: "linked environment status" }))
+        : resolve(
+            msg(
+              "{days, plural, one {Expires in {days} day. Link it again to renew.} other {Expires in {days} days. Link it again to renew.}}",
+              { days: health.expiresInDays },
+            ),
+          );
   }
 }
 

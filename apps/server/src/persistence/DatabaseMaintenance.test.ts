@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Clock from "effect/Clock";
 import * as Duration from "effect/Duration";
@@ -12,9 +13,6 @@ import * as Statement from "effect/sql/Statement";
 
 import * as DatabaseMaintenance from "./DatabaseMaintenance.ts";
 import * as Sqlite from "./Sqlite.ts";
-import * as EventStore from "../orchestration-v2/EventStore.ts";
-import * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenance.ts";
-import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 
 it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))(
   "DatabaseMaintenance",
@@ -43,18 +41,8 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         });
         const dbPath = path.join(baseDir, "userdata", "statev2.sqlite");
         const files = DatabaseMaintenance.reclaimFiles(path, dbPath);
-        // Compaction checks the projections first, so the database needs built ones.
-        yield* Effect.flatMap(
-          ProjectionMaintenance.ProjectionMaintenanceV2,
-          (projections) => projections.rebuild,
-        ).pipe(
-          Effect.provide(
-            ProjectionMaintenance.layer.pipe(
-              Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
-              Layer.provideMerge(Sqlite.layerFromPath(dbPath)),
-            ),
-          ),
-        );
+        // Opening the database migrates it.
+        yield* Effect.void.pipe(Effect.provide(Sqlite.layerFromPath(dbPath)));
         const autoVacuum = Effect.flatMap(
           SqlClient.SqlClient,
           (sql) => sql<{ readonly auto_vacuum: number }>`PRAGMA auto_vacuum`,
@@ -126,17 +114,8 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-compact-" });
         const dbPath = path.join(baseDir, "userdata", "statev2.sqlite");
         // A migrated database created before incremental auto_vacuum, with free pages.
-        yield* Effect.flatMap(
-          ProjectionMaintenance.ProjectionMaintenanceV2,
-          (projections) => projections.rebuild,
-        ).pipe(
-          Effect.provide(
-            ProjectionMaintenance.layer.pipe(
-              Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
-              Layer.provideMerge(Sqlite.layerFromPath(dbPath)),
-            ),
-          ),
-        );
+        // Opening the database migrates it.
+        yield* Effect.void.pipe(Effect.provide(Sqlite.layerFromPath(dbPath)));
         yield* Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
           yield* sql`PRAGMA auto_vacuum = NONE`;
@@ -196,7 +175,12 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         let activeNanos = 0n;
         const steps: string[] = [];
         const result = yield* maintenance
-          .compact(dbPath, (step) => Effect.sync(() => steps.push(step)))
+          .compact(dbPath, {
+            onStep: (step) =>
+              Effect.sync(() => {
+                steps.push(step);
+              }),
+          })
           .pipe(
             Effect.provideService(Statement.CurrentTransformer, record),
             Effect.provideService(Clock.Clock, {
@@ -232,6 +216,120 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
             [{ messageId: "message-1" }],
           );
         }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath, readonly: true })));
+      }),
+    );
+
+    it.effect("prunes offline after one backup that keeps the whole log", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const maintenance = yield* DatabaseMaintenance.DatabaseMaintenance;
+        const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-prune-" });
+        const dbPath = path.join(baseDir, "userdata", "statev2.sqlite");
+        const backupPath = DatabaseMaintenance.pruneBackupPath(path, dbPath);
+        const markOldHistory = Effect.gen(function* () {
+          const sql = yield* SqlClient.SqlClient;
+          // A pass two days ago marked the head; the projections cover it.
+          yield* sql`
+            INSERT INTO orchestration_v2_projection_metadata (
+              projection_name, schema_version, last_sequence, updated_at
+            ) VALUES
+              ('event-log-prune-mark', 2, (SELECT MAX(sequence) FROM orchestration_events),
+                '1969-12-30T00:00:00.000Z'),
+              ('thread-projections', 2, (SELECT MAX(sequence) FROM orchestration_events),
+                '1969-12-30T00:00:00.000Z')
+            ON CONFLICT(projection_name) DO UPDATE SET
+              last_sequence = excluded.last_sequence,
+              updated_at = excluded.updated_at
+          `;
+        }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));
+        const appendVisits = (from: number, through: number) =>
+          Effect.flatMap(
+            SqlClient.SqlClient,
+            (sql) => sql`WITH RECURSIVE history(n) AS (
+              SELECT ${from} UNION ALL SELECT n + 1 FROM history WHERE n < ${through}
+            ) INSERT INTO orchestration_events (
+              event_id, aggregate_kind, stream_id, stream_version, event_type,
+              occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+            ) SELECT 'visit-' || n, 'thread', 'thread', n, 'thread.visited',
+              '2026-10-17', 'server', '{}', '{}', 2 FROM history`,
+          ).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));
+        const eventCount = (filename: string) =>
+          Effect.flatMap(
+            SqlClient.SqlClient,
+            (sql) =>
+              sql<{ readonly count: number }>`SELECT COUNT(*) AS count FROM orchestration_events`,
+          ).pipe(
+            Effect.map((rows) => rows[0]?.count ?? 0),
+            Effect.provide(NodeSqliteClient.layer({ filename, readonly: true })),
+          );
+        // Opening the database migrates it.
+        yield* Effect.void.pipe(Effect.provide(Sqlite.layerFromPath(dbPath)));
+        yield* appendVisits(1, 40);
+
+        const steps: string[] = [];
+        const onStep = (step: DatabaseMaintenance.DatabaseCompactStep) =>
+          Effect.sync(() => {
+            steps.push(step);
+          });
+        // The first pass only marks the log, so it has nothing to rewrite.
+        const marked = yield* maintenance.compact(dbPath, {
+          history: "prune",
+          vacuum: "when-deleted",
+          onStep,
+        });
+        assert.deepEqual(steps, ["prune-events", "checkpoint"]);
+        assert.equal(marked.pruneSchedule?._tag, "Unmarked");
+        assert.equal(marked.deletedEventCount, 0);
+        yield* markOldHistory;
+
+        const preview = yield* maintenance.previewPrune(dbPath);
+        assert.equal(preview.schedule._tag, "Due");
+        assert.equal(preview.prunableEventCount, 39);
+        assert.equal(preview.eventCount, 40);
+        assert.equal(preview.backup?.path, backupPath);
+        assert.isFalse(yield* fs.exists(backupPath));
+
+        steps.length = 0;
+        const pruned = yield* maintenance.compact(dbPath, { history: "prune", onStep });
+        assert.deepEqual(steps, [
+          "prune-events",
+          "back-up",
+          "vacuum",
+          "rebuild-search",
+          "checkpoint",
+        ]);
+        assert.equal(pruned.deletedEventCount, 39);
+        assert.equal(yield* eventCount(dbPath), 1);
+        assert.equal(yield* eventCount(backupPath), 40);
+        assert.isFalse(yield* fs.exists(`${backupPath}.partial`));
+        if ((yield* HostProcess.Platform) !== "win32") {
+          assert.equal(((yield* fs.stat(backupPath)).mode & 0o777).toString(8), "600");
+        }
+
+        // Later passes extend a pruned log: the first backup is the one that holds everything.
+        yield* appendVisits(41, 50);
+        yield* markOldHistory;
+        steps.length = 0;
+        yield* maintenance.compact(dbPath, { history: "prune", vacuum: "when-deleted", onStep });
+        assert.deepEqual(steps, ["prune-events", "vacuum", "rebuild-search", "checkpoint"]);
+        assert.equal(yield* eventCount(dbPath), 1);
+        assert.equal(yield* eventCount(backupPath), 40);
+
+        // A new database at the same path gets a copy of its own; the earlier one is kept.
+        for (const suffix of ["", "-wal", "-shm"]) {
+          yield* fs.remove(`${dbPath}${suffix}`, { force: true });
+        }
+        yield* Effect.void.pipe(Effect.provide(Sqlite.layerFromPath(dbPath)));
+        yield* appendVisits(1, 20);
+        yield* maintenance.compact(dbPath, { history: "prune", vacuum: "when-deleted", onStep });
+        yield* markOldHistory;
+        const nextBackupPath = path.join(path.dirname(dbPath), "statev2-before-pruning-2.sqlite");
+        assert.equal((yield* maintenance.previewPrune(dbPath)).backup?.path, nextBackupPath);
+        yield* maintenance.compact(dbPath, { history: "prune", onStep });
+        assert.equal(yield* eventCount(dbPath), 1);
+        assert.equal(yield* eventCount(backupPath), 40);
+        assert.equal(yield* eventCount(nextBackupPath), 20);
       }),
     );
   },

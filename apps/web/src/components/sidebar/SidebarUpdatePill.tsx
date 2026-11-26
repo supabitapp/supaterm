@@ -45,6 +45,8 @@ import {
   useUpdateEverythingRun,
 } from "./updateEverythingRun";
 import { type ReportLocalUpdateError, useUpdateEverything } from "./useUpdateEverything";
+import { msg, T, useGT, useMessages } from "gt-react";
+import { m } from "../../i18n/messages";
 
 type SidebarUpdatePopoverChangeDetails = Parameters<
   NonNullable<ComponentProps<typeof Popover>["onOpenChange"]>
@@ -100,16 +102,20 @@ export function SidebarUpdateArchitectureWarning() {
 }
 
 function SidebarUpdateArchitectureWarningContent() {
+  const messages = useMessages();
   const state = useDesktopUpdateState();
   const visible = shouldShowArm64IntelBuildWarning(state);
-  const description = state && visible ? getArm64IntelBuildWarningDescription(state) : null;
+  const description =
+    state && visible ? getArm64IntelBuildWarningDescription(state, messages) : null;
 
   if (!visible || !description) return null;
 
   return (
     <Alert variant="warning">
       <TriangleAlertIcon />
-      <AlertTitle>Intel build on Apple Silicon</AlertTitle>
+      <AlertTitle>
+        <T>Intel build on Apple Silicon</T>
+      </AlertTitle>
       <AlertDescription>{description}</AlertDescription>
     </Alert>
   );
@@ -134,12 +140,12 @@ export async function downloadLocalUpdate(
     const actionError = shouldToastDesktopUpdateActionResult(result)
       ? getDesktopUpdateActionError(result)
       : null;
-    if (actionError) reportError("Could not download update", actionError);
+    if (actionError) reportError(m(msg("Could not download update")), actionError);
     return result.completed;
   } catch (error) {
     reportError(
-      "Could not start update download",
-      error instanceof Error ? error.message : "An unexpected error occurred.",
+      m(msg("Could not start update download")),
+      error instanceof Error ? error.message : m(msg("An unexpected error occurred.")),
     );
     return false;
   }
@@ -155,8 +161,8 @@ export async function installLocalUpdate(
     return true;
   } catch (error) {
     reportError(
-      "Could not install update",
-      error instanceof Error ? error.message : "An unexpected error occurred.",
+      m(msg("Could not install update")),
+      error instanceof Error ? error.message : m(msg("An unexpected error occurred.")),
     );
     return false;
   }
@@ -167,6 +173,8 @@ export function SidebarUpdatePill() {
 }
 
 function SidebarUpdateControl() {
+  const messages = useMessages();
+  const gt = useGT();
   const liveState = useDesktopUpdateState();
   // Update checks stay hidden: hold the last state that wasn't a check in progress.
   const [state, setState] = useState(liveState);
@@ -200,8 +208,8 @@ function SidebarUpdateControl() {
   const tooltip = runsEverything
     ? everything.summary
     : state
-      ? getDesktopUpdateButtonTooltip(state)
-      : "Update available";
+      ? getDesktopUpdateButtonTooltip(state, messages)
+      : gt("Update available");
   const isInteractionDisabled =
     (!runsEverything && isDesktopUpdateButtonDisabled(state)) ||
     isChecking ||
@@ -245,7 +253,7 @@ function SidebarUpdateControl() {
     let confirmed = false;
     try {
       confirmed = await ensureLocalApi().dialogs.confirm(
-        getDesktopUpdateInstallConfirmationMessage(state),
+        getDesktopUpdateInstallConfirmationMessage(state, messages),
         { initialFocus: "confirm" },
       );
     } catch (error) {
@@ -253,8 +261,8 @@ function SidebarUpdateControl() {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Could not confirm update",
-          description: error instanceof Error ? error.message : "Update confirmation failed.",
+          title: gt("Could not confirm update"),
+          description: error instanceof Error ? error.message : gt("Update confirmation failed."),
         }),
       );
       return;
@@ -293,8 +301,8 @@ function SidebarUpdateControl() {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Could not update everything",
-          description: error instanceof Error ? error.message : "An unexpected error occurred.",
+          title: gt("Could not update everything"),
+          description: error instanceof Error ? error.message : gt("An unexpected error occurred."),
         }),
       );
     }
@@ -330,6 +338,7 @@ function SidebarUpdateControl() {
       <SidebarMenuItem className="@container/sidebar-update flex min-w-8 flex-1">
         <SidebarUpdateCapsule
           run={run}
+          current={everything.machines}
           local={local}
           icon={statusIcon}
           {...(run.localVersion === null && action === "install" && window.desktopBridge
@@ -441,7 +450,7 @@ function SidebarUpdateControl() {
         {showReleaseNotesPopover && state ? (
           <PopoverPopup
             align="center"
-            aria-label="Update release notes"
+            aria-label={gt("Update release notes")}
             initialFocus={false}
             onKeyDownCapture={(event) => {
               if (

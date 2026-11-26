@@ -12,10 +12,14 @@ import { useRef, useState } from "react";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { canPerformPullRequestAction, pullRequestActionLabel } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import { useGT, useMessages } from "gt-react-native";
 export function usePullRequestAction(params: PullRequestParams, pr: PullRequestDetail | null) {
+  const messages = useMessages();
+  const gt = useGT();
   const target = pullRequestTarget(params);
   const permissions = usePullRequestPermissions(params, pr);
   const run = useAtomCommand(composerPullRequests.runAction, {
@@ -48,8 +52,13 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
     if (AsyncResult.isFailure(response)) {
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
-        `Couldn't update this ${sourceControlClients.get(pr?.provider).changeRequest.singular}`,
-        cause instanceof Error ? cause.message : "Try again.",
+        gt(
+          "Couldn't update this {term, select, mr {merge request} cr {change request} other {pull request}}",
+          {
+            term: changeRequestTermKind(sourceControlClients.get(pr?.provider).changeRequest),
+          },
+        ),
+        cause instanceof Error ? cause.message : gt("Try again."),
       );
       return;
     }
@@ -58,7 +67,7 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
   const confirm = (action: PullRequestAction, title: string, message: string) =>
     Dialog.alert(title, message, [
       {
-        text: "Cancel",
+        text: gt("Cancel"),
         style: "cancel",
       },
       {
@@ -71,8 +80,8 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
     const terminology = sourceControlClients.get(pr?.provider).changeRequest;
     confirm(
       "close",
-      pullRequestActionLabel("close", terminology),
-      `Close this ${terminology.singular} without merging its changes?`,
+      pullRequestActionLabel("close", terminology, messages),
+      gt("Close this {singular} without merging its changes?", { singular: terminology.singular }),
     );
   };
   return {

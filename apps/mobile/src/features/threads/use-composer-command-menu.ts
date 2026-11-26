@@ -67,6 +67,9 @@ import {
 } from "../../state/queries";
 import type { ComposerCommandItem } from "./ComposerCommandPopover";
 import { matchesCommandMenuSkillQuery } from "./composerCommandMenuSkillSearch";
+import { useGT, msg, useMessages } from "gt-react-native";
+import { m } from "../../i18n/messages";
+import { type MessageResolver } from "../../i18n/messages";
 
 const idleWorkspaceSnapshotRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(undefined).pipe(
   Atom.withLabel("mobile:provider-workspace-snapshot-refresh:idle"),
@@ -97,16 +100,19 @@ export function resolveComposerMenuSelection(input: {
   return { start: Math.min(input.local.start, length), end: Math.min(input.local.end, length) };
 }
 
-export function buildComposerSlashCommandItems(input: {
-  readonly query: string;
-  readonly hasThread: boolean;
-  readonly hasCompactableConversation?: boolean;
-  readonly offersUsageLimits?: boolean;
-  readonly offersSideChat?: boolean;
-  /** Supaterm's `/clear` replaces the provider's, which would clear a session Supaterm still treats as live. */
-  readonly offersFreshSession?: boolean;
-  readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
-}): ComposerCommandItem[] {
+export function buildComposerSlashCommandItems(
+  input: {
+    readonly query: string;
+    readonly hasThread: boolean;
+    readonly hasCompactableConversation?: boolean;
+    readonly offersUsageLimits?: boolean;
+    readonly offersSideChat?: boolean;
+    /** Supaterm's `/clear` replaces the provider's, which would clear a session Supaterm still treats as live. */
+    readonly offersFreshSession?: boolean;
+    readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
+  },
+  resolve: MessageResolver = m,
+): ComposerCommandItem[] {
   const query = input.query.toLowerCase();
   const builtIn = [
     {
@@ -114,7 +120,7 @@ export function buildComposerSlashCommandItems(input: {
       type: "slash-command",
       command: "model",
       label: "/model",
-      description: "Switch model",
+      description: resolve(msg("Switch model")),
     },
     ...(input.offersSideChat
       ? [
@@ -123,14 +129,14 @@ export function buildComposerSlashCommandItems(input: {
             type: "slash-command" as const,
             command: "side",
             label: "/side",
-            description: "Ask a side question in a new side chat",
+            description: resolve(msg("Ask a side question in a new side chat")),
           },
           {
             id: "cmd:btw",
             type: "slash-command" as const,
             command: "btw",
             label: "/btw",
-            description: "Same as /side",
+            description: resolve(msg("Same as /side")),
           },
         ]
       : []),
@@ -143,7 +149,7 @@ export function buildComposerSlashCommandItems(input: {
       type: "slash-command",
       command: "clear",
       label: "/clear",
-      description: "Start a fresh session",
+      description: resolve(msg("Start a fresh session")),
     });
   }
   for (const command of input.selectedProviderStatus?.slashCommands ?? []) {
@@ -274,6 +280,8 @@ export function useComposerCommandMenu({
   /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
   readonly onFreshSession?: () => void;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const [localSelection, setLocalSelection] = useState(() => ({
     ownerKey,
     ...composerSelectionAtEnd(draftMessage),
@@ -361,7 +369,7 @@ export function useComposerCommandMenu({
           isDraft: entry.isDraft,
         },
         label: `#${entry.number}`,
-        description: `${entry.isDraft ? "Draft" : entry.state} · ${
+        description: `${entry.isDraft ? gt("Draft", { $context: "pull request state" }) : entry.state} · ${
           entry.repository.toLowerCase() === pullRequestRepository?.toLowerCase()
             ? ""
             : `${entry.repository} · `
@@ -488,22 +496,28 @@ export function useComposerCommandMenu({
 
     if (trigger.kind === "path") {
       const threadItems = environmentId
-        ? matchComposerThreadItems({
-            shells: threadShells,
-            environmentId,
-            linkedEnvironments,
-            excludeThreadId: currentThreadId,
-            query: trigger.query,
-            now,
-          })
+        ? matchComposerThreadItems(
+            {
+              shells: threadShells,
+              environmentId,
+              linkedEnvironments,
+              excludeThreadId: currentThreadId,
+              query: trigger.query,
+              now,
+            },
+            messages,
+          )
         : [];
       const environmentItems = environmentId
-        ? matchComposerEnvironmentItems({
-            environments,
-            linkedEnvironments,
-            environmentId,
-            query: trigger.query,
-          })
+        ? matchComposerEnvironmentItems(
+            {
+              environments,
+              linkedEnvironments,
+              environmentId,
+              query: trigger.query,
+            },
+            messages,
+          )
         : [];
       return [
         ...threadItems,
@@ -537,7 +551,10 @@ export function useComposerCommandMenu({
       const existing = getComposerDraftSnapshot(ownerKey).context?.records ?? [];
       const alreadyAttached = existing.some((entry) => entry.contextId === record.contextId);
       if (!alreadyAttached && existing.length >= COMPOSER_CONTEXT_MAX_RECORDS) {
-        Dialog.alert("Too many context items", "Remove some context from the draft and try again.");
+        Dialog.alert(
+          gt("Too many context items"),
+          gt("Remove some context from the draft and try again."),
+        );
         return;
       }
       const result = replaceTextRange(
@@ -569,7 +586,10 @@ export function useComposerCommandMenu({
         (getComposerDraftSnapshot(ownerKey).context?.records.length ?? 0) >=
         COMPOSER_CONTEXT_MAX_RECORDS
       ) {
-        Dialog.alert("Too many context items", "Remove some context from the draft and try again.");
+        Dialog.alert(
+          gt("Too many context items"),
+          gt("Remove some context from the draft and try again."),
+        );
         return;
       }
       const result = replaceTextRange(
@@ -631,7 +651,7 @@ export function useComposerCommandMenu({
     error:
       trigger?.kind === "pull-request"
         ? pullRequestProjectId === null || pullRequestRepository === null
-          ? "Pull requests are unavailable for this project."
+          ? gt("Pull requests are unavailable for this project.")
           : pullRequestSearch.error
         : null,
     onSelect,

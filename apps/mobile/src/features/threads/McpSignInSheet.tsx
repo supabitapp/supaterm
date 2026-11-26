@@ -15,6 +15,7 @@ import { Sheet } from "../../components/ui/Sheet";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { T, useGT, useMessages, msg } from "gt-react-native";
 
 export interface McpSignInTarget {
   readonly threadId: ThreadId;
@@ -32,6 +33,8 @@ export function McpSignInSheet(props: {
   readonly target: McpSignInTarget;
   readonly onClose: () => void;
 }) {
+  const m = useMessages();
+  const gt = useGT();
   const insets = useSafeAreaInsets();
   const { server } = props.target;
   const start = useAtomCommand(threadEnvironment.mcpSignInStart, {
@@ -61,7 +64,7 @@ export function McpSignInSheet(props: {
     setError(
       failure instanceof Error && failure.message.length > 0
         ? failure.message
-        : "The sign-in couldn't continue. Try again.",
+        : m(msg("The sign-in couldn't continue. Try again.")),
     );
   };
   // The command marks the server signed in for the thread, which every notice about it shows.
@@ -91,7 +94,7 @@ export function McpSignInSheet(props: {
     }
     setBusy(false);
     if (!(await tryOpenExternalUrl(page, "provider-auth"))) {
-      setError("Could not open the sign-in page.");
+      setError(gt("Could not open the sign-in page."));
     }
   };
   const finish = async () => {
@@ -110,7 +113,7 @@ export function McpSignInSheet(props: {
   };
 
   return (
-    <Sheet title={`Sign in to ${server}`} onClose={close}>
+    <Sheet title={gt("Sign in to {server}", { server })} onClose={close}>
       <ScrollView
         className="flex-1 bg-sheet-solid"
         contentInsetAdjustmentBehavior="automatic"
@@ -119,11 +122,13 @@ export function McpSignInSheet(props: {
         keyboardShouldPersistTaps="handled"
       >
         <Text className="font-sans text-sm leading-5 text-foreground-muted">
-          Approve access in your browser. It then opens a page that may not load: copy that page's
-          address and paste it here.
+          <T>
+            Approve access in your browser. It then opens a page that may not load: copy that page's
+            address and paste it here.
+          </T>
         </Text>
         <Button
-          label="Open sign-in page"
+          label={gt("Open sign-in page")}
           icon="globe"
           tone="secondary"
           disabled={busy}
@@ -132,7 +137,7 @@ export function McpSignInSheet(props: {
         />
         {url !== null ? (
           <TextInput
-            accessibilityLabel="Address of the page your browser opened"
+            accessibilityLabel={gt("Address of the page your browser opened")}
             placeholder="http://127.0.0.1:…/callback?code=…"
             value={callbackUrl}
             onChangeText={setCallbackUrl}
@@ -156,7 +161,7 @@ export function McpSignInSheet(props: {
         ) : null}
         {url !== null ? (
           <Button
-            label="Finish sign-in"
+            label={gt("Finish sign-in")}
             tone="primary"
             loading={busy}
             disabled={busy || callbackUrl.trim().length === 0}
@@ -164,7 +169,7 @@ export function McpSignInSheet(props: {
             fullWidth
           />
         ) : null}
-        <Button label="Cancel" tone="secondary" onPress={close} fullWidth />
+        <Button label={gt("Cancel")} tone="secondary" onPress={close} fullWidth />
       </ScrollView>
     </Sheet>
   );

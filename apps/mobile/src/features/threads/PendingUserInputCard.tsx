@@ -68,6 +68,7 @@ import {
   type PendingUserInputDraftAnswer,
 } from "@supaterm/client-runtime/state/pending-user-input";
 import type { PendingUserInput } from "../../lib/threadActivity";
+import { T, useGT } from "gt-react-native";
 
 export interface PendingUserInputCardProps {
   readonly environmentId: EnvironmentId;
@@ -104,8 +105,6 @@ export interface PendingUserInputCardProps {
 
 /** Long enough to see the picked option highlight before the next question replaces it. */
 const SINGLE_SELECT_ADVANCE_DELAY_MS = 200;
-
-const FALLBACK_TITLE = "Fill in the pending answers";
 
 /**
  * Both pages travel the window width on one curve, so they move as a unit and
@@ -229,6 +228,7 @@ function QuestionText(props: {
 }
 
 export function PendingUserInputCard(props: PendingUserInputCardProps) {
+  const gt = useGT();
   const { requestId, questions } = props.pendingUserInput;
   const questionCount = questions.length;
   const canRespond = props.pendingUserInput.responseCapability !== "not_resumable";
@@ -273,8 +273,14 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   useEffect(() => cancelAutoAdvance, [cancelAutoAdvance]);
   const pushDirection = useSharedValue(1);
   const describeQuestion = (index: number) => {
-    const header = questions[index]?.header ?? FALLBACK_TITLE;
-    return questionCount > 1 ? `${header}, question ${index + 1} of ${questionCount}` : header;
+    const header = questions[index]?.header ?? gt("Fill in the pending answers");
+    return questionCount > 1
+      ? gt("{header}, question {index} of {count}", {
+          header,
+          index: index + 1,
+          count: questionCount,
+        })
+      : header;
   };
   const goToQuestion = (index: number) => {
     cancelAutoAdvance();
@@ -361,7 +367,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     : null;
   const stopButton = props.onStopThread ? (
     <ControlPill
-      accessibilityLabel="Stop"
+      accessibilityLabel={gt("Stop", { $context: "verb, stops the thread" })}
       icon="stop.fill"
       variant="danger"
       className="h-9 w-9"
@@ -382,9 +388,10 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     >
       <QuestionAutoDismissToggle
         deadline={autoDismissAt}
-        accessibilityLabel={`Expand user input, ${questionCount} question${
-          questionCount === 1 ? "" : "s"
-        }`}
+        accessibilityLabel={gt(
+          "{count, plural, one {Expand user input, {count} question} other {Expand user input, {count} questions}}",
+          { count: questionCount },
+        )}
         onPress={props.onToggleCollapsed}
         className="min-h-10 flex-1 flex-row items-center gap-2 active:opacity-70"
       >
@@ -393,10 +400,12 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
             <View className="min-w-0 flex-1">
               <View className="flex-row items-center gap-2">
                 <Text className="font-supaterm-bold text-2xs uppercase tracking-[1.1px] text-foreground-secondary">
-                  User input needed
+                  <T>User input needed</T>
                 </Text>
                 <Text className="font-sans text-xs text-foreground-muted">
-                  {questionCount} question{questionCount === 1 ? "" : "s"}
+                  {gt("{count, plural, one {{count} question} other {{count} questions}}", {
+                    count: questionCount,
+                  })}
                 </Text>
               </View>
               {timer}
@@ -426,7 +435,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         <QuestionAutoDismissToggle
           deadline={autoDismissAt}
           accessibilityLabel={describeQuestion(questionIndex)}
-          accessibilityHint="Collapses user input"
+          accessibilityHint={gt("Collapses user input")}
           onPress={props.onToggleCollapsed}
           className="flex-1 flex-row items-center gap-2"
         >
@@ -445,11 +454,14 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                       question ? proseDirectionStyle(question.header, setDirection) : undefined
                     }
                   >
-                    {question?.header ?? FALLBACK_TITLE}
+                    {question?.header ?? gt("Fill in the pending answers")}
                   </Text>
                   {questionCount > 1 ? (
                     <Text className="font-sans text-xs tabular-nums text-foreground-muted">
-                      {questionIndex + 1} of {questionCount}
+                      {gt("{index} of {count}", {
+                        index: questionIndex + 1,
+                        count: questionCount,
+                      })}
                     </Text>
                   ) : null}
                 </QuestionPage>
@@ -486,8 +498,10 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         >
           {!canRespond ? (
             <Text className="font-sans text-sm leading-5 text-foreground-muted">
-              The provider process for this request is no longer available. Interrupt or restart the
-              run to continue.
+              <T>
+                The provider process for this request is no longer available. Interrupt or restart
+                the run to continue.
+              </T>
             </Text>
           ) : null}
           {question ? (
@@ -502,7 +516,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
               />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
-                  Select one or more options.
+                  <T>Select one or more options.</T>
                 </Text>
               ) : null}
               <View className="gap-2">
@@ -585,7 +599,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       <View className="flex-row gap-2.5">
         {questionIndex > 0 ? (
           <Button
-            label="Back"
+            label={gt("Back")}
             tone="secondary"
             disabled={attachmentsPreparing}
             onPress={() => goToQuestion(questionIndex - 1)}
@@ -594,7 +608,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         <View className="flex-1">
           {isLastQuestion ? (
             <Button
-              label={questionCount > 1 ? "Submit answers" : "Submit answer"}
+              label={questionCount > 1 ? gt("Submit answers") : gt("Submit answer")}
               fullWidth
               tone={props.answers ? "primary" : "secondary"}
               disabled={!canSubmit}
@@ -606,7 +620,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
             />
           ) : (
             <Button
-              label="Next question"
+              label={gt("Next question")}
               tone={questionAnswered ? "primary" : "secondary"}
               disabled={!questionAnswered}
               onPress={() => goToQuestion(questionIndex + 1)}
@@ -616,7 +630,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       </View>
       {props.pendingUserInput.dismissible ? (
         <Button
-          label="Dismiss without answering"
+          label={gt("Dismiss without answering")}
           tone="text"
           disabled={isResponding}
           onPress={() => {
@@ -628,7 +642,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       ) : null}
       {!props.canOperateThread ? (
         <Text className="font-sans text-xs text-foreground-tertiary">
-          This connection cannot submit answers.
+          <T>This connection cannot submit answers.</T>
         </Text>
       ) : null}
     </Animated.View>

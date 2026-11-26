@@ -389,9 +389,11 @@ const checkPatches = async (deadline: number): Promise<StepResult> => {
 };
 
 // Generated GraphQL operations must match their sources.
-const graphql = ["apps/server", "packages/source-control-github"].filter((dir) =>
-  files.some((file) => file.startsWith(`${dir}/`)),
-);
+const graphql = [
+  "apps/server",
+  "packages/issue-tracker-linear",
+  "packages/source-control-github",
+].filter((dir) => files.some((file) => file.startsWith(`${dir}/`)));
 
 // The committed icons are rendered from the bolt computer and its appearance settings.
 const iconInputs = files.some(
@@ -416,7 +418,7 @@ const steps = [
   iconInputs && { name: "icon inputs", args: ["run", "icons:check-inputs"] },
   affected.length > 0 && {
     name: `typecheck (${affected.length} packages${everything ? ", all" : ""})`,
-    // `tsc --noEmit` writes nothing another package reads, so dependency order
+    // `effect-tsgo tsrs --noEmit` writes nothing another package reads, so dependency order
     // only made dependents wait: --parallel cut a contracts change from 13 s to 9 s.
     args: [
       "run",

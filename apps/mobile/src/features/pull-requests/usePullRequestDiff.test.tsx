@@ -1,6 +1,6 @@
 import { RegistryContext } from "@effect/atom-react";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import type { PullRequestDiffResult } from "@supaterm/contracts";
+import { PullRequestOperationError, type PullRequestDiffResult } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { act, useLayoutEffect, useState } from "react";
@@ -10,7 +10,11 @@ import { expect, it, vi } from "vite-plus/test";
 const mocks = vi.hoisted(() => ({ diff: vi.fn() }));
 vi.mock("../../state/pull-requests", () => ({ composerPullRequests: { diff: mocks.diff } }));
 
-import { usePullRequestDiff, usePullRequestDiffEntry } from "./usePullRequestDiff";
+import {
+  pullRequestParams,
+  usePullRequestDiff,
+  usePullRequestDiffEntry,
+} from "./usePullRequestDiff";
 import * as reviewModel from "../review/reviewModel";
 import { getCachedNativeReviewDiffData } from "../review/nativeReviewDiffAdapter";
 
@@ -36,12 +40,14 @@ function setup() {
   }[] = [];
   const queries = Atom.family((cursor: string | null) =>
     Atom.make(
-      Effect.tryPromise(
-        () =>
+      Effect.tryPromise({
+        try: () =>
           new Promise<PullRequestDiffResult>((resolve, reject) => {
             requests.push({ cursor, resolve, reject });
           }),
-      ),
+        catch: (cause) =>
+          new PullRequestOperationError({ operation: "diff", detail: "Connection lost", cause }),
+      }),
     ).pipe(Atom.keepAlive),
   );
   mocks.diff.mockImplementation((target: { input: { cursor?: string } }) =>
@@ -287,4 +293,18 @@ it("holds further pages back until a pull to refresh has reread page one", async
   await screen.succeed(1, patch("first.ts", "second", "pushed"));
   expect(screen.current.patch).toContain("+pushed");
   expect(screen.current.canLoadMore).toBe(true);
+});
+
+it("keeps only the pull request a route names", () => {
+  const pullRequest = {
+    environmentId: "environment",
+    projectId: "project",
+    repository: "owner/repo",
+    number: 1,
+    host: "git.example.com",
+    navigationUrl: "https://git.example.com/owner/repo/pull/1#discussion_r1",
+    navigationId: 2,
+  };
+  const routeParams = { ...pullRequest, commit: "abc1234", path: "src/index.ts" };
+  expect(pullRequestParams(routeParams)).toEqual(pullRequest);
 });

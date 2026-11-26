@@ -50,6 +50,7 @@ import {
 } from "./ui/sidebar";
 import { type CommandHandler, registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
+import { useGT } from "gt-react";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "var(--desktop-window-controls-inset, 90px)";
 
@@ -295,7 +296,8 @@ export function AppSidebarLayout({
   children: ReactNode;
   showSidebar?: boolean;
 }) {
-  const sidebarArea = workspaceAreaProps("sidebar", 0, "Threads");
+  const gt = useGT();
+  const sidebarArea = workspaceAreaProps("sidebar", 0, gt("Threads"));
   const [sidebarRouteReveal] = useState<SidebarRouteReveal>(() => ({
     observedKey: null,
     pendingKey: null,
@@ -336,7 +338,7 @@ export function AppSidebarLayout({
             data-app-sidebar=""
             {...sidebarArea}
             role="navigation"
-            aria-label="Threads"
+            aria-label={gt("Threads")}
             resizable={{
               defaultWidth: THREAD_SIDEBAR_DEFAULT_WIDTH,
               minWidth: sidebarMinimumWidth,

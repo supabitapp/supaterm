@@ -903,7 +903,11 @@ describe("queued voice messages in the delivery fiber", () => {
     setOperateGrant("secondary", true);
     const { VoiceUploadError } = await import("@supaterm/client-runtime/state/transcription");
     state.uploadVoice.mockRejectedValueOnce(
-      new VoiceUploadError("signedOut", "Sign in to this provider again to transcribe.", false),
+      new VoiceUploadError({
+        reason: "signedOut",
+        message: "Sign in to this provider again to transcribe.",
+        retryable: false,
+      }),
     );
     const queued = voiceMessage();
     await state.manager.enqueue(queued);
@@ -954,7 +958,11 @@ describe("queued voice messages in the delivery fiber", () => {
     const { VoiceUploadError } = await import("@supaterm/client-runtime/state/transcription");
     state.uploadVoice
       .mockRejectedValueOnce(
-        new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
+        new VoiceUploadError({
+          reason: "disconnected",
+          message: "The recording couldn't reach the environment.",
+          retryable: true,
+        }),
       )
       .mockResolvedValueOnce(sent);
     const queued = voiceMessage();

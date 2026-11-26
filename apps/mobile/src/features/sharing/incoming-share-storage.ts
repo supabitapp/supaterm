@@ -19,6 +19,8 @@ export class IncomingShareStorageError extends Schema.TaggedError<IncomingShareS
   }
 }
 
+const isIncomingShareStorageError = Schema.is(IncomingShareStorageError);
+
 function fileName(shareId: string): string {
   return `${encodeURIComponent(shareId)}.json`;
 }
@@ -74,7 +76,7 @@ export async function loadIncomingShareDrafts(options?: {
     }
     return drafts.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   } catch (cause) {
-    if (cause instanceof IncomingShareStorageError) {
+    if (isIncomingShareStorageError(cause)) {
       throw cause;
     }
     throw new IncomingShareStorageError({ operation: "load", shareId: null, cause });

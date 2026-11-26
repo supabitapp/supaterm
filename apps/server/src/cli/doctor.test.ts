@@ -3,11 +3,13 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, it } from "@effect/vitest";
 import * as Console from "effect/Console";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as TestClock from "effect/testing/TestClock";
+import * as TestConsole from "effect/testing/TestConsole";
 
 import * as BootService from "../service/bootService.ts";
 import { runDoctor } from "./doctor.ts";
@@ -61,7 +63,7 @@ it.effect(
                     Effect.ensuring(Effect.sync(() => calls.push("resume"))),
                   ),
               }),
-              Layer.succeed(DatabaseMaintenance, {
+              Layer.mock(DatabaseMaintenance)({
                 // An unconverted database: reclaiming space is recommended.
                 inspect: () =>
                   Effect.succeed({
@@ -77,6 +79,7 @@ it.effect(
                         beforeBytes: 2000,
                         afterBytes: 1000,
                         deletedEventCount: 1,
+                        pruneSchedule: null,
                       };
                     }),
                   ),
@@ -115,6 +118,33 @@ it.effect(
     }).pipe(Effect.provide(layerHost)),
 );
 
+it.effect("reports sizes just under the next unit in that unit", () =>
+  Effect.gen(function* () {
+    yield* runDoctor(
+      { dbPath: "/test/statev2.sqlite", serverRuntimeStatePath: "/test/server-runtime.json" },
+      { fix: false, dryRun: true },
+    ).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          Layer.mock(BootService.BootService)({}),
+          Layer.mock(DatabaseMaintenance)({
+            inspect: () =>
+              Effect.succeed({
+                databaseBytes: 1024 ** 3 - 4096,
+                reclaimableBytes: 1024 ** 2 - 512,
+                incrementalVacuumEnabled: true,
+                legacyDatabaseBytes: null,
+                legacyOnlyRecords: null,
+              }),
+          }),
+        ),
+      ),
+    );
+    const [summary] = yield* TestConsole.logLines;
+    assert.strictEqual(summary, "Database: 1.00 GiB, 1.0 MiB reclaimable.");
+  }).pipe(Effect.provide(Layer.merge(layerHost, TestConsole.layer))),
+);
+
 it.effect("warns how long reclaiming can take and reports each step with its elapsed time", () =>
   Effect.gen(function* () {
     const output: string[] = [];
@@ -142,23 +172,24 @@ it.effect("warns how long reclaiming can take and reports each step with its ela
                 Effect.ensuring(Effect.sync(() => output.push("<resume>"))),
               ),
           }),
-          Layer.succeed(DatabaseMaintenance, {
+          Layer.mock(DatabaseMaintenance)({
             inspect: () =>
               Effect.succeed({
                 databaseBytes: 12.8 * 1024 ** 3,
                 reclaimableBytes: 0,
                 incrementalVacuumEnabled: false,
               }),
-            compact: (_databasePath, onStep) =>
+            compact: (_databasePath, options) =>
               Effect.gen(function* () {
                 for (const [step, duration] of steps) {
-                  if (onStep) yield* onStep(step);
+                  if (options?.onStep) yield* options.onStep(step);
                   yield* TestClock.adjust(duration);
                 }
                 return {
                   beforeBytes: 12.8 * 1024 ** 3,
                   afterBytes: 12.8 * 1024 ** 3,
                   deletedEventCount: 0,
+                  pruneSchedule: null,
                 };
               }),
           }),
@@ -192,4 +223,124 @@ it.effect("warns how long reclaiming can take and reports each step with its ela
       "each compaction step must print one line with the elapsed time as it starts",
     );
   }).pipe(Effect.provide(layerHost)),
+);
+
+// Deletion is opt-in: without --prune-events doctor never previews or prunes, and a dry run with
+// it reports what would go without touching the database. A prune that removes nothing never
+// rewrites the file on its own, and one that cannot run yet is not offered.
+const DUE = { _tag: "Due" as const, throughSequence: 1_200 };
+const DUE_OUTPUT = [
+  "1,100 of them would be removed.",
+  "/home/statev2-before-pruning.sqlite",
+  "cannot use the database afterwards",
+];
+it.effect.each([
+  {
+    case: "compacts without --prune-events",
+    pruneEvents: false,
+    dryRun: false,
+    schedule: DUE,
+    reclaimableBytes: 2 * 1024 ** 3,
+    expected: ["compact:compact:always"],
+    output: ["1,100 superseded events removed."],
+  },
+  {
+    case: "previews a due prune",
+    pruneEvents: true,
+    dryRun: true,
+    schedule: DUE,
+    reclaimableBytes: 2 * 1024 ** 3,
+    expected: ["preview"],
+    output: DUE_OUTPUT,
+  },
+  {
+    case: "prunes and reclaims",
+    pruneEvents: true,
+    dryRun: false,
+    schedule: DUE,
+    reclaimableBytes: 2 * 1024 ** 3,
+    expected: ["preview", "compact:prune:always"],
+    output: [...DUE_OUTPUT, "1,100 events older than a day removed."],
+  },
+  {
+    case: "marks an unmarked log without a rewrite",
+    pruneEvents: true,
+    dryRun: false,
+    schedule: { _tag: "Unmarked" as const },
+    reclaimableBytes: 0,
+    expected: ["preview", "compact:prune:when-deleted"],
+    output: ["The first run only records where history ends", "history end recorded."],
+  },
+  {
+    case: "offers nothing while the mark is under a day old",
+    pruneEvents: true,
+    dryRun: false,
+    schedule: { _tag: "Waiting" as const, dueAt: DateTime.makeUnsafe("2026-11-26T00:00:00.000Z") },
+    reclaimableBytes: 0,
+    expected: ["preview"],
+    output: ["can be removed after 2026-11-26T00:00:00.000Z", "Nothing to repair."],
+  },
+])(
+  "--prune-events: $case",
+  ({ pruneEvents, dryRun, schedule, reclaimableBytes, expected, output }) =>
+    Effect.gen(function* () {
+      const calls: string[] = [];
+      const stateDir = yield* (yield* FileSystem.FileSystem).makeTempDirectoryScoped();
+      const path = yield* Path.Path;
+      const deletedEventCount = schedule._tag === "Due" ? 1_100 : 0;
+      yield* runDoctor(
+        {
+          dbPath: path.join(stateDir, "statev2.sqlite"),
+          serverRuntimeStatePath: path.join(stateDir, "server-runtime.json"),
+        },
+        { fix: true, dryRun, pruneEvents, interactive: false },
+      ).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            Layer.mock(BootService.BootService)({ withStopped: (operation) => operation }),
+            Layer.mock(DatabaseMaintenance)({
+              inspect: () =>
+                Effect.succeed({
+                  databaseBytes: 3 * 1024 ** 3,
+                  reclaimableBytes,
+                  incrementalVacuumEnabled: true,
+                }),
+              previewPrune: () =>
+                Effect.sync(() => calls.push("preview")).pipe(
+                  Effect.as({
+                    schedule,
+                    prunableEventCount: deletedEventCount,
+                    eventCount: 1_300,
+                    backup:
+                      schedule._tag === "Due"
+                        ? {
+                            path: "/home/statev2-before-pruning.sqlite",
+                            neededBytes: 1024 ** 3,
+                            freeBytes: 8 * 1024 ** 3,
+                          }
+                        : null,
+                  }),
+                ),
+              compact: (_databasePath, options) =>
+                Effect.sync(() =>
+                  calls.push(
+                    `compact:${options?.history ?? "compact"}:${options?.vacuum ?? "always"}`,
+                  ),
+                ).pipe(
+                  Effect.as({
+                    beforeBytes: 3 * 1024 ** 3,
+                    afterBytes: 1024 ** 3,
+                    deletedEventCount,
+                    pruneSchedule: pruneEvents ? schedule : null,
+                  }),
+                ),
+            }),
+          ),
+        ),
+      );
+      assert.deepEqual(calls, expected);
+      const printed = (yield* TestConsole.logLines).join("\n");
+      for (const fragment of output) assert.include(printed, fragment);
+      if (!pruneEvents) assert.notInclude(printed, "older than a day");
+    }).pipe(Effect.provide(Layer.merge(layerHost, TestConsole.layer))),
 );

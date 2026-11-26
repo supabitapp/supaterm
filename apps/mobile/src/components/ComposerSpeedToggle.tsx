@@ -6,6 +6,7 @@ import {
 import type { ProviderOptionDescriptor, ProviderOptionSelection } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 import * as Haptics from "expo-haptics";
+import { useGT, useMessages } from "gt-react-native";
 import { Platform, Pressable } from "react-native";
 import { Zap, ZapFilled } from "@supaterm/icons/nodes";
 import Svg, { G, Path } from "react-native-svg";
@@ -22,7 +23,9 @@ export function ComposerSpeedToggle(props: {
   readonly disabled?: boolean;
   readonly onChange: (options: ReadonlyArray<ProviderOptionSelection>) => void;
 }) {
+  const messages = useMessages();
   const { scale } = useAndroidControlSizing();
+  const gt = useGT();
   const speedToggle = getSpeedToggle(props.descriptors);
   if (!speedToggle) {
     return null;
@@ -45,8 +48,8 @@ export function ComposerSpeedToggle(props: {
   const offersTierChoice = descriptor?.type === "select" && !props.disabled;
   const button = (
     <Pressable
-      accessibilityLabel={SPEED_TOGGLE_LABELS[speedToggle.level]}
-      accessibilityHint={offersTierChoice ? "Hold to choose a service tier" : undefined}
+      accessibilityLabel={messages(SPEED_TOGGLE_LABELS[speedToggle.level])}
+      accessibilityHint={offersTierChoice ? gt("Hold to choose a service tier") : undefined}
       accessibilityRole="button"
       accessibilityState={{ disabled: props.disabled, selected: on }}
       className="size-[44px] shrink-0 items-center justify-center rounded-xl active:bg-subtle disabled:opacity-50"
@@ -83,7 +86,7 @@ export function ComposerSpeedToggle(props: {
   const currentValue = getProviderOptionCurrentValue(descriptor);
   return (
     <Menu
-      accessibilityLabel="Choose a service tier"
+      accessibilityLabel={gt("Choose a service tier")}
       title={descriptor.label}
       shouldOpenOnLongPress
       preservesKeyboard

@@ -1,3 +1,4 @@
+import type { PreviewFailure } from "./previewFailure";
 import type { OfficePreviewKind } from "@supaterm/shared/filePreview";
 
 export const OFFICE_PREVIEW_MAX_BYTES = 50 * 1024 * 1024;
@@ -26,10 +27,10 @@ export type OfficeWorkerResult =
   | {
       readonly type: "document";
       readonly navigation: "page" | "slide" | "chapter";
-      readonly pages: { title: string; html: string }[];
+      readonly pages: { title: string | undefined; html: string }[];
     }
   | { readonly type: "notebook"; readonly language: string; readonly cells: NotebookCell[] }
-  | { readonly type: "error"; readonly message: string }
+  | ({ readonly type: "error" } & PreviewFailure)
   | {
       readonly type: "docx" | "xlsx" | "pptx";
       readonly bytes: ArrayBuffer;
@@ -40,7 +41,7 @@ export type OfficeWorkerResult =
   | {
       readonly type: "ods";
       readonly sheets: {
-        name: string;
+        name: string | undefined;
         rows: string[][];
         truncated: boolean;
         rowCount: number;

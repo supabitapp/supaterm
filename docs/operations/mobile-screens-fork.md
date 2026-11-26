@@ -46,3 +46,20 @@ UIKit stops leaking the observer, or replace it with a narrower fix in the
 Screens fork. When changing it, check ordinary iPhone and iPad searches,
 repeated sheet and search dismissal, Duo folding, and that unrelated
 `addObserverForName:` callers still receive notifications.
+
+## Enriched Markdown dependency
+
+`apps/mobile/deps/react-native-enriched-markdown-1.2.0-supacode.20.tgz` is upstream's
+`1.2.0-t3.18` archive from
+[source commit 16db4c75](https://github.com/pingdotgg/enriched-markdown/commit/16db4c75c7ba892178e26a5e84b28773e35daa8d),
+based on `1d00a92abc3f7cf953946cf42f999523dec699dc`. Repack a new revision as
+`1.2.0-supacode.N` the same way as Screens.
+
+Unlike Screens, the fork applies a pnpm patch on top of the archive:
+`patches/react-native-enriched-markdown@1.2.0-supacode.N.patch` makes code blocks
+start wrapped, and the header toggle unwraps them. Rebase it with every repack. Drop
+hunks the new archive already carries, even ones `git apply` still accepts with fuzz,
+and rename the patch and both `pnpm-workspace.yaml` keys (`allowBuilds` and
+`patchedDependencies`) with the archive. `vp i` fails when a hunk no longer applies.
+Upstream's `.pnpmfile.cjs` rejects any patch on an archive dependency, so the fork
+leaves that guard out.

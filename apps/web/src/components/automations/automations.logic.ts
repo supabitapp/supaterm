@@ -15,13 +15,20 @@ import {
 } from "@supaterm/contracts";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/models";
 import { scheduleTimeZoneLabel } from "@supaterm/client-runtime/scheduled-task-time-zone";
+import type { TimestampFormat } from "@supaterm/contracts/settings";
+import { msg } from "gt-react";
 
 import {
   resolveProjectSettings,
   type LegacyProjectSettingsFields,
 } from "@supaterm/shared/projectSettings";
+import { m, type MessageResolver } from "../../i18n/messages";
 import type { ProviderInstanceEntry } from "../../providerInstances";
-import { formatRelativeTimeLabel } from "../../timestampFormat";
+import {
+  formatDateTimeTimestamp,
+  formatRelativeTimeLabel,
+  formatTimeOfDay,
+} from "../../timestampFormat";
 import {
   validateSettingsScopeSearch,
   type ResolvedSettingsScope,
@@ -84,12 +91,15 @@ export function automationsScopeSearch(search: SettingsScopeSearch): Automations
   };
 }
 
-export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-
-const ONCE_FORMATTER = new Intl.DateTimeFormat(undefined, {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+export const WEEKDAY_LABELS = [
+  msg("Sun", { $context: "abbreviated weekday name" }),
+  msg("Mon", { $context: "abbreviated weekday name" }),
+  msg("Tue", { $context: "abbreviated weekday name" }),
+  msg("Wed", { $context: "abbreviated weekday name" }),
+  msg("Thu", { $context: "abbreviated weekday name" }),
+  msg("Fri", { $context: "abbreviated weekday name" }),
+  msg("Sat", { $context: "abbreviated weekday name" }),
+] as const;
 
 /**
  * Fixed times run on the environment's clock, which may not be this device's. An older
@@ -97,58 +107,85 @@ const ONCE_FORMATTER = new Intl.DateTimeFormat(undefined, {
  */
 export function scheduleLabel(
   schedule: ScheduledTaskSchedule,
+  timestampFormat: TimestampFormat,
   timeZone?: string,
   runAt?: string | null,
+  resolve: MessageResolver = m,
 ): string {
-  const summary = scheduleSummary(schedule, timeZone, runAt);
+  const summary = scheduleSummary(schedule, timestampFormat, timeZone, runAt, resolve);
   return schedule.type === "fixed_time" && scheduleTimeZoneLabel(timeZone, runAt) === undefined
-    ? `${summary} (environment time)`
+    ? resolve(msg("{summary} (environment time)", { summary }))
     : summary;
 }
 
 export function scheduleSummary(
   schedule: ScheduledTaskSchedule,
+  timestampFormat: TimestampFormat,
   timeZone?: string,
   runAt?: string | null,
+  resolve: MessageResolver = m,
 ): string {
-  if (schedule.type === "once") return `Once, ${ONCE_FORMATTER.format(new Date(schedule.runAt))}`;
+  if (schedule.type === "once")
+    return resolve(
+      msg("Once, {date}", { date: formatDateTimeTimestamp(schedule.runAt, timestampFormat) }),
+    );
   if (schedule.type === "interval") {
     const minutes = schedule.everyMs / 60_000;
-    if (!Number.isInteger(minutes)) return `Every ${Math.round(schedule.everyMs / 1000)} sec`;
+    if (!Number.isInteger(minutes))
+      return resolve(msg("Every {count} sec", { count: Math.round(schedule.everyMs / 1000) }));
     if (minutes % 1440 === 0)
-      return minutes === 1440 ? "Every day" : `Every ${minutes / 1440} days`;
-    if (minutes % 60 === 0) return minutes === 60 ? "Every hour" : `Every ${minutes / 60} hours`;
-    return `Every ${minutes} min`;
+      return minutes === 1440
+        ? resolve(msg("Every day"))
+        : resolve(
+            msg("{count, plural, one {Every {count} day} other {Every {count} days}}", {
+              count: minutes / 1440,
+            }),
+          );
+    if (minutes % 60 === 0)
+      return minutes === 60
+        ? resolve(msg("Every hour"))
+        : resolve(
+            msg("{count, plural, one {Every {count} hour} other {Every {count} hours}}", {
+              count: minutes / 60,
+            }),
+          );
+    return resolve(msg("Every {count} min", { count: minutes }));
   }
   const weekdays = schedule.weekdays ?? [];
   const days =
     weekdays.length === 0
-      ? "Daily"
+      ? resolve(msg("Daily"))
       : weekdays.length === 5 && weekdays.every((day) => day >= 1 && day <= 5)
-        ? "Weekdays"
-        : weekdays.map((day) => WEEKDAY_LABELS[day]).join(", ");
+        ? resolve(msg("Weekdays"))
+        : weekdays.map((day) => resolve(WEEKDAY_LABELS[day])).join(", ");
   const zone = scheduleTimeZoneLabel(timeZone, runAt);
-  return `${days} at ${schedule.timeOfDay}${zone === undefined ? "" : ` ${zone}`}`;
+  const time = formatTimeOfDay(schedule.timeOfDay, timestampFormat);
+  return resolve(
+    msg("{days} at {time}{zone}", { days, time, zone: zone === undefined ? "" : ` ${zone}` }),
+  );
 }
 
 /** "in 5m" for upcoming instants, "5m ago" for past ones. */
-export function relativeLabel(value: string, now: number): string {
+export function relativeLabel(value: string, now: number, resolve: MessageResolver = m): string {
   const diffMs = Date.parse(value) - now;
   if (!(diffMs > 0)) return formatRelativeTimeLabel(value, now);
   const minutes = Math.ceil(diffMs / 60_000);
-  if (minutes < 2) return "in under a minute";
-  if (minutes < 60) return `in ${minutes}m`;
+  if (minutes < 2) return resolve(msg("in under a minute"));
+  if (minutes < 60) return resolve(msg("in {minutes}m", { minutes }));
   const hours = Math.round(minutes / 60);
-  if (hours < 24) return `in ${hours}h`;
-  return `in ${Math.round(hours / 24)}d`;
+  if (hours < 24) return resolve(msg("in {hours}h", { hours }));
+  return resolve(msg("in {days}d", { days: Math.round(hours / 24) }));
 }
 
 export function nextRunLabel(
   task: Pick<ScheduledTask, "enabled" | "nextRunAt">,
   now: number,
+  resolve: MessageResolver = m,
 ): string {
-  if (!task.enabled) return "Paused";
-  return task.nextRunAt ? `Next run ${relativeLabel(task.nextRunAt, now)}` : "Not scheduled";
+  if (!task.enabled) return resolve(msg("Paused", { $context: "automation status" }));
+  return task.nextRunAt
+    ? resolve(msg("Next run {time}", { time: relativeLabel(task.nextRunAt, now, resolve) }))
+    : resolve(msg("Not scheduled"));
 }
 
 /**
@@ -158,17 +195,20 @@ export function nextRunLabel(
 export function lastRunLabel(
   task: Pick<ScheduledTask, "lastRunStatus" | "lastRunAt">,
   now: number,
+  resolve: MessageResolver = m,
 ): string | null {
   switch (task.lastRunStatus) {
     case "never":
       return null;
     case "running":
-      return "Sending…";
+      return resolve(msg("Sending…"));
     case "failed":
-      return "Couldn't send";
+      return resolve(msg("Couldn't send"));
     case "succeeded":
       // Past-only: a run that finished after the last clock tick reads "just now".
-      return task.lastRunAt ? `Sent ${formatRelativeTimeLabel(task.lastRunAt, now)}` : "Sent";
+      return task.lastRunAt
+        ? resolve(msg("Sent {time}", { time: formatRelativeTimeLabel(task.lastRunAt, now) }))
+        : resolve(msg("Sent", { $context: "automation run status" }));
   }
 }
 
@@ -196,15 +236,12 @@ export interface DraftState {
   readonly workspaceMode: WorkspaceMode;
   readonly baseRef: string;
   readonly startFromOrigin: boolean;
+  /** Tracked repositories the new worktree takes; undefined leaves the server's default. */
+  readonly repositories: ReadonlyArray<string> | undefined;
   readonly existingWorktreePath: string;
-  readonly modelKey: string;
+  readonly modelSelection: ModelSelection | null;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
-  /**
-   * The picker only edits `instanceId:model`; keeping the source object preserves provider
-   * options (reasoning, temperature, …) when the model itself is left unchanged.
-   */
-  readonly baseModelSelection: ModelSelection | null;
 }
 
 /** Formats a date as a `datetime-local` input value in the browser's time zone. */
@@ -213,17 +250,25 @@ export function toDateTimeLocalValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-export function scheduleDraftErrors(draft: DraftState) {
+export function scheduleDraftErrors(draft: DraftState, resolve: MessageResolver = m) {
   if (draft.scheduleMode === "fixed" && !draft.timeOfDay)
-    return [{ title: "Invalid run time", description: "Pick a time." }];
+    return [{ title: resolve(msg("Invalid run time")), description: resolve(msg("Pick a time.")) }];
   if (draft.scheduleMode !== "once") return [];
   const runAt = new Date(draft.runAt);
   if (Number.isNaN(runAt.getTime()))
-    return [{ title: "Invalid run time", description: "Pick a date and time." }];
+    return [
+      {
+        title: resolve(msg("Invalid run time")),
+        description: resolve(msg("Pick a date and time.")),
+      },
+    ];
   // A time skipped by a daylight saving change parses to a different clock time.
   if (toDateTimeLocalValue(runAt) !== draft.runAt)
     return [
-      { title: "Invalid run time", description: "That time does not exist in your time zone." },
+      {
+        title: resolve(msg("Invalid run time")),
+        description: resolve(msg("That time does not exist in your time zone.")),
+      },
     ];
   return [];
 }
@@ -289,14 +334,17 @@ export function taskToDraft(task: ScheduledTask): DraftState {
       task.workspaceStrategy.type === "worktree"
         ? (task.workspaceStrategy.startFromOrigin ?? false)
         : true,
+    repositories:
+      task.workspaceStrategy.type === "worktree"
+        ? task.workspaceStrategy.repositories?.map((repository) => repository.path)
+        : undefined,
     existingWorktreePath:
       task.workspaceStrategy.type === "existing_worktree"
         ? task.workspaceStrategy.worktreePath
         : "",
-    modelKey: `${task.modelSelection.instanceId}:${task.modelSelection.model}`,
+    modelSelection: task.modelSelection,
     runtimeMode: task.runtimeMode,
     interactionMode: task.interactionMode,
-    baseModelSelection: task.modelSelection,
   };
 }
 
@@ -326,7 +374,7 @@ export function unbindDraftFromThread(draft: DraftState): DraftState {
 
 export function changeDraftProject(draft: DraftState, projectId: string): DraftState {
   if (projectId === draft.projectId) return draft;
-  return { ...unbindDraftFromThread(draft), projectId };
+  return { ...unbindDraftFromThread(draft), projectId, repositories: undefined };
 }
 
 /** Threads a task can move to. The current one is left out; the picker always shows it. */

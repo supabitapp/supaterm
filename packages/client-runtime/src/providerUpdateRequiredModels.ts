@@ -1,15 +1,14 @@
 import { PROVIDER_DISPLAY_NAMES, type ServerProvider } from "@supaterm/contracts";
 import { compareSemverVersions, parseSemver } from "@supaterm/shared/semver";
 
+import { formatConjunctionList } from "./listFormat.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
+
 const RUNTIME_NAMES: Partial<Record<string, string>> = {
   claudeAgent: "Claude Code",
   codex: "the Codex CLI",
 };
-
-function formatModelList(names: ReadonlyArray<string>): string {
-  if (names.length <= 2) return names.join(" and ");
-  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
-}
 
 function withV(version: string): string {
   return version.startsWith("v") ? version : `v${version}`;
@@ -70,6 +69,7 @@ export function providerUpdateChannelLags(
 export function formatProviderUpdateRequiredNotice(
   provider: UpdateRequiredProvider,
   searchQuery = "",
+  resolve: MFunctionType = mFallback,
 ): string | null {
   const models = matchingUpdateRequiredModels(provider, searchQuery);
   if (models.length === 0) return null;
@@ -77,17 +77,43 @@ export function formatProviderUpdateRequiredNotice(
   const providerName =
     RUNTIME_NAMES[provider.driver] ?? PROVIDER_DISPLAY_NAMES[provider.driver] ?? provider.driver;
   const version = withV(minVersion);
-  const names = formatModelList(models.map((model) => model.name));
+  const names = formatConjunctionList(
+    models.map((model) => model.name),
+    "en",
+    resolve,
+  );
+  const runtime = provider.driver === "codex" ? "codex" : "other";
   const latestVersion = channelLatestVersionBelow(provider, minVersion);
   if (
     latestVersion &&
     provider.driver === "claudeAgent" &&
     provider.versionAdvisory?.updateCommand === HOMEBREW_STABLE_CASK_UPDATE_COMMAND
   ) {
-    return `Using ${names} requires ${providerName} ${version} or newer, but the claude-code Homebrew cask only has ${withV(latestVersion)}. Switch to the claude-code@latest cask: ${HOMEBREW_LATEST_CASK_SWITCH_COMMAND}`;
+    return resolve(
+      msg(
+        "Using {names} requires {providerName} {version} or newer, but the claude-code Homebrew cask only has {latestVersion}. Switch to the claude-code@latest cask: {command}",
+        {
+          providerName,
+          version,
+          names,
+          latestVersion: withV(latestVersion),
+          command: HOMEBREW_LATEST_CASK_SWITCH_COMMAND,
+        },
+      ),
+    );
   }
   if (latestVersion) {
-    return `Using ${names} requires ${providerName} ${version} or newer, but the newest this install can update to is ${withV(latestVersion)}. Install ${providerName} another way or wait for a newer release.`;
+    return resolve(
+      msg(
+        "{runtime, select, codex {Using {names} requires the Codex CLI {version} or newer, but the newest this install can update to is {latestVersion}. Install the Codex CLI another way or wait for a newer release.} other {Using {names} requires {providerName} {version} or newer, but the newest this install can update to is {latestVersion}. Install {providerName} another way or wait for a newer release.}}",
+        { runtime, providerName, version, names, latestVersion: withV(latestVersion) },
+      ),
+    );
   }
-  return `Update ${providerName} to ${version} or newer to use ${names}.`;
+  return resolve(
+    msg(
+      "{runtime, select, codex {Update the Codex CLI to {version} or newer to use {names}.} other {Update {providerName} to {version} or newer to use {names}.}}",
+      { runtime, providerName, version, names },
+    ),
+  );
 }
