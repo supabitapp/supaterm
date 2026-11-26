@@ -33,14 +33,22 @@ import { SettingsScreen } from "../settings/components/SettingsScreen";
 import { environmentPresentations } from "../../state/presentation";
 import { ResetCredits } from "./ResetCredits";
 import { usageProviderKind, useProviderColors } from "./usageProviders";
-import { T, useMessages, useGT } from "gt-react-native";
+import { msg, T, useMessages, useGT, Var } from "gt-react-native";
 
-const PACE_LABEL = { ahead: "Ahead of pace", on: "On pace", under: "Under pace" } as const;
+import type { MessageResolver } from "../../i18n/messages";
 
-function accountName(account: LimitAccount) {
+const PACE_LABEL = {
+  ahead: msg("Ahead of pace"),
+  on: msg("On pace"),
+  under: msg("Under pace"),
+} as const;
+
+function accountName(account: LimitAccount, resolve: MessageResolver) {
   if (account.displayName) return account.displayName;
   if (!account.email) return providerClients.get(account.driver)?.label ?? account.driver;
-  return emailInitials(account.email) || "Account";
+  return (
+    emailInitials(account.email) || resolve(msg("Account", { $context: "fallback account name" }))
+  );
 }
 
 function emailInitials(email: string) {
@@ -213,7 +221,9 @@ function PoolWindowCard({
           </View>
         </View>
         {pool.pace ? (
-          <Text className="text-xs text-foreground-tertiary">{PACE_LABEL[pool.pace]}</Text>
+          <Text className="text-xs text-foreground-tertiary">
+            {messages(PACE_LABEL[pool.pace])}
+          </Text>
         ) : null}
       </View>
       {description ? <Text className="text-xs text-foreground-muted">{description}</Text> : null}
@@ -248,7 +258,23 @@ function PoolWindowCard({
           <Pressable
             key={account.key}
             accessibilityRole="button"
-            accessibilityLabel={`Segment ${index + 1}, ${accountName(account)}, ${remainingPercent(window)}% left${timeLeft === null ? "" : `, ${timeLeft}% of the window left`}`}
+            accessibilityLabel={
+              timeLeft === null
+                ? gt("Segment {index}, {account}, {remaining}% left", {
+                    index: index + 1,
+                    account: accountName(account, messages),
+                    remaining: remainingPercent(window),
+                  })
+                : gt(
+                    "Segment {index}, {account}, {remaining}% left, {timeLeft}% of the window left",
+                    {
+                      index: index + 1,
+                      account: accountName(account, messages),
+                      remaining: remainingPercent(window),
+                      timeLeft,
+                    },
+                  )
+            }
             accessibilityHint={gt("Show account details")}
             onPress={() => openAccount(account)}
             className={wide ? "h-9 min-w-0 flex-1 rounded-md" : "h-7 min-w-0 flex-1 rounded-md"}
@@ -275,7 +301,7 @@ function PoolWindowCard({
                       numberOfLines={1}
                       className="min-w-0 shrink text-xs font-supaterm-medium text-foreground"
                     >
-                      {accountName(account)}
+                      {accountName(account, messages)}
                     </Text>
                   )}
                   <Text className="text-sm font-supaterm-bold tabular-nums text-foreground">
@@ -336,7 +362,41 @@ function PoolWindowCard({
           <Pressable
             key={account.key}
             accessibilityRole="button"
-            accessibilityLabel={`Segment ${index + 1}, ${accountName(account)}, ${remainingPercent(window)}% left${resetsIn ? `, ${resetsIn}` : ""}${credits ? `, ${credits} reset credits banked` : ""}`}
+            accessibilityLabel={
+              resetsIn && credits
+                ? gt(
+                    "Segment {index}, {account}, {remaining}% left, {resetsIn}, {credits, plural, other {{credits} reset credits banked}}",
+                    {
+                      index: index + 1,
+                      account: accountName(account, messages),
+                      remaining: remainingPercent(window),
+                      resetsIn,
+                      credits,
+                    },
+                  )
+                : resetsIn
+                  ? gt("Segment {index}, {account}, {remaining}% left, {resetsIn}", {
+                      index: index + 1,
+                      account: accountName(account, messages),
+                      remaining: remainingPercent(window),
+                      resetsIn,
+                    })
+                  : credits
+                    ? gt(
+                        "Segment {index}, {account}, {remaining}% left, {credits, plural, other {{credits} reset credits banked}}",
+                        {
+                          index: index + 1,
+                          account: accountName(account, messages),
+                          remaining: remainingPercent(window),
+                          credits,
+                        },
+                      )
+                    : gt("Segment {index}, {account}, {remaining}% left", {
+                        index: index + 1,
+                        account: accountName(account, messages),
+                        remaining: remainingPercent(window),
+                      })
+            }
             accessibilityHint={gt("Show account details")}
             onPress={() => openAccount(account)}
             className="min-h-[44px] flex-row items-center gap-2 active:opacity-60"
@@ -355,7 +415,7 @@ function PoolWindowCard({
               numberOfLines={1}
               className="min-w-0 flex-1 text-sm font-supaterm-medium text-foreground"
             >
-              {accountName(account)}
+              {accountName(account, messages)}
             </Text>
             <Text className="text-sm font-supaterm-medium tabular-nums text-foreground">
               {remainingPercent(window)}%
@@ -515,7 +575,10 @@ export function UsageLimitsSection({
             ))}
             {failedLabels.length > 0 ? (
               <Text className="text-sm font-supaterm-medium text-warning-foreground">
-                {failedLabels.join(", ")} could not refresh limits. Showing the last known values.
+                <T>
+                  <Var>{failedLabels.join(", ")}</Var> could not refresh limits. Showing the last
+                  known values.
+                </T>
               </Text>
             ) : null}
           </View>
@@ -598,25 +661,35 @@ export function UsageLimitAccountScreen({ route }: AccountScreenProps) {
             <View className="gap-3 rounded-[24px] border-continuous bg-grouped-card p-4">
               <Text className="text-sm font-supaterm-medium text-foreground">{window.label}</Text>
               <Text className="text-3xl font-supaterm-bold tabular-nums text-foreground">
-                {remainingPercent(window)}% left
+                <T>
+                  <Var>{remainingPercent(window)}</Var>% left
+                </T>
               </Text>
               {window.resetsAt ? (
                 <Text selectable className="text-sm text-foreground-muted">
-                  Resets{" "}
-                  {new Date(window.resetsAt).toLocaleString(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
+                  <T>
+                    Resets{" "}
+                    <Var>
+                      {new Date(window.resetsAt).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </Var>
+                  </T>
                 </Text>
               ) : null}
               {evenPace !== null ? (
                 <Text className="text-sm text-foreground-muted">
-                  Even pace: {evenPace}% left by now
+                  <T>
+                    Even pace: <Var>{evenPace}</Var>% left by now
+                  </T>
                 </Text>
               ) : null}
               {reset && reset.restoresPercent > 0 ? (
                 <Text className="text-sm text-foreground-muted">
-                  Restores {reset.restoresPercent}% of the pool
+                  <T>
+                    Restores <Var>{reset.restoresPercent}</Var>% of the pool
+                  </T>
                 </Text>
               ) : null}
             </View>

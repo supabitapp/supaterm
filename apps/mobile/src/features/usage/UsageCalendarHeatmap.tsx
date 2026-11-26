@@ -5,6 +5,7 @@ import {
   formatUsd,
 } from "@supaterm/shared/usageFormat";
 import * as Haptics from "expo-haptics";
+import { T, useGT } from "gt-react-native";
 import { Pressable, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
@@ -26,6 +27,7 @@ export function UsageCalendarHeatmap({
   readonly selectedDay: string | null;
   readonly onSelectDay: (day: string | null) => void;
 }) {
+  const gt = useGT();
   const { themeAppearance } = useAppearancePreferences();
   const ink = themeAppearance === "dark" ? "230, 230, 230" : "60, 60, 67";
   const days = chartDays.map((day) => day.day);
@@ -40,8 +42,11 @@ export function UsageCalendarHeatmap({
       className="gap-1"
       accessibilityLabel={
         peak === null
-          ? "No activity in this window"
-          : `Highest ${formatDayShort(peak.day)}, ${format(peak.value)}`
+          ? gt("No activity in this window")
+          : gt("Highest {day}, {value}", {
+              day: formatDayShort(peak.day),
+              value: format(peak.value),
+            })
       }
     >
       <View className="flex-row gap-1 pl-7">
@@ -89,7 +94,9 @@ export function UsageCalendarHeatmap({
         </View>
       ))}
       <View className="mt-1 flex-row items-center gap-1">
-        <Text className="mr-1 text-xs text-foreground-tertiary">Less</Text>
+        <Text className="mr-1 text-xs text-foreground-tertiary">
+          <T>Less</T>
+        </Text>
         {LEVEL_ALPHA.map((alpha) => (
           <View
             key={alpha}
@@ -97,7 +104,9 @@ export function UsageCalendarHeatmap({
             style={{ backgroundColor: `rgba(${ink}, ${alpha})` }}
           />
         ))}
-        <Text className="ml-1 text-xs text-foreground-tertiary">More</Text>
+        <Text className="ml-1 text-xs text-foreground-tertiary">
+          <T>More</T>
+        </Text>
       </View>
     </View>
   );

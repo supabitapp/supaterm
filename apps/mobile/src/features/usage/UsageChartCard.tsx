@@ -7,6 +7,7 @@ import {
   formatUsd,
   periodAverage,
 } from "@supaterm/shared/usageFormat";
+import { T, useGT } from "gt-react-native";
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 import Svg, { Line as SvgLine } from "react-native-svg";
@@ -63,7 +64,9 @@ export function UsageChartCard(props: {
 
   const chart = !hasActivity ? (
     <View style={{ height }} className="items-center justify-center">
-      <Text className="text-base text-foreground-muted">No activity in this window.</Text>
+      <Text className="text-base text-foreground-muted">
+        <T>No activity in this window.</T>
+      </Text>
     </View>
   ) : showCalendar ? (
     <UsageCalendarHeatmap
@@ -174,6 +177,7 @@ function SelectionSummary(props: {
   readonly format: (value: number) => string;
   readonly compact: boolean;
 }) {
+  const gt = useGT();
   const { format } = props;
   const split = props.period.values
     .filter((entry) => entry.value > 0)
@@ -193,7 +197,7 @@ function SelectionSummary(props: {
         {format(props.period.total)}
       </Text>
       <Text numberOfLines={1} className="text-sm text-foreground-muted tabular-nums">
-        {split || "No activity"}
+        {split || gt("No activity")}
       </Text>
     </View>
   );
@@ -203,19 +207,23 @@ export function UsageSummary(props: {
   readonly merged: MergedUsage;
   readonly metric: UsageChartMetric;
 }) {
+  const gt = useGT();
   const { merged, metric } = props;
   return (
     <View className="gap-0.5">
       <Text className="text-sm text-foreground-muted">
-        {metric === "cost" ? "Raw token cost" : "Processed tokens"}
+        {metric === "cost" ? gt("Raw token cost") : gt("Processed tokens")}
       </Text>
       <Text className="text-4xl font-supaterm-bold tabular-nums text-foreground">
         {metric === "cost" ? `${formatUsd(merged.costUsd)}*` : formatTokens(merged.totalTokens)}
       </Text>
       <Text className="text-sm text-foreground-muted">
         {metric === "cost"
-          ? "* if billed at full API rate"
-          : `Across ${formatCount(merged.sessions)} ${merged.sessions === 1 ? "session" : "sessions"}`}
+          ? gt("* if billed at full API rate")
+          : gt(
+              "{count, plural, one {Across {sessions} session} other {Across {sessions} sessions}}",
+              { count: merged.sessions, sessions: formatCount(merged.sessions) },
+            )}
       </Text>
     </View>
   );

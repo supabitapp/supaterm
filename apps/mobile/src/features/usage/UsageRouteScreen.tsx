@@ -44,15 +44,15 @@ import { useRefreshLimits } from "./UsageLimitsSection";
 import { UsageLimitsSection } from "./UsageLimitsPooled";
 import type { UsageChartMetric } from "./usageChartData";
 import { PROVIDER_LABEL, useProviderColors, useUsageMixColors } from "./usageProviders";
-import { msg, T, useMessages, useGT } from "gt-react-native";
+import { msg, T, useMessages, useGT, Var } from "gt-react-native";
 
 import type { MessageResolver } from "../../i18n/messages";
 
 type UsageView = UsageChartMetric | "limits";
 const VIEW_OPTIONS = [
-  { value: "cost", label: "Cost" },
-  { value: "tokens", label: "Tokens" },
-  { value: "limits", label: "Limits" },
+  { value: "cost", label: msg("Cost", { $context: "usage view tab" }) },
+  { value: "tokens", label: msg("Tokens", { $context: "usage view tab" }) },
+  { value: "limits", label: msg("Limits", { $context: "usage view tab, subscription limits" }) },
 ] as const satisfies readonly { value: UsageView; label: string }[];
 
 const WINDOW_OPTIONS = [
@@ -80,6 +80,7 @@ function UsageScreen(props: {
 }) {
   const gt = useGT();
   const m = useMessages();
+  const viewOptions = VIEW_OPTIONS.map((option) => ({ ...option, label: m(option.label) }));
   const insets = useSafeAreaInsets();
   const headerOnly = use(NativeWorkspaceTabActivityContext)?.headerOnly === true;
   const [selection, setSelection] = useState(() => ({
@@ -254,7 +255,7 @@ function UsageScreen(props: {
                   />
                 )}
                 <SegmentedControl
-                  options={VIEW_OPTIONS}
+                  options={viewOptions}
                   selected={view}
                   onSelect={setView}
                   size="compact"
@@ -264,7 +265,7 @@ function UsageScreen(props: {
               </View>
             ) : (
               <SegmentedControl
-                options={VIEW_OPTIONS}
+                options={viewOptions}
                 selected={view}
                 onSelect={setView}
                 role="tab"
@@ -295,8 +296,10 @@ function UsageScreen(props: {
                   <ChatGptUsageSummary selectedEnvironmentIds={selectedEnvironmentIds} />
                   {merged.duplicateSources.length > 0 ? (
                     <Text className="text-sm text-foreground-muted">
-                      Counted once across environments sharing a transcript directory:{" "}
-                      {merged.duplicateSources.join(", ")}
+                      <T>
+                        Counted once across environments sharing a transcript directory:{" "}
+                        <Var>{merged.duplicateSources.join(", ")}</Var>
+                      </T>
                     </Text>
                   ) : null}
                   {isPending ? (
@@ -514,7 +517,11 @@ function TotalsSection(props: {
           columns={props.columns}
           label={gt("Processed tokens")}
           value={formatTokens(merged.totalTokens)}
-          detail={`${formatTokens(periodAverage)} per active ${props.isPast24Hours ? "hour" : "day"}`}
+          detail={
+            props.isPast24Hours
+              ? gt("{tokens} per active hour", { tokens: formatTokens(periodAverage) })
+              : gt("{tokens} per active day", { tokens: formatTokens(periodAverage) })
+          }
         />
         <MetricCell
           columns={props.columns}
