@@ -7,7 +7,7 @@ import { assetEnvironment } from "./state/assets";
 import { localEnvironmentIdAtom } from "./state/primaryEnvironment";
 import { themeServerEnvironmentThemesAtom } from "./state/server";
 import { environmentSession } from "./state/session";
-import { getCustomThemes } from "./themePalette";
+import { getCustomThemes, subscribeToAppliedPalette } from "./themePalette";
 
 const THEME_BACKGROUND_VARIABLE = "--theme-background-image";
 const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000];
@@ -114,9 +114,11 @@ export function applyThemeBackground(themeId: string | undefined): void {
  */
 export function startThemeBackground(): () => void {
   const reapply = () => applyThemeBackground(appliedThemeId);
+  const unsubscribePalette = subscribeToAppliedPalette(applyThemeBackground);
   const unsubscribe = subscribeAtomChanges(themeServerEnvironmentThemesAtom, reapply);
   window.addEventListener("online", reapply);
   return () => {
+    unsubscribePalette();
     unsubscribe();
     window.removeEventListener("online", reapply);
     loading?.abort();

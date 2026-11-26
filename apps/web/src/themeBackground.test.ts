@@ -16,7 +16,16 @@ vi.mock(import("./state/primaryEnvironment"), async () => {
 vi.mock(import("./state/server"), async () => {
   const { Atom } = await import("effect/reactivity");
   return {
-    themeServerEnvironmentThemesAtom: Atom.make([{ id: "nightfall", background: "revision-1" }]),
+    themeServerEnvironmentThemesAtom: Atom.make([
+      {
+        id: "nightfall",
+        name: "Nightfall",
+        appearance: "dark",
+        canvas: "#1a1b26",
+        accent: "#7aa2f7",
+        background: "revision-1",
+      },
+    ]),
   } as never;
 });
 vi.mock(import("./state/session"), async () => {
@@ -39,6 +48,7 @@ vi.mock(
 
 import { applyThemeBackground, startThemeBackground } from "./themeBackground";
 import {
+  applyThemePalette,
   CUSTOM_THEMES_STORAGE_KEY,
   getThemeDefinition,
   invalidateCustomThemes,
@@ -128,6 +138,17 @@ describe("theme backgrounds", () => {
     t.browser.dispatchEvent(new Event("online"));
     await vi.advanceTimersByTimeAsync(30_000);
     expect(t.fetchBackground).toHaveBeenCalledTimes(6);
+  });
+
+  it("follows the theme the palette paints", async () => {
+    using t = setup();
+    t.fetchBackground.mockImplementation(loaded);
+    applyThemePalette("nightfall", "dark");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.properties.get(BACKGROUND)).toMatch(/^url\("blob:/);
+
+    applyThemePalette("dracula", "dark");
+    expect(t.properties.has(BACKGROUND)).toBe(false);
   });
 
   it("keeps the shown background under a draft preview when the browser comes back online", async () => {
