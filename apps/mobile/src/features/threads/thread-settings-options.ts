@@ -1,7 +1,10 @@
-import type {
-  AuthMcpClientAccess,
-  ProviderOptionDescriptor,
-  RuntimeMode,
+import {
+  clampManagedRuntimeMode,
+  managedRuntimeModeDenial,
+  type AuthMcpClientAccess,
+  type ManagedPolicySummary,
+  type ProviderOptionDescriptor,
+  type RuntimeMode,
 } from "@supaterm/contracts";
 
 /**
@@ -61,6 +64,62 @@ export function runtimeModeChoicesForSupportedModes(
   return supportedRuntimeModes && supportedRuntimeModes.length > 0
     ? RUNTIME_MODE_CHOICES.filter((choice) => supportedRuntimeModes.includes(choice.mode))
     : RUNTIME_MODE_CHOICES;
+}
+
+export type RuntimeModeChoice = (typeof RUNTIME_MODE_CHOICES)[number] & {
+  readonly disabledReason?: string;
+};
+
+/**
+ * Marks modes above a managed runtime ceiling. A control acting on several environments is
+ * managed when any of them is, so the first target that refuses a mode supplies its reason.
+ */
+export function withManagedRuntimeModeLimits(
+  choices: ReadonlyArray<RuntimeModeChoice>,
+  policies: ReadonlyArray<ManagedPolicySummary | undefined>,
+): ReadonlyArray<RuntimeModeChoice> {
+  return choices.map((choice) => {
+    const reason = policies
+      .map((policy) => managedRuntimeModeDenial(policy, choice.mode))
+      .find((denial) => denial !== undefined);
+    return reason === undefined ? choice : { ...choice, disabledReason: reason };
+  });
+}
+
+/**
+ * A new thread's mode: the draft's choice unless the managed ceiling refuses it, then the
+ * default held to the ceiling. A pending task's default is the mode it was queued with, which
+ * can predate the ceiling.
+ */
+export function resolveNewThreadRuntimeMode(
+  draftMode: RuntimeMode | undefined,
+  defaultMode: RuntimeMode,
+  policy: ManagedPolicySummary | undefined,
+): RuntimeMode {
+  if (draftMode !== undefined && managedRuntimeModeDenial(policy, draftMode) === undefined) {
+    return draftMode;
+  }
+  return clampManagedRuntimeMode(policy, defaultMode) ?? defaultMode;
+}
+
+/**
+ * Why a thread's mode is above its environment's managed ceiling, where the server refuses
+ * every turn, and the broadest mode its provider supports that it can switch down to.
+ */
+export function managedRuntimeModeSwitch(
+  policy: ManagedPolicySummary | undefined,
+  runtimeMode: RuntimeMode,
+  supportedRuntimeModes: ReadonlyArray<RuntimeMode> | undefined,
+): { readonly denial: string; readonly target: RuntimeModeChoice | undefined } | undefined {
+  const denial = managedRuntimeModeDenial(policy, runtimeMode);
+  if (denial === undefined) return undefined;
+  const choices = runtimeModeChoicesForSupportedModes(supportedRuntimeModes);
+  const target = clampManagedRuntimeMode(
+    policy,
+    runtimeMode,
+    choices.map((choice) => choice.mode),
+  );
+  return { denial, target: choices.find((choice) => choice.mode === target) };
 }
 
 export function compatibleRuntimeModeForChoices(

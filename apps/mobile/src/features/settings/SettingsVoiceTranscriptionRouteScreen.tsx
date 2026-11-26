@@ -3,6 +3,7 @@ import { resolveVoiceTranscriptionSource } from "@supaterm/client-runtime/state/
 import {
   AuthSettingsWriteScope,
   automaticTranscriptionProvider,
+  isManagedDriverAllowed,
   TranscriptionError,
   type ProviderInstanceId,
   type ServerProvider,
@@ -19,7 +20,7 @@ import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoi
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
-import { resolveMobileSettingsTargets } from "./settings-scoped-server";
+import { managedSettingReason, resolveMobileSettingsTargets } from "./settings-scoped-server";
 import { useSettingsWriter } from "./useSettingsWriter";
 
 function providerStatus(provider: ServerProvider): string | null {
@@ -83,7 +84,14 @@ function EnvironmentTranscriptionSection(props: {
 
   const chosen = config.settings.transcriptionProviderInstanceId;
   const source = resolveVoiceTranscriptionSource(config);
-  const candidates = config.providers.filter((provider) => provider.transcription !== undefined);
+  const candidates = config.providers.filter(
+    (provider) =>
+      provider.transcription !== undefined &&
+      isManagedDriverAllowed(config.managedPolicy, provider.driver),
+  );
+  const settingsTargets = resolveMobileSettingsTargets([target], null);
+  const managed = managedSettingReason(settingsTargets, "transcriptionProviderInstanceId");
+  const disabled = !canWrite || saving || managed !== undefined;
   const automatic = automaticTranscriptionProvider(candidates);
   const note =
     candidates.length === 0
@@ -94,13 +102,13 @@ function EnvironmentTranscriptionSection(props: {
   const choose = (instanceId: ProviderInstanceId | null) => {
     if (saving || !readEnvironmentScope(environmentId, AuthSettingsWriteScope)) return;
     setSaving(true);
-    void writeSettings(resolveMobileSettingsTargets([target], null), [
+    void writeSettings(settingsTargets, [
       { environmentId, patch: { transcriptionProviderInstanceId: instanceId } },
     ]).finally(() => setSaving(false));
   };
 
   return (
-    <SettingsSection title={props.title}>
+    <SettingsSection title={props.title} footer={managed}>
       {candidates.length > 0 ? (
         <SettingsChoiceRow
           label="Automatic"
@@ -110,7 +118,7 @@ function EnvironmentTranscriptionSection(props: {
               : "No login here is ready."
           }
           selected={chosen === null}
-          disabled={!canWrite || saving}
+          disabled={disabled}
           onPress={() => {
             if (chosen !== null) choose(null);
           }}
@@ -126,7 +134,7 @@ function EnvironmentTranscriptionSection(props: {
             description={status ?? "Ready to transcribe."}
             selected={selected}
             separated
-            disabled={!canWrite || saving || (status !== null && !selected)}
+            disabled={disabled || (status !== null && !selected)}
             onPress={() => {
               if (!selected) choose(provider.instanceId);
             }}
