@@ -2,8 +2,6 @@ import { useAtomValue } from "@effect/atom-react";
 import { resolveVoiceTranscriptionSource } from "@supaterm/client-runtime/state/transcription";
 import {
   AuthSettingsWriteScope,
-  automaticTranscriptionProvider,
-  isManagedDriverAllowed,
   TranscriptionError,
   type ProviderInstanceId,
   type ServerProvider,
@@ -22,6 +20,7 @@ import { SettingsSection } from "./components/SettingsSection";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
 import { managedSettingReason, resolveMobileSettingsTargets } from "./settings-scoped-server";
 import { useSettingsWriter } from "./useSettingsWriter";
+import { voiceTranscriptionChoices } from "./voiceTranscriptionChoices";
 
 function providerStatus(provider: ServerProvider): string | null {
   if (!provider.enabled) return "Turned off on this environment.";
@@ -84,15 +83,14 @@ function EnvironmentTranscriptionSection(props: {
 
   const chosen = config.settings.transcriptionProviderInstanceId;
   const source = resolveVoiceTranscriptionSource(config);
-  const candidates = config.providers.filter(
-    (provider) =>
-      provider.transcription !== undefined &&
-      isManagedDriverAllowed(config.managedPolicy, provider.driver),
+  const { choices: candidates, automatic } = voiceTranscriptionChoices(
+    config.providers,
+    config.managedPolicy,
+    chosen,
   );
   const settingsTargets = resolveMobileSettingsTargets([target], null);
   const managed = managedSettingReason(settingsTargets, "transcriptionProviderInstanceId");
   const disabled = !canWrite || saving || managed !== undefined;
-  const automatic = automaticTranscriptionProvider(candidates);
   const note =
     candidates.length === 0
       ? "No provider here can transcribe. Update this environment, or sign in to a provider that can."
@@ -124,8 +122,8 @@ function EnvironmentTranscriptionSection(props: {
           }}
         />
       ) : null}
-      {candidates.map((provider) => {
-        const status = providerStatus(provider);
+      {candidates.map(({ provider, denial }) => {
+        const status = denial ?? providerStatus(provider);
         const selected = provider.instanceId === chosen;
         return (
           <SettingsChoiceRow
