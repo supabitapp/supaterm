@@ -495,13 +495,16 @@ it.layer(NodeServices.layer)("ManagedPolicy.load", (it) => {
         assert.deepEqual(policy.summary?.limits, { updates: clientUpdates });
         for (const invalid of [
           { mode: "auto", feedUrl: "http://updates.example/supaterm" },
+          { mode: "auto", feedUrl: "https://[" },
+          { mode: "auto", feedUrl: "https://" },
           { mode: "manual" },
           { mode: "sometimes" },
           { mode: "auto", pinVersion: "1.2.3" },
         ]) {
-          yield* loadFrom(JSON.stringify({ ...base, limits: { updates: invalid } })).pipe(
-            Effect.flip,
-          );
+          const refused = yield* loadFrom(
+            JSON.stringify({ ...base, limits: { updates: invalid } }),
+          ).pipe(Effect.flip);
+          assert.equal(refused._tag, "ManagedPolicyFileError");
         }
       }),
   );

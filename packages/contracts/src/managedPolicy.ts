@@ -48,9 +48,10 @@ export const ManagedUpdatesMode = Schema.Literals(["auto", "off"]);
 export type ManagedUpdatesMode = typeof ManagedUpdatesMode.Type;
 
 const HttpsUrl = TrimmedNonEmptyString.check(
-  Schema.makeFilter((value: string) => /^https:\/\/[^\s/]+/i.test(value.trim()), {
-    expected: "an https URL",
-  }),
+  Schema.makeFilter(
+    (value: string) => URL.canParse(value) && new URL(value).protocol === "https:",
+    { expected: "an https URL" },
+  ),
 );
 
 export const ManagedUpdatesPolicy = Schema.Struct({
