@@ -26,10 +26,9 @@ import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { serverEnvironment, updateOutdatedServer } from "~/state/server";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { manualServerUpdateCommand } from "~/versionSkew";
+import { manualServerUpdateCommand, serverUpdatePolicyDenial } from "~/versionSkew";
 import { useServerConfigs } from "~/state/entities";
 import { readManagedPolicy, useManagedPolicy } from "~/state/managedPolicy";
-import { managedServerUpdateDenial } from "@supaterm/client-runtime/managed-policy";
 import { ManagedControl } from "./ManagedPolicy";
 import { crossesReleaseTrack } from "@supaterm/shared/cliRelease";
 import { Button } from "./ui/button";
@@ -106,9 +105,10 @@ export function useServerUpdate() {
     { quiet = false }: { readonly quiet?: boolean } = {},
   ): Promise<ServerUpdateOutcome> => {
     const { environmentId, serverLabel, selfUpdate, targetVersion } = target;
-    const denial = managedServerUpdateDenial(
+    const denial = serverUpdatePolicyDenial(
       readManagedPolicy(environmentId),
-      selfUpdate === "desktop-managed" ? undefined : targetVersion,
+      selfUpdate,
+      targetVersion,
     );
     if (denial !== undefined) {
       if (!quiet) {
@@ -182,9 +182,10 @@ export function ServerUpdatesAction({
     (target) =>
       target.selfUpdate !== null &&
       (target.selfUpdate !== "desktop-managed" || target.desktopAppUpdate) &&
-      managedServerUpdateDenial(
+      serverUpdatePolicyDenial(
         serverConfigs.get(target.environmentId)?.managedPolicy,
-        target.selfUpdate === "desktop-managed" ? undefined : target.targetVersion,
+        target.selfUpdate,
+        target.targetVersion,
       ) === undefined &&
       !refusedCrossing(target, serverConfigs.get(target.environmentId)?.environment.serverVersion),
   );
@@ -271,9 +272,10 @@ export function ServerUpdateAction({
 }: ServerUpdateTarget & UpdateButtonProps) {
   const isDesktopAppUpdate = selfUpdate === "desktop-managed";
   const serverVersion = useServerConfigs().get(environmentId)?.environment.serverVersion;
-  const updatesDenial = managedServerUpdateDenial(
+  const updatesDenial = serverUpdatePolicyDenial(
     useManagedPolicy(environmentId),
-    isDesktopAppUpdate ? undefined : targetVersion,
+    selfUpdate,
+    targetVersion,
   );
   const sessionStateAtom = environmentSession.sessionStateAtom(environmentId);
   const canUpdate = useAtomValue(sessionStateAtom, canUpdateServer);

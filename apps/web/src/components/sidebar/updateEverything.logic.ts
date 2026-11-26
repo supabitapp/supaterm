@@ -13,6 +13,7 @@ import {
   isServerUpdateChannelCompatible,
   resolveServerSelfUpdateCapability,
   resolveVersionMismatch,
+  serverUpdatePolicyDenial,
   supportsDesktopAppUpdate,
 } from "~/versionSkew";
 import type { ServerUpdateOutcome, ServerUpdateTarget } from "../ServerUpdateAction";
@@ -91,10 +92,7 @@ export function collectServerUpdateTargets(
       continue;
     }
     const selfUpdate = resolveServerSelfUpdateCapability(config);
-    const managedDenial = managedServerUpdateDenial(
-      config.managedPolicy,
-      selfUpdate === "desktop-managed" ? undefined : targetVersion,
-    );
+    const managedDenial = serverUpdatePolicyDenial(config.managedPolicy, selfUpdate, targetVersion);
     if (managedDenial !== undefined) {
       skip(managedDenial);
       continue;

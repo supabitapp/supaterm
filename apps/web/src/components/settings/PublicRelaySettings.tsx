@@ -43,6 +43,17 @@ export function usePublicRelayStatus(environmentId: EnvironmentId | null): Relay
   );
 }
 
+/** Whether the relay serves: the setting is on and no policy switches it off. */
+export function isPublicRelayActive(
+  settings: Pick<ServerSettings, "publicRelayEnabled"> | undefined,
+  policy: ManagedPolicySummary | undefined,
+): boolean {
+  return (
+    (settings?.publicRelayEnabled ?? false) &&
+    managedCapabilityDenial(policy, "relay") === undefined
+  );
+}
+
 export function PublicRelaySettings({
   status,
   settings,
@@ -56,9 +67,8 @@ export function PublicRelaySettings({
   readonly disabled: boolean;
   readonly update: (patch: ServerSettingsPatch) => void;
 }) {
-  // A policy that turns the relay off wins over the setting, so the switch shows it off.
   const relayDenial = managedCapabilityDenial(policy, "relay");
-  const enabled = (settings?.publicRelayEnabled ?? false) && relayDenial === undefined;
+  const enabled = isPublicRelayActive(settings, policy);
   return (
     <SettingsRow
       title={searchableSetting("public-relay").title}

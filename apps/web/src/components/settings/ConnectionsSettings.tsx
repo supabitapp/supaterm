@@ -26,7 +26,11 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import { useUpdateEnvironmentSettings, useUpdatePrimarySettings } from "../../hooks/useSettings";
-import { PublicRelaySettings, usePublicRelayStatus } from "./PublicRelaySettings";
+import {
+  isPublicRelayActive,
+  PublicRelaySettings,
+  usePublicRelayStatus,
+} from "./PublicRelaySettings";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { resolvePairingShareValue } from "./pairingUrls";
 import { PairingLinkCreatedDialog } from "./PairingLinkCreatedDialog";
@@ -722,9 +726,7 @@ function ConnectionsSettingsContent({
   const accessPolicy = accessServerConfig?.managedPolicy;
   // Turning remote access off stays possible; only the way in is managed.
   const remoteClientsDenial = managedCapabilityDenial(accessPolicy, "remoteClients");
-  const relayActive =
-    (accessServerConfig?.settings.publicRelayEnabled ?? false) &&
-    managedCapabilityDenial(accessPolicy, "relay") === undefined;
+  const relayActive = isPublicRelayActive(accessServerConfig?.settings, accessPolicy);
   const previewTunnelDenial =
     managedCapabilityDenial(accessPolicy, "previewTunnel") ??
     managedSettingDenial([accessPolicy], ["enablePreviewTunnel"]);

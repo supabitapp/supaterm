@@ -420,29 +420,30 @@ export function SettingsRow({
       <TooltipPopup side="top">{message}</TooltipPopup>
     </Tooltip>
   );
+  const unavailableReason = () => {
+    if (canWriteSettings) {
+      return context
+        ? "Reconnect the selected environment to change this setting."
+        : PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE;
+    }
+    const deniedLabels = context
+      ? context.connectedEnvironments
+          .filter((target) => !writableIds.has(target.environmentId))
+          .map((target) => target.label)
+          .join(", ") || "the selected environment"
+      : (primaryEnvironment?.label ?? "the primary environment");
+    return `This connection lacks permission to change settings on ${deniedLabels}.`;
+  };
+  const lockedReason = () => {
+    if (managedReason !== undefined) return managedReason;
+    if (unavailable) return unavailableReason();
+    if (environmentWide) return "Environment-wide setting. Select an environment to change it.";
+    if (deviceReadOnly) return "Saved on this device. Select All projects to change it.";
+    return undefined;
+  };
+  const controlLockedReason = control ? lockedReason() : undefined;
   const renderedControl =
-    managedReason !== undefined && control
-      ? inertControl(managedReason)
-      : unavailable && control
-        ? inertControl(
-            !canWriteSettings
-              ? `This connection lacks permission to change settings on ${
-                  context
-                    ? context.connectedEnvironments
-                        .filter((target) => !writableIds.has(target.environmentId))
-                        .map((target) => target.label)
-                        .join(", ") || "the selected environment"
-                    : (primaryEnvironment?.label ?? "the primary environment")
-                }.`
-              : context
-                ? "Reconnect the selected environment to change this setting."
-                : PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE,
-          )
-        : environmentWide && control
-          ? inertControl("Environment-wide setting. Select an environment to change it.")
-          : deviceReadOnly && control
-            ? inertControl("Saved on this device. Select All projects to change it.")
-            : control;
+    controlLockedReason === undefined ? control : inertControl(controlLockedReason);
   const customized =
     context !== null &&
     settingKeys.some((key) =>
