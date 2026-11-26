@@ -138,8 +138,10 @@ function HostedPromptLinkLanding({
             <T>This prompt had hidden characters, it may be malicious</T>
           </AlertTitle>
           <AlertDescription>
-            Supaterm removed {prompt.hiddenCharacters} hidden character
-            {prompt.hiddenCharacters === 1 ? "" : "s"}. Read the prompt before you send it.
+            {gt(
+              "{count, plural, one {Supaterm removed {count} hidden character. Read the prompt before you send it.} other {Supaterm removed {count} hidden characters. Read the prompt before you send it.}}",
+              { count: prompt.hiddenCharacters },
+            )}
           </AlertDescription>
         </Alert>
       ) : null}

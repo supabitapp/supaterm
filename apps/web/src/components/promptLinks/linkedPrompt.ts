@@ -11,7 +11,12 @@ export function warnAboutHiddenCharacters(prompt: LinkedPrompt): void {
   toastManager.add({
     type: "warning",
     title: m(msg("This prompt had hidden characters, it may be malicious")),
-    description: `Supaterm removed ${prompt.hiddenCharacters} hidden character${prompt.hiddenCharacters === 1 ? "" : "s"}. Read the prompt before you send it.`,
+    description: m(
+      msg(
+        "{count, plural, one {Supaterm removed {count} hidden character. Read the prompt before you send it.} other {Supaterm removed {count} hidden characters. Read the prompt before you send it.}}",
+        { count: prompt.hiddenCharacters },
+      ),
+    ),
     timeout: 0,
   });
 }
