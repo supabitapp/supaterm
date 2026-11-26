@@ -5960,13 +5960,20 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         createdAt: now,
       })
       .pipe(mapDispatchError(command));
+    // Clients open a side chat of a thread above the ceiling at the ceiling; plain forks are refused.
+    const runtimeMode =
+      command.sideChat === true &&
+      runtimeModeCeiling !== undefined &&
+      isRuntimeModeAbove(targetThread.runtimeMode, runtimeModeCeiling.maxRuntimeMode)
+        ? runtimeModeCeiling.maxRuntimeMode
+        : targetThread.runtimeMode;
 
     yield* emitEvent({
       type: "thread.created",
       threadId: command.targetThreadId,
       providerInstanceId: targetThread.providerInstanceId,
       occurredAt: now,
-      payload: targetThread,
+      payload: { ...targetThread, runtimeMode },
     });
     yield* emitEvent({
       type: "context-transfer.created",

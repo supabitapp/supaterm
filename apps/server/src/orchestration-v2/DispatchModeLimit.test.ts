@@ -331,40 +331,74 @@ it.layer(layerWithCeiling)("runtime mode ceiling", (it) => {
     }),
   );
 
-  it.effect("refuses a side chat that would inherit its parent's mode above the ceiling", () =>
+  it.effect("starts a side chat of a thread above the ceiling at the ceiling", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const sink = yield* EventSink.EventSinkV2;
       const parentThreadId = ThreadId.make("thread:ceiling-side-chat-parent");
-      const sideChatThreadId = ThreadId.make("thread:ceiling-side-chat");
-      yield* raiseBehindPolicy(parentThreadId);
-      const openSideChat = {
-        type: "thread.fork",
-        commandId: CommandId.make("side-chat:ceiling"),
-        sourceThreadId: parentThreadId,
-        targetThreadId: sideChatThreadId,
-        sourcePoint: { type: "latest_stable" },
-        sideChat: true,
-        createdBy: "user",
-        creationSource: "web",
-      } as const;
+      yield* createThread(parentThreadId);
+      yield* orchestrator.dispatch(sendMessage(parentThreadId, "side-chat-parent"));
+      const { thread, runs } = yield* orchestrator.getThreadRecords(parentThreadId, ["runs"]);
+      const [run] = runs;
+      const occurredAt = yield* DateTime.now;
+      yield* sink.write({
+        events: [
+          {
+            id: EventId.make("event:ceiling-side-chat-parent:complete"),
+            type: "run.updated",
+            threadId: parentThreadId,
+            runId: run!.id,
+            providerInstanceId: run!.providerInstanceId,
+            occurredAt,
+            payload: { ...run!, status: "completed", completedAt: occurredAt },
+          },
+          {
+            id: EventId.make("event:ceiling-side-chat-parent:raise"),
+            type: "thread.runtime-mode-updated",
+            threadId: parentThreadId,
+            occurredAt,
+            payload: { ...thread, runtimeMode: "full-access" },
+          },
+        ],
+      });
+      const fork = (id: string, sideChat: boolean) => {
+        const targetThreadId = ThreadId.make(`thread:ceiling-${id}`);
+        return orchestrator
+          .dispatch({
+            type: "thread.fork",
+            commandId: CommandId.make(`fork:ceiling-${id}`),
+            sourceThreadId: parentThreadId,
+            targetThreadId,
+            sourcePoint: { type: "latest_stable" },
+            ...(sideChat ? { sideChat: true } : {}),
+            createdBy: "user",
+            creationSource: "web",
+          })
+          .pipe(Effect.as(targetThreadId));
+      };
 
-      const refused = yield* orchestrator.dispatch(openSideChat).pipe(Effect.flip);
+      const refused = yield* fork("plain-fork", false).pipe(Effect.flip);
       assert.ok(refused._tag === "OrchestratorRuntimeModeAboveCeilingError");
-      assert.equal(refused.threadId, sideChatThreadId);
       assert.equal(refused.runtimeMode, "full-access");
-      assert.isNull(yield* projections.getThreadShell(sideChatThreadId));
+      assert.isNull(yield* projections.getThreadShell(ThreadId.make("thread:ceiling-plain-fork")));
+
+      const atCeiling = yield* fork("side-chat", true);
+      assert.equal(
+        (yield* projections.getThreadShell(atCeiling))?.runtimeMode,
+        "auto-accept-edits",
+      );
 
       yield* orchestrator.dispatch({
         type: "thread.runtime-mode.set",
         commandId: CommandId.make("lower:ceiling-side-chat-parent"),
         threadId: parentThreadId,
-        runtimeMode: "auto-accept-edits",
+        runtimeMode: "approval-required",
       });
-      yield* orchestrator.dispatch(openSideChat);
+      const belowCeiling = yield* fork("side-chat-below", true);
       assert.equal(
-        (yield* projections.getThreadShell(sideChatThreadId))?.runtimeMode,
-        "auto-accept-edits",
+        (yield* projections.getThreadShell(belowCeiling))?.runtimeMode,
+        "approval-required",
       );
     }),
   );

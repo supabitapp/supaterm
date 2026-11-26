@@ -133,6 +133,7 @@ optional. A missing limit restricts nothing.
 `approval-required` (Supervised), `auto-accept-edits`, `auto`, or `full-access`. Clients disable
 the broader modes and say who manages them. A thread already in a broader mode cannot run turns
 until someone switches it to an allowed mode, and the mobile app offers that switch on the thread.
+A side chat opened from such a thread starts in `maxRuntimeMode`.
 Scheduled tasks and agents that start threads through Supaterm's tools stay within the same cap.
 
 While `maxRuntimeMode` is set, the policy owns every provider's launch settings: the binary path,
