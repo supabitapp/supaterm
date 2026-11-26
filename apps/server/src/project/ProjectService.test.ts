@@ -8,13 +8,17 @@ import {
   type ProjectTrackedFolder,
   ProviderInstanceId,
   ServerSettingsError,
+  SUPATERM_PROJECT_FILE_NAME,
 } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
+import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 import * as Metric from "effect/Metric";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
@@ -1112,13 +1116,30 @@ it.effect("brings a repository cloned into a plain project folder into its liste
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
+    const sql = yield* SqlClient.SqlClient;
     const root = yield* fileSystem.realPath(
       yield* fileSystem.makeTempDirectoryScoped({ prefix: "project-shell-sync-" }),
     );
     const eventSink = yield* EventSink.EventSinkV2;
-    const synced = yield* Deferred.make<void>();
-    const withFolderSync = (onFolderSync: typeof eventSink.commitProjectCommand) =>
+    // Settles when the scan commits, or fails with the cause the scan logs instead.
+    const synced = yield* Deferred.make<void, string>();
+    const snapshotRead = yield* Deferred.make<void>();
+    // The scan waits for the snapshot's read transaction to end, as a slow disk would.
+    const slowDisk: FileSystem.FileSystem = {
+      ...fileSystem,
+      readFileString: (file, encoding) =>
+        file.endsWith(SUPATERM_PROJECT_FILE_NAME)
+          ? Deferred.await(snapshotRead).pipe(
+              Effect.andThen(fileSystem.readFileString(file, encoding)),
+            )
+          : fileSystem.readFileString(file, encoding),
+    };
+    const withFolderSync = (
+      onFolderSync: typeof eventSink.commitProjectCommand,
+      disk = fileSystem,
+    ) =>
       ProjectService.make.pipe(
+        Effect.provideService(FileSystem.FileSystem, disk),
         Effect.provideService(
           EventSink.EventSinkV2,
           EventSink.EventSinkV2.of({
@@ -1140,12 +1161,23 @@ it.effect("brings a repository cloned into a plain project folder into its liste
       workspaceRoot: root,
     });
     yield* fileSystem.makeDirectory(`${root}/api/.git`, { recursive: true });
-    const service = yield* withFolderSync((input) =>
-      eventSink
-        .commitProjectCommand(input)
-        .pipe(Effect.ensuring(Deferred.succeed(synced, undefined))),
+    const service = yield* withFolderSync(
+      (input) =>
+        eventSink
+          .commitProjectCommand(input)
+          .pipe(Effect.ensuring(Deferred.succeed(synced, undefined))),
+      slowDisk,
     );
-    yield* service.listShells();
+    const scanFailure = Logger.layer([
+      Logger.make(({ cause }) => {
+        if (cause.reasons.length > 0) Deferred.doneUnsafe(synced, Effect.fail(Cause.pretty(cause)));
+      }),
+    ]);
+    // Listed inside the read-only transaction a shell snapshot reads in.
+    yield* sql
+      .withTransaction(service.listShells())
+      .pipe(NodeSqliteClient.readOnly, Effect.provide(scanFailure));
+    yield* Deferred.succeed(snapshotRead, undefined);
     yield* Deferred.await(synced);
     const [shell] = yield* service.listShells({ projectIds: [projectId] });
     assert.deepEqual(shell?.trackedFolders, [

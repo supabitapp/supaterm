@@ -24,6 +24,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
+import * as SqlClient from "effect/sql/SqlClient";
 
 import { withCommandMetrics } from "../observability/Metrics.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
@@ -197,6 +198,7 @@ export const make = Effect.gen(function* () {
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const threadProjections = yield* ProjectionStore.ProjectionStoreV2;
   const eventSink = yield* EventSink.EventSinkV2;
+  const sql = yield* SqlClient.SqlClient;
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
   const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
@@ -267,10 +269,14 @@ export const make = Effect.gen(function* () {
     });
   });
 
+  // A read inside a transaction must not lend it to the scan, which outlives it.
+  const startFolderSync = (row: Parameters<typeof syncFolders>[0]) =>
+    sql.afterCommit(
+      syncFolders(row).pipe(Effect.ignoreCause({ log: true }), Effect.forkIn(scope), Effect.asVoid),
+    );
+
   const hydrate = Effect.fn("ProjectService.hydrate")(function* (row: ProjectStore.ProjectRow) {
-    if (row.deletedAt === null) {
-      yield* syncFolders(row).pipe(Effect.ignoreCause({ log: true }), Effect.forkIn(scope));
-    }
+    if (row.deletedAt === null) yield* startFolderSync(row);
     const enrichment =
       row.deletedAt === null
         ? yield* projectEnrichment.getAvailable(row.workspaceRoot)
@@ -814,13 +820,11 @@ export const make = Effect.gen(function* () {
   );
 
   const enrichShell = (shell: OrchestrationProjectShell) =>
-    syncFolders({
+    startFolderSync({
       projectId: shell.id,
       workspaceRoot: shell.workspaceRoot,
       trackedFolders: shell.trackedFolders ?? [],
     }).pipe(
-      Effect.ignoreCause({ log: true }),
-      Effect.forkIn(scope),
       Effect.andThen(projectEnrichment.getAvailable(shell.workspaceRoot)),
       Effect.map((enrichment) => ({
         ...shell,
