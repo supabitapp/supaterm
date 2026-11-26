@@ -3,6 +3,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, it } from "@effect/vitest";
 import * as Console from "effect/Console";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -225,18 +226,68 @@ it.effect("warns how long reclaiming can take and reports each step with its ela
 );
 
 // Deletion is opt-in: without --prune-events doctor never previews or prunes, and a dry run with
-// it reports what would go without touching the database.
+// it reports what would go without touching the database. A prune that removes nothing never
+// rewrites the file on its own, and one that cannot run yet is not offered.
+const DUE = { _tag: "Due" as const, throughSequence: 1_200 };
+const DUE_OUTPUT = [
+  "1,100 of them would be removed.",
+  "/home/statev2-before-pruning.sqlite",
+  "cannot use the database afterwards",
+];
 it.effect.each([
-  { pruneEvents: false, dryRun: false, expected: ["compact:compact"] },
-  { pruneEvents: true, dryRun: true, expected: ["preview"] },
-  { pruneEvents: true, dryRun: false, expected: ["preview", "compact:prune"] },
+  {
+    case: "compacts without --prune-events",
+    pruneEvents: false,
+    dryRun: false,
+    schedule: DUE,
+    reclaimableBytes: 2 * 1024 ** 3,
+    expected: ["compact:compact:always"],
+    output: ["1,100 superseded events removed."],
+  },
+  {
+    case: "previews a due prune",
+    pruneEvents: true,
+    dryRun: true,
+    schedule: DUE,
+    reclaimableBytes: 2 * 1024 ** 3,
+    expected: ["preview"],
+    output: DUE_OUTPUT,
+  },
+  {
+    case: "prunes and reclaims",
+    pruneEvents: true,
+    dryRun: false,
+    schedule: DUE,
+    reclaimableBytes: 2 * 1024 ** 3,
+    expected: ["preview", "compact:prune:always"],
+    output: [...DUE_OUTPUT, "1,100 events older than a day removed."],
+  },
+  {
+    case: "marks an unmarked log without a rewrite",
+    pruneEvents: true,
+    dryRun: false,
+    schedule: { _tag: "Unmarked" as const },
+    reclaimableBytes: 0,
+    expected: ["preview", "compact:prune:when-deleted"],
+    output: ["The first run only records where history ends", "history end recorded."],
+  },
+  {
+    case: "offers nothing while the mark is under a day old",
+    pruneEvents: true,
+    dryRun: false,
+    schedule: { _tag: "Waiting" as const, dueAt: DateTime.makeUnsafe("2026-11-26T00:00:00.000Z") },
+    reclaimableBytes: 0,
+    expected: ["preview"],
+    output: ["can be removed after 2026-11-26T00:00:00.000Z", "Nothing to repair."],
+  },
 ])(
-  "prunes history only with --prune-events (prune: $pruneEvents, dry run: $dryRun)",
-  ({ pruneEvents, dryRun, expected }) =>
+  "--prune-events: $case",
+  ({ pruneEvents, dryRun, schedule, reclaimableBytes, expected, output }) =>
     Effect.gen(function* () {
       const calls: string[] = [];
       const stateDir = yield* (yield* FileSystem.FileSystem).makeTempDirectoryScoped();
       const path = yield* Path.Path;
+      const deletedEventCount = schedule._tag === "Due" ? 1_100 : 0;
       yield* runDoctor(
         {
           dbPath: path.join(stateDir, "statev2.sqlite"),
@@ -251,31 +302,36 @@ it.effect.each([
               inspect: () =>
                 Effect.succeed({
                   databaseBytes: 3 * 1024 ** 3,
-                  reclaimableBytes: 2 * 1024 ** 3,
+                  reclaimableBytes,
                   incrementalVacuumEnabled: true,
                 }),
               previewPrune: () =>
                 Effect.sync(() => calls.push("preview")).pipe(
                   Effect.as({
-                    schedule: { _tag: "Due" as const, throughSequence: 1_200 },
-                    prunableEventCount: 1_100,
+                    schedule,
+                    prunableEventCount: deletedEventCount,
                     eventCount: 1_300,
-                    backup: {
-                      path: "/home/statev2-before-pruning.sqlite",
-                      neededBytes: 1024 ** 3,
-                      freeBytes: 8 * 1024 ** 3,
-                    },
+                    backup:
+                      schedule._tag === "Due"
+                        ? {
+                            path: "/home/statev2-before-pruning.sqlite",
+                            neededBytes: 1024 ** 3,
+                            freeBytes: 8 * 1024 ** 3,
+                          }
+                        : null,
                   }),
                 ),
               compact: (_databasePath, options) =>
-                Effect.sync(() => calls.push(`compact:${options?.history ?? "compact"}`)).pipe(
+                Effect.sync(() =>
+                  calls.push(
+                    `compact:${options?.history ?? "compact"}:${options?.vacuum ?? "always"}`,
+                  ),
+                ).pipe(
                   Effect.as({
                     beforeBytes: 3 * 1024 ** 3,
                     afterBytes: 1024 ** 3,
-                    deletedEventCount: 1_100,
-                    pruneSchedule: pruneEvents
-                      ? { _tag: "Due" as const, throughSequence: 1_200 }
-                      : null,
+                    deletedEventCount,
+                    pruneSchedule: pruneEvents ? schedule : null,
                   }),
                 ),
             }),
@@ -283,21 +339,8 @@ it.effect.each([
         ),
       );
       assert.deepEqual(calls, expected);
-      const output = (yield* TestConsole.logLines).join("\n");
-      if (pruneEvents) {
-        assert.include(output, "1,100 of them would be removed.");
-        assert.include(output, "/home/statev2-before-pruning.sqlite");
-        assert.include(output, "cannot use the database afterwards");
-      } else {
-        assert.notInclude(output, "older than a day");
-      }
-      if (!dryRun) {
-        assert.include(
-          output,
-          pruneEvents
-            ? "1,100 events older than a day removed."
-            : "1,100 superseded events removed.",
-        );
-      }
+      const printed = (yield* TestConsole.logLines).join("\n");
+      for (const fragment of output) assert.include(printed, fragment);
+      if (!pruneEvents) assert.notInclude(printed, "older than a day");
     }).pipe(Effect.provide(Layer.merge(layerHost, TestConsole.layer))),
 );
