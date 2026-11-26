@@ -34,7 +34,7 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { UsageLimitsPooled } from "./UsageLimitsPooled";
 import { PROVIDER_PRESENTATION } from "./usageProviders";
-import { msg, T, useMessages } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const PACE: Record<LimitPace, { readonly label: string; readonly icon: typeof GaugeIcon }> = {
   ahead: {
@@ -122,6 +122,7 @@ function WindowBar({
   readonly window: ServerProviderUsageWindow;
   readonly now: number;
 }) {
+  const gt = useGT();
   const m = useMessages();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
   const remaining = remainingPercent(window);
@@ -131,9 +132,24 @@ function WindowBar({
   const resetsAt = window.resetsAt
     ? formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)
     : null;
-  const summary = `${window.label}: ${remaining}% left${
-    timeLeft === null ? "" : `, ${timeLeft}% of the window left`
-  }${resetsIn ? `, ${resetsIn}` : ""}`;
+  const label = window.label;
+  const summary =
+    timeLeft === null
+      ? resetsIn
+        ? gt("{label}: {remaining}% left, {resetsIn}", { label, remaining, resetsIn })
+        : gt("{label}: {remaining}% left", { label, remaining })
+      : resetsIn
+        ? gt("{label}: {remaining}% left, {timeLeft}% of the window left, {resetsIn}", {
+            label,
+            remaining,
+            timeLeft,
+            resetsIn,
+          })
+        : gt("{label}: {remaining}% left, {timeLeft}% of the window left", {
+            label,
+            remaining,
+            timeLeft,
+          });
 
   return (
     <Tooltip>
@@ -169,7 +185,9 @@ function WindowBar({
       <TooltipPopup side="top">
         <div className="flex flex-col gap-0.5">
           <span className="text-foreground">
-            {remaining}% left{timeLeft !== null ? ` · ${timeLeft}% of the window left` : ""}
+            {timeLeft !== null
+              ? gt("{remaining}% left · {timeLeft}% of the window left", { remaining, timeLeft })
+              : gt("{remaining}% left", { remaining })}
           </span>
           {timeLeft !== null ? (
             <span className="text-muted-foreground">
@@ -178,8 +196,9 @@ function WindowBar({
           ) : null}
           {resetsAt ? (
             <span className="text-muted-foreground">
-              Resets {resetsAt}
-              {resetsIn ? ` · ${resetsIn}` : ""}
+              {resetsIn
+                ? gt("Resets {resetsAt} · {resetsIn}", { resetsAt, resetsIn })
+                : gt("Resets {resetsAt}", { resetsAt })}
             </span>
           ) : null}
         </div>
@@ -201,6 +220,7 @@ export function LimitWindows({
   readonly now: number;
   readonly compact?: boolean;
 }) {
+  const gt = useGT();
   const m = useMessages();
   const color = normalizeProviderAccentColor(accentColor) ?? barColor(driver);
   return (
@@ -219,7 +239,7 @@ export function LimitWindows({
             <span className="flex min-w-0 items-center gap-2 text-xs">
               <span className="truncate text-muted-foreground">{window.label}</span>
               <span className="ms-auto shrink-0 font-medium text-foreground tabular-nums">
-                {remainingPercent(window)}% left
+                {gt("{remaining}% left", { remaining: remainingPercent(window) })}
               </span>
             </span>
             <WindowBar color={color} window={window} now={now} />
@@ -279,6 +299,7 @@ export function ResetCreditButton({
   readonly onRedeem: () => void;
   readonly disabled?: boolean;
 }) {
+  const gt = useGT();
   const confirm = useInlineConfirm<"redeem">();
   const armed = confirm.armed === "redeem";
   return (
@@ -293,14 +314,18 @@ export function ResetCreditButton({
           >
             <InlineConfirmLabel
               armed={armed}
-              idle={busy ? "Using…" : choice.actionLabel}
-              confirm="Confirm reset"
+              idle={busy ? gt("Using…") : choice.actionLabel}
+              confirm={gt("Confirm reset")}
             />
           </Button>
         }
       />
       <TooltipPopup>
-        {armed ? `Click again to confirm. ${choice.confirmDescription}` : choice.confirmDescription}
+        {armed
+          ? gt("Click again to confirm. {description}", {
+              description: choice.confirmDescription,
+            })
+          : choice.confirmDescription}
       </TooltipPopup>
     </Tooltip>
   );

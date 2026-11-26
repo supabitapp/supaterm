@@ -24,7 +24,7 @@ import {
   tokenTypeSegments,
 } from "./usageBreakdown";
 import { PROVIDER_PRESENTATION } from "./usageProviders";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 export interface UsageChartWindow {
   readonly days: readonly string[];
@@ -87,7 +87,9 @@ export function UsageModelDialog({
           </div>
           <DialogDescription>
             {presentation.label}
-            {costUnknown ? "" : ` · ${formatPercent(model.costShare)} of cost`}
+            {costUnknown
+              ? ""
+              : ` · ${gt("{share} of cost", { share: formatPercent(model.costShare) })}`}
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
@@ -142,7 +144,9 @@ export function UsageModelDialog({
         {model.unpricedTokens > 0 ? (
           <DialogFooter variant="bare" className="items-center sm:justify-between">
             <span className="text-xs text-muted-foreground">
-              {formatTokens(model.unpricedTokens)} tokens have no known price
+              {gt("{tokens} tokens have no known price", {
+                tokens: formatTokens(model.unpricedTokens),
+              })}
             </span>
             <Button onClick={onSetPrice}>
               <T>Set price</T>
@@ -157,7 +161,12 @@ export function UsageModelDialog({
 export function SpeedPremium({ premiumUsd }: { readonly premiumUsd: number }) {
   return (
     <span className="text-xs text-muted-foreground">
-      Premium <span className="text-foreground tabular-nums">{formatUsd(premiumUsd)}</span>
+      <T>
+        Premium{" "}
+        <span className="text-foreground tabular-nums">
+          <Var>{formatUsd(premiumUsd)}</Var>
+        </span>
+      </T>
     </span>
   );
 }
