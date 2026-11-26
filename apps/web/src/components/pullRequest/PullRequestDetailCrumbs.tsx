@@ -10,6 +10,7 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { showPullRequestLinkContextMenu } from "./pullRequestLinkContextMenu";
 import { T, useGT } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
 
 interface CrumbsPullRequest {
   readonly url: string;
@@ -71,6 +72,7 @@ function NumberLink({
   openOnHostText: string;
   focusable: boolean;
 }) {
+  const gt = useGT();
   const openLink = useOpenLink(threadRef);
   return (
     <Tooltip>
@@ -88,7 +90,15 @@ function NumberLink({
               "inline-flex shrink-0 cursor-pointer items-center gap-0.5 font-medium underline-offset-2 hover:underline",
               toneClassName,
             )}
-            aria-label={`Open ${sourceControlClients.get(detail.provider).changeRequest.singular} #${detail.number} on host`}
+            aria-label={gt(
+              "Open {term, select, mr {merge request} cr {change request} other {pull request}} #{number} on host",
+              {
+                term: changeRequestTermKind(
+                  sourceControlClients.get(detail.provider).changeRequest,
+                ),
+                number: detail.number,
+              },
+            )}
           >
             #{detail.number}
             <ExternalLinkIcon aria-hidden className="size-2.5" />

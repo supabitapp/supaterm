@@ -59,15 +59,17 @@ import {
 import { PullRequestGlyph } from "./pullRequestIcons";
 import type { PickableEnvironment } from "./pullRequestProjectAssignment.logic";
 import { PullRequestThreadLinks } from "./PullRequestThreadLinks";
-import { msg, T, useGT } from "gt-react";
-import { m } from "~/i18n/messages";
+import { changeRequestTermKind } from "./changeRequestTerm";
+import { Branch, msg, T, useGT, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 function deleteBranchHint(
   detail: Pick<PullRequestDetail, "headBranch" | "headRepositoryNameWithOwner" | "repository">,
   { connected, armed }: { readonly connected: boolean; readonly armed: boolean },
+  resolve: MessageResolver = m,
 ): string {
-  if (!connected) return "Reconnect to delete this branch";
-  if (armed) return "Local branches and worktrees are not changed";
+  if (!connected) return resolve(msg("Reconnect to delete this branch"));
+  if (armed) return resolve(msg("Local branches and worktrees are not changed"));
   return `${detail.headBranch} in ${detail.headRepositoryNameWithOwner ?? detail.repository}`;
 }
 
@@ -120,7 +122,7 @@ export function PullRequestMergeMenuItems({
           disabled={actionPending}
         >
           <PullRequestGlyph.merged className="size-3.5" />
-          {confirm.armed === "merge" ? "Confirm merge" : gt("Merge now")}
+          {confirm.armed === "merge" ? gt("Confirm merge") : gt("Merge now")}
         </MenuItem>
       ) : null}
       {actions.showsAutoMerge ? (
@@ -132,13 +134,15 @@ export function PullRequestMergeMenuItems({
           disabled={actionPending}
         >
           <PullRequestGlyph.merged className="size-3.5" />
-          {confirm.armed === "enable-auto-merge" ? "Confirm auto-merge" : gt("Enable auto-merge")}
+          {confirm.armed === "enable-auto-merge"
+            ? gt("Confirm auto-merge")
+            : gt("Enable auto-merge")}
         </MenuItem>
       ) : null}
       {actions.showsDisableAutoMerge ? (
         <MenuItem disabled={actionPending} onClick={() => void perform("disable-auto-merge")}>
           <PullRequestGlyph.merged className="size-3.5" />
-          Disable auto-merge
+          <T>Disable auto-merge</T>
         </MenuItem>
       ) : null}
       {actions.showsMergeMethods ? (
@@ -253,6 +257,7 @@ export function PullRequestActionsMenu({
   copyReference: (value: string, label: string) => void;
 }) {
   const gt = useGT();
+  const resolve = useMessages();
   const openLink = useOpenLink(threadRef);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const confirm = useInlineConfirm<"close" | "revert" | "delete-branch">();
@@ -309,8 +314,14 @@ export function PullRequestActionsMenu({
                 <Button
                   aria-label={
                     refreshing
-                      ? `Refreshing ${terminology.singular}`
-                      : `More ${terminology.singular} actions`
+                      ? gt(
+                          "Refreshing {term, select, mr {merge request} cr {change request} other {pull request}}",
+                          { term: changeRequestTermKind(terminology) },
+                        )
+                      : gt(
+                          "More {term, select, mr {merge request} cr {change request} other {pull request}} actions",
+                          { term: changeRequestTermKind(terminology) },
+                        )
                   }
                   size="icon-xs"
                   variant="ghost-muted"
@@ -327,8 +338,14 @@ export function PullRequestActionsMenu({
         />
         <TooltipPopup>
           {refreshing
-            ? `Refreshing ${terminology.singular}`
-            : `More ${terminology.singular} actions`}
+            ? gt(
+                "Refreshing {term, select, mr {merge request} cr {change request} other {pull request}}",
+                { term: changeRequestTermKind(terminology) },
+              )
+            : gt(
+                "More {term, select, mr {merge request} cr {change request} other {pull request}} actions",
+                { term: changeRequestTermKind(terminology) },
+              )}
         </TooltipPopup>
       </Tooltip>
       <MenuPopup align="end" side="bottom">
@@ -342,7 +359,7 @@ export function PullRequestActionsMenu({
         />
         <MenuItem disabled={refreshing} onClick={() => void refreshFromHost()}>
           <RefreshIcon size="sm" refreshing={refreshing} />
-          Refresh
+          <T context="verb, menu item">Refresh</T>
         </MenuItem>
         <MenuItem disabled={handoff !== null} onClick={askAboutPullRequest}>
           <MessageCircleQuestionIcon className="mt-1 size-3.5 shrink-0 self-start" />
@@ -350,8 +367,16 @@ export function PullRequestActionsMenu({
             <span>{handoff === "ask" ? gt("Opening...") : gt("Ask a question")}</span>
             <span className="text-xs text-muted-foreground">
               {attachesToComposer
-                ? `Adds the ${terminology.singular} to this thread's composer.`
-                : `Opens a thread that knows which ${terminology.singular} you mean.`}
+                ? gt(
+                    "Adds the {term, select, mr {merge request} cr {change request} other {pull request}} to this thread's composer.",
+                    { term: changeRequestTermKind(terminology) },
+                  )
+                : gt(
+                    "Opens a thread that knows which {term, select, mr {merge request} cr {change request} other {pull request}} you mean.",
+                    {
+                      term: changeRequestTermKind(terminology),
+                    },
+                  )}
             </span>
           </span>
         </MenuItem>
@@ -359,7 +384,11 @@ export function PullRequestActionsMenu({
           <BookOpenIcon className="mt-1 size-3.5 shrink-0 self-start" />
           <span className="flex min-w-0 flex-col">
             <span>
-              {handoff === "explain" ? gt("Opening...") : `Explain this ${terminology.shortLabel}`}
+              {handoff === "explain"
+                ? gt("Opening...")
+                : gt("Explain this {term, select, mr {MR} cr {change request} other {PR}}", {
+                    term: changeRequestTermKind(terminology),
+                  })}
             </span>
             <span className="text-xs text-muted-foreground">
               <T>A walk through the diff and what to read closely.</T>
@@ -435,7 +464,18 @@ export function PullRequestActionsMenu({
           <ArrowUpRightIcon className="size-3.5" />
           {openOnHostText}
         </MenuItem>
-        <MenuItem onClick={() => copyReference(detail.url, `${terminology.shortLabel} link`)}>
+        <MenuItem
+          onClick={() =>
+            copyReference(
+              detail.url,
+              resolve(
+                msg("Failed to copy {term, select, mr {MR} cr {change request} other {PR}} link", {
+                  term: changeRequestTermKind(terminology),
+                }),
+              ),
+            )
+          }
+        >
           <LinkIcon className="size-3.5" />
           <T>Copy link</T>
           <MenuShortcut>
@@ -443,10 +483,26 @@ export function PullRequestActionsMenu({
           </MenuShortcut>
         </MenuItem>
         <MenuItem
-          onClick={() => copyReference(`#${reference.number}`, `${terminology.shortLabel} number`)}
+          onClick={() =>
+            copyReference(
+              `#${reference.number}`,
+              resolve(
+                msg(
+                  "Failed to copy {term, select, mr {MR} cr {change request} other {PR}} number",
+                  { term: changeRequestTermKind(terminology) },
+                ),
+              ),
+            )
+          }
         >
           <CopyIcon className="size-3.5" />
-          Copy {terminology.shortLabel} number
+          <T>
+            Copy{" "}
+            <Branch branch={changeRequestTermKind(terminology)} mr="MR" cr="change request">
+              PR
+            </Branch>{" "}
+            number
+          </T>
           <MenuShortcut>
             {shortcutLabelForCommand(keybindings, "pullRequest.copyNumber")}
           </MenuShortcut>
@@ -460,7 +516,12 @@ export function PullRequestActionsMenu({
               disabled={actionPending}
             >
               <PullRequestGlyph.closed className="size-3.5" />
-              {confirm.armed === "close" ? "Confirm close" : `Close ${terminology.singular}`}
+              {confirm.armed === "close"
+                ? gt("Confirm close")
+                : gt(
+                    "Close {term, select, mr {merge request} cr {change request} other {pull request}}",
+                    { term: changeRequestTermKind(terminology) },
+                  )}
             </MenuItem>
           </>
         ) : detail.state === "closed" && can("reopen") ? (
@@ -468,7 +529,16 @@ export function PullRequestActionsMenu({
             <MenuSeparator />
             <MenuItem disabled={actionPending} onClick={() => void perform("reopen")}>
               <PullRequestGlyph.reopen className="size-3.5" />
-              Reopen {terminology.singular}
+              <T>
+                Reopen{" "}
+                <Branch
+                  branch={changeRequestTermKind(terminology)}
+                  mr="merge request"
+                  cr="change request"
+                >
+                  pull request
+                </Branch>
+              </T>
             </MenuItem>
           </>
         ) : detail.state === "merged" && can("revert") ? (
@@ -479,7 +549,7 @@ export function PullRequestActionsMenu({
               disabled={actionPending}
             >
               <RotateCcwIcon className="size-3.5" />
-              {confirm.armed === "revert" ? "Confirm revert" : gt("Revert changes")}
+              {confirm.armed === "revert" ? gt("Confirm revert") : gt("Revert changes")}
             </MenuItem>
           </>
         ) : null}
@@ -502,15 +572,19 @@ export function PullRequestActionsMenu({
                 ) : (
                   <InlineConfirmLabel
                     armed={confirm.armed === "delete-branch"}
-                    idle="Delete branch"
-                    confirm="Confirm delete"
+                    idle={gt("Delete branch")}
+                    confirm={gt("Confirm delete")}
                   />
                 )}
                 <span className="max-w-full truncate text-xs text-muted-foreground">
-                  {deleteBranchHint(detail, {
-                    connected: environmentConnected,
-                    armed: confirm.armed === "delete-branch",
-                  })}
+                  {deleteBranchHint(
+                    detail,
+                    {
+                      connected: environmentConnected,
+                      armed: confirm.armed === "delete-branch",
+                    },
+                    resolve,
+                  )}
                 </span>
               </span>
             </MenuItem>

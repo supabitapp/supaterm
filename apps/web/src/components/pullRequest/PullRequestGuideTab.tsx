@@ -22,7 +22,7 @@ import {
   usePullRequestReviewStore,
 } from "./pullRequestReviewStore";
 import type { PullRequestCompletionScope } from "./PullRequestMarkdownTextarea";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 export function PullRequestGuideTab({
   environmentId,
@@ -56,6 +56,7 @@ export function PullRequestGuideTab({
   onTourShown?: (() => void) | undefined;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const { query, data, running, canWrite, write } = useReviewGuideWriter({
     environmentId,
     reference,
@@ -141,7 +142,7 @@ export function PullRequestGuideTab({
                 gt(
                   "A guide is a tour of the change: stops through the code in reading order, with the calls only a maintainer can make.",
                 ))
-              : FAILURE_HINT}
+              : m(FAILURE_HINT)}
         </p>
         {writeButton(failure === null ? gt("Write guide") : gt("Try again"), "sm")}
         {failure === null || running ? null : <FailureDetails detail={failure} />}
@@ -160,7 +161,7 @@ export function PullRequestGuideTab({
             gt("Written before the latest push.")
           ) : (
             <>
-              {`Could not rewrite this guide. ${FAILURE_HINT}`}
+              {gt("Could not rewrite this guide. {hint}", { hint: m(FAILURE_HINT) })}
               <FailureDetails detail={failure} />
             </>
           )}

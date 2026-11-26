@@ -18,6 +18,7 @@ import {
 } from "./PullRequestMarkdownTextarea";
 import { isImeComposing } from "~/lib/imeComposition";
 import { msg, useGT } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
 import { m } from "~/i18n/messages";
 
 export function PullRequestCommentForm({
@@ -104,7 +105,12 @@ export function PullRequestCommentForm({
         value={body}
         rows={3}
         placeholder={gt("Leave a comment")}
-        aria-label={`Comment on this ${sourceControlClients.get(detail.provider).changeRequest.singular}`}
+        aria-label={gt(
+          "Comment on this {term, select, mr {merge request} cr {change request} other {pull request}}",
+          {
+            term: changeRequestTermKind(sourceControlClients.get(detail.provider).changeRequest),
+          },
+        )}
         onValueChange={setBody}
         onKeyDown={(event) => {
           if (isImeComposing(event)) return;
