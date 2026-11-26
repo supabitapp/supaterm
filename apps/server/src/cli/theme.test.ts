@@ -204,8 +204,11 @@ describe("supaterm theme", () => {
       NodeFS.writeFileSync(themeFile, NIGHTFALL_THEME_JSON);
       NodeFS.writeFileSync(`${themeFile} `, JUNK_THEME_JSON);
 
+      // Windows reads its policy from the registry, which this host cannot load.
+      const noPolicy = { SUPATERM_DEV_MANAGED_POLICY_PATH: NodePath.join(baseDir, "policy.json") };
       yield* runCli(["theme", "set", `${themeFile} `, "--base-dir", baseDir]).pipe(
         Effect.provideService(HostProcess.Platform, "win32"),
+        Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: noPolicy }))),
       );
 
       const published = NodePath.join(baseDir, "userdata", "themes", "nightfall.json");
