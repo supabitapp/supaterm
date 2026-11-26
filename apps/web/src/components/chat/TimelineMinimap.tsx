@@ -12,7 +12,7 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
 import { usePresence } from "~/hooks/usePresence";
-import { useGT } from "gt-react";
+import { T, useGT } from "gt-react";
 
 // A release outside the window can skip `mouseup`, so the next button-free
 // `mousemove` also counts.
@@ -157,8 +157,10 @@ export function TimelineMinimap({
           <button
             aria-label={
               activeItem?.pin
-                ? `Jump to pinned message: ${activeItem.pin.preview}`
-                : gt("Jump to message: {text}", { text: activeItem?.userText ?? "User message" })
+                ? gt("Jump to pinned message: {preview}", { preview: activeItem.pin.preview })
+                : gt("Jump to message: {text}", {
+                    text: activeItem?.userText ?? gt("User message"),
+                  })
             }
             className="absolute inset-y-0 left-0 w-full cursor-pointer bg-transparent before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
             onBlur={() => setActiveIndex(null)}
@@ -253,7 +255,7 @@ export function TimelineMinimap({
                   className="dropdown-glass block origin-left rounded-xl p-3 text-left text-popover-foreground shadow-xl shadow-black/25 transition-[opacity,scale] duration-150 ease-drawer data-enter:starting:scale-98 data-enter:starting:opacity-0 data-ending-style:scale-98 data-ending-style:opacity-0 data-ending-style:duration-100 data-ending-style:ease-in motion-reduce:transition-none"
                 >
                   <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium leading-5">
-                    {preview.value.item.userText ?? "User message"}
+                    {preview.value.item.userText ?? <T>User message</T>}
                   </span>
                   {preview.value.item.assistantText ? (
                     <span

@@ -20,6 +20,8 @@ import { serverEnvironment } from "../../state/server";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { readPendingUserInputDraft, usePendingThreadRequests } from "./usePendingThreadRequests";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 type PendingThreadRequestsInput = Parameters<typeof usePendingThreadRequests>[0];
 
@@ -68,7 +70,7 @@ function makeQuestionTimerPause(input: {
           const error = squashAtomCommandFailure(result);
           input.setThreadError(
             activeThreadId,
-            error instanceof Error ? error.message : "Could not pause automatic dismissal.",
+            error instanceof Error ? error.message : m(msg("Could not pause automatic dismissal.")),
           );
         }
         return result._tag === "Success";

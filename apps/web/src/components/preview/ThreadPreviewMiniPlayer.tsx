@@ -699,7 +699,7 @@ function MiniPlayerShell({
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  aria-label="Close floating preview"
+                  aria-label={gt("Close floating preview")}
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={onClose}
                 />
@@ -707,7 +707,9 @@ function MiniPlayerShell({
             >
               <XIcon />
             </TooltipTrigger>
-            <TooltipPopup side="top">Close floating preview</TooltipPopup>
+            <TooltipPopup side="top">
+              <T>Close floating preview</T>
+            </TooltipPopup>
           </Tooltip>
         </div>
       </div>

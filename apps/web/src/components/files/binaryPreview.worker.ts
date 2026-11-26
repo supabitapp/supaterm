@@ -260,6 +260,7 @@ self.addEventListener("message", (event: MessageEvent<BinaryWorkerRequest>) => {
   void handle(event.data).catch((cause: unknown) =>
     reply({
       type: "error",
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- workers have no UI language; the page shows this English fallback
       message: cause instanceof Error ? cause.message : "Could not preview this file.",
     }),
   );

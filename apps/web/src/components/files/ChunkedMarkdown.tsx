@@ -1,5 +1,6 @@
 import type { ScopedThreadRef } from "@supaterm/contracts";
 import { LegendList } from "@legendapp/list/react";
+import { T } from "gt-react";
 import type { KeyboardEventHandler } from "react";
 
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
@@ -68,7 +69,7 @@ export function ChunkedMarkdown(props: {
         ListFooterComponent={
           props.loading ? (
             <p className="py-4 text-center text-xs text-muted-foreground">
-              Loading the rest of the file…
+              <T>Loading the rest of the file…</T>
             </p>
           ) : null
         }

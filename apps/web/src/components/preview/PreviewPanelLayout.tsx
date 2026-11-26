@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import { createContext, use, type ComponentProps, type ReactNode } from "react";
 
 import {
@@ -66,6 +67,7 @@ export function PreviewPanelInline(props: {
   onCollapse: () => void;
   children: ReactNode;
 }) {
+  const gt = useGT();
   const maximized = use(MaximizedContext);
   const { panelProps, handleProps } = useCollapsiblePanel({
     storageKey: props.widthStorageKey,
@@ -79,7 +81,7 @@ export function PreviewPanelInline(props: {
   return (
     <>
       <ResizableHandle
-        aria-label="Resize panel"
+        aria-label={gt("Resize panel")}
         {...handleProps}
         disabled={handleProps.disabled || maximized}
       />

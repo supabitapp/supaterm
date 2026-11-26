@@ -388,7 +388,7 @@ export function WorktreeSetupCard({
           onClick={toggleDetails}
         >
           <Icon aria-hidden />
-          Details
+          <T>Details</T>
         </Button>
         {showTerminal ? (
           <Button type="button" size="xs" variant="ghost-muted" onClick={onOpenTerminal}>

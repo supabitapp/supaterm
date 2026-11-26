@@ -6,8 +6,10 @@ import { useChatPaneStore } from "../../chatPanes/store";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { startPaneDrag } from "./paneHeaderDrag";
+import { T, useGT } from "gt-react";
 
 export function ChatPaneHeaderControls({ title }: { title: string }) {
+  const gt = useGT();
   const scope = usePaneScope();
   const paneId = scope?.paneId ?? null;
   const panes = useChatPaneStore((state) => state.layout?.cells.length ?? 1);
@@ -25,7 +27,7 @@ export function ChatPaneHeaderControls({ title }: { title: string }) {
           <Button
             variant="ghost-muted"
             size="icon-xs"
-            aria-label="Previous pane"
+            aria-label={gt("Previous pane")}
             onClick={() => store().focusAdjacent(-1)}
           >
             <ChevronLeftIcon />
@@ -36,7 +38,7 @@ export function ChatPaneHeaderControls({ title }: { title: string }) {
           <Button
             variant="ghost-muted"
             size="icon-xs"
-            aria-label="Next pane"
+            aria-label={gt("Next pane")}
             onClick={() => store().focusAdjacent(1)}
           >
             <ChevronRightIcon />
@@ -48,7 +50,7 @@ export function ChatPaneHeaderControls({ title }: { title: string }) {
             render={
               <button
                 type="button"
-                aria-label="Move pane"
+                aria-label={gt("Move pane")}
                 className="inline-flex size-6 cursor-grab touch-none items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset active:cursor-grabbing"
                 onPointerDown={(event) => startPaneDrag(event.nativeEvent, paneId, title)}
               />
@@ -56,7 +58,9 @@ export function ChatPaneHeaderControls({ title }: { title: string }) {
           >
             <GripVerticalIcon className="size-3.5" />
           </TooltipTrigger>
-          <TooltipPopup side="bottom">Drag onto another pane to move it</TooltipPopup>
+          <TooltipPopup side="bottom">
+            <T>Drag onto another pane to move it</T>
+          </TooltipPopup>
         </Tooltip>
       )}
     </div>

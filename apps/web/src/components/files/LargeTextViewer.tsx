@@ -268,7 +268,9 @@ export default function LargeTextViewer(props: {
       </div>
       {!meta.complete ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
-          <FileSurfaceNotice>Loading the rest of the file…</FileSurfaceNotice>
+          <FileSurfaceNotice>
+            <T>Loading the rest of the file…</T>
+          </FileSurfaceNotice>
         </div>
       ) : null}
       {meta.columns === 1024 ? (

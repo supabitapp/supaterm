@@ -402,7 +402,8 @@ export function SnapShotCoordinator() {
                 description: m(
                   msg("Capture {id}: {error}", {
                     id: item.id,
-                    error: error instanceof Error ? error.message : "Try the capture again.",
+                    error:
+                      error instanceof Error ? error.message : m(msg("Try the capture again.")),
                   }),
                 ),
               }),

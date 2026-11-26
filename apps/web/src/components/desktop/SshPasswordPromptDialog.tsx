@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
 import { m } from "../../i18n/messages";
 
 function describeSshTarget(request: DesktopSshPasswordPromptRequest): string {
@@ -170,9 +170,14 @@ function ActiveSshPasswordPrompt({
             <T>SSH verification required</T>
           </DialogTitle>
           <DialogDescription>
-            Enter the password or verification code required by <code>{target}</code>. Supaterm
-            passes your response to the local SSH process and keeps it in memory to reuse for this
-            host. Supaterm does not write it to disk.
+            <T>
+              Enter the password or verification code required by{" "}
+              <code>
+                <Var>{target}</Var>
+              </code>
+              . Supaterm passes your response to the local SSH process and keeps it in memory to
+              reuse for this host. Supaterm does not write it to disk.
+            </T>
           </DialogDescription>
         </DialogHeader>
         <DialogPanel scrollFade={false}>

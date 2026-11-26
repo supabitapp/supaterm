@@ -5,6 +5,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { ChevronRightIcon } from "@supaterm/icons";
 import { useRouter } from "@tanstack/react-router";
+import { T, useGT } from "gt-react";
 import { useState } from "react";
 
 import { connectPairing } from "../../connection/onboarding";
@@ -23,6 +24,7 @@ export function WelcomePairing({
 }: {
   readonly onPaired: (environmentId: EnvironmentId) => void;
 }) {
+  const gt = useGT();
   const router = useRouter();
   const connectPairingEnvironment = useAtomCommand(connectPairing, { reportFailure: false });
   const [pairingUrl, setPairingUrl] = useState("");
@@ -43,13 +45,15 @@ export function WelcomePairing({
     }
     if (isAtomCommandInterrupted(result)) return;
     const cause = squashAtomCommandFailure(result);
-    setErrorMessage(cause instanceof Error ? cause.message : "Pairing failed.");
+    setErrorMessage(cause instanceof Error ? cause.message : gt("Pairing failed."));
   };
 
   return (
-    <WelcomeShell subtitle="Connect the computer you want to work on.">
+    <WelcomeShell subtitle={gt("Connect the computer you want to work on.")}>
       <div className="mt-10 border-t border-border/60">
-        <WelcomeSection title="Computer">
+        <WelcomeSection
+          title={gt("Computer", { $context: "section heading, the machine to pair" })}
+        >
           <form
             className="space-y-3 py-2"
             onSubmit={(event) => {
@@ -62,7 +66,7 @@ export function WelcomePairing({
                 className="block text-sm text-muted-foreground"
                 htmlFor="onboarding-pairing-url"
               >
-                Pairing link
+                <T>Pairing link</T>
               </label>
               <Input
                 id="onboarding-pairing-url"
@@ -99,22 +103,26 @@ export function WelcomePairing({
                   className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                 >
                   <ChevronRightIcon className="size-3.5 group-data-panel-open:rotate-90" />
-                  Need a pairing link?
+                  <T>Need a pairing link?</T>
                 </CollapsibleTrigger>
                 <Button type="submit" disabled={isPairing || pairingUrl.trim().length === 0}>
-                  {isPairing ? "Pairing..." : "Pair"}
+                  {isPairing
+                    ? gt("Pairing...")
+                    : gt("Pair", { $context: "verb, pairs with a computer" })}
                 </Button>
               </div>
               <CollapsiblePanel>
                 <p className="pt-3 text-sm text-muted-foreground">
-                  On the computer with your code:
+                  <T>On the computer with your code:</T>
                 </p>
                 <InstallSupatermCommands command="supaterm pair --tailscale" className="mt-2" />
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                  Start Supaterm or run <code className="font-mono">supaterm serve</code> there
-                  first. A page on HTTPS, such as the hosted web app, needs the HTTPS address that{" "}
-                  <code className="font-mono">--tailscale</code> sets up. For other ways to pair,
-                  run <code className="font-mono">supaterm pair --help</code>.
+                  <T>
+                    Start Supaterm or run <code className="font-mono">supaterm serve</code> there
+                    first. A page on HTTPS, such as the hosted web app, needs the HTTPS address that{" "}
+                    <code className="font-mono">--tailscale</code> sets up. For other ways to pair,
+                    run <code className="font-mono">supaterm pair --help</code>.
+                  </T>
                 </p>
               </CollapsiblePanel>
             </Collapsible>

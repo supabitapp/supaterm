@@ -15,7 +15,7 @@ import { useFilesystemReadAccess } from "~/state/filesystem";
 import { projectEnvironment } from "~/state/projects";
 import { useProjectPathSearch } from "~/state/queries";
 import { revisionedQuery } from "~/state/revisionedQuery";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
 
 const EMPTY_PROJECT_FILE_PATH = "";
 const EMPTY_PROJECT_ENTRIES_QUERY_ATOM = Atom.make(
@@ -243,6 +243,7 @@ export function useProjectFileQuery(
   relativePath: string | null,
   enabled = true,
 ): ProjectFileQueryState {
+  const m = useMessages();
   // Read media-like paths too; a failed read is how folders with those names are detected.
   const fileAccess = useFilesystemReadAccess(environmentId);
   const { canReadFiles } = fileAccess;
@@ -272,9 +273,9 @@ export function useProjectFileQuery(
         ? null
         : canReadFiles
           ? isMissing && !optimisticFile
-            ? `'${relativePath}' does not exist.`
+            ? m(msg("''{path}'' does not exist.", { path: relativePath }))
             : errorMessage(cause)
-          : (fileAccess.error ?? msg("This connection cannot read host files.")),
+          : (fileAccess.error ?? m(msg("This connection cannot read host files."))),
     isPending: isQueryEnabled && (fileAccess.isPending || result.waiting),
     readError,
     isNotFile,

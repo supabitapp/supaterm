@@ -3,6 +3,7 @@ import type {
   CodexMicroDeviceState,
   CodexMicroPermissionStatus,
 } from "@supaterm/contracts";
+import { T, useGT, useMessages } from "gt-react";
 
 import { useClientSettings } from "../../../hooks/useSettings";
 import { readLocalApi } from "../../../localApi";
@@ -46,6 +47,7 @@ function InputMonitoringStatus({
   permission: CodexMicroPermissionStatus;
   onOpenSettings: () => void;
 }) {
+  const m = useMessages();
   return (
     <>
       <span
@@ -54,11 +56,11 @@ function InputMonitoringStatus({
           permission === "granted" ? "text-success-foreground" : "text-muted-foreground",
         )}
       >
-        {CODEX_MICRO_PERMISSION_LABELS[permission]}
+        {m(CODEX_MICRO_PERMISSION_LABELS[permission])}
       </span>
       {permission === "denied" ? (
         <Button size="sm" variant="outline" onClick={onOpenSettings}>
-          Open System Settings
+          <T>Open System Settings</T>
         </Button>
       ) : null}
     </>
@@ -66,9 +68,11 @@ function InputMonitoringStatus({
 }
 
 export function CodexMicroConnectionSection({ state }: { state: CodexMicroDeviceState | null }) {
+  const gt = useGT();
+  const m = useMessages();
   const settings = useClientSettings(selectConnectionSettings);
-  const summary = codexMicroConnectionSummary(settings.enabled, state);
-  const details = settings.enabled ? codexMicroDeviceDetails(state) : null;
+  const summary = codexMicroConnectionSummary(settings.enabled, state, m);
+  const details = settings.enabled ? codexMicroDeviceDetails(state, m) : null;
   const permission = state?.inputMonitoring ?? null;
   const disabled = !settings.enabled;
 
@@ -78,18 +82,21 @@ export function CodexMicroConnectionSection({ state }: { state: CodexMicroDevice
       .catch(() => {
         toastManager.add({
           type: "error",
-          title: "Couldn't open System Settings",
-          description: "Open Privacy & Security, then Input Monitoring, and allow Supaterm.",
+          title: gt("Couldn't open System Settings"),
+          description: gt("Open Privacy & Security, then Input Monitoring, and allow Supaterm."),
         });
       });
   };
 
   return (
-    <SettingsSection id="codex-micro-connection" title="Connection">
+    <SettingsSection
+      id="codex-micro-connection"
+      title={gt("Connection", { $context: "settings section" })}
+    >
       <SettingsRow
         {...searchableSetting("codex-micro-enabled")}
         description={
-          summary.description ?? "Use the keys, knob, and analog stick to control Supaterm."
+          summary.description ?? gt("Use the keys, knob, and analog stick to control Supaterm.")
         }
         status={details}
         control={
@@ -101,7 +108,7 @@ export function CodexMicroConnectionSection({ state }: { state: CodexMicroDevice
             ) : null}
             <Switch
               checked={settings.enabled}
-              aria-label="Enable Codex Micro"
+              aria-label={gt("Enable Codex Micro")}
               onCheckedChange={(checked) => void updateCodexMicroSettings({ enabled: checked })}
             />
           </>
@@ -110,7 +117,7 @@ export function CodexMicroConnectionSection({ state }: { state: CodexMicroDevice
       {isMacHost ? (
         <SettingsRow
           {...searchableSetting("codex-micro-input-monitoring")}
-          description="Required for Codex Micro key presses on macOS"
+          description={gt("Required for Codex Micro key presses on macOS")}
           control={
             permission ? (
               <InputMonitoringStatus
@@ -123,7 +130,7 @@ export function CodexMicroConnectionSection({ state }: { state: CodexMicroDevice
       ) : null}
       <SettingsRow
         {...searchableSetting("codex-micro-brightness")}
-        description="Adjusts the brightness of all Codex Micro lighting"
+        description={gt("Adjusts the brightness of all Codex Micro lighting")}
         aria-disabled={disabled || undefined}
         control={
           <BrightnessSlider
@@ -136,7 +143,9 @@ export function CodexMicroConnectionSection({ state }: { state: CodexMicroDevice
       />
       <SettingsRow
         {...searchableSetting("codex-micro-auto-dim")}
-        description="Turns lighting off after inactivity and back on when you use Codex Micro or an agent key changes state"
+        description={gt(
+          "Turns lighting off after inactivity and back on when you use Codex Micro or an agent key changes state",
+        )}
         aria-disabled={disabled || undefined}
         control={
           <Select
@@ -146,13 +155,13 @@ export function CodexMicroConnectionSection({ state }: { state: CodexMicroDevice
               if (isCodexMicroAutoDim(value)) void updateCodexMicroSettings({ autoDim: value });
             }}
           >
-            <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Auto-dim">
-              <SelectValue>{CODEX_MICRO_AUTO_DIM_LABELS[settings.autoDim]}</SelectValue>
+            <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={gt("Auto-dim")}>
+              <SelectValue>{m(CODEX_MICRO_AUTO_DIM_LABELS[settings.autoDim])}</SelectValue>
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
               {Object.entries(CODEX_MICRO_AUTO_DIM_LABELS).map(([value, label]) => (
                 <SelectItem hideIndicator key={value} value={value}>
-                  {label}
+                  {m(label)}
                 </SelectItem>
               ))}
             </SelectPopup>

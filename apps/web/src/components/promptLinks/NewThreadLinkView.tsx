@@ -249,7 +249,9 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
     if (link.kind === "pull-request") {
       setState({
         status: "failed",
-        title: `Cloning ${repository.owner}/${repository.name}`,
+        title: gt("Cloning {repository}", {
+          repository: `${repository.owner}/${repository.name}`,
+        }),
         message: gt("Open this link again when the clone finishes."),
       });
       return;
@@ -360,7 +362,7 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
       const name = `${state.repository.owner}/${state.repository.name}`;
       return (
         <LinkPage
-          title={`You don't have ${name}`}
+          title={gt("You don't have {repository}", { repository: name })}
           description={gt("Clone it to work on it here, or start without a project.")}
         >
           <Button
@@ -368,7 +370,7 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
             className="min-w-0 max-w-full shrink"
             onClick={() => void cloneRepository(state.repository)}
           >
-            <span className="truncate">Clone {name}</span>
+            <span className="truncate">{gt("Clone {repository}", { repository: name })}</span>
           </Button>
           <Button size="sm" variant="outline" onClick={() => void openWithoutProject()}>
             <T>Use without project</T>
@@ -413,7 +415,7 @@ function PullRequestLinkCheckout({
   const { owner, name, number } = link.pullRequest;
   return (
     <LinkPage
-      title={`Check out ${owner}/${name}#${number}?`}
+      title={gt("Check out {pullRequest}?", { pullRequest: `${owner}/${name}#${number}` })}
       description={gt(
         "This puts the pull request's code in a new worktree and runs your project's setup script on it.",
       )}

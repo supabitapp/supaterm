@@ -597,8 +597,13 @@ export function useComposerStash(input: {
     if (sentCount > 0) {
       toastManager.add({
         type: "info",
-        title: `Sent ${sentCount} of ${entries.length} stashed prompts`,
-        description: "The rest are still in the stash.",
+        title: m(
+          msg("Sent {sentCount} of {total} stashed prompts", {
+            sentCount,
+            total: entries.length,
+          }),
+        ),
+        description: m(msg("The rest are still in the stash.")),
       });
     }
     window.requestAnimationFrame(() => {
@@ -832,7 +837,12 @@ export function useComposerStash(input: {
         toastManager.add({
           type: "warning",
           title: m(msg("Stashed images did not attach")),
-          description: `That prompt was restored or deleted before ${kept.length} image${kept.length === 1 ? "" : "s"} finished saving. Re-attach ${kept.length === 1 ? "it" : "them"} if you still need ${kept.length === 1 ? "it" : "them"}.`,
+          description: m(
+            msg(
+              "{count, plural, one {That prompt was restored or deleted before {count} image finished saving. Re-attach it if you still need it.} other {That prompt was restored or deleted before {count} images finished saving. Re-attach them if you still need them.}}",
+              { count: kept.length },
+            ),
+          ),
           data: { hideCopyButton: true },
         });
       }

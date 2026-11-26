@@ -44,7 +44,7 @@ export function useApplyThreadModelPick() {
           title: m(msg("Could not apply model selection")),
           description: m(
             msg("This model pick was not saved. {detail}", {
-              detail: error instanceof Error ? error.message : "Try again.",
+              detail: error instanceof Error ? error.message : m(msg("Try again.")),
             }),
           ),
         }),

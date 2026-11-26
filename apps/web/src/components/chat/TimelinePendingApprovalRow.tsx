@@ -5,13 +5,13 @@ import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions
 import { ToolActivityIconView, type WorkEntryIconName } from "./TimelineToolActivityIcon";
 import { TimelineRowCtx } from "./timelineRowContext";
 import { WorkLogRow } from "./WorkLog";
-import { msg, T } from "gt-react";
+import { msg, T, useMessages } from "gt-react";
 
 const APPROVAL_PRESENTATION = {
   command: {
     icon: "terminal",
     label: msg("Command approval"),
-    detailLabel: "Command",
+    detailLabel: msg("Command", { $context: "noun, shell command awaiting approval" }),
   },
   "file-change": {
     icon: "square-pen",
@@ -39,13 +39,14 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
 }: {
   approval: PendingApproval;
 }) {
+  const m = useMessages();
   const { respondingRequestIds, canOperateThread, onRespondToApproval } = use(TimelineRowCtx);
   const presentation = APPROVAL_PRESENTATION[approval.requestKind];
   const canRespond = approval.responseCapability === "live";
   return (
     <WorkLogRow
       role="group"
-      aria-label={presentation.label}
+      aria-label={m(presentation.label)}
       data-v2-item-type="approval_request"
       wrapLabel
       icon={
@@ -58,12 +59,12 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
       }
       label={
         <code
-          aria-label={presentation.detailLabel}
+          aria-label={m(presentation.detailLabel)}
           className="block max-h-40 min-w-0 overflow-auto whitespace-pre-wrap font-mono text-xs leading-5 text-foreground select-text! wrap-anywhere [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
           data-approval-detail="complete"
           tabIndex={0}
         >
-          {approval.detail || presentation.label}
+          {approval.detail || m(presentation.label)}
         </code>
       }
     >

@@ -137,7 +137,7 @@ export function MediaActions({
     let failureTitle = m(msg("Could not open media menu"));
     let progressToast: ReturnType<typeof toastManager.add> | undefined;
     const result = await settlePromise(async () => {
-      const noun = source.kind === "image" ? "image" : "video";
+      const isImage = source.kind === "image";
       const unavailable = !canReadMedia || (source.src === null && source.asset === undefined);
       const canCopyImage =
         typeof navigator !== "undefined" &&
@@ -157,7 +157,11 @@ export function MediaActions({
           label: m(msg("Open in file viewer")),
           disabled: !canReadMedia,
         });
-      items.push({ id: "save", label: `Save ${noun}`, disabled: unavailable });
+      items.push({
+        id: "save",
+        label: isImage ? m(msg("Save image")) : m(msg("Save video")),
+        disabled: unavailable,
+      });
       if (source.kind === "image") {
         items.push({
           id: "copy-image",
@@ -168,7 +172,22 @@ export function MediaActions({
 
       const action = await api.contextMenu.show(items, position, menuSource);
       if (!action) return;
-      failureTitle = `Could not ${items.find((item) => item.id === action)?.label.toLowerCase() ?? "complete media action"}`;
+      failureTitle =
+        action === "copy-full-path"
+          ? m(msg("Could not copy full path"))
+          : action === "copy-relative-path"
+            ? m(msg("Could not copy relative path"))
+            : action === "copy-url"
+              ? m(msg("Could not copy url"))
+              : action === "open-file"
+                ? m(msg("Could not open in file viewer"))
+                : action === "save"
+                  ? isImage
+                    ? m(msg("Could not save image"))
+                    : m(msg("Could not save video"))
+                  : action === "copy-image"
+                    ? m(msg("Could not copy image"))
+                    : m(msg("Could not complete media action"));
       const text =
         action === "copy-full-path" && reference?.kind === "file"
           ? reference.path
@@ -187,7 +206,12 @@ export function MediaActions({
       } else if (action === "save" || action === "copy-image") {
         progressToast = toastManager.add({
           type: "loading",
-          title: action === "save" ? `Preparing ${noun} download…` : m(msg("Copying image…")),
+          title:
+            action === "save"
+              ? isImage
+                ? m(msg("Preparing image download…"))
+                : m(msg("Preparing video download…"))
+              : m(msg("Copying image…")),
         });
         await (action === "save" ? save() : copyImage());
         toastManager.close(progressToast);

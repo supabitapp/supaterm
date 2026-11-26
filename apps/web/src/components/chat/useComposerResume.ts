@@ -130,6 +130,7 @@ export function useComposerResume(input: ComposerResumeInput) {
           message: {
             messageId: newMessageId(),
             role: "user",
+            // oxlint-disable-next-line supaterm/no-untranslated-copy -- sent to the agent
             text: "Continue where you left off.",
             attachments: [],
           },

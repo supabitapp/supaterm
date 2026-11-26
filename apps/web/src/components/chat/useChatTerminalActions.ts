@@ -292,7 +292,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       } catch (error) {
         setThreadError(
           activeThreadId,
-          error instanceof Error ? error.message : "Failed to prepare script paste.",
+          error instanceof Error ? error.message : m(msg("Failed to prepare script paste.")),
         );
         return;
       }

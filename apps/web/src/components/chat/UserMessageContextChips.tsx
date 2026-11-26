@@ -68,7 +68,8 @@ import {
 } from "../../reviewCommentContext";
 import { userMessageFileLabel } from "./TimelineUserMessageRow.logic";
 import { MiddleTruncate } from "../ui/middle-truncate";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 function UserMessageMentionChip(props: {
   record: Extract<KnownComposerContextRecord, { kind: "mention" }>;
@@ -292,6 +293,7 @@ interface UserMessageContextRenderContext {
   onExpandImage: (image: ChatImageAttachment) => void;
   onExpandVideo: (file: ChatFileAttachment) => void;
   onOpenFile: (file: ChatFileAttachment) => void;
+  m: MessageResolver;
 }
 
 function UnavailableUserMessageContextChip(props: UserMessageContextRenderContext) {
@@ -428,7 +430,11 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
             isVideo={isVideo}
             theme={context.resolvedTheme}
             disabled={disabled}
-            accessibleLabel={`${isVideo ? "Video" : "File"} attachment, ${label}, ${size}`}
+            accessibleLabel={
+              isVideo
+                ? context.m(msg("Video attachment, {label}, {size}", { label, size }))
+                : context.m(msg("File attachment, {label}, {size}", { label, size }))
+            }
             copyMarkdown={context.copyMarkdown}
             onOpen={() =>
               isVideo ? context.onExpandVideo(attachment) : context.onOpenFile(attachment)
@@ -464,7 +470,7 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
         record.kind === "element" ? (
           <UserMessageContextPopover
             copyMarkdown={context.copyMarkdown}
-            accessibleLabel={`Browser element, ${record.label}`}
+            accessibleLabel={context.m(msg("Browser element, {label}", { label: record.label }))}
             kind="element"
             icon={<MousePointerClickIcon />}
             label={record.label}
@@ -531,7 +537,7 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
         record.kind === "preview-annotation" ? (
           <UserMessageContextPopover
             copyMarkdown={context.copyMarkdown}
-            accessibleLabel={`Preview annotation, ${record.label}`}
+            accessibleLabel={context.m(msg("Preview annotation, {label}", { label: record.label }))}
             kind="preview-annotation"
             icon={<MousePointerClickIcon />}
             label={record.label}
@@ -556,6 +562,7 @@ export function UserMessageContextReferenceChip(props: {
   onOpenFile: (file: ChatFileAttachment) => void;
 }) {
   const { resolvedTheme, activeThreadEnvironmentId } = use(TimelineRowCtx);
+  const m = useMessages();
   const copyMarkdown = formatComposerContextReference({
     kind: props.reference.kind,
     contextId: props.reference.contextId as ComposerContextId,
@@ -571,6 +578,7 @@ export function UserMessageContextReferenceChip(props: {
     onExpandImage: props.onExpandImage,
     onExpandVideo: props.onExpandVideo,
     onOpenFile: props.onOpenFile,
+    m,
   });
 }
 

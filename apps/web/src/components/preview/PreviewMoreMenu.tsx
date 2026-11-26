@@ -23,15 +23,15 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useShortcutLabel } from "~/hooks/useShortcutLabel";
 import { PREVIEW_FOCUS_SHORTCUT_OPTIONS } from "~/lib/previewFocus";
-import { T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 
 const COLOR_SCHEME_OPTIONS: ReadonlyArray<{
   value: DesktopPreviewColorScheme;
   label: string;
 }> = [
-  { value: "system", label: "System" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
+  { value: "system", label: msg("System", { $context: "color scheme" }) },
+  { value: "light", label: msg("Light", { $context: "color scheme" }) },
+  { value: "dark", label: msg("Dark", { $context: "color scheme" }) },
 ];
 
 function ZoomButton({
@@ -97,22 +97,32 @@ interface Props {
   move?: { readonly label: string; readonly onMove: () => void };
 }
 
-const MenuTriggerButton = () => (
-  <Tooltip>
-    <TooltipTrigger
-      render={
-        <MenuTrigger
-          render={<Button variant="ghost" size="icon-xs" type="button" aria-label="Preview menu" />}
-        />
-      }
-    >
-      <EllipsisVerticalIcon />
-    </TooltipTrigger>
-    <TooltipPopup>
-      <T context="more actions menu">More</T>
-    </TooltipPopup>
-  </Tooltip>
-);
+const MenuTriggerButton = () => {
+  const gt = useGT();
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <MenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                type="button"
+                aria-label={gt("Preview menu")}
+              />
+            }
+          />
+        }
+      >
+        <EllipsisVerticalIcon />
+      </TooltipTrigger>
+      <TooltipPopup>
+        <T context="more actions menu">More</T>
+      </TooltipPopup>
+    </Tooltip>
+  );
+};
 
 export function PreviewMoreMenu({
   enabled,
@@ -127,6 +137,7 @@ export function PreviewMoreMenu({
   move,
 }: Props) {
   const gt = useGT();
+  const m = useMessages();
   const confirm = useInlineConfirm<"cookies" | "cache">();
   const cookiesHintId = useId();
   const zoomLabel = `${Math.round(zoomFactor * 100)}%`;
@@ -171,7 +182,7 @@ export function PreviewMoreMenu({
             >
               {COLOR_SCHEME_OPTIONS.map((option) => (
                 <MenuRadioItem key={option.value} value={option.value}>
-                  {option.label}
+                  {m(option.label)}
                 </MenuRadioItem>
               ))}
             </MenuRadioGroup>
@@ -224,7 +235,11 @@ export function PreviewMoreMenu({
         <MenuGroup>
           {profileName ? (
             <MenuGroupLabel className="max-w-64">
-              <span className="block truncate">Profile: {profileName}</span>
+              <span className="block truncate">
+                <T>
+                  Profile: <Var>{profileName}</Var>
+                </T>
+              </span>
             </MenuGroupLabel>
           ) : null}
           <MenuItem
@@ -232,15 +247,15 @@ export function PreviewMoreMenu({
             {...confirm.bind("cookies", actions.clearCookies)}
             aria-describedby={confirm.armed === "cookies" ? cookiesHintId : undefined}
           >
-            {confirm.armed === "cookies" ? "Confirm clear" : "Clear cookies"}
+            {confirm.armed === "cookies" ? gt("Confirm clear") : <T>Clear cookies</T>}
           </MenuItem>
           {confirm.armed === "cookies" ? (
             <MenuDescription id={cookiesHintId}>
-              Signs you out of every site in this profile.
+              <T>Signs you out of every site in this profile.</T>
             </MenuDescription>
           ) : null}
           <MenuItem disabled={disabled} {...confirm.bind("cache", actions.clearCache)}>
-            {confirm.armed === "cache" ? "Confirm clear" : "Clear cache"}
+            {confirm.armed === "cache" ? gt("Confirm clear") : <T>Clear cache</T>}
           </MenuItem>
         </MenuGroup>
       </MenuPopup>

@@ -46,6 +46,7 @@ self.addEventListener("message", (event: MessageEvent<OfficeWorkerRequest>) => {
   void handle(event.data).catch((cause: unknown) =>
     reply({
       type: "error",
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- workers have no UI language; the page shows this English fallback
       message: cause instanceof Error ? cause.message : "Could not parse this file.",
     }),
   );

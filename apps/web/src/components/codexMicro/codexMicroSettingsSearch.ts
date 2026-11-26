@@ -1,8 +1,11 @@
+import { msg } from "gt-react";
+
 import type { SettingsSearchItem } from "../settings/settingsSearch";
 
 export const CODEX_MICRO_SETTINGS_SEARCH_ITEMS = [
   {
     id: "codex-micro-enabled",
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- product name
     title: "Codex Micro",
     to: "/settings/codex-micro",
     searchTerms: [
@@ -11,32 +14,32 @@ export const CODEX_MICRO_SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "codex-micro-input-monitoring",
-    title: "Input Monitoring",
+    title: msg("Input Monitoring"),
     to: "/settings/codex-micro",
     searchTerms: ["codex micro keyboard permission privacy key presses"],
     macOnly: true,
   },
   {
     id: "codex-micro-brightness",
-    title: "Brightness",
+    title: msg("Brightness"),
     to: "/settings/codex-micro",
     searchTerms: ["codex micro keyboard lighting lights"],
   },
   {
     id: "codex-micro-auto-dim",
-    title: "Auto-dim",
+    title: msg("Auto-dim"),
     to: "/settings/codex-micro",
     searchTerms: ["codex micro keyboard lighting lights inactivity idle timeout"],
   },
   {
     id: "codex-micro-layout",
-    title: "Layout",
+    title: msg("Layout"),
     to: "/settings/codex-micro",
     searchTerms: ["codex micro keyboard keycaps keys analog stick joystick knob reset assign"],
   },
   {
     id: "codex-micro-agent-keys",
-    title: "Agent keys",
+    title: msg("Agent keys"),
     to: "/settings/codex-micro",
     searchTerms: [
       "codex micro keyboard threads sidebar order jump shortcuts pinned needs attention custom assignments",
@@ -44,19 +47,19 @@ export const CODEX_MICRO_SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "codex-micro-knob",
-    title: "Knob",
+    title: msg("Knob"),
     to: "/settings/codex-micro",
     searchTerms: ["codex micro keyboard encoder dial scroll conversation reasoning effort"],
   },
   {
     id: "codex-micro-separate-microphone-keys",
-    title: "Use separate microphone keys",
+    title: msg("Use separate microphone keys"),
     to: "/settings/codex-micro",
     searchTerms: ["codex micro keyboard mic wide key switches"],
   },
   {
     id: "codex-micro-single-tap-focus",
-    title: "Focus Supaterm with a single tap",
+    title: msg("Focus Supaterm with a single tap"),
     to: "/settings/codex-micro",
     searchTerms: ["codex micro keyboard agent key double tap bring window to front"],
   },

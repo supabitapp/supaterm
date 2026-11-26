@@ -41,6 +41,9 @@ import {
   ZapIcon,
 } from "@supaterm/icons";
 
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "~/i18n/messages";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 
 export interface CodexMicroKeycap {
@@ -187,6 +190,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
   },
   {
     id: "MIND-",
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- printed on the physical keycap
     label: "MIND−",
     icon: BrainIcon,
     size: "single",
@@ -344,63 +348,63 @@ const option = (id: KeybindingCommand, label: string): CodexMicroCommandOption =
 
 export const CODEX_MICRO_COMMAND_GROUPS: ReadonlyArray<CodexMicroCommandGroup> = [
   {
-    label: "Chat",
+    label: msg("Chat"),
     options: [
-      option("composer.submit", "Send message"),
-      option("composer.voice", "Start or stop voice input"),
-      option("composer.toggleFastMode", "Toggle fast mode"),
-      option("thread.approve", "Approve"),
-      option("thread.decline", "Decline"),
-      option("thread.fork", "Fork thread"),
-      option("thread.stop", "Stop thread"),
-      option("composer.increaseEffort", "Increase reasoning effort"),
-      option("composer.decreaseEffort", "Decrease reasoning effort"),
-      option("composer.effort", "Choose reasoning effort"),
-      option("thread.pin", "Pin or unpin thread"),
-      option("thread.mark-done", "Mark thread as Done"),
-      option("chat.new", "New thread"),
-      option("chat.find", "Find in thread"),
-      option("thread.copyReference", "Copy thread link"),
+      option("composer.submit", msg("Send message")),
+      option("composer.voice", msg("Start or stop voice input")),
+      option("composer.toggleFastMode", msg("Toggle fast mode")),
+      option("thread.approve", msg("Approve")),
+      option("thread.decline", msg("Decline")),
+      option("thread.fork", msg("Fork thread")),
+      option("thread.stop", msg("Stop thread")),
+      option("composer.increaseEffort", msg("Increase reasoning effort")),
+      option("composer.decreaseEffort", msg("Decrease reasoning effort")),
+      option("composer.effort", msg("Choose reasoning effort")),
+      option("thread.pin", msg("Pin or unpin thread")),
+      option("thread.mark-done", msg("Mark thread as Done")),
+      option("chat.new", msg("New thread")),
+      option("chat.find", msg("Find in thread")),
+      option("thread.copyReference", msg("Copy thread link")),
     ],
   },
   {
-    label: "Navigation",
+    label: msg("Navigation"),
     options: [
-      option("navigation.back", "Back"),
-      option("navigation.forward", "Forward"),
-      option("thread.previous", "Previous thread"),
-      option("thread.next", "Next thread"),
-      option("conversation.scrollUp", "Scroll up the conversation"),
-      option("conversation.scrollDown", "Scroll down the conversation"),
-      option("conversation.scrollToEnd", "Jump to the latest message"),
+      option("navigation.back", msg("Back")),
+      option("navigation.forward", msg("Forward")),
+      option("thread.previous", msg("Previous thread")),
+      option("thread.next", msg("Next thread")),
+      option("conversation.scrollUp", msg("Scroll up the conversation")),
+      option("conversation.scrollDown", msg("Scroll down the conversation")),
+      option("conversation.scrollToEnd", msg("Jump to the latest message")),
     ],
   },
   {
-    label: "Panels",
+    label: msg("Panels"),
     options: [
-      option("sidebar.toggle", "Toggle sidebar"),
-      option("rightPanel.toggle", "Toggle right panel"),
-      option("diff.toggle", "Toggle diff"),
-      option("terminal.toggle", "Toggle terminal"),
-      option("preview.toggle", "Toggle browser"),
+      option("sidebar.toggle", msg("Toggle sidebar")),
+      option("rightPanel.toggle", msg("Toggle right panel")),
+      option("diff.toggle", msg("Toggle diff")),
+      option("terminal.toggle", msg("Toggle terminal")),
+      option("preview.toggle", msg("Toggle browser")),
     ],
   },
   {
-    label: "Workspace",
+    label: msg("Workspace"),
     options: [
-      option("projectPicker.toggle", "Choose project"),
-      option("filePicker.toggle", "Open file"),
-      option("commandPalette.toggle", "Open command palette"),
+      option("projectPicker.toggle", msg("Choose project")),
+      option("filePicker.toggle", msg("Open file")),
+      option("commandPalette.toggle", msg("Open command palette")),
     ],
   },
   {
-    label: "App",
+    label: msg("App"),
     options: [
-      option("automations.open", "Open automations"),
-      option("usage.open", "Open usage"),
-      option("appearance.cycle", "Cycle appearance"),
-      { action: { type: "open-settings" }, label: "Open Settings" },
-      { action: OPEN_CODEX_MICRO_SETTINGS, label: "Open Codex Micro settings" },
+      option("automations.open", msg("Open automations")),
+      option("usage.open", msg("Open usage")),
+      option("appearance.cycle", msg("Cycle appearance")),
+      { action: { type: "open-settings" }, label: msg("Open Settings") },
+      { action: OPEN_CODEX_MICRO_SETTINGS, label: msg("Open Codex Micro settings") },
     ],
   },
 ];
@@ -423,18 +427,21 @@ export const CODEX_MICRO_COMMAND_OPTIONS: ReadonlyMap<string, CodexMicroCommandO
   ),
 );
 
-export function codexMicroActionLabel(action: CodexMicroAction | null): string {
-  if (action === null) return "Unassigned";
+export function codexMicroActionLabel(
+  action: CodexMicroAction | null,
+  resolve: MessageResolver = m,
+): string {
+  if (action === null) return resolve(msg("Unassigned"));
   switch (action.type) {
-    case "command":
-      return (
-        CODEX_MICRO_COMMAND_OPTIONS.get(codexMicroActionValue(action))?.label ?? action.command
-      );
+    case "command": {
+      const label = CODEX_MICRO_COMMAND_OPTIONS.get(codexMicroActionValue(action))?.label;
+      return label === undefined ? action.command : resolve(label);
+    }
     case "composer-text":
-      return `Insert ${action.text}`;
+      return resolve(msg("Insert {text}", { text: action.text }));
     case "open-settings":
-      return "Open Settings";
+      return resolve(msg("Open Settings"));
     case "open-codex-micro-settings":
-      return "Open Codex Micro settings";
+      return resolve(msg("Open Codex Micro settings"));
   }
 }

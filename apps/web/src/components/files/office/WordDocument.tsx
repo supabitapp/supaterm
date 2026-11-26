@@ -14,7 +14,7 @@ import {
   type WordSpan,
   type WordLink,
 } from "./word-protocol";
-import { msg } from "gt-react";
+import { msg, useGT } from "gt-react";
 import { m } from "~/i18n/messages";
 
 type Opened = {
@@ -28,6 +28,7 @@ export default function WordDocument(props: {
   onDetails: (text: string) => void;
   onError: (cause: unknown) => void;
 }) {
+  const gt = useGT();
   const { onError, bytes, onDetails } = props;
   const [opened, setOpened] = useState<Opened>();
   const scroll = useRef<((index: number, y?: number) => void) | null>(null);
@@ -120,7 +121,7 @@ export default function WordDocument(props: {
     <OfficePages
       pages={opened.pages}
       paint={opened.paint}
-      label="Page"
+      label={gt("Page", { $context: "noun, prefix of a numbered document page" })}
       scrollRef={scroll}
       onError={onError}
       overlay={(index) => (

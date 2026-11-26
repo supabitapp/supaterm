@@ -46,7 +46,7 @@ import {
 } from "./DeviceSetup";
 import { DeviceWorkspace } from "./DeviceWorkspace";
 import { PreviewPanelShell, type PreviewPanelMode } from "../preview/PreviewPanelShell";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const platformLabel = (platform: DevicePlatform) =>
   platform === "ios" ? "iOS Simulators" : "Android Emulators";
@@ -241,8 +241,10 @@ export function DevicePanel(props: {
           <DeviceHostUpdates state={state} environmentId={environmentId} />
           {bootingDevices.length > 0 ? (
             <div role="status" className="border-b px-3 py-2 text-xs text-muted-foreground">
-              Starting {bootingDevices.map((device) => device.name).join(", ")}… This can take a
-              minute.
+              <T>
+                Starting <Var>{bootingDevices.map((device) => device.name).join(", ")}</Var>… This
+                can take a minute.
+              </T>
             </div>
           ) : null}
           {operationError ? (
@@ -447,9 +449,18 @@ function DeviceDiscoveryWarning(props: {
       <span className="flex min-w-0 flex-1 basis-56 items-start gap-2">
         <CircleAlertIcon className="mt-px size-3.5 shrink-0 text-warning-foreground" />
         <span className="min-w-0">
-          {platforms.length > 0
-            ? `${platforms.join(" and ")} ${platforms.length > 1 ? "lists" : "list"} on ${props.label} may be incomplete.`
-            : gt("Device discovery on {host} reported a warning.", { host: props.label })}
+          {platforms.length > 1
+            ? gt("{first} and {second} lists on {host} may be incomplete.", {
+                first: platforms[0],
+                second: platforms[1],
+                host: props.label,
+              })
+            : platforms.length === 1
+              ? gt("{platform} list on {host} may be incomplete.", {
+                  platform: platforms[0],
+                  host: props.label,
+                })
+              : gt("Device discovery on {host} reported a warning.", { host: props.label })}
         </span>
       </span>
       <span className="ml-auto flex shrink-0 items-center gap-0.5">

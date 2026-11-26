@@ -447,17 +447,19 @@ function CompactingLabel({ startedAt }: { startedAt: string | null }) {
       <ShrinkIcon aria-hidden="true" className="size-3" />
       {Number.isFinite(startedAtMs) ? (
         <span>
-          Compacting for{" "}
-          <span
-            ref={tickTextContent(
-              (nowMs) =>
-                formatElapsedSeconds(
-                  (toServerClock(activeThreadEnvironmentId, nowMs) - startedAtMs) / 1000,
-                ),
-              true,
-            )}
-            className="tabular-nums"
-          />
+          <T>
+            Compacting for{" "}
+            <span
+              ref={tickTextContent(
+                (nowMs) =>
+                  formatElapsedSeconds(
+                    (toServerClock(activeThreadEnvironmentId, nowMs) - startedAtMs) / 1000,
+                  ),
+                true,
+              )}
+              className="tabular-nums"
+            />
+          </T>
         </span>
       ) : (
         <T>Compacting…</T>
@@ -663,7 +665,9 @@ export function LiveWorkEntryTimelineRow({
       )}
       aria-label={
         failed
-          ? `${thoughtShown ? `${thoughtLine} ` : ""}${threadLabel?.text ?? label}, tool call failed`
+          ? gt("{label}, tool call failed", {
+              label: `${thoughtShown ? `${thoughtLine} ` : ""}${threadLabel?.text ?? label}`,
+            })
           : undefined
       }
       aria-expanded={row.expanded}

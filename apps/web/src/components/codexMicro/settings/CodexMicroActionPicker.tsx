@@ -1,5 +1,6 @@
 import type { CodexMicroAction } from "@supaterm/contracts";
 import { CheckIcon, XIcon } from "@supaterm/icons";
+import { T, useGT, useMessages } from "gt-react";
 import { useState } from "react";
 
 import { codexMicroActionValue } from "../codexMicroCatalog";
@@ -28,14 +29,19 @@ export function CodexMicroActionPicker({
   clearLabel?: string;
   onSelect: (action: CodexMicroAction | null) => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const [query, setQuery] = useState("");
-  const groups = filterCodexMicroCommandGroups(query);
+  const groups = filterCodexMicroCommandGroups(query, m);
   const showClear = clearLabel !== undefined && query.trim().length === 0;
   const selectedValue = selected ? codexMicroActionValue(selected) : null;
 
   return (
     <Command mode="none" value={query} onValueChange={setQuery} aria-label={label}>
-      <CommandInput placeholder="Search actions" aria-label={`${label}: search actions`} />
+      <CommandInput
+        placeholder={gt("Search actions")}
+        aria-label={gt("{label}: search actions", { label })}
+      />
       <CommandList className="max-h-64 overflow-y-auto">
         {showClear ? (
           <CommandItem value={CLEAR_VALUE} onClick={() => onSelect(null)}>
@@ -46,12 +52,12 @@ export function CodexMicroActionPicker({
         ) : null}
         {groups.map((group) => (
           <CommandGroup key={group.label}>
-            <CommandGroupLabel>{group.label}</CommandGroupLabel>
+            <CommandGroupLabel>{m(group.label)}</CommandGroupLabel>
             {group.options.map((option) => {
               const value = codexMicroActionValue(option.action);
               return (
                 <CommandItem key={value} value={value} onClick={() => onSelect(option.action)}>
-                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{m(option.label)}</span>
                   {value === selectedValue ? (
                     <CheckIcon aria-hidden className="size-3.5 shrink-0" />
                   ) : null}
@@ -61,7 +67,9 @@ export function CodexMicroActionPicker({
           </CommandGroup>
         ))}
         {groups.length === 0 ? (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">No actions found.</p>
+          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+            <T>No actions found.</T>
+          </p>
         ) : null}
       </CommandList>
     </Command>

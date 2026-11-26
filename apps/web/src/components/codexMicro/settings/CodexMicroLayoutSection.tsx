@@ -7,6 +7,7 @@ import {
 } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import * as Equal from "effect/Equal";
+import { T, useGT, useMessages } from "gt-react";
 import { useState } from "react";
 
 import { useClientSettings } from "../../../hooks/useSettings";
@@ -93,6 +94,8 @@ function KeyEditor({
 }
 
 export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceState | null }) {
+  const gt = useGT();
+  const m = useMessages();
   const settings = useClientSettings(selectLayoutSettings);
   const slots = useCodexMicroSlots();
   const pressedKey = useCodexMicroPressedKey(settings.layout.separateMicrophoneKeys);
@@ -113,6 +116,7 @@ export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceStat
       slots.find((slot) => slot.key === key) ?? null,
       customAssignments ? settings.customAgentKeys[key] : undefined,
       threadTitles,
+      m,
     ),
   );
   const resetLayout = resetCodexMicroLayout(settings.layout);
@@ -139,7 +143,7 @@ export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceStat
           disabled={layoutIsDefault}
           onClick={() => setResetOpen(true)}
         >
-          Reset layout
+          <T>Reset layout</T>
         </Button>
       }
     >
@@ -147,9 +151,11 @@ export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceStat
         <CodexMicroKeyboard
           layout={settings.layout}
           agentKeys={agentKeys}
-          agentKeyHint={customAssignments ? undefined : "Change what agent keys follow in Options"}
-          knobLabel={codexMicroEncoderModeOption(settings.layout.encoderMode).label}
-          lights={codexMicroStatusLights(settings.enabled, state)}
+          agentKeyHint={
+            customAssignments ? undefined : gt("Change what agent keys follow in Options")
+          }
+          knobLabel={m(codexMicroEncoderModeOption(settings.layout.encoderMode).label)}
+          lights={codexMicroStatusLights(settings.enabled, state, m)}
           pressedKey={pressedKey}
           onSelect={select}
         />
@@ -169,21 +175,27 @@ export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceStat
       <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
         <AlertDialogPopup>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reset keyboard layout?</AlertDialogTitle>
+            <AlertDialogTitle>
+              <T>Reset keyboard layout?</T>
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Command keys, the analog stick, and the knob go back to their defaults. Agent keys and
-              their custom assignments stay as they are.
+              <T>
+                Command keys, the analog stick, and the knob go back to their defaults. Agent keys
+                and their custom assignments stay as they are.
+              </T>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+            <AlertDialogClose render={<Button variant="outline" />}>
+              <T>Cancel</T>
+            </AlertDialogClose>
             <Button
               onClick={() => {
                 saveLayout(resetLayout);
                 setResetOpen(false);
               }}
             >
-              Reset layout
+              <T>Reset layout</T>
             </Button>
           </AlertDialogFooter>
         </AlertDialogPopup>

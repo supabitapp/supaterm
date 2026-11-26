@@ -106,7 +106,10 @@ export default function Presentation(props: {
           <ChevronLeftIcon className="size-3.5" />
         </FileSurfaceAction>
         <span className="flex-1 text-center text-xs tabular-nums" aria-live="polite">
-          Slide {page + 1} of {opened.slides.length}
+          {gt("Slide {page} of {count}", {
+            page: String(page + 1),
+            count: String(opened.slides.length),
+          })}
         </span>
         <FileSurfaceAction
           label={gt("Next slide")}
@@ -119,7 +122,7 @@ export default function Presentation(props: {
       <OfficePages
         pages={opened.slides}
         paint={opened.paint}
-        label="Slide"
+        label={gt("Slide", { $context: "noun, prefix of a numbered presentation slide" })}
         scrollRef={scroll}
         onPageChange={setPage}
         onError={onError}
