@@ -1,7 +1,7 @@
 import { useId, useState, type KeyboardEvent } from "react";
 
 import { Button } from "../ui/button";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 export function ThemeCssEditor({
   value,
@@ -100,7 +100,9 @@ export function ThemeCssEditor({
         <div className="flex items-center justify-between border-t border-input px-3 py-1 font-mono text-xs">
           <span>CSS</span>
           <span>
-            Ln {position.line}, Col {position.column}
+            <T>
+              Ln <Var>{position.line}</Var>, Col <Var>{position.column}</Var>
+            </T>
           </span>
         </div>
       </div>

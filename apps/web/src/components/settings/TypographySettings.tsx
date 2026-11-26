@@ -42,7 +42,7 @@ import {
   searchableSetting,
 } from "./settingsSearch";
 import { isImeComposing } from "~/lib/imeComposition";
-import { useGT } from "gt-react";
+import { T, useGT } from "gt-react";
 
 function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
   const gt = useGT();
@@ -82,7 +82,7 @@ function PromptFontRow() {
   return (
     <FontFamilySettingsRow
       {...searchableSetting("prompt-font")}
-      description="Applies to the box you write prompts in."
+      description={gt("Applies to the box you write prompts in.")}
       defaultFamily={settings.fontFamilySans.trim() || DEFAULT_SANS_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilyComposer}
       value={settings.fontFamilyComposer}
@@ -108,7 +108,7 @@ function PromptFontRow() {
 
 function CodeFontRow({
   title,
-  description = "Code blocks, diffs, and file previews.",
+  description,
   preview,
 }: {
   title?: string;
@@ -122,7 +122,7 @@ function CodeFontRow({
     <FontFamilySettingsRow
       {...searchableSetting("code-font")}
       {...(title !== undefined ? { title } : {})}
-      description={description}
+      description={description ?? gt("Code blocks, diffs, and file previews.")}
       defaultFamily={DEFAULT_CODE_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilyCode}
       value={settings.fontFamilyCode}
@@ -196,11 +196,11 @@ function FontSmoothingRow() {
   return (
     <SettingsRow
       {...searchableSetting("font-smoothing")}
-      description="Thinner grayscale smoothing instead of the macOS default."
+      description={gt("Thinner grayscale smoothing instead of the macOS default.")}
       resetAction={
         settings.fontSmoothing !== DEFAULT_UNIFIED_SETTINGS.fontSmoothing ? (
           <SettingResetButton
-            label="font smoothing"
+            label={gt("font smoothing", { $context: "setting name in a reset button label" })}
             onClick={() =>
               updateSettings({ fontSmoothing: DEFAULT_UNIFIED_SETTINGS.fontSmoothing })
             }
@@ -225,11 +225,11 @@ function WordWrapRow() {
   return (
     <SettingsRow
       {...searchableSetting("word-wrap")}
-      description="Applies to code blocks, diffs, and file previews."
+      description={gt("Applies to code blocks, diffs, and file previews.")}
       resetAction={
         settings.wordWrap !== DEFAULT_UNIFIED_SETTINGS.wordWrap ? (
           <SettingResetButton
-            label="word wrapping"
+            label={gt("word wrapping", { $context: "setting name in a reset button label" })}
             onClick={() => updateSettings({ wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap })}
           />
         ) : null
@@ -311,11 +311,11 @@ export function TypographySection() {
       title={gt("Typography")}
       headerAction={
         <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
-          Advanced
+          <T>Advanced</T>
           <Switch
             checked={showAdvanced}
             onCheckedChange={(checked) => setAdvanced(Boolean(checked))}
-            aria-label="Show advanced typography settings"
+            aria-label={gt("Show advanced typography settings")}
           />
         </label>
       }

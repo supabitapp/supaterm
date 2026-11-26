@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import { useRef, useState, type PointerEvent } from "react";
 
 import { hexToHsv, hsvToHex, type HsvColor } from "../../../lib/color";
@@ -23,6 +24,7 @@ function ColorPanel({
   readonly onPreview: (color: string) => void;
   readonly onCommit: (color: string) => void;
 }) {
+  const gt = useGT();
   const [hsv, setHsv] = useState(() => hexToHsv(value));
   const [hexDraft, setHexDraft] = useState<string | null>(null);
   const [syncedValue, setSyncedValue] = useState(value);
@@ -68,7 +70,7 @@ function ColorPanel({
       <div className="grid gap-3 p-3">
         <div onPointerDownCapture={startDrag}>
           <ColorHueSlider
-            label={`${label} hue`}
+            label={gt("{label} hue", { label })}
             value={hsv.h}
             onChange={(h) => change({ ...hsv, h })}
             onInteractionEnd={endDrag}
@@ -87,7 +89,7 @@ function ColorPanel({
           }}
           onBlur={() => setHexDraft(null)}
           font="mono"
-          aria-label={`${label} hex`}
+          aria-label={gt("{label} hex", { label })}
           spellCheck={false}
         />
       </div>
@@ -113,6 +115,7 @@ export function SidePulseColorPicker({
   readonly onClose: () => void;
   readonly onReset: () => void;
 }) {
+  const gt = useGT();
   return (
     <Popover
       onOpenChange={(open) => {
@@ -121,7 +124,12 @@ export function SidePulseColorPicker({
     >
       <PopoverTrigger
         render={
-          <Button type="button" size="icon-sm" variant="outline" aria-label={`Change ${label}`}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label={gt("Change {label}", { label })}
+          >
             <span
               aria-hidden
               className="size-3.5 rounded-full"
@@ -143,7 +151,7 @@ export function SidePulseColorPicker({
                   className="w-full justify-start"
                   onClick={onReset}
                 >
-                  Use the light's own color
+                  <T>Use the light's own color</T>
                 </Button>
               }
             />

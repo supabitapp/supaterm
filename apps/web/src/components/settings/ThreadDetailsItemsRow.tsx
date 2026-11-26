@@ -27,7 +27,7 @@ export function ThreadDetailsItemsRow() {
       resetAction={
         isDefaultThreadDetailsVisibility(visibility) ? null : (
           <SettingResetButton
-            label="thread details"
+            label={gt("thread details", { $context: "setting name in a reset button label" })}
             onClick={() => updateClientSettings(RESET_THREAD_DETAILS_ITEMS)}
           />
         )

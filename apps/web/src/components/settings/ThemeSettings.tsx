@@ -273,7 +273,13 @@ export function ThemeLibrary({
         const isActive = appearanceMode === mode;
         return (
           <button
-            aria-label={mode === "system" ? gt("Follow the system appearance") : `Use ${mode} mode`}
+            aria-label={
+              mode === "system"
+                ? gt("Follow the system appearance")
+                : mode === "light"
+                  ? gt("Use light mode")
+                  : gt("Use dark mode")
+            }
             aria-pressed={isActive}
             className={cn(
               "flex cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border p-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring",
@@ -307,13 +313,13 @@ export function ThemeLibrary({
 
   const renderThemePicker = (appearance: ThemeAppearance) => {
     const { definition: selected, appearance: resolvedAppearance } = selectionFor(appearance);
-    const appearanceLabel = appearance === "light" ? "Light" : "Dark";
+    const appearanceLabel = appearance === "light" ? gt("Light") : gt("Dark");
     const fits = (definition: ThemeDefinition) =>
       definition.id === selected?.id || getThemeModes(definition).includes(appearance);
     const groups = [
-      { label: "Built-in", themes: BUILT_IN_THEMES.filter(fits) },
-      { label: "Published", themes: publishedThemes.filter(fits) },
-      { label: "Custom", themes: customThemes.filter(fits) },
+      { label: gt("Built-in", { $context: "theme group" }), themes: BUILT_IN_THEMES.filter(fits) },
+      { label: gt("Published", { $context: "theme group" }), themes: publishedThemes.filter(fits) },
+      { label: gt("Custom", { $context: "theme group" }), themes: customThemes.filter(fits) },
     ];
     const selectedIsCustom = selected !== null && isCustomTheme(selected.id);
     return (
@@ -333,7 +339,7 @@ export function ThemeLibrary({
             id={`${pickerId}-${appearance}`}
             size="comfortable"
             className="w-full min-w-0"
-            aria-label={`${appearanceLabel} theme`}
+            aria-label={appearance === "light" ? gt("Light theme") : gt("Dark theme")}
           >
             <ThemeSwatch colors={swatchColorsFor(selected, resolvedAppearance)} />
             <SelectValue>{selected?.label ?? STANDARD_THEME_CARDS[0]!.label}</SelectValue>
@@ -366,7 +372,11 @@ export function ThemeLibrary({
           <MenuTrigger
             render={
               <Button
-                aria-label={`More actions for the ${appearance} theme`}
+                aria-label={
+                  appearance === "light"
+                    ? gt("More actions for the light theme")
+                    : gt("More actions for the dark theme")
+                }
                 size="icon-xl"
                 variant="ghost-muted"
               />
@@ -386,7 +396,7 @@ export function ThemeLibrary({
               }
             >
               <CopyIcon />
-              Duplicate theme
+              <T>Duplicate theme</T>
             </MenuItem>
             {selected && selectedIsCustom ? (
               <>
@@ -401,7 +411,7 @@ export function ThemeLibrary({
                   }
                 >
                   <PenLineIcon />
-                  Edit theme
+                  <T>Edit theme</T>
                 </MenuItem>
                 <MenuItem
                   onClick={() =>
@@ -409,12 +419,12 @@ export function ThemeLibrary({
                   }
                 >
                   <UploadIcon />
-                  Export theme file
+                  <T>Export theme file</T>
                 </MenuItem>
                 <MenuSeparator />
                 <MenuItem variant="destructive" onClick={() => openThemeRemoval(selected)}>
                   <TrashIcon />
-                  Remove theme…
+                  <T>Remove theme…</T>
                 </MenuItem>
               </>
             ) : null}
@@ -451,11 +461,11 @@ export function ThemeLibrary({
               }
             >
               <PaintbrushIcon />
-              Create theme
+              <T>Create theme</T>
             </Button>
             <Button size="xs" variant="outline" onClick={() => onImportOpenChange(true)}>
               <PlusIcon />
-              Add theme
+              <T>Add theme</T>
             </Button>
           </div>
         </div>
@@ -488,8 +498,11 @@ export function ThemeLibrary({
             toastManager.add(
               stackedThreadToast({
                 type: "success",
-                title: `${importedTheme.label} added`,
-                description: `It’s now your ${modes[0]!} theme.`,
+                title: gt("{label} added", { label: importedTheme.label }),
+                description:
+                  modes[0] === "light"
+                    ? gt("It’s now your light theme.")
+                    : gt("It’s now your dark theme."),
               }),
             );
             return true;
@@ -498,7 +511,7 @@ export function ThemeLibrary({
           toastManager.add(
             stackedThreadToast({
               type: "success",
-              title: `${importedTheme.label} added`,
+              title: gt("{label} added", { label: importedTheme.label }),
               description: gt("It’s now active."),
             }),
           );
@@ -519,7 +532,7 @@ export function ThemeLibrary({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isSingleThemeRemoval
-                ? "You can add it again with Add theme."
+                ? gt("You can add it again with Add theme.")
                 : gt(
                     "Select the variants you want to remove. You can restore them by importing the extension again.",
                   )}
@@ -585,8 +598,10 @@ export function ThemeLibrary({
               onClick={handleConfirmRemoveThemes}
             >
               {isSingleThemeRemoval
-                ? "Remove"
-                : `Remove selected${themeIdsToRemove.length > 0 ? ` (${themeIdsToRemove.length})` : ""}`}
+                ? gt("Remove", { $context: "verb, removes a theme" })
+                : themeIdsToRemove.length > 0
+                  ? gt("Remove selected ({count})", { count: themeIdsToRemove.length })
+                  : gt("Remove selected")}
             </Button>
           </AlertDialogFooter>
         </AlertDialogPopup>

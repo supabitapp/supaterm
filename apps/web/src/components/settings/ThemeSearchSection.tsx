@@ -30,7 +30,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group"
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Spinner } from "../ui/spinner";
 import { isImeComposing } from "~/lib/imeComposition";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
 import { m } from "../../i18n/messages";
 
 const DOWNLOAD_FORMAT = new Intl.NumberFormat(undefined, {
@@ -387,7 +387,10 @@ export function ThemeSearchSection({
         {isSearching
           ? gt("Searching themes...")
           : results
-            ? `${results.length} supported ${results.length === 1 ? "theme" : "themes"} found.`
+            ? gt(
+                "{count, plural, one {{count} supported theme found.} other {{count} supported themes found.}}",
+                { count: results.length },
+              )
             : ""}
       </div>
 
@@ -485,7 +488,11 @@ export function ThemeSearchSection({
       >
         <AlertDialogPopup>
           <AlertDialogHeader>
-            <AlertDialogTitle>Update “{pendingUpdate?.name}”?</AlertDialogTitle>
+            <AlertDialogTitle>
+              <T>
+                Update “<Var>{pendingUpdate?.name}</Var>”?
+              </T>
+            </AlertDialogTitle>
             <AlertDialogDescription>
               <T>
                 This replaces its installed variants, including any local edits. Variants no longer
