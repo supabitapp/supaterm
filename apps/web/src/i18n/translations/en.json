@@ -235,6 +235,7 @@
   "42e613ac8acac777": "{days, plural, one {Expires in {days} day. Link it again to renew.} other {Expires in {days} days. Link it again to renew.}}",
   "29d8f46d9cf75b32": "No project",
   "a414f5045fa2e8da": "The environment did not respond to the PR request.",
+  "15060a768425491b": "Update Supaterm on {environment} to submit this review. Its version cannot keep a review on the commits you read.",
   "e1b5268aa311f464": "The environment was removed.",
   "00d50f88c665cc51": "The environment HTTP connection is not ready.",
   "b060872e18e91755": "Server update failed.",

@@ -235,6 +235,7 @@
   "42e613ac8acac777": "{days, plural, one {Expira em {days} dia. Vincule novamente para renovar.} other {Expira em {days} dias. Vincule novamente para renovar.}}",
   "29d8f46d9cf75b32": "Nenhum projeto",
   "a414f5045fa2e8da": "O ambiente não respondeu à solicitação do PR.",
+  "15060a768425491b": "Atualize o Supaterm em {environment} para enviar esta revisão. Esta versão não consegue manter uma revisão nos commits que você leu.",
   "e1b5268aa311f464": "O ambiente foi removido.",
   "00d50f88c665cc51": "A conexão HTTP do ambiente não está pronta.",
   "b060872e18e91755": "Falha ao atualizar o servidor.",

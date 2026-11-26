@@ -48,10 +48,11 @@ import {
   queryPersistenceKey,
   type QueryAnswerHandler,
 } from "./runtime.ts";
-import { createPullRequestRouter } from "./pullRequestRouting.ts";
+import { createPullRequestRouter, keepsReviewPin } from "./pullRequestRouting.ts";
 import * as PullRequestDiffLoader from "./pullRequestDiffHttp.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
+import { EnvironmentRpcUnavailableError } from "../rpc/client.ts";
 import { isStalePullRequestReply } from "../pullRequestReply.ts";
 import { parsePullRequestQuery } from "../pullRequestQuery.ts";
 import { reuseUnchanged } from "./serverConfigProjection.ts";
@@ -1431,7 +1432,21 @@ export function createPullRequestEnvironmentAtoms<R, E>(
     submitReview: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:pull-requests:submit-review",
       tag: WS_METHODS.pullRequestsSubmitReview,
-      execute: (input) => routedRequest(WS_METHODS.pullRequestsSubmitReview, input),
+      execute: Effect.fn("PullRequests.submitReview")(function* (input) {
+        if (!(yield* keepsReviewPin(input))) {
+          const { target } = yield* EnvironmentSupervisor.EnvironmentSupervisor;
+          return yield* new EnvironmentRpcUnavailableError({
+            environmentId: target.environmentId,
+            ...translatableMessage(
+              msg(
+                "Update Supaterm on {environment} to submit this review. Its version cannot keep a review on the commits you read.",
+                { environment: target.label },
+              ),
+            ),
+          });
+        }
+        return yield* routedRequest(WS_METHODS.pullRequestsSubmitReview, input);
+      }),
       scheduler: commandScheduler,
       concurrency: serialPerEnvironment,
     }),

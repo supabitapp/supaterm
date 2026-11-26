@@ -235,6 +235,7 @@
   "42e613ac8acac777": "{days, plural, one {Går ut om {days} dag. Länka den igen för att förnya.} other {Går ut om {days} dagar. Länka den igen för att förnya.}}",
   "29d8f46d9cf75b32": "Inget projekt",
   "a414f5045fa2e8da": "Miljön svarade inte på PR-begäran.",
+  "15060a768425491b": "Uppdatera Supaterm på {environment} för att skicka den här granskningen. Den versionen kan inte hålla en granskning på de commits du har läst.",
   "e1b5268aa311f464": "Miljön togs bort.",
   "00d50f88c665cc51": "Miljöns HTTP-anslutning är inte klar.",
   "b060872e18e91755": "Serveruppdateringen misslyckades.",

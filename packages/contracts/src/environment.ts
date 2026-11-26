@@ -175,6 +175,9 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Server holds a steer sent while a run prepares or starts and delivers it once the provider
       turn runs; older servers reject that steer. */
   deferredSteering: Schema.optionalKey(Schema.Boolean),
+  /** Refuses a review whose `expectedHeadSha` is no longer the head. Older servers drop the
+      field, and the host then reviews its newest commit. */
+  pullRequestReviewHeadPin: Schema.optionalKey(Schema.Boolean),
   /**
    * The server config's flags of the same names. A server that names them here lets a client
    * load the shell snapshot before the socket opens, and answers its `resumeFrom`.

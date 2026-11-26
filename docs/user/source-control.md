@@ -214,7 +214,8 @@ GitLab calls these merge requests.
 A merge or review applies to the commits you opened the pull request on. When someone pushes
 meanwhile, the web and desktop apps offer **Load new commits**; until you do, a merge or review is
 refused and your review draft is kept. Merging from a thread's pull request row, or from the list,
-lands the head that row had when you confirmed.
+lands the head that row had when you confirmed. An environment on an older Supaterm cannot keep a
+review on those commits, so the app asks you to update it before it submits a review there.
 
 A GitHub checkout with an `upstream` remote lists the upstream repository's pull requests. To list
 your own repository's instead, run `gh repo set-default` in the checkout and choose it. The list

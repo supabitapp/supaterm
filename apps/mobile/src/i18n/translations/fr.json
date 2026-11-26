@@ -235,6 +235,7 @@
   "42e613ac8acac777": "{days, plural, one {Expire dans {days} jour. Associez-le à nouveau pour le renouveler.} other {Expire dans {days} jours. Associez-le à nouveau pour le renouveler.}}",
   "29d8f46d9cf75b32": "Aucun projet",
   "a414f5045fa2e8da": "L’environnement n’a pas répondu à la requête de PR.",
+  "15060a768425491b": "Mettez à jour Supaterm sur {environment} pour envoyer cette revue. Cette version ne peut pas garder une revue sur les commits que vous avez lus.",
   "e1b5268aa311f464": "L’environnement a été supprimé.",
   "00d50f88c665cc51": "La connexion HTTP de l’environnement n’est pas prête.",
   "b060872e18e91755": "Échec de la mise à jour du serveur.",

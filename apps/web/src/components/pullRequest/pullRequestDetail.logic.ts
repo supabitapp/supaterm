@@ -50,6 +50,7 @@ import {
 } from "@supaterm/client-runtime/thread-pull-requests";
 
 import { inferReviewCommentFenceLanguage, type ReviewCommentContext } from "~/reviewCommentContext";
+import { thrownErrorMessage } from "@supaterm/client-runtime/errors";
 import { msg } from "gt-react";
 import { m, type MessageResolver } from "~/i18n/messages";
 import { changeRequestTermKind } from "./changeRequestTerm";
@@ -1638,8 +1639,7 @@ export function mergeHeadPin(action: PullRequestAction, headSha: string | undefi
 }
 
 export function readableFailure(failure: unknown, hint: string): string {
-  const raw =
-    failure instanceof Error ? failure.message : typeof failure === "string" ? failure : "";
+  const raw = thrownErrorMessage(failure, m) ?? (typeof failure === "string" ? failure : "");
   const detail = raw.replace(OPERATION_PREFIX, "").trim();
   if (detail.length === 0 || TOOL_NOISE.some((pattern) => pattern.test(detail))) return hint;
   if (detail.length <= FAILURE_DETAIL_MAX_LENGTH) return detail;

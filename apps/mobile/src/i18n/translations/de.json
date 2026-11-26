@@ -235,6 +235,7 @@
   "42e613ac8acac777": "{days, plural, one {Läuft in {days} Tag ab. Verknüpfe es erneut, um es zu verlängern.} other {Läuft in {days} Tagen ab. Verknüpfe es erneut, um es zu verlängern.}}",
   "29d8f46d9cf75b32": "Kein Projekt",
   "a414f5045fa2e8da": "Die Umgebung hat nicht auf die PR-Anfrage geantwortet.",
+  "15060a768425491b": "Aktualisiere Supaterm auf {environment}, um dieses Review abzuschicken. Diese Version kann ein Review nicht an die Commits binden, die du gelesen hast.",
   "e1b5268aa311f464": "Die Umgebung wurde entfernt.",
   "00d50f88c665cc51": "Die HTTP-Verbindung der Umgebung ist nicht bereit.",
   "b060872e18e91755": "Server-Update fehlgeschlagen.",
