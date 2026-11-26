@@ -4,7 +4,7 @@ import {
   sessionPermissionsUnavailableMessage,
 } from "@supaterm/shared/authScopeOptions";
 import { useEnvironmentSessionState } from "~/state/session";
-import { useGT } from "gt-react";
+import { T, useGT } from "gt-react";
 
 export function SessionPermissions({
   environmentId,
@@ -20,9 +20,14 @@ export function SessionPermissions({
   return connected && !session.hasError && !session.isPending && session.data?.authenticated ? (
     <div className="space-y-3 py-3 text-xs">
       <p className="text-muted-foreground">
-        {routeContext
-          ? "These permissions apply to your active route. Other routes may have different permissions."
-          : "These permissions apply to this client’s current connection."}
+        {routeContext ? (
+          <T>
+            These permissions apply to your active route. Other routes may have different
+            permissions.
+          </T>
+        ) : (
+          <T>These permissions apply to this client’s current connection.</T>
+        )}
       </p>
       <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
         {AUTH_SCOPE_OPTIONS.map(({ scope, title }) => (

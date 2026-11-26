@@ -11,6 +11,7 @@ import { serverEnvironment } from "~/state/server";
 import { Switch } from "../ui/switch";
 import { SettingsRow } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import { msg, useGT, useMessages } from "gt-react";
 
 function statusDescription(status: RelayHostStatus): string | null {
   const name = status.relayEndpoint === undefined ? null : relayName(status.relayEndpoint);
@@ -18,17 +19,19 @@ function statusDescription(status: RelayHostStatus): string | null {
     case "off":
       return null;
     case "idle":
-      return "Ready to link a device. Use Add device below to create a pairing link.";
+      return msg("Ready to link a device. Use Add device below to create a pairing link.");
     case "connecting":
-      return "Preparing your connection…";
+      return msg("Preparing your connection…");
     case "registered":
       return name === null
-        ? "Connected. Paired clients can reach this host from anywhere."
-        : `Connected as ${name}. Paired clients can reach this host from anywhere.`;
+        ? msg("Connected. Paired clients can reach this host from anywhere.")
+        : msg("Connected as {name}. Paired clients can reach this host from anywhere.", { name });
     case "superseded":
-      return "Another host is using this relay identity. Turn Encrypted Relay off and on to reconnect here.";
+      return msg(
+        "Another host is using this relay identity. Turn Encrypted Relay off and on to reconnect here.",
+      );
     case "invalid-url":
-      return "The relay server URL is invalid.";
+      return msg("The relay server URL is invalid.");
   }
 }
 
@@ -51,17 +54,21 @@ export function PublicRelaySettings({
   readonly disabled: boolean;
   readonly update: (patch: ServerSettingsPatch) => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const enabled = settings?.publicRelayEnabled ?? false;
   return (
     <SettingsRow
       title={searchableSetting("public-relay").title}
       description={
-        (enabled && status ? statusDescription(status) : null) ??
-        "Connect your other devices from anywhere with end-to-end encryption. Turn it on, then use Add device below."
+        (enabled && status ? m(statusDescription(status)) : null) ??
+        gt(
+          "Connect your other devices from anywhere with end-to-end encryption. Turn it on, then use Add device below.",
+        )
       }
       control={
         <Switch
-          aria-label="Enable Encrypted Relay"
+          aria-label={gt("Enable Encrypted Relay")}
           disabled={disabled}
           checked={enabled}
           onCheckedChange={(publicRelayEnabled) => update({ publicRelayEnabled })}

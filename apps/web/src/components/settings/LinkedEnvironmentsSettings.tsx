@@ -69,7 +69,7 @@ import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { searchableSetting } from "./settingsSearch";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 // Console log labels for the atom commands.
 export const UNLINK_COMMAND_LABEL = "unlink environment";
@@ -134,17 +134,22 @@ function LinkedEnvironmentHost({
   /** The other connected machines whose links reach this one. */
   readonly incoming: ReadonlyArray<string>;
 }) {
+  const gt = useGT();
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(environmentId));
   const canList = useEnvironmentScope(environmentId, AuthAccessReadScope);
   return (
     <>
       <SettingsRow
-        title={environmentLabel ?? "Let agents here work on your other machines"}
+        title={environmentLabel ?? gt("Let agents here work on your other machines")}
         description={
           <>
-            Agents here can work on machines you link. Each link goes one way.
+            <T>Agents here can work on machines you link. Each link goes one way.</T>
             {incoming.length > 0 ? (
-              <span className="block">Linked from {incoming.join(", ")}.</span>
+              <span className="block">
+                <T>
+                  Linked from <Var>{incoming.join(", ")}</Var>.
+                </T>
+              </span>
             ) : null}
           </>
         }
@@ -231,7 +236,10 @@ function LinkedEnvironmentRow({
         toastManager.add({
           type: "warning",
           title: gt("{label} did not answer", { label }),
-          description: `Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
+          description: gt(
+            "Revoke \"Supaterm · …\" in {label}''s Sharing & access to end the session there too.",
+            { label },
+          ),
         });
       }
     } else if (!isAtomCommandInterrupted(result)) {
@@ -405,16 +413,18 @@ function LinkEnvironmentAction({
                 })}
           >
             <PlusIcon className="size-3" />
-            Link
+            {gt("Link", { $context: "verb, links an environment" })}
           </Button>
         }
       />
       <DialogPopup className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {environmentLabel === null
-              ? "Link an environment"
-              : `Link ${environmentLabel} to an environment`}
+            {environmentLabel === null ? (
+              <T>Link an environment</T>
+            ) : (
+              gt("Link {label} to an environment", { label: environmentLabel })
+            )}
           </DialogTitle>
           <DialogDescription>
             <T>
@@ -466,8 +476,10 @@ function LinkEnvironmentAction({
                 />
                 {machine !== null ? (
                   <span className="block text-xs text-muted-foreground">
-                    This app has no address for {machine.label} that another machine can reach.
-                    Enter its https or Tailscale address.
+                    <T>
+                      This app has no address for <Var>{machine.label}</Var> that another machine
+                      can reach. Enter its https or Tailscale address.
+                    </T>
                   </span>
                 ) : null}
               </label>
@@ -493,8 +505,10 @@ function LinkEnvironmentAction({
                 />
                 {machine !== null ? (
                   <span className="block text-xs text-muted-foreground">
-                    Create a link on {machine.label}: Settings → Sharing & access → Authorized
-                    clients → Create link, then paste its code here.
+                    <T>
+                      Create a link on <Var>{machine.label}</Var>: Settings → Sharing & access →
+                      Authorized clients → Create link, then paste its code here.
+                    </T>
                   </span>
                 ) : null}
               </label>

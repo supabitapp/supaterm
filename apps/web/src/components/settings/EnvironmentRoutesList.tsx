@@ -147,7 +147,7 @@ export function EnvironmentRoutesList({
         <Button
           size="xs"
           variant="ghost-muted"
-          aria-label="Refresh route latency"
+          aria-label={gt("Refresh route latency")}
           onClick={() => {
             for (const route of routes) {
               registry.refresh(environmentSession.routeLatencyAtoms(route).resultAtom);
@@ -155,7 +155,7 @@ export function EnvironmentRoutesList({
           }}
         >
           <RefreshCwIcon className="size-3" />
-          Refresh
+          <T>Refresh</T>
         </Button>
       </div>
     </div>
@@ -243,10 +243,10 @@ function SortableRouteRow({
               <TooltipTrigger
                 render={<span className="text-2xs font-normal text-muted-foreground" />}
               >
-                Direct
+                <T context="route connects straight to the host">Direct</T>
               </TooltipTrigger>
               <TooltipPopup side="top">
-                Encrypted connection straight to the host, skipping the relay server
+                <T>Encrypted connection straight to the host, skipping the relay server</T>
               </TooltipPopup>
             </Tooltip>
           ) : null}
@@ -255,7 +255,11 @@ function SortableRouteRow({
               <T>Sign-in refused</T>
             </span>
           ) : null}
-          {unused ? <span className="text-2xs font-normal">Not used</span> : null}
+          {unused ? (
+            <span className="text-2xs font-normal">
+              <T>Not used</T>
+            </span>
+          ) : null}
         </p>
         {address !== null ? (
           <p className="flex min-w-0 items-baseline gap-2 text-2xs text-muted-foreground">
@@ -265,7 +269,11 @@ function SortableRouteRow({
               </TooltipTrigger>
               <TooltipPopup side="top">{address}</TooltipPopup>
             </Tooltip>
-            {isLearned(route) ? <span className="shrink-0">Discovered</span> : null}
+            {isLearned(route) ? (
+              <span className="shrink-0">
+                <T>Discovered</T>
+              </span>
+            ) : null}
           </p>
         ) : null}
         {refused && address !== null ? (
@@ -275,7 +283,7 @@ function SortableRouteRow({
         ) : null}
       </div>
       <span
-        aria-label={unused ? undefined : `${label} route latency: ${latency}`}
+        aria-label={unused ? undefined : gt("{label} route latency: {latency}", { label, latency })}
         className="w-20 text-right text-2xs tabular-nums text-muted-foreground"
       >
         {latency}
