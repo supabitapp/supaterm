@@ -93,4 +93,19 @@ describe("filterSharedServerPatch", () => {
       );
     },
   );
+
+  it("leaves keys another machine's policy locks out of the sync", () => {
+    const patch = { continueThreadsAfterServerUpdate: true, sidebarAutoMarkDoneAfterDays: 7 };
+    const policy = {
+      organization: "Example Corp",
+      lockedSettings: ["continueThreadsAfterServerUpdate"],
+    };
+    expect(
+      filterSharedServerPatch(patch, DEFAULT_SERVER_SETTINGS, undefined, false, policy),
+    ).toEqual({ sidebarAutoMarkDoneAfterDays: 7 });
+    // The machine the user edits refuses the write itself, so it still gets the whole patch.
+    expect(
+      filterSharedServerPatch(patch, DEFAULT_SERVER_SETTINGS, undefined, true, policy),
+    ).toEqual(patch);
+  });
 });

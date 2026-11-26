@@ -1,11 +1,12 @@
 import { relayName } from "@supaterm/shared/relay/name";
-import { QrCodeIcon } from "@supaterm/icons";
+import { PlusIcon, QrCodeIcon } from "@supaterm/icons";
 import { type ReactNode, type RefObject, memo, useId, useState } from "react";
 import {
   type AuthEnvironmentScope,
   type AuthPairingCredentialResult,
   type AdvertisedEndpoint,
   type EnvironmentId,
+  managedCapabilityDenial,
   type RelayConnectionInfo,
   type ServerSettings,
 } from "@supaterm/contracts";
@@ -54,6 +55,8 @@ import {
 } from "~/environments/primary";
 import type { EnvironmentPresentation } from "~/state/environments";
 import { UseInAnotherAppDialog } from "../mcp/UseInAnotherAppDialog";
+import { ManagedControl } from "../ManagedPolicy";
+import { useManagedPolicy, usePrimaryManagedPolicy } from "~/state/managedPolicy";
 import { ConnectionStatusDot } from "../ConnectionStatusDot";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
 
@@ -629,6 +632,7 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
   mcpEnvironment,
 }: AuthorizedClientsHeaderActionProps) {
   const hasOtherClients = clientSessions?.some((clientSession) => !clientSession.current) ?? false;
+  const pairingDenial = managedCapabilityDenial(useManagedPolicy(environmentId), "remoteClients");
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {mcpEnvironment ? <UseInAnotherAppDialog environment={mcpEnvironment} /> : null}
@@ -644,13 +648,22 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
         armedTooltip="Click again to revoke every other client. Each will need a new pairing link to reconnect."
         onRevoke={onRevokeOtherClients}
       />
-      <CreatePairingLinkDialog
-        environmentId={environmentId}
-        triggerRef={triggerRef}
-        relayEnabled={relayEnabled}
-        delegatableScopes={delegatableScopes}
-        onPairingLinkCreated={onPairingLinkCreated}
-      />
+      {pairingDenial !== undefined ? (
+        <ManagedControl reason={pairingDenial}>
+          <Button size="xs" disabled>
+            <PlusIcon aria-hidden />
+            Add device
+          </Button>
+        </ManagedControl>
+      ) : (
+        <CreatePairingLinkDialog
+          environmentId={environmentId}
+          triggerRef={triggerRef}
+          relayEnabled={relayEnabled}
+          delegatableScopes={delegatableScopes}
+          onPairingLinkCreated={onPairingLinkCreated}
+        />
+      )}
     </div>
   );
 });
@@ -752,6 +765,8 @@ export const AdvertisedEndpointListRow = memo(function AdvertisedEndpointListRow
     isTailscaleHttpsEndpoint(endpoint) && endpoint.status === "available";
   const shouldShowEndpointUrl = !needsTailscaleSetup;
   const endpointAddress = relayName(endpoint.httpBaseUrl) ?? endpoint.httpBaseUrl;
+  // These rows belong to this desktop's own backend, whose policy the primary environment reports.
+  const remoteDenial = managedCapabilityDenial(usePrimaryManagedPolicy(), "remoteClients");
   return (
     <div className={endpointRowClassName(isAvailable)}>
       {isDefault ? (
@@ -787,14 +802,16 @@ export const AdvertisedEndpointListRow = memo(function AdvertisedEndpointListRow
             </span>
           ) : null}
           {needsTailscaleSetup ? (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={onSetupTailscaleServe}
-              disabled={isUpdatingTailscaleServe}
-            >
-              {isUpdatingTailscaleServe ? "Restarting…" : "Setup"}
-            </Button>
+            <ManagedControl reason={remoteDenial}>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={onSetupTailscaleServe}
+                disabled={isUpdatingTailscaleServe || remoteDenial !== undefined}
+              >
+                {isUpdatingTailscaleServe ? "Restarting…" : "Setup"}
+              </Button>
+            </ManagedControl>
           ) : null}
           {canDisableTailscaleServe ? (
             <Button

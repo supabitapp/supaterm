@@ -20,6 +20,7 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   runtimeModeOptions: ReadonlyArray<{
     readonly mode: RuntimeMode;
     readonly label: string;
+    readonly disabledReason?: string;
   }>;
   keybindings: ResolvedKeybindingsConfig;
   traitsMenuContent?: ReactNode;
@@ -32,6 +33,9 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
   const size = props.size ?? "sm";
   const [open, setOpen] = useComposerMenuState(props.hidden);
   const runtimeModeShortcut = shortcutLabelForCommand(props.keybindings, "composer.mode");
+  const ceilingReason = props.runtimeModeOptions.find(
+    (option) => option.disabledReason !== undefined,
+  )?.disabledReason;
 
   return (
     <Menu open={open} onOpenChange={setOpen}>
@@ -68,11 +72,18 @@ export const CompactComposerControlsMenu = memo(function CompactComposerControls
           }}
         >
           {props.runtimeModeOptions.map((option) => (
-            <MenuRadioItem key={option.mode} value={option.mode}>
+            <MenuRadioItem
+              key={option.mode}
+              value={option.mode}
+              disabled={option.disabledReason !== undefined}
+            >
               {option.label}
             </MenuRadioItem>
           ))}
         </MenuRadioGroup>
+        {ceilingReason !== undefined ? (
+          <p className="max-w-64 px-2 py-1.5 text-muted-foreground text-xs">{ceilingReason}</p>
+        ) : null}
       </MenuPopup>
     </Menu>
   );

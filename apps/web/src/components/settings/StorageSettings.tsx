@@ -552,6 +552,9 @@ export function WorktreeCleanupSection() {
       : undefined;
   const update = (patch: Partial<StorageCleanupSettings>, options?: SaveOptions) =>
     updateSettings({ storageCleanup: patch }, options);
+  // A policy locks these through worktreeCleanup, which also reaches each project's own rules.
+  const lockablePath = (key: keyof WorktreeCleanupRules) =>
+    isProjectScope ? ["worktreeCleanup"] : ["worktreeCleanup", `storageCleanup.${key}`];
   const updateWorktree = (patch: Partial<WorktreeCleanupRules>, options?: SaveOptions) =>
     isProjectScope
       ? updateSettings({ worktreeCleanup: { mode: "custom", rules: patch } }, options)
@@ -621,6 +624,7 @@ export function WorktreeCleanupSection() {
           <SettingsRow
             title="Delete worktrees with deleted threads"
             status={ruleStatus("worktreeOnDelete")}
+            managedPaths={lockablePath("worktreeOnDelete")}
             description="Worktrees with local changes are kept."
             serverScoped={!isProjectScope}
             control={
@@ -634,6 +638,7 @@ export function WorktreeCleanupSection() {
           <SettingsRow
             title="Delete inactive worktrees"
             status={ruleStatus("worktreeAfterDays")}
+            managedPaths={lockablePath("worktreeAfterDays")}
             description="Remove worktrees whose threads have gone inactive. Branches are kept."
             serverScoped={!isProjectScope}
             control={
@@ -649,6 +654,7 @@ export function WorktreeCleanupSection() {
           <SettingsRow
             title="Delete done worktrees"
             status={ruleStatus("worktreeDoneAfterDays")}
+            managedPaths={lockablePath("worktreeDoneAfterDays")}
             description="Remove worktrees this many days after their thread is marked done. Set 0 days to remove them at the next cleanup. Branches and thread history are kept."
             serverScoped={!isProjectScope}
             control={
@@ -665,6 +671,7 @@ export function WorktreeCleanupSection() {
           <SettingsRow
             title="Delete merged worktrees"
             status={ruleStatus("worktreeOnMerge")}
+            managedPaths={lockablePath("worktreeOnMerge")}
             description="Remove worktrees once their commits land in the default branch."
             serverScoped={!isProjectScope}
             control={
@@ -678,6 +685,7 @@ export function WorktreeCleanupSection() {
           <SettingsRow
             title="Delete unchanged worktrees"
             status={ruleStatus("worktreeUnchanged")}
+            managedPaths={lockablePath("worktreeUnchanged")}
             description="Remove worktrees with no commits beyond the default branch."
             serverScoped={!isProjectScope}
             control={
@@ -692,6 +700,7 @@ export function WorktreeCleanupSection() {
             <SettingsRow
               {...searchableSetting("storage-worktree-keep-when")}
               status={ruleStatus("worktreeKeepWhen")}
+              managedPaths={lockablePath("worktreeKeepWhen")}
               description={
                 settings.worktreeKeepWhen === "any-local-files"
                   ? "Includes ignored files, except node_modules."
@@ -782,6 +791,7 @@ export function StorageCleanupSections() {
           <SettingsRow
             title="Delete old browser artifacts"
             status={artifactsStatus}
+            managedPaths={["storageCleanup.browserArtifactsAfterDays"]}
             description="Older capture links stop opening."
             serverScoped
             control={
@@ -799,6 +809,7 @@ export function StorageCleanupSections() {
           <SettingsRow
             title="Delete old rotated logs"
             status={logsStatus}
+            managedPaths={["storageCleanup.logsAfterDays"]}
             description="Current logs are kept."
             serverScoped
             control={

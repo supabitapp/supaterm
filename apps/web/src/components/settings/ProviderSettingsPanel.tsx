@@ -91,6 +91,8 @@ import { AddProviderInstanceDialog } from "./AddProviderInstanceDialog";
 import { ExpandableText } from "./ExpandableText";
 import { IntervalSecondsField } from "./IntervalSecondsField";
 import { ProviderInstanceCard } from "./ProviderInstanceCard";
+import { useManagedPolicy } from "~/state/managedPolicy";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetupSection";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
@@ -1178,7 +1180,7 @@ function ProviderInstanceRow({
   isDirty,
   mode,
   selected,
-  readOnly,
+  readOnly: readOnlyByAccess,
   canWriteSettings,
   liveProvider,
   isUpdateDispatching,
@@ -1217,6 +1219,12 @@ function ProviderInstanceRow({
   readonly favorites: UnifiedSettings["favorites"];
   readonly actions: ProviderInstanceRowActions;
 }) {
+  // A policy can lock a whole instance; it then reads like one this connection cannot change.
+  const managedReason = managedSettingDenial(
+    [useManagedPolicy(environmentId)],
+    [`providerInstances.${instanceId}`],
+  );
+  const readOnly = readOnlyByAccess || managedReason !== undefined;
   const allProjects = useProjects();
   const acpProjects =
     mode === "editor" && liveProvider?.driver === "acpRegistry"
@@ -1272,6 +1280,7 @@ function ProviderInstanceRow({
       selected={selected}
       onSelect={mode === "list" ? () => actions.selectInstance(instanceId) : undefined}
       readOnly={readOnly}
+      managedReason={managedReason}
       runtime={
         mode === "editor" && codexSetupMode === "managed" ? (
           <CodexManagedRuntimeFields

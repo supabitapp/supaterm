@@ -18,6 +18,8 @@ import {
 import { persistClientSettingsPatch, useMergedSettings } from "../../hooks/useSettings";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { readEnvironment } from "../../state/environments";
+import { usePrimaryManagedPolicy } from "../../state/managedPolicy";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { toastManager } from "../ui/toast";
@@ -170,5 +172,20 @@ export function useScopedSettingsWriteAllowed() {
   return (
     connectedEnvironments.length > 0 &&
     connectedEnvironments.every((target) => writable.has(target.environmentId))
+  );
+}
+
+/**
+ * Why a control writing `paths` in the current settings scope is locked: a policy on any selected
+ * environment, or on the primary one outside a scope, that locks one of them.
+ */
+export function useManagedSettingDenial(paths: ReadonlyArray<string>): string | undefined {
+  const context = useOptionalSettingsScope();
+  const primaryPolicy = usePrimaryManagedPolicy();
+  return managedSettingDenial(
+    context
+      ? context.connectedEnvironments.map((environment) => environment.serverConfig?.managedPolicy)
+      : [primaryPolicy],
+    paths,
   );
 }

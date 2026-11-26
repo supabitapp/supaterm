@@ -7,6 +7,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import {
   type DesktopUpdateChannel,
+  managedUpdatesDenial,
+  managedUpdatesMessage,
   ProviderDriverKind,
   type ProviderInstanceId,
   type SidebarProjectGroupingMode,
@@ -70,6 +72,7 @@ import {
   useEnvironments,
   usePrimaryEnvironmentId,
 } from "../../state/environments";
+import { usePrimaryManagedPolicy } from "../../state/managedPolicy";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
 import { Button } from "../ui/button";
 import { DraftInput } from "../ui/draft-input";
@@ -144,6 +147,13 @@ function AboutVersionSection() {
 
   const hasDesktopBridge = typeof window !== "undefined" && Boolean(window.desktopBridge);
   const selectedUpdateChannel = updateState?.channel ?? "latest";
+  // The desktop updates this machine, whose policy the primary environment reports.
+  const primaryPolicy = usePrimaryManagedPolicy();
+  const updatesDenial = hasDesktopBridge ? managedUpdatesDenial(primaryPolicy) : undefined;
+  const nightlyDeniedBy =
+    hasDesktopBridge && primaryPolicy?.limits?.updates?.allowNightly === false
+      ? primaryPolicy.organization
+      : undefined;
   const selectedHostedAppChannel = hasDesktopBridge ? null : HOSTED_APP_CHANNEL;
   // A switch that failed part way leaves this app or a server on the other track.
   // With its updater off, a switch cannot move this app, so it is not counted.
@@ -227,7 +237,9 @@ function AboutVersionSection() {
               type: "error",
               title: "Could not check for updates",
               description:
-                result.state.message ?? "Automatic updates are not available in this build.",
+                updatesDenial ??
+                result.state.message ??
+                "Automatic updates are not available in this build.",
             }),
           );
         }
@@ -262,7 +274,7 @@ function AboutVersionSection() {
   const description =
     action === "download" || action === "install"
       ? "Update available."
-      : (getDesktopUpdateDisabledReason(updateState) ?? null);
+      : (updatesDenial ?? getDesktopUpdateDisabledReason(updateState) ?? null);
 
   return (
     <>
@@ -270,6 +282,7 @@ function AboutVersionSection() {
         id={searchableSetting("app-version").id}
         title={<AboutVersionTitle />}
         description={description}
+        managed={updatesDenial}
         control={
           <Tooltip>
             <TooltipTrigger
@@ -291,8 +304,15 @@ function AboutVersionSection() {
       {hasDesktopBridge ? (
         <SettingsRow
           {...searchableSetting("update-track")}
+          managed={updatesDenial}
           description={
-            unswitchedMachines > 0 ? (
+            nightlyDeniedBy !== undefined ? (
+              `${managedUpdatesMessage(nightlyDeniedBy)} Nightly builds are not available${
+                selectedUpdateChannel === "nightly"
+                  ? "; switch to Stable to keep getting updates."
+                  : "."
+              }`
+            ) : unswitchedMachines > 0 ? (
               <>
                 {unswitchedMachines === 1
                   ? "1 machine still runs"
@@ -333,7 +353,11 @@ function AboutVersionSection() {
                 <SelectItem hideIndicator value="latest">
                   Stable
                 </SelectItem>
-                <SelectItem hideIndicator value="nightly">
+                <SelectItem
+                  hideIndicator
+                  value="nightly"
+                  disabled={nightlyDeniedBy !== undefined && selectedUpdateChannel !== "nightly"}
+                >
                   Nightly
                 </SelectItem>
               </SelectPopup>
@@ -2002,9 +2026,29 @@ export function MaintenanceSettingsPanel() {
 export function AboutSettingsPanel() {
   // The Welcome page sets up this computer, so it needs one.
   const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const primaryPolicy = usePrimaryManagedPolicy();
   return (
     <SettingsPageContainer>
       <SettingsSection id="about" title="App">
+        {primaryPolicy ? (
+          <SettingsRow
+            title="Organization"
+            description={`This environment is managed by ${primaryPolicy.organization}. Some settings and features follow its policy.`}
+            control={
+              primaryPolicy.supportUrl ? (
+                <Button
+                  render={
+                    <a href={primaryPolicy.supportUrl} target="_blank" rel="noreferrer noopener" />
+                  }
+                  size="sm"
+                  variant="outline"
+                >
+                  Get help
+                </Button>
+              ) : null
+            }
+          />
+        ) : null}
         {isElectron || HOSTED_APP_CHANNEL ? (
           <AboutVersionSection />
         ) : (
