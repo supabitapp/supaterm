@@ -59,6 +59,7 @@ vi.mock(import("~/remoteOpen"), async (original) => ({
 vi.mock(import("~/hooks/useTheme"), async (original) => ({
   ...(await original()),
   useTheme: () => ({ resolvedTheme: "dark" }) as never,
+  useRenderedAppearance: () => "dark",
 }));
 vi.mock(import("~/hooks/useWorkspaceMutationRefresh"), () => ({
   useWorkspaceMutationRefresh: vi.fn(),
@@ -210,7 +211,11 @@ function markdownPreview(
   return filePreview(relativePath);
 }
 
-function filePreview(relativePath: string, workspaceMutationId: string | null = null) {
+function filePreview(
+  relativePath: string,
+  workspaceMutationId: string | null = null,
+  revealLine: number | null = null,
+) {
   return (
     <FilePreviewPanel
       environmentId={environmentId}
@@ -222,8 +227,8 @@ function filePreview(relativePath: string, workspaceMutationId: string | null = 
       keybindings={[]}
       availableEditors={[]}
       openInShortcutEnabled={false}
-      revealLine={null}
-      revealRequestId={0}
+      revealLine={revealLine}
+      revealRequestId={revealLine === null ? 0 : 1}
       onOpenFile={vi.fn()}
       onNavigateFolder={vi.fn()}
       folderTrail={undefined}
@@ -515,6 +520,63 @@ describe("source file scroll", () => {
       expect(copied).toContain(`line ${expectedIncludedLine} markdown content`);
     },
   );
+
+  it("reveals a linked line past the first read once the rest of the file arrives", async () => {
+    using _settings = setup();
+    const style = document.createElement("style");
+    style.textContent = appCss;
+    document.head.append(style);
+    using _style = { [Symbol.dispose]: () => style.remove() };
+    await preloadHighlighter({ themes: Object.values(DEFAULT_THEMES), langs: ["typescript"] });
+    const lines = Array.from({ length: 1200 }, (_, i) => `const line${i + 1} = ${i + 1};`);
+    state.file = {
+      relativePath: "large.ts",
+      contents: `${lines.slice(0, 100).join("\n")}\n`,
+      byteLength: 1_200_000,
+      truncated: true,
+    };
+    state.assetUrl = {
+      _tag: "Success",
+      url: "/assets/large.ts",
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    };
+    let releaseDownload: (response: Response) => void = () => {};
+    const download = new Promise<Response>((resolve) => {
+      releaseDownload = resolve;
+    });
+    const realFetch = globalThis.fetch;
+    using _fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((input, init) =>
+        new URL(String(input), location.href).pathname === "/assets/large.ts"
+          ? download
+          : realFetch(input, init),
+      );
+    const scroller = () => document.querySelector<HTMLElement>(".file-preview-virtualizer");
+
+    await using screen = await render(
+      <div style={{ height: 400, display: "flex", flexDirection: "column" }}>
+        {filePreview("large.ts", null, 800)}
+      </div>,
+    );
+    await vi.waitFor(() => expect(scroller()?.scrollTop).toBeGreaterThan(0));
+    releaseDownload(new Response(`${lines.join("\n")}\n`));
+
+    const visibleLines = () => {
+      const viewport = scroller()!.getBoundingClientRect();
+      const rows =
+        screen.container
+          .querySelector("diffs-container")
+          ?.shadowRoot?.querySelectorAll<HTMLElement>("[data-line]") ?? [];
+      return [...rows].flatMap((row) => {
+        const box = row.getBoundingClientRect();
+        return box.height > 0 && box.top >= viewport.top && box.bottom <= viewport.bottom
+          ? [Number(row.getAttribute("data-line"))]
+          : [];
+      });
+    };
+    await vi.waitFor(() => expect(visibleLines()).toContain(800));
+  });
 
   it("scrolls a find match below many wrapped lines into view", async () => {
     using _settings = setup();

@@ -624,7 +624,7 @@ const REVEAL_GUARD_TOLERANCE_PX = 2;
 interface FileRevealState {
   frameId: number | null;
   cancelGuard: (() => void) | null;
-  handledRequestId: number | null;
+  revealed: { readonly requestId: number; readonly line: number } | null;
   latestRequestId: number | null;
   /** The path's code view offset when it last unmounted, restored when it is shown again. */
   scrollTop: number;
@@ -646,7 +646,7 @@ function useFileLineReveal(
     const state: FileRevealState = existingState ?? {
       frameId: null,
       cancelGuard: null,
-      handledRequestId: null,
+      revealed: null,
       latestRequestId: null,
       scrollTop: 0,
       scrollContainer: null,
@@ -687,7 +687,7 @@ function useFileLineReveal(
     if (state.latestRequestId !== revealRequestId) {
       cancelPendingReveal();
       state.latestRequestId = revealRequestId;
-      state.handledRequestId = null;
+      state.revealed = null;
     }
 
     if (scrollContainer && state.scrollContainer !== scrollContainer) {
@@ -696,7 +696,7 @@ function useFileLineReveal(
       // A pending line reveal owns the scroll position.
       if (
         savedScrollTop > 0 &&
-        (revealLine === null || state.handledRequestId === revealRequestId)
+        (revealLine === null || state.revealed?.requestId === revealRequestId)
       ) {
         const restoreScroll = (attempt: number) => {
           state.restoreFrameId = requestAnimationFrame(() => {
@@ -726,7 +726,10 @@ function useFileLineReveal(
       Math.max(instance.height, scrollContainer.clientHeight),
     )}px`;
 
-    if (state.handledRequestId === revealRequestId || state.frameId !== null) {
+    const revealedAll =
+      state.revealed?.requestId === revealRequestId &&
+      (state.revealed.line === revealLine || targetLine !== revealLine);
+    if (revealedAll || state.frameId !== null) {
       return;
     }
 
@@ -824,11 +827,12 @@ function useFileLineReveal(
         updateFileLinkReveal(fileContainer, line);
 
         scrollContainer.scrollTop = targetTop;
-        state.handledRequestId = revealRequestId;
+        state.revealed = { requestId: revealRequestId, line };
         guardScrollTarget(line);
       });
     };
 
+    state.cancelGuard?.();
     scheduleReveal(0);
   };
 }
