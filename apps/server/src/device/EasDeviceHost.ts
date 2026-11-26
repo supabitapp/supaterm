@@ -38,7 +38,12 @@ import { requireSettingsSecret } from "../secrets/settingsSecretValue.ts";
 import { releaseAgentDeviceSession } from "./AgentDeviceTarget.ts";
 import * as DeviceHost from "./DeviceHost.ts";
 import { findEasProjectId } from "./easProjectId.ts";
-import { type ExpoApi, makeExpoApi, resolveExpoCredential } from "./ExpoApi.ts";
+import {
+  type EasSessionStatus,
+  type ExpoApi,
+  makeExpoApi,
+  resolveExpoCredential,
+} from "./ExpoApi.ts";
 
 const POLL_INTERVAL = Duration.seconds(5);
 // How stale a running session's status may get before listing rechecks it.
@@ -645,6 +650,18 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
       checkedAt.delete(session.sessionId);
     });
 
+  const forgetIfEnded = <E>(
+    session: RunningSession,
+    onRunning: (status: EasSessionStatus) => Effect.Effect<void, E>,
+  ) =>
+    withSessionApi(session, (expo) => expo.session(session.sessionId)).pipe(
+      Effect.flatMap((current) =>
+        current.status === "STOPPED" || current.status === "ERRORED"
+          ? forget(session).pipe(Effect.andThen(forgetEntry(session.name)))
+          : onRunning(current.status),
+      ),
+    );
+
   /**
    * Expo ends sessions on its own at their run or idle limit; stop listing
    * those. A stop that failed earlier is retried, and recorded sessions nothing
@@ -684,22 +701,10 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
             ).pipe(
               Effect.andThen(forget(session)),
               // A session Expo already ended is let go even if stopping it keeps failing.
-              Effect.catch(() =>
-                withSessionApi(session, (expo) => expo.session(session.sessionId)).pipe(
-                  Effect.flatMap((current) =>
-                    current.status === "STOPPED" || current.status === "ERRORED"
-                      ? forget(session).pipe(Effect.andThen(forgetEntry(session.name)))
-                      : Effect.fail(current.status),
-                  ),
-                ),
-              ),
+              Effect.catch(() => forgetIfEnded(session, (status) => Effect.fail(status))),
             )
-          : withSessionApi(session, (expo) => expo.session(session.sessionId)).pipe(
-              Effect.flatMap((current) =>
-                current.status === "STOPPED" || current.status === "ERRORED"
-                  ? forget(session).pipe(Effect.andThen(forgetEntry(session.name)))
-                  : Effect.sync(() => void checkedAt.set(session.sessionId, now)),
-              ),
+          : forgetIfEnded(session, () =>
+              Effect.sync(() => void checkedAt.set(session.sessionId, now)),
             )
         ).pipe(Effect.ignore),
       { discard: true, concurrency: 4 },
