@@ -25,11 +25,14 @@ import { cn } from "~/lib/utils";
 import { BROWSER_DEVICE_TOOLBAR_HEIGHT, resizeFreeformViewport } from "./browserViewportLayout";
 import { commitViewportAndAspectRatio } from "./browserDeviceToolbarState";
 import { ScreenRotationIcon } from "./ScreenRotationIcon";
-import { T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const RESPONSIVE_VALUE = "responsive";
 const SELECT_ITEMS = [
-  { value: RESPONSIVE_VALUE, label: "Responsive" },
+  {
+    value: RESPONSIVE_VALUE,
+    label: msg("Responsive", { $context: "browser viewport preset that follows the panel size" }),
+  },
   ...PREVIEW_VIEWPORT_PRESETS.map((preset) => ({ value: preset.id, label: preset.label })),
 ];
 
@@ -49,6 +52,7 @@ export function BrowserDeviceToolbar({
   onChange,
 }: Props) {
   const gt = useGT();
+  const m = useMessages();
   const [pending, setPending] = useState(false);
   const [customSize, setCustomSize] = useState<{
     readonly width: string;
@@ -199,7 +203,7 @@ export function BrowserDeviceToolbar({
         modal={false}
         value={selectedValue}
         onValueChange={selectViewport}
-        items={SELECT_ITEMS}
+        items={SELECT_ITEMS.map((item) => ({ ...item, label: m(item.label) }))}
         disabled={pending}
       >
         <SelectTrigger
@@ -211,7 +215,7 @@ export function BrowserDeviceToolbar({
           <SelectValue />
         </SelectTrigger>
         <SelectPopup align="start" alignItemWithTrigger={false}>
-          <SelectItem value={RESPONSIVE_VALUE}>Responsive</SelectItem>
+          <SelectItem value={RESPONSIVE_VALUE}>{m(SELECT_ITEMS[0]!.label)}</SelectItem>
           <SelectGroup>
             <SelectGroupLabel>
               <T context="group of standard device sizes">Standard</T>
