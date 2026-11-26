@@ -40,6 +40,7 @@ import {
   AuthProvidersManageScope,
   type AuthEnvironmentScope,
   AuthSessionId,
+  ProviderDriverKind,
   type DiscoveredLocalServerList,
   type EditorId,
   type FileManagerRevealKind,
@@ -190,6 +191,7 @@ import * as ServerSelfUpdate from "./service/selfUpdate.ts";
 import * as NpmRelease from "./service/npmRelease.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
+import * as ManagedProviders from "./policy/managedProviders.ts";
 import * as ServerSettings from "./serverSettings.ts";
 import * as DatabaseStorage from "./persistence/DatabaseStorage.ts";
 import * as StorageCleanup from "./storageCleanup.ts";
@@ -1752,6 +1754,9 @@ export const layerWsRpc = (
             otlpLogsEnabled: config.otlpLogsUrl !== undefined,
           },
           settings,
+          ...(serverSettings.managedPolicy === undefined
+            ? {}
+            : { managedPolicy: serverSettings.managedPolicy }),
           shellResumeCompletionMarker: true,
           shellSyncGeneration: shellSyncGeneration.id,
           shellThreadFamilies: true,
@@ -2196,9 +2201,19 @@ export const layerWsRpc = (
         [WS_METHODS.serverPrepareAcpRegistryAgent]: (input) =>
           Effect.annotateCurrentSpan({ "acp_registry.agent_id": input.agentId }).pipe(
             Effect.andThen(
-              acpRegistryCatalog
-                .prepare(input)
-                .pipe(Effect.mapError(AcpRegistrySupport.toAcpRegistryOperationError)),
+              Effect.suspend(() => {
+                const blocked = ManagedProviders.disallowedDriverReason(
+                  serverSettings.managedPolicy,
+                  ProviderDriverKind.make("acpRegistry"),
+                );
+                return blocked === undefined
+                  ? acpRegistryCatalog
+                      .prepare(input)
+                      .pipe(Effect.mapError(AcpRegistrySupport.toAcpRegistryOperationError))
+                  : Effect.fail(
+                      new AcpRegistryOperationError({ reason: "install_failed", message: blocked }),
+                    );
+              }),
             ),
           ),
         [WS_METHODS.serverUninstallAcpRegistryManagedBinary]: (input) =>

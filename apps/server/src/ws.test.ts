@@ -12,8 +12,10 @@ import {
   AuthAccessReadScope,
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
+  AuthProvidersManageScope,
   AuthSessionId,
   AuthSettingsWriteScope,
+  type ManagedPolicySummary,
   AuthSourceControlWriteScope,
   ORCHESTRATION_PROTOCOL_VERSION,
   ORCHESTRATION_PROTOCOL_QUERY_PARAM,
@@ -2317,6 +2319,7 @@ const acpSessionTags = [
   WS_METHODS.serverListAcpRegistrySessions,
   WS_METHODS.serverImportAcpRegistrySession,
   WS_METHODS.serverDeleteAcpRegistrySession,
+  WS_METHODS.serverPrepareAcpRegistryAgent,
 ] as const;
 const acpSessionRpcs = WsRpcGroup.omit(
   ...[...WsRpcGroup.requests.keys()].filter(
@@ -2579,6 +2582,92 @@ it.effect("ACP session RPCs list a thread missing its history and repair it on i
     assert.isTrue(Exit.isFailure(deletion));
     assert.deepEqual(deleted, []);
   }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        EventSink.layer.pipe(Layer.provideMerge(acpStores)),
+        Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
+        Layer.mock(ServerBrowser.ServerBrowser)({}),
+      ),
+    ),
+  ),
+);
+
+it.effect("preparing an ACP Registry agent follows the policy's allowed providers", () =>
+  Effect.gen(function* () {
+    const calls: Array<string> = [];
+    const policy = (...allowedDrivers: ReadonlyArray<string>): ManagedPolicySummary => ({
+      organization: "Example Corp",
+      lockedSettings: [],
+      limits: {
+        providers: {
+          allowedDrivers: [
+            ProviderDriverKind.make("codex"),
+            ...allowedDrivers.map((driver) => ProviderDriverKind.make(driver)),
+          ],
+          lockedInstanceFields: {},
+        },
+      },
+    });
+    const makeClient = (managedPolicy?: ManagedPolicySummary) =>
+      Effect.gen(function* () {
+        const scopes = [AuthProvidersManageScope];
+        const services = Layer.mergeAll(
+          layerUnusedConfigRpcServices,
+          Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+          Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+          Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
+          Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+          Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
+          Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
+          Layer.mock(ServerEnvironment.ServerEnvironment)({}),
+          Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
+          Layer.fresh(layerConfigSources),
+          ServerSettings.layerTest({}, managedPolicy),
+          Layer.mock(AcpRegistrySupport.AcpRegistryCatalog)({
+            prepare: ({ agentId }) =>
+              Effect.sync(() => calls.push(`prepare:${agentId}`)).pipe(
+                Effect.as({
+                  agentId,
+                  version: "1.0.0",
+                  distribution: "npx",
+                  prepared: true,
+                } as const),
+              ),
+          }),
+        );
+        return yield* RpcTest.makeClient(acpSessionRpcs).pipe(
+          Effect.provide(
+            layerWsRpc(
+              {
+                sessionId: AuthSessionId.make("acp-test"),
+                subject: "acp-test",
+                method: "browser-session-cookie",
+                scopes,
+              },
+              yield* ServerBrowser.ServerBrowser,
+              () => Effect.void,
+            ).pipe(Layer.provide(services), Layer.merge(RpcAuthorization.layer(scopes))),
+          ),
+        );
+      });
+
+    const excluded = yield* makeClient(policy());
+    const refused = yield* excluded[WS_METHODS.serverPrepareAcpRegistryAgent]({
+      agentId: "example-agent",
+    }).pipe(Effect.flip);
+    assert.strictEqual(
+      refused._tag === "AcpRegistryOperationError" ? refused.message : refused._tag,
+      "Example Corp's policy does not allow the ACP Registry provider.",
+    );
+    assert.deepEqual(calls, []);
+
+    const included = yield* makeClient(policy("acpRegistry"));
+    yield* included[WS_METHODS.serverPrepareAcpRegistryAgent]({ agentId: "example-agent" });
+    const unmanaged = yield* makeClient();
+    yield* unmanaged[WS_METHODS.serverPrepareAcpRegistryAgent]({ agentId: "example-agent" });
+    assert.deepEqual(calls, ["prepare:example-agent", "prepare:example-agent"]);
+  }).pipe(
+    Effect.scoped,
     Effect.provide(
       Layer.mergeAll(
         EventSink.layer.pipe(Layer.provideMerge(acpStores)),
