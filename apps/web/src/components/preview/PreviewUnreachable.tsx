@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 
 import { describePreviewError } from "./errorCodeMessages";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 interface Props {
   url: string;
@@ -34,8 +34,12 @@ export function PreviewFileNotShown({
           <T>This file can&rsquo;t be shown here</T>
         </h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          <span className="font-semibold text-foreground">{fileName}</span> from {host} was
-          downloaded instead.
+          <T>
+            <span className="font-semibold text-foreground">
+              <Var>{fileName}</Var>
+            </span>{" "}
+            from <Var>{host}</Var> was downloaded instead.
+          </T>
         </p>
         <div className="mt-auto flex items-center gap-2 pt-8">
           <div className="flex-1" />

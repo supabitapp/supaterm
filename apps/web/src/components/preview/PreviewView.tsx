@@ -334,7 +334,7 @@ export function PreviewView({
     } catch (error) {
       toastManager.add(
         isRelayHostBrowserUnavailableError(error)
-          ? { type: "error", title: "Unable to open preview", description: error.message }
+          ? { type: "error", title: gt("Unable to open preview"), description: error.message }
           : {
               type: "error",
               title: gt("Could not open this address"),
