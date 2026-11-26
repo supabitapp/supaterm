@@ -5,6 +5,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "./runtime.ts";
+import { msg } from "gt-i18n";
 
 type CodexFeedbackSubmissionDetails = {
   readonly id: MessageId;
@@ -33,14 +34,17 @@ export function codexFeedbackNotice(submission: CodexFeedbackSubmission) {
     case "interrupted":
       return null;
     case "uploading":
-      return { title: "Sending feedback to OpenAI...", description: undefined };
+      return { title: msg("Sending feedback to OpenAI..."), description: undefined };
     case "sent":
       return {
-        title: "Feedback sent to OpenAI",
+        title: msg("Feedback sent to OpenAI"),
         description: `Thread ID: ${submission.feedbackId}`,
       };
     case "failed":
-      return { title: "Could not send feedback to OpenAI", description: submission.errorMessage };
+      return {
+        title: msg("Could not send feedback to OpenAI"),
+        description: submission.errorMessage,
+      };
   }
 }
 
@@ -101,7 +105,7 @@ export async function submitCodexFeedback<E>(input: {
     input.onUpdate({
       ...input.submission,
       status: "failed",
-      errorMessage: error instanceof Error ? error.message : "An error occurred.",
+      errorMessage: error instanceof Error ? error.message : msg("An error occurred."),
     });
   }
 

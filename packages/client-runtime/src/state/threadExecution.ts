@@ -57,6 +57,7 @@ import {
 } from "./models.ts";
 import { commandDisplayText } from "../work-log/commandLabel.ts";
 import { formatSubagentDisplayTitle } from "./subagentDisplay.ts";
+import { msg } from "gt-i18n";
 
 // Preparing runs show their workspace setup instead.
 const PROVIDER_STARTING_RUN_STATUSES = new Set(["starting", "running"]);
@@ -381,15 +382,15 @@ export function readSelectedEffortValue(
 }
 
 const SUBAGENT_STATUS_LABELS: Record<OrchestrationV2ExecutionNode["status"], string> = {
-  idle: "Idle",
-  pending: "Working",
-  running: "Working",
-  waiting: "Waiting",
-  completed: "Completed",
-  interrupted: "Interrupted",
-  failed: "Failed",
-  cancelled: "Cancelled",
-  rolled_back: "Cancelled",
+  idle: msg("Idle"),
+  pending: msg("Working"),
+  running: msg("Working"),
+  waiting: msg("Waiting"),
+  completed: msg("Completed"),
+  interrupted: msg("Interrupted"),
+  failed: msg("Failed"),
+  cancelled: msg("Cancelled"),
+  rolled_back: msg("Cancelled"),
 };
 
 export function formatProviderSubagentStatus(
@@ -807,12 +808,12 @@ export interface ProviderGoalPresentation {
 }
 
 const PROVIDER_GOAL_TITLES: Record<OrchestrationV2ProviderGoal["status"], string> = {
-  active: "Pursuing goal",
-  paused: "Goal paused",
-  blocked: "Goal blocked",
-  usage_limited: "Goal hit a usage limit",
-  budget_limited: "Goal reached its token budget",
-  complete: "Goal complete",
+  active: msg("Pursuing goal"),
+  paused: msg("Goal paused"),
+  blocked: msg("Goal blocked"),
+  usage_limited: msg("Goal hit a usage limit"),
+  budget_limited: msg("Goal reached its token budget"),
+  complete: msg("Goal complete"),
 };
 
 function formatGoalTokens(tokens: number): string {
@@ -841,7 +842,8 @@ export function presentProviderGoal(
     usage.push(`${goal.checks} ${goal.checks === 1 ? "check" : "checks"}`);
   }
   return {
-    title: goal.status === "active" && !working ? "Goal set" : PROVIDER_GOAL_TITLES[goal.status],
+    title:
+      goal.status === "active" && !working ? msg("Goal set") : PROVIDER_GOAL_TITLES[goal.status],
     objective: goal.objective,
     usage: usage.length === 0 ? null : usage.join(" · "),
     canResume: goal.status !== "active" && goal.status !== "complete",

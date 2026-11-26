@@ -18,6 +18,7 @@ import {
 
 import type { EnvironmentThreadShell } from "./state/models.ts";
 import { threadSearchSubject, type ThreadSearchShell } from "./state/threadSearch.ts";
+import { msg } from "gt-i18n";
 
 const COMPOSER_THREAD_RESULT_LIMIT = 5;
 
@@ -85,7 +86,7 @@ export function matchComposerThreadItems(input: {
         ),
         label: shell.title,
         description: isOwnSideChat(shell)
-          ? "Side chat"
+          ? msg("Side chat")
           : machine === undefined
             ? "Thread"
             : `Thread on ${machine}`,

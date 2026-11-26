@@ -15,6 +15,7 @@ import type {
   WorkspaceFolder,
 } from "@supaterm/contracts";
 import { isAbsolutePath } from "@supaterm/shared/path";
+import { msg } from "gt-i18n";
 
 type ChangedFiles = OrchestrationV2Checkpoint["files"];
 
@@ -676,7 +677,7 @@ export function resolveWorktreeRepositorySelection(input: {
     const selected = chosen ?? [];
     return {
       selected,
-      label: "Repositories",
+      label: msg("Repositories"),
       needsChoice: false,
       strategyRepositories: chosen?.map((path) => ({ path })),
     };
@@ -692,11 +693,11 @@ export function resolveWorktreeRepositorySelection(input: {
   return {
     selected,
     label: needsChoice
-      ? "Choose repositories"
+      ? msg("Choose repositories")
       : selected.length === 0
-        ? "No repositories"
+        ? msg("No repositories")
         : selected.length !== 1 && selected.length === choices.length
-          ? "All repositories"
+          ? msg("All repositories")
           : `${selected.length} ${selected.length === 1 ? "repository" : "repositories"}`,
     needsChoice,
     strategyRepositories: chosen === undefined ? undefined : selected.map((path) => ({ path })),

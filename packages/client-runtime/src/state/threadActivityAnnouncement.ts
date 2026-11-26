@@ -6,17 +6,18 @@ import {
   type RunId,
 } from "@supaterm/contracts";
 import { latestExecutedRun } from "@supaterm/shared/orchestrationV2ThreadError";
+import { msg } from "gt-i18n";
 
 export type ThreadActivityStatus = "working" | "approval" | "input" | "idle";
 
 /** Background threads say these too, so a status sounds the same wherever it's heard. */
 export const THREAD_STATUS_TEXT = {
-  working: "Working",
-  approval: "Needs approval",
-  input: "Needs your input",
-  done: "Done",
-  failed: "Failed",
-  stopped: "Stopped",
+  working: msg("Working"),
+  approval: msg("Needs approval"),
+  input: msg("Needs your input"),
+  done: msg("Done"),
+  failed: msg("Failed"),
+  stopped: msg("Stopped"),
 } as const;
 
 export interface ThreadActivitySnapshot {

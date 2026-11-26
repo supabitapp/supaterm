@@ -18,6 +18,7 @@ import {
 } from "./runtime.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import * as Persistence from "../platform/persistence.ts";
+import { msg } from "gt-i18n";
 
 /**
  * Standalone issue trackers (Linear, Jira) per environment: which are connected, as whom, which
@@ -87,7 +88,7 @@ export function issueTrackerSummary(
 ): string {
   if (!tracker.connected)
     return `Not connected. Add a ${tracker.credential.label.toLowerCase()} to list its issues.`;
-  if (tracker.account === null) return tracker.detail ?? "The saved credential was rejected.";
+  if (tracker.account === null) return tracker.detail ?? msg("The saved credential was rejected.");
   const linked = Object.values(bindings).filter((binding) =>
     issueTrackerBindingIsFor(binding, tracker),
   ).length;

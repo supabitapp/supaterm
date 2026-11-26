@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema";
+import { msg } from "gt-i18n";
 
 export const SAVED_VIEW_NAME_MAX_LENGTH = 80;
 
@@ -13,7 +14,7 @@ export function savedViewNameError(
   editingId?: string,
 ): string | null {
   const trimmed = name.trim();
-  if (!trimmed) return "Enter a name for this view.";
+  if (!trimmed) return msg("Enter a name for this view.");
   if (trimmed.length > SAVED_VIEW_NAME_MAX_LENGTH) {
     return `Use ${SAVED_VIEW_NAME_MAX_LENGTH} characters or fewer.`;
   }

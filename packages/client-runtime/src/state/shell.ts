@@ -49,6 +49,7 @@ import {
 } from "./shellReducer.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 import { followStreamInEnvironment } from "./runtime.ts";
+import { msg } from "gt-i18n";
 
 export type EnvironmentShellStatus = "empty" | "cached" | "synchronizing" | "live";
 
@@ -101,7 +102,7 @@ function withoutDeferredPullRequests(value: DeferredShellSnapshot): Orchestratio
   return snapshot;
 }
 
-const SHELL_SYNCHRONIZATION_ERROR_MESSAGE = "Could not synchronize environment data.";
+const SHELL_SYNCHRONIZATION_ERROR_MESSAGE = msg("Could not synchronize environment data.");
 
 interface ShellOmissions {
   readonly omitIdleSubagents: boolean;

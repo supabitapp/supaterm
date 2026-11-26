@@ -6,6 +6,7 @@
  */
 import type { RunId } from "@supaterm/contracts";
 import { Atom, type AtomRegistry } from "effect/reactivity";
+import { msg } from "gt-i18n";
 
 export interface QueuedRunStatus {
   readonly id: RunId;
@@ -69,7 +70,7 @@ export function resolveQueuedEditExit(input: {
 export function queuedRunEditBlockedReason(input: {
   readonly openQuestionCount: number;
 }): string | null {
-  return input.openQuestionCount > 0 ? "Answer the question to edit queued messages" : null;
+  return input.openQuestionCount > 0 ? msg("Answer the question to edit queued messages") : null;
 }
 
 interface ExitWatch<E> {

@@ -62,6 +62,7 @@ import {
   type ServerConfigProjection,
   withoutEnvironmentThemes,
 } from "./serverConfigProjection.ts";
+import { msg } from "gt-i18n";
 
 export type { ServerConfigProjection } from "./serverConfigProjection.ts";
 
@@ -325,7 +326,7 @@ export function serverUpdateStateForServerVersion(
 }
 
 export function serverUpdateFailureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Server update failed.";
+  return error instanceof Error ? error.message : msg("Server update failed.");
 }
 
 function isRpcSocketError(error: unknown): boolean {

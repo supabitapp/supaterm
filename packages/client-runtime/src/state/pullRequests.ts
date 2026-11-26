@@ -56,6 +56,8 @@ import { isStalePullRequestReply } from "../pullRequestReply.ts";
 import { parsePullRequestQuery } from "../pullRequestQuery.ts";
 import { reuseUnchanged } from "./serverConfigProjection.ts";
 import { createEnvironmentSessionAtoms } from "./session.ts";
+import { msg } from "gt-i18n";
+import { translatableMessage } from "../errors/translatable.ts";
 
 export {
   type PullRequestDiffLoadError,
@@ -1085,7 +1087,7 @@ export function createPullRequestEnvironmentAtoms<R, E>(
     const prepared = yield* SubscriptionRef.get(supervisor.prepared);
     if (Option.isNone(prepared)) {
       return yield* new EnvironmentHttpConnectionNotReadyError({
-        message: "The environment HTTP connection is not ready.",
+        ...translatableMessage(msg("The environment HTTP connection is not ready.")),
       });
     }
     return yield* loader.load(prepared.value, input);

@@ -1,7 +1,6 @@
+import type { ZipErrorCode } from "./zipError.ts";
 import { mFallback, msg } from "gt-i18n";
 import type { MFunctionType } from "gt-i18n/types";
-
-import type { ZipErrorCode } from "./zipError.ts";
 
 /** Translatable text for each `ZipError` code. Keep it out of worker imports. */
 export const ZIP_ERROR_MESSAGES: Record<ZipErrorCode, string> = {

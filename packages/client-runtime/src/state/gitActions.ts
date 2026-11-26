@@ -4,6 +4,7 @@ import type {
   VcsStatusResult,
 } from "@supaterm/contracts";
 import { type ChangeRequestTerminology, sourceControlClients } from "../sourceControlClients.ts";
+import { msg } from "gt-i18n";
 
 export type GitActionIconName = "commit" | "push" | "pr";
 
@@ -122,7 +123,12 @@ export function resolveQuickAction(
   hasOriginRemote = true,
 ): GitQuickAction {
   if (isBusy) {
-    return { label: "Commit", disabled: true, kind: "show_hint", hint: "Git action in progress." };
+    return {
+      label: "Commit",
+      disabled: true,
+      kind: "show_hint",
+      hint: msg("Git action in progress."),
+    };
   }
 
   if (!gitStatus) {
@@ -130,7 +136,7 @@ export function resolveQuickAction(
       label: "Commit",
       disabled: true,
       kind: "show_hint",
-      hint: "Git status is unavailable.",
+      hint: msg("Git status is unavailable."),
     };
   }
 
@@ -187,7 +193,7 @@ export function resolveQuickAction(
         label: "Push",
         disabled: true,
         kind: "show_hint",
-        hint: "No local commits to push.",
+        hint: msg("No local commits to push."),
       };
     }
     if (hasOpenPr || isDefaultBranch) {
@@ -208,10 +214,10 @@ export function resolveQuickAction(
 
   if (isDiverged) {
     return {
-      label: "Sync branch",
+      label: msg("Sync branch"),
       disabled: true,
       kind: "show_hint",
-      hint: "Branch has diverged from upstream. Rebase/merge first.",
+      hint: msg("Branch has diverged from upstream. Rebase/merge first."),
     };
   }
 
@@ -257,7 +263,7 @@ export function resolveQuickAction(
     label: "Commit",
     disabled: true,
     kind: "show_hint",
-    hint: "Branch is up to date. No action needed.",
+    hint: msg("Branch is up to date. No action needed."),
   };
 }
 
@@ -269,8 +275,8 @@ export function getGitActionDisabledReason(input: {
 }): string | null {
   const { item, gitStatus, isBusy, hasOriginRemote } = input;
   if (!item.disabled) return null;
-  if (isBusy) return "Git action in progress.";
-  if (!gitStatus) return "Git status is unavailable.";
+  if (isBusy) return msg("Git action in progress.");
+  if (!gitStatus) return msg("Git status is unavailable.");
 
   const hasBranch = gitStatus.refName !== null;
   const hasChanges = gitStatus.hasWorkingTreeChanges;
@@ -281,28 +287,28 @@ export function getGitActionDisabledReason(input: {
 
   if (item.id === "commit") {
     if (!hasChanges) {
-      return "Worktree is clean. Make changes before committing.";
+      return msg("Worktree is clean. Make changes before committing.");
     }
-    return "Commit is currently unavailable.";
+    return msg("Commit is currently unavailable.");
   }
 
   if (item.id === "push") {
     if (!hasBranch) {
-      return "Detached HEAD: checkout a branch before pushing.";
+      return msg("Detached HEAD: checkout a branch before pushing.");
     }
     if (hasChanges) {
-      return "Commit or stash local changes before pushing.";
+      return msg("Commit or stash local changes before pushing.");
     }
     if (isBehind) {
-      return "Branch is behind upstream. Pull/rebase before pushing.";
+      return msg("Branch is behind upstream. Pull/rebase before pushing.");
     }
     if (!gitStatus.hasUpstream && !hasOriginRemote) {
-      return 'Add an "origin" remote before pushing.';
+      return msg('Add an "origin" remote before pushing.');
     }
     if (!isAhead) {
-      return "No local commits to push.";
+      return msg("No local commits to push.");
     }
-    return "Push is currently unavailable.";
+    return msg("Push is currently unavailable.");
   }
 
   if (hasOpenPr) {
@@ -355,7 +361,7 @@ export function resolveDefaultBranchActionDialogCopy(input: {
       };
     }
     return {
-      title: "Push to default branch?",
+      title: msg("Push to default branch?"),
       description: `This action will push local commits${suffix}`,
       continueLabel: `Push to ${branchLabel}`,
     };

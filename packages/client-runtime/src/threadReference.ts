@@ -9,6 +9,7 @@ import {
 } from "@supaterm/shared/composerContextReferences";
 
 import { resolveThreadCurrentPullRequestLink } from "./threadPullRequests.ts";
+import { msg } from "gt-i18n";
 
 export interface ThreadReferenceCopyTarget {
   readonly kind: "pull-request" | "thread";
@@ -35,8 +36,8 @@ export function threadChipCopyTarget(
     description: record.title,
     fragment: { version: 1, source: { environmentId: threadRef.environmentId }, records: [record] },
     clipboardTarget: "thread",
-    successTitle: "Thread copied",
-    failureTitle: "Failed to copy thread",
+    successTitle: msg("Thread copied"),
+    failureTitle: msg("Failed to copy thread"),
   };
 }
 
@@ -59,8 +60,8 @@ export function resolveThreadReferenceCopyTarget(input: {
         value: pullRequestUrl,
         description: pullRequestUrl,
         clipboardTarget: "pull request link",
-        successTitle: "PR link copied",
-        failureTitle: "Failed to copy PR link",
+        successTitle: msg("PR link copied"),
+        failureTitle: msg("Failed to copy PR link"),
       }
     : threadChipCopyTarget(input.threadRef, input.title);
 }

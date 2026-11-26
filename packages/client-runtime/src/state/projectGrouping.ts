@@ -10,6 +10,7 @@ import type { ClientSettings } from "@supaterm/contracts/settings";
 
 import type { EnvironmentProject } from "./models.ts";
 import { normalizeProjectPathForComparison } from "./projects.ts";
+import { msg } from "gt-i18n";
 
 const SCRATCH_PROJECT_SCOPE_KEY = "\0no-project";
 
@@ -418,7 +419,7 @@ export function buildProjectGroups<TProject extends EnvironmentProject>(input: {
       key,
       label:
         input.groupScratchProjects && representative.isScratch
-          ? "No project"
+          ? msg("No project")
           : members.length > 1
             ? deriveProjectGroupLabel({
                 groupKey: key,

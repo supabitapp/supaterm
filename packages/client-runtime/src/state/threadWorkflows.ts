@@ -15,6 +15,7 @@ import {
   type ThreadStructureRuntime,
   threadRuntimeIsUnsettled,
 } from "./models.ts";
+import { msg } from "gt-i18n";
 
 type Projection = ThreadStructure;
 type Run = Projection["runs"][number];
@@ -227,7 +228,7 @@ export function deriveThreadQueueWorkflowState(
     const message = projection.messages.find((candidate) => candidate.id === run.userMessageId);
     return {
       run,
-      text: message?.text ?? "Queued message",
+      text: message?.text ?? msg("Queued message"),
       attachments: message?.attachments ?? [],
       messageId: run.userMessageId,
       ...(message?.context ? { context: message.context } : {}),

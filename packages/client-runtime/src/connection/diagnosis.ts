@@ -6,6 +6,7 @@ import type {
   ConnectionHop,
   SupervisorConnectionState,
 } from "./model.ts";
+import { msg } from "gt-i18n";
 
 export type ConnectionHopResult = "ok" | "failed" | "unchecked";
 
@@ -58,7 +59,7 @@ function locate(input: ConnectionDiagnosisInput): Located | null {
 function headline(host: string, located: Located, failure: ConnectionAttemptError | null): string {
   switch (located.cause) {
     case "offline":
-      return "This device is offline";
+      return msg("This device is offline");
     case "outdated":
       return `${host} runs an older Supaterm`;
     case "host-offline":
@@ -74,7 +75,7 @@ function headline(host: string, located: Located, failure: ConnectionAttemptErro
   }
   switch (located.hop) {
     case "device":
-      return "This device could not prepare the connection";
+      return msg("This device could not prepare the connection");
     case "relay":
       return "This device can't reach the relay";
     case "tunnel":
@@ -137,7 +138,7 @@ const HOP_ORDER = {
 function hopLabel(hop: ConnectionHop, host: string): string {
   switch (hop) {
     case "device":
-      return "This device";
+      return msg("This device");
     case "relay":
       return "Relay";
     case "tunnel":

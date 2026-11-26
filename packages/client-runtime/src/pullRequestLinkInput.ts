@@ -2,6 +2,7 @@ import type { RepositoryIdentity } from "@supaterm/contracts";
 import { canonicalizeGitCafePullRequestUrl } from "@supaterm/source-control-definitions/registry";
 
 import { sourceControlClients, type ChangeRequestTerminology } from "./sourceControlClients.ts";
+import { msg } from "gt-i18n";
 
 const PULL_REQUEST_NUMBER_PATTERN = /^#?(\d+)$/;
 
@@ -99,8 +100,9 @@ export function resolveLinkPullRequestInput(input: {
   if (!Number.isSafeInteger(number) || number < 1) return null;
   if (input.project === null) {
     return {
-      error:
+      error: msg(
         "Paste the full pull request URL; this thread has no repository to resolve the number against.",
+      ),
     };
   }
   const webUrl = input.project.webUrl(number);

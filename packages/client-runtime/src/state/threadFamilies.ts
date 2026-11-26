@@ -17,6 +17,8 @@ import { EnvironmentRpcUnavailableError, request } from "../rpc/client.ts";
 import { arrayElementsEqual } from "./entities.ts";
 import { createEnvironmentQueryAtomFamily, selectEnvironmentQueryData } from "./runtime.ts";
 import type { EnvironmentShellState } from "./shell.ts";
+import { msg } from "gt-i18n";
+import { translatableMessage } from "../errors/translatable.ts";
 
 const EMPTY_FAMILY: OrchestrationV2ThreadFamily = { snapshotSequence: 0, threads: [] };
 const EMPTY_READS: ReadonlyArray<OrchestrationV2ThreadFamily> = [];
@@ -100,7 +102,7 @@ export function createThreadFamilyAtoms<R, ER, E>(
       if (Option.isNone(session)) {
         return yield* new EnvironmentRpcUnavailableError({
           environmentId: supervisor.target.environmentId,
-          message: "The environment has no session.",
+          ...translatableMessage(msg("The environment has no session.")),
         });
       }
       // A config failure fails the read: an empty family would read as "the thread is gone".

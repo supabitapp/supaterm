@@ -24,6 +24,7 @@ import {
   prependThreadHistory,
   type ThreadStreamState,
 } from "./state/threadStream.ts";
+import { msg } from "gt-i18n";
 
 /** A thread on a linked environment, read through the environment that holds the link. */
 export interface LinkedThreadTarget {
@@ -171,7 +172,7 @@ export function linkedThreadFailure(
     case "thread_not_found":
       return {
         title: `This thread is no longer on ${label}`,
-        detail: "It may have been deleted there.",
+        detail: msg("It may have been deleted there."),
         retryable,
       };
     case "incompatible":

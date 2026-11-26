@@ -1,4 +1,5 @@
 import type { UsageProviderKind, UsageSummary } from "@supaterm/contracts";
+import { msg } from "gt-i18n";
 
 interface UsageProgressEnvironment {
   readonly label: string;
@@ -64,7 +65,7 @@ export function usageProgress(
           ? null
           : updatingProvidersLabel(providers, providerLabel)
         : environments.length === 1
-          ? "Updating…"
+          ? msg("Updating…")
           : waiting.length === 1
             ? `Updating ${waiting[0]!.label}…`
             : `Updating ${waiting.length} environments…`,

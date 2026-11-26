@@ -10,6 +10,7 @@ import {
 import { builtInSecretProviderDefinitions } from "@supaterm/secret-provider-definitions/registry";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import { msg } from "gt-i18n";
 
 export type SecretRequestItem = Extract<
   OrchestrationV2TurnItem,
@@ -126,12 +127,12 @@ const SAVED_DISPLAY: SecretRequestDisplay = {
 const DECLINED_DISPLAY: SecretRequestDisplay = {
   kind: "answered",
   outcome: "declined",
-  label: "Declined",
+  label: msg("Declined"),
 };
 const ENDED_DISPLAY: SecretRequestDisplay = {
   kind: "answered",
   outcome: "ended",
-  label: "Request ended",
+  label: msg("Request ended"),
 };
 const EXPIRED_DISPLAY: SecretRequestDisplay = {
   kind: "expired",
@@ -141,7 +142,7 @@ const EXPIRED_DISPLAY: SecretRequestDisplay = {
 const PENDING_DISPLAY: SecretRequestDisplay = { kind: "pending" };
 const PENDING_ELSEWHERE_DISPLAY: SecretRequestDisplay = {
   kind: "pending-elsewhere",
-  label: "Waiting for an answer in the original thread",
+  label: msg("Waiting for an answer in the original thread"),
 };
 
 /**
@@ -274,5 +275,5 @@ export function secretRequestFailureMessage(failure: unknown): string {
   ) {
     return failure.message;
   }
-  return "Could not answer the request. Try again.";
+  return msg("Could not answer the request. Try again.");
 }

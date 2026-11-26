@@ -5,6 +5,7 @@ import type {
   PullRequestReactionContent,
 } from "@supaterm/contracts";
 import { formatConjunctionList } from "./listFormat.ts";
+import { msg } from "gt-i18n";
 
 export function canReactPullRequestComment(
   detail: Pick<PullRequestDetail, "provider" | "capabilities">,

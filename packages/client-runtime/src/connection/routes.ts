@@ -23,6 +23,7 @@ import {
   type ConnectionRoute,
 } from "./catalog.ts";
 import { BearerConnectionTarget, type ConnectionTarget } from "./model.ts";
+import { msg } from "gt-i18n";
 
 export type ConnectionRouteKind =
   | "loopback"
@@ -271,7 +272,7 @@ function routeAddressKey(route: ConnectionRoute): string | null {
 export function connectionRouteLabel(route: ConnectionRoute): string {
   switch (connectionRouteKind(route)) {
     case "loopback":
-      return "This device";
+      return msg("This device");
     case "lan":
       return "LAN";
     case "tailnet":
@@ -287,7 +288,7 @@ export function connectionRouteLabel(route: ConnectionRoute): string {
         : "SSH";
     }
     case "public":
-      return routeHostname(route) ?? "Remote link";
+      return routeHostname(route) ?? msg("Remote link");
   }
 }
 

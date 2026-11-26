@@ -6,6 +6,8 @@ import {
   type ConnectionAttemptError,
   ConnectionTransientError,
 } from "./model.ts";
+import { msg } from "gt-i18n";
+import { translatableDetail } from "../errors/translatable.ts";
 
 export function profileMissingError(connectionId: string): ConnectionBlockedError {
   return new ConnectionBlockedError({
@@ -52,7 +54,7 @@ export function mapRemoteEnvironmentError(
     case "EnvironmentAuthInvalidError":
       return new ConnectionBlockedError({
         reason: "authentication",
-        detail: "The environment credential is invalid.",
+        ...translatableDetail(msg("The environment credential is invalid.")),
         traceId: error.traceId,
         hop: "server",
         via,
@@ -61,7 +63,9 @@ export function mapRemoteEnvironmentError(
     case "EnvironmentOperationForbiddenError":
       return new ConnectionBlockedError({
         reason: "permission",
-        detail: "The environment credential does not grant the required access.",
+        ...translatableDetail(
+          msg("The environment credential does not grant the required access."),
+        ),
         traceId: error.traceId,
         hop: "server",
         via,
@@ -69,7 +73,7 @@ export function mapRemoteEnvironmentError(
     case "EnvironmentRequestInvalidError":
       return new ConnectionBlockedError({
         reason: "configuration",
-        detail: "The environment rejected the authentication request.",
+        ...translatableDetail(msg("The environment rejected the authentication request.")),
         traceId: error.traceId,
         hop: "server",
         via,
@@ -77,7 +81,7 @@ export function mapRemoteEnvironmentError(
     case "EnvironmentResourceNotFoundError":
       return new ConnectionBlockedError({
         reason: "configuration",
-        detail: "The environment endpoint could not be found.",
+        ...translatableDetail(msg("The environment endpoint could not be found.")),
         traceId: error.traceId,
         hop: "server",
         via,
@@ -99,7 +103,7 @@ export function mapRemoteEnvironmentError(
     case "EnvironmentInternalError":
       return new ConnectionTransientError({
         reason: "remote-unavailable",
-        detail: "The environment could not authorize the connection.",
+        ...translatableDetail(msg("The environment could not authorize the connection.")),
         traceId: error.traceId,
         hop: "server",
         via,

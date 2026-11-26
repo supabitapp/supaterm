@@ -17,6 +17,7 @@ import * as Option from "effect/Option";
 
 import type { EnvironmentPresentation } from "./connection/presentation.ts";
 import { connectionRouteKind, connectionRoutes, routeHttpBaseUrl } from "./connection/routes.ts";
+import { msg } from "gt-i18n";
 
 export type LinkRequestItem = Extract<OrchestrationV2TurnItem, { readonly type: "link_request" }>;
 
@@ -346,7 +347,7 @@ export function linkRequestDisplay(
         ? { kind: "pending" }
         : {
             kind: "pending-elsewhere",
-            label: "Waiting for an answer in the original thread",
+            label: msg("Waiting for an answer in the original thread"),
           };
     case "linked": {
       const target =
@@ -360,7 +361,7 @@ export function linkRequestDisplay(
       };
     }
     case "declined":
-      return { kind: "answered", outcome: "declined", label: "Declined" };
+      return { kind: "answered", outcome: "declined", label: msg("Declined") };
     case "failed":
       return {
         kind: "answered",
@@ -368,7 +369,7 @@ export function linkRequestDisplay(
         label: `Could not link: ${item.failure ?? "the other environment refused"}`,
       };
     case "cancelled":
-      return { kind: "answered", outcome: "ended", label: "Request ended" };
+      return { kind: "answered", outcome: "ended", label: msg("Request ended") };
   }
 }
 
@@ -442,5 +443,5 @@ export function linkRequestFailureMessage(failure: unknown): string {
   ) {
     return failure.message;
   }
-  return "Could not answer the request. Try again.";
+  return msg("Could not answer the request. Try again.");
 }

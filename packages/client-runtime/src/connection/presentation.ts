@@ -11,6 +11,7 @@ import {
   connectionRoutes,
   routeHttpBaseUrl,
 } from "./routes.ts";
+import { msg } from "gt-i18n";
 
 export type EnvironmentConnectionPhase =
   | "available"
@@ -84,25 +85,25 @@ export function connectionStatusText(connection: EnvironmentConnectionPresentati
     case "offline":
       return "Offline";
     case "connecting":
-      return "Connecting...";
+      return msg("Connecting...");
     case "reconnecting":
       return connection.error
         ? `Failed to connect. Reconnecting... Reason: ${connection.error}`
-        : "Reconnecting...";
+        : msg("Reconnecting...");
     case "connected":
       return "Connected";
     case "unsupported":
-      return "Client not supported";
+      return msg("Client not supported");
     case "error":
       return connection.error
         ? `Connection failed. Reason: ${connection.error}`
-        : "Connection failed";
+        : msg("Connection failed");
   }
 }
 
 export function connectionStatusTitle(connection: EnvironmentConnectionPresentation): string {
   if (connection.phase === "reconnecting" && connection.error) {
-    return "Failed to connect. Reconnecting...";
+    return msg("Failed to connect. Reconnecting...");
   }
   return connectionStatusText({ ...connection, error: null });
 }

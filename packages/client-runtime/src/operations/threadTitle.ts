@@ -3,6 +3,7 @@ import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitatio
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
 import { truncate } from "@supaterm/shared/String";
+import { msg } from "gt-i18n";
 
 export interface ThreadTitleSeedInput {
   readonly text: string;
@@ -26,7 +27,11 @@ export function threadTitleTextFromPrompt(value: string): string {
   });
   return (
     normalizeTitleSeed(composerFileLinksToPlainText(prose)) ||
-    (imageIds.size > 0 ? (imageIds.size === 1 ? "Attached image" : "Attached images") : "")
+    (imageIds.size > 0
+      ? imageIds.size === 1
+        ? msg("Attached image")
+        : msg("Attached images")
+      : "")
   );
 }
 
@@ -38,7 +43,7 @@ export function deriveThreadTitleSeed(input: ThreadTitleSeedInput): string {
 
   const images = input.attachments.filter((attachment) => attachment.type === "image");
   if (images.length > 0) {
-    return images.length === 1 ? "Attached image" : "Attached images";
+    return images.length === 1 ? msg("Attached image") : msg("Attached images");
   }
 
   const attachmentName = normalizeTitleSeed(input.attachments[0]?.name ?? "");
@@ -53,5 +58,5 @@ export function deriveThreadTitleSeed(input: ThreadTitleSeedInput): string {
     }
   }
 
-  return "New thread";
+  return msg("New thread");
 }

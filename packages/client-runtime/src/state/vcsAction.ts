@@ -29,6 +29,7 @@ import {
 import { createCommandPermissions } from "./commandPermissions.ts";
 import { vcsCommandScheduler } from "./vcsCommandScheduler.ts";
 import { invalidateCachedVcsRefs } from "./vcsRefInvalidation.ts";
+import { msg } from "gt-i18n";
 
 export const VcsActionOperation = Schema.Literals([
   "refresh_status",
@@ -231,7 +232,7 @@ function failVcsActionState(
     ...EMPTY_VCS_ACTION_STATE,
     operation,
     actionId,
-    error: error instanceof Error ? error.message : "Source control action failed.",
+    error: error instanceof Error ? error.message : msg("Source control action failed."),
   };
 }
 
@@ -460,7 +461,7 @@ export function createVcsActionManager<R, E>(
           stateAtom,
           beginVcsActionState({
             operation: "run_change_request",
-            label: "Running source control action",
+            label: msg("Running source control action"),
             actionId: input.actionId,
           }),
         );

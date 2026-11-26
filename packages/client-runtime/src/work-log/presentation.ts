@@ -29,10 +29,10 @@ import {
   supatermToolResultIndicatesFailure,
   type SupatermToolSummaryCall,
 } from "@supaterm/client-runtime/supatermToolSummary";
-import { mFallback } from "gt-i18n";
-import type { MFunctionType } from "gt-i18n/types";
 
 import { supatermToolSentence } from "./supatermToolSentences.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type WorkLogToolLifecycleStatus = RuntimeItemStatus | "stopped" | "idle";
 
@@ -74,14 +74,14 @@ export function contextCompactionTokenCounts(
 }
 
 export function contextCompactionLabel(item: CompactionLabelItem): string {
-  if (item.status === "failed") return "Context compaction failed";
+  if (item.status === "failed") return msg("Context compaction failed");
   if (item.status === "cancelled" || item.status === "interrupted")
-    return "Context compaction stopped";
-  if (isOrchestrationV2WorkActive(item.status)) return "Compacting context";
+    return msg("Context compaction stopped");
+  if (isOrchestrationV2WorkActive(item.status)) return msg("Compacting context");
   const tokens = contextCompactionTokenCounts(item);
   return tokens
     ? `Context compacted ${tokens.before} → ${tokens.after} tokens`
-    : "Context compacted";
+    : msg("Context compacted");
 }
 
 export interface WorkLogPresentationEntry {
@@ -254,14 +254,14 @@ export function liveActivityToolStatus(status: string | undefined, presentTense:
 
 function genericCommandStatusLabel(status: ReturnType<typeof liveActivityToolStatus>) {
   return status === "inProgress"
-    ? "Running command"
+    ? msg("Running command")
     : status === "failed"
-      ? "Failed command"
+      ? msg("Failed command")
       : status === "declined"
-        ? "Declined command"
+        ? msg("Declined command")
         : status === "stopped"
-          ? "Stopped command"
-          : "Ran command";
+          ? msg("Stopped command")
+          : msg("Ran command");
 }
 
 const GENERIC_COMMAND_TITLES = new Set(["Ran command", "Run command", "Command"]);

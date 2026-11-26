@@ -62,6 +62,7 @@ import {
   type EnvironmentThreadState,
   type EnvironmentThreadStatus,
 } from "./threadState.ts";
+import { msg } from "gt-i18n";
 
 const THREAD_SUBSCRIPTION_RETRY_DELAY = "250 millis";
 
@@ -75,14 +76,14 @@ function formatThreadError(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
   return error instanceof Error && error.message.trim().length > 0
     ? error.message
-    : "Could not synchronize the thread.";
+    : msg("Could not synchronize the thread.");
 }
 
 function formatHistoryError(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
-  return "Could not load earlier activity.";
+  return msg("Could not load earlier activity.");
 }
 
 // Steers join a running turn; every other user message opens one. The timeline shows every
@@ -786,7 +787,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       latest: EnvironmentThreadState,
     ): ThreadHistoryController.ThreadHistoryLoadEarlierResult =>
       workAnchorId !== undefined && workCursor(latest) !== null
-        ? { _tag: "error", message: "Work history changed. Retry loading it." }
+        ? { _tag: "error", message: msg("Work history changed. Retry loading it.") }
         : { _tag: "noop" };
     if (workAnchorId === undefined)
       yield* patchHistoryMeta((history) =>
@@ -1051,7 +1052,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
   const backOffAfterDefect = Effect.suspend(() => {
     const retryDelay = subscriptionRetryDelay(THREAD_SUBSCRIPTION_RETRY_DELAY, defectRetries);
     defectRetries += 1;
-    return setStreamError("Could not synchronize the thread.").pipe(
+    return setStreamError(msg("Could not synchronize the thread.")).pipe(
       Effect.andThen(Effect.sleep(retryDelay)),
     );
   });
@@ -1176,7 +1177,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
             return yield* Queue.offer(resubscribes, undefined);
           }
           if (!Cause.hasDies(cause)) {
-            return yield* setStreamError("Could not synchronize the thread.");
+            return yield* setStreamError(msg("Could not synchronize the thread."));
           }
           yield* Ref.set(forceSnapshot, true);
           if (yield* Ref.getAndSet(resuming, false)) {

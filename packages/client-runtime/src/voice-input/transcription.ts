@@ -1,4 +1,6 @@
 import * as Schema from "effect/Schema";
+import { msg } from "gt-i18n";
+import { translatableMessage } from "../errors/translatable.ts";
 
 /** Cancellation is cooperative: settle only after the underlying work has stopped. */
 export type VoiceTranscriptionOptions = {
@@ -49,7 +51,7 @@ export function throwIfVoiceTranscriptionAborted(signal: AbortSignal): void {
   if (signal.aborted) {
     throw new VoiceTranscriptionError({
       code: "cancelled",
-      message: "Voice transcription was cancelled.",
+      ...translatableMessage(msg("Voice transcription was cancelled.")),
     });
   }
 }
