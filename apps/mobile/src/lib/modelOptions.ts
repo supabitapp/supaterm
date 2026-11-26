@@ -11,7 +11,12 @@ import type {
   RuntimeMode,
   ServerConfig as SupatermServerConfig,
 } from "@supaterm/contracts";
-import { isProviderDriverKind, resolveProjectProviderInstanceEnabled } from "@supaterm/contracts";
+import {
+  disallowedProviderMessage,
+  isManagedDriverAllowed,
+  isProviderDriverKind,
+  resolveProjectProviderInstanceEnabled,
+} from "@supaterm/contracts";
 import {
   buildExplicitProviderOptionSelectionsFromDescriptors,
   getProviderOptionDescriptors,
@@ -114,6 +119,27 @@ function isDisabledForProject(
   return provider !== undefined && !isProviderEnabledForProject(config, provider, projectId);
 }
 
+function selectionDriver(
+  config: SupatermServerConfig | null | undefined,
+  instanceId: ModelSelection["instanceId"],
+): string | undefined {
+  return (
+    config?.providers.find((candidate) => candidate.instanceId === instanceId)?.driver ??
+    config?.settings?.providerInstances[instanceId]?.driver
+  );
+}
+
+function isDriverDisallowed(
+  config: SupatermServerConfig | null | undefined,
+  driver: string | undefined,
+) {
+  return (
+    driver !== undefined &&
+    isProviderDriverKind(driver) &&
+    !isManagedDriverAllowed(config?.managedPolicy, driver)
+  );
+}
+
 function normalizeSelectionOptions(
   selection: ModelSelection,
   capabilities: ModelCapabilities | null,
@@ -166,6 +192,9 @@ export function isModelSelectionUnavailable(
   }
   const driver =
     provider?.driver ?? config.settings?.providerInstances[selection.instanceId]?.driver;
+  if (isDriverDisallowed(config, driver)) {
+    return true;
+  }
   return (
     driver === "antigravity" &&
     (!provider ||
@@ -184,6 +213,20 @@ export function describeUnavailableModelSelection(
   const provider = config?.providers.find(
     (candidate) => candidate.instanceId === selection.instanceId,
   );
+  const driver = selectionDriver(config, selection.instanceId);
+  if (isDriverDisallowed(config, driver)) {
+    const label = providerDisplayLabel({
+      driver: driver ?? selection.instanceId,
+      displayName:
+        provider?.displayName ??
+        config?.settings?.providerInstances[selection.instanceId]?.displayName,
+      instanceId: selection.instanceId,
+    });
+    return {
+      title: "Provider not allowed",
+      detail: `${disallowedProviderMessage(config?.managedPolicy?.organization, label)} Choose another model.`,
+    };
+  }
   return isDisabledForProject(config, provider, selection.instanceId, projectId)
     ? {
         title: "Model turned off for this project",
@@ -328,6 +371,7 @@ export function buildModelOptions(
   for (const provider of config?.providers ?? []) {
     if (
       !matchesLockedProvider(provider) ||
+      isDriverDisallowed(config, provider.driver) ||
       !isProviderEnabledForProject(config, provider, projectId) ||
       !provider.installed ||
       provider.auth.status === "unauthenticated" ||

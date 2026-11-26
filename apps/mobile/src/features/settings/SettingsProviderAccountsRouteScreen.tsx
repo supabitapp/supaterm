@@ -6,6 +6,7 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import {
   AuthProvidersManageScope,
+  isManagedDriverAllowed,
   type ProviderAuthResponse,
   type ServerProvider,
 } from "@supaterm/contracts";
@@ -74,7 +75,13 @@ export function SettingsProviderAccountsRouteScreen() {
               ) : (
                 <EnvironmentProviders
                   environment={environment}
-                  providers={providersByEnvironment.get(environment.environmentId) ?? []}
+                  providers={(providersByEnvironment.get(environment.environmentId) ?? []).filter(
+                    (provider) =>
+                      isManagedDriverAllowed(
+                        environment.serverConfig.managedPolicy,
+                        provider.driver,
+                      ),
+                  )}
                 />
               )}
             </SettingsSection>
