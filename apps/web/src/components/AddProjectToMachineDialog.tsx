@@ -57,7 +57,7 @@ import { Label } from "./ui/label";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { Toggle, ToggleGroup } from "./ui/toggle-group";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 interface AddProjectToMachineRequest {
   readonly projectRef: ScopedProjectRef;
@@ -263,8 +263,10 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
               <T>Add to another machine</T>
             </DialogTitle>
             <DialogDescription>
-              Clone {project?.repositoryIdentity?.displayName ?? project?.title} and bring the local
-              files git does not track.
+              <T>
+                Clone <Var>{project?.repositoryIdentity?.displayName ?? project?.title}</Var> and
+                bring the local files git does not track.
+              </T>
             </DialogDescription>
           </DialogHeader>
           <DialogPanel>
@@ -282,6 +284,7 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
                 </span>
               </div>
               <div className="flex w-28 flex-col items-center gap-0.5 text-muted-foreground text-xs">
+                {/* oxlint-disable-next-line supaterm/no-untranslated-copy -- git command name */}
                 <span>git clone</span>
                 <span className="flex w-full items-center">
                   <span className="h-px flex-1 bg-border" />
@@ -356,7 +359,11 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`${id}-path`}>Folder on {target?.label ?? "the other machine"}</Label>
+              <Label htmlFor={`${id}-path`}>
+                {target
+                  ? gt("Folder on {machine}", { machine: target.label })
+                  : gt("Folder on the other machine")}
+              </Label>
               <Input
                 id={`${id}-path`}
                 value={destinationPath}
@@ -430,8 +437,17 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
                 )}
                 {ignoredFiles.data?.truncated ? (
                   <p className="text-muted-foreground text-xs">
-                    Showing the first {files.length} files.
-                    {canSearchFiles ? " Search to find the rest." : ""}
+                    {canSearchFiles
+                      ? gt(
+                          "{count, plural, one {Showing the first {count} files. Search to find the rest.} other {Showing the first {count} files. Search to find the rest.}}",
+                          {
+                            count: files.length,
+                          },
+                        )
+                      : gt(
+                          "{count, plural, one {Showing the first {count} files.} other {Showing the first {count} files.}}",
+                          { count: files.length },
+                        )}
                   </p>
                 ) : null}
                 <p className="text-muted-foreground text-xs">

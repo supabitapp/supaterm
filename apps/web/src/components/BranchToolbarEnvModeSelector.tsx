@@ -33,7 +33,7 @@ import {
 import { Kbd } from "./ui/kbd";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { stackedThreadToast, toastManager } from "./ui/toast";
-import { useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const PREVIOUS_WORKTREE_SELECT_VALUE = "previous-worktree";
 
@@ -102,7 +102,7 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
     event.stopPropagation();
     void api.contextMenu
       .show(
-        [{ id: "copy-path", label: "Copy full path", icon: "copy" }],
+        [{ id: "copy-path", label: gt("Copy full path"), icon: "copy" }],
         { x: event.clientX, y: event.clientY },
         contextMenuSourceOf(event),
       )
@@ -114,8 +114,8 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
             toastManager.add(
               stackedThreadToast({
                 type: "error",
-                title: "Failed to copy path",
-                description: error instanceof Error ? error.message : "An error occurred.",
+                title: gt("Failed to copy path"),
+                description: error instanceof Error ? error.message : gt("An error occurred."),
               }),
             );
           },
@@ -272,10 +272,12 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
       >
         <ComboboxSearchInput
           autoFocus
-          aria-label="Search workspaces"
-          placeholder="Search workspaces..."
+          aria-label={gt("Search workspaces")}
+          placeholder={gt("Search workspaces...")}
         />
-        <ComboboxEmpty>No matches found.</ComboboxEmpty>
+        <ComboboxEmpty>
+          <T>No matches found.</T>
+        </ComboboxEmpty>
         <ComboboxList>
           {(item: (typeof envModeItems)[number]) => (
             <ComboboxItem key={item.value} value={item}>
@@ -312,6 +314,7 @@ function WorkspaceBranchCopyRow({
   workspaceKind: string | null;
   onContextMenu: (event: ReactMouseEvent) => void;
 }) {
+  const gt = useGT();
   const { copyToClipboard, isCopied } = useCopyToClipboard({
     target: "branch name",
     timeout: 1500,
@@ -319,7 +322,7 @@ function WorkspaceBranchCopyRow({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to copy branch name",
+          title: gt("Failed to copy branch name"),
           description: error.message,
         }),
       );
@@ -332,7 +335,7 @@ function WorkspaceBranchCopyRow({
         render={
           <ThreadDetailsControl
             className="group/branch-copy"
-            aria-label={`Copy branch name: ${branch}`}
+            aria-label={gt("Copy branch name: {branch}", { branch })}
             data-composer-context-control
             onClick={() => copyToClipboard(branch)}
             onContextMenu={onContextMenu}
@@ -345,7 +348,7 @@ function WorkspaceBranchCopyRow({
           <FolderGitIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} />
         )}
         <ComposerContextLabel displayMode="panel">
-          <span aria-live="polite">{isCopied ? "Copied" : branch}</span>
+          <span aria-live="polite">{isCopied ? gt("Copied") : branch}</span>
         </ComposerContextLabel>
         <CopyIcon
           aria-hidden
@@ -357,7 +360,11 @@ function WorkspaceBranchCopyRow({
           </span>
         ) : null}
       </TooltipTrigger>
-      <TooltipPopup side="left">Copy branch name: {branch}</TooltipPopup>
+      <TooltipPopup side="left">
+        <T>
+          Copy branch name: <Var>{branch}</Var>
+        </T>
+      </TooltipPopup>
     </Tooltip>
   );
 }
