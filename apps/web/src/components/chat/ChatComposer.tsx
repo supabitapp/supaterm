@@ -1008,7 +1008,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const runtimeModeCeiling = capRuntimeModeOptions(
     useManagedPolicy(environmentId),
     supportedRuntimeModeOptions,
-    compatibleRuntimeMode,
+    runtimeMode,
   );
   const compatibleRuntimeModeOptions = runtimeModeCeiling.options;
 
