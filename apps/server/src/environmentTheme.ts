@@ -207,7 +207,12 @@ export function findThemeBackground(
   themesDir: string,
   themeId: string,
   entries?: ReadonlySet<string>,
-): { readonly path: string; readonly revision: string } | null {
+): {
+  readonly path: string;
+  readonly revision: string;
+  readonly device: string;
+  readonly inode: string;
+} | null {
   for (const extension of THEME_BACKGROUND_EXTENSIONS) {
     const name = `${themeId}.${extension}`;
     if (entries !== undefined && !entries.has(name)) continue;
@@ -223,6 +228,8 @@ export function findThemeBackground(
     return {
       path: filePath,
       revision: [info.ino, info.size, info.mtimeNs].map((part) => part.toString(36)).join("-"),
+      device: info.dev.toString(),
+      inode: info.ino.toString(),
     };
   }
   return null;

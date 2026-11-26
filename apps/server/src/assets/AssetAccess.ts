@@ -1,4 +1,4 @@
-import type { AssetResource } from "@supaterm/contracts";
+import type { AssetResource, EnvironmentTheme } from "@supaterm/contracts";
 import {
   AssetAttachmentNotFoundError,
   AssetSourceControlMediaUrlValidationError,
@@ -188,6 +188,8 @@ const AssetClaimsSchema = Schema.Union([
     version: Schema.Literal(1),
     kind: Schema.Literal("environment-theme-background"),
     themeId: EnvironmentThemeId,
+    device: Schema.String,
+    inode: Schema.String,
     expiresAt: Schema.Number,
   }),
   Schema.Struct({
@@ -611,12 +613,22 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
   },
 );
 
+// The themes directory may be a symlink; openMediaFile refuses any path that is not canonical.
+const canonicalThemesDir = Effect.gen(function* () {
+  const config = yield* ServerConfig.ServerConfig;
+  const fileSystem = yield* FileSystem.FileSystem;
+  return yield* fileSystem
+    .realPath(config.environmentThemesDir)
+    .pipe(Effect.orElseSucceed(() => null));
+});
+
 export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (input: {
   readonly resource: AssetResource;
   readonly workspaceRoot?: string;
   readonly projectFaviconPath?: string;
   /** Where a cloned project's checkout stands, while the clone tracker still knows it. */
   readonly projectCheckout?: "pending" | "cloned";
+  readonly publishedThemes?: ReadonlyArray<EnvironmentTheme>;
 }) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -910,13 +922,22 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
     }
     case "environment-theme-background": {
       // Published themes go to every client, so any client may read their backgrounds.
+      const { themeId } = input.resource;
+      const published = input.publishedThemes?.find((theme) => theme.id === themeId)?.background;
+      const themesDir = published === undefined ? null : yield* canonicalThemesDir;
+      const background = themesDir === null ? null : findThemeBackground(themesDir, themeId);
+      if (background === null || background.revision !== published) {
+        return yield* new AssetWorkspaceAssetNotFoundError({ resource: input.resource });
+      }
       claims = {
         version: 1,
         kind: "environment-theme-background",
-        themeId: input.resource.themeId,
+        themeId,
+        device: background.device,
+        inode: background.inode,
         expiresAt,
       };
-      fileName = `${input.resource.themeId}-background`;
+      fileName = `${themeId}-background`;
       break;
     }
     case "native-app-icon": {
@@ -1066,15 +1087,10 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
   }
 
   if (claims.kind === "environment-theme-background") {
-    const config = yield* ServerConfig.ServerConfig;
-    const fileSystem = yield* FileSystem.FileSystem;
-    // The themes directory may be a symlink; openMediaFile refuses any path that is not canonical.
-    const themesDir = yield* fileSystem
-      .realPath(config.environmentThemesDir)
-      .pipe(Effect.orElseSucceed(() => null));
+    const themesDir = yield* canonicalThemesDir;
     const background = themesDir === null ? null : findThemeBackground(themesDir, claims.themeId);
     if (background === null) return null;
-    const file = yield* openMediaFile(background.path).pipe(
+    const file = yield* openMediaFile(background.path, claims).pipe(
       Effect.tapError((cause) =>
         Effect.logError("Failed to open theme background.", { path: background.path, cause }),
       ),
