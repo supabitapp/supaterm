@@ -32,7 +32,7 @@ import { usePullRequestFileFilter } from "./usePullRequestFileFilter";
 import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
 import { requestPullRequestFileJump } from "./pullRequestFileJump";
 import { fileDirectory, groupByDirectory } from "./pullRequestFileSections";
-import { msg, T, useGT } from "gt-react-native";
+import { T, useGT } from "gt-react-native";
 
 const BREAKDOWN_LABELS = {
   code: "Code",

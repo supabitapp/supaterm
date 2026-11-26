@@ -541,6 +541,7 @@ export function CommandPalette(props: {
     threads,
     delegatedUnderParent,
     triageEnvironmentId,
+    gt,
   ]);
   const rankedMessageKeys = useMemo(() => {
     const subjectByKey = new Map(

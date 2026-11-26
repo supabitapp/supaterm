@@ -905,7 +905,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       ...(prBadgeLabel ? [{ name: "openPullRequests", label: prBadgeLabel }] : []),
       ...(showsWoke ? [{ name: "dismissWoke", label: gt("Dismiss Woke notification") }] : []),
     ],
-    [prBadgeLabel, showsWoke],
+    [gt, prBadgeLabel, showsWoke],
   );
 
   const handleDelete = useCallback(() => onDeleteThread(thread), [onDeleteThread, thread]);
@@ -985,14 +985,14 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       })),
       { id: "snooze:custom", title: gt("Custom…", { $context: "custom snooze time" }) },
     ],
-    [snoozePresets],
+    [gt, snoozePresets],
   );
   const reorderMenuItems = useMemo<MenuAction[]>(
     () =>
       props.arrangeSupported === true
         ? [{ id: "arrange", title: gt("Arrange threads…"), image: "line.3.horizontal" }]
         : [],
-    [props.arrangeSupported],
+    [gt, props.arrangeSupported],
   );
   const pinMenuItems = useMemo<MenuAction[]>(
     () =>
@@ -1007,7 +1007,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
               : { id: "pin", title: gt("Pin", { $context: "verb, thread action" }), image: "pin" },
           ]
         : [],
-    [props.pinningSupported, thread.pinnedAt],
+    [gt, props.pinningSupported, thread.pinnedAt],
   );
   const autoMarkDoneMenuItems = useMemo<MenuAction[]>(
     () =>
@@ -1032,7 +1032,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             } satisfies MenuAction,
           ]
         : [],
-    [props.autoMarkDoneOptOutSupported, thread.autoMarkDoneDisabledAt],
+    [gt, props.autoMarkDoneOptOutSupported, thread.autoMarkDoneDisabledAt],
   );
   const canTurnIntoProject = canTurnThreadIntoProject(thread);
   const titleMenuItems = useMemo<MenuAction[]>(
@@ -1066,6 +1066,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       thread.latestRun,
       thread.runtime,
       isRegeneratingTitle,
+      gt,
     ],
   );
   const menuActions = useMemo<MenuAction[]>(() => {
@@ -1160,6 +1161,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     swipeActions.secondary,
     thread.branch,
     titleMenuItems,
+    gt,
   ]);
   const handleMenuAction = useCallback(
     ({ nativeEvent }: { readonly nativeEvent: { readonly event: string } }) => {
@@ -1232,6 +1234,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       setCustomSnoozeOpen,
       snoozePresets,
       props.snoozePresets,
+      gt,
     ],
   );
   const primaryAction = useMemo(() => {
@@ -1268,6 +1271,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           onPress: handleMarkDone,
         };
   }, [
+    gt,
     handleArchive,
     handleMarkDone,
     handleReopen,
@@ -1297,7 +1301,14 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
               onPress: handleMarkDone,
             }
           : null,
-    [handleMenuAction, handleMarkDone, snoozePresetActions, swipeActions.secondary, thread.title],
+    [
+      handleMenuAction,
+      handleMarkDone,
+      snoozePresetActions,
+      swipeActions.secondary,
+      thread.title,
+      gt,
+    ],
   );
   const swipeAccessibilityHint = !canOperateThread
     ? gt("Opens the thread")

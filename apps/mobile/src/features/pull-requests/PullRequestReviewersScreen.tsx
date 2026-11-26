@@ -195,7 +195,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
           .then(() => send(add, true))
           .then(() => refreshSearch?.());
       }),
-    [navigation, draft, latest, request, target, hostQuery, searchResult.refresh],
+    [navigation, draft, latest, request, target, hostQuery, searchResult.refresh, gt],
   );
   const reviewerSearch: AppBarSearch | undefined = listCandidates
     ? {

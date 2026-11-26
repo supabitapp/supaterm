@@ -474,7 +474,6 @@ export function ComposerDictationPrimaryAction(props: {
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
 }) {
-  const gt = useGT();
   if (props.presentation.trailingAction === "confirm") {
     return <ComposerDictationConfirmAction {...props} />;
   }

@@ -99,7 +99,7 @@ export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequest
         // Adding first keeps the Labels row from showing empty between the two writes.
         void send(add, true).then(() => send(remove, false));
       }),
-    [navigation, draft, latest, setLabels, target],
+    [navigation, draft, latest, setLabels, target, gt],
   );
   return (
     <PullRequestSearchSheet

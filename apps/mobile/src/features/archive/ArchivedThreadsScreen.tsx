@@ -397,7 +397,7 @@ export function ArchivedThreadsScreen(props: {
         title={isFiltered ? gt("No matching threads") : gt("No archived threads")}
       />
     );
-  }, [isFiltered, isInitialLoad]);
+  }, [gt, isFiltered, isInitialLoad]);
 
   return (
     // Without this native container, formSheet resizing mistakes the background for a header and collapses the list.

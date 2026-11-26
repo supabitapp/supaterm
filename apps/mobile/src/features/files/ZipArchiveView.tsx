@@ -605,7 +605,7 @@ type EntryContent =
   | { readonly status: "loading" }
   | { readonly status: "text"; readonly text: string; readonly truncated: boolean }
   | { readonly status: "file"; readonly uri: string }
-  | { readonly status: "failed"; readonly title: string; readonly message: string };
+  | { readonly status: "failed"; readonly title: string | null; readonly message: string };
 
 function ZipEntryView(props: {
   readonly archiveName: string;
@@ -669,7 +669,7 @@ function ZipEntryView(props: {
         if (!controller.signal.aborted)
           setContent({
             status: "failed",
-            title: gt("Couldn't read this file"),
+            title: null,
             message: errorMessage(cause, "Could not read this file."),
           });
       });
@@ -779,7 +779,7 @@ function ZipEntryView(props: {
         <ScrollView contentContainerClassName="flex-grow items-center justify-center px-6">
           <EmptyState
             variant="plain"
-            title={content.title}
+            title={content.title ?? gt("Couldn't read this file")}
             detail={content.message}
             action={
               <Button
