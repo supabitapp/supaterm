@@ -29,10 +29,10 @@ export default Effect.gen(function* () {
     ON orchestration_v2_projection_subagents(thread_id, subagent_id)
     WHERE origin = 'app_owned'
       AND child_thread_id IS NULL
-      AND (
-        json_type(payload_json, '$.remoteChild') = 'object'
-        OR json_type(payload_json, '$.remoteLaunch') = 'object'
-      )
+      AND CASE WHEN json_valid(payload_json)
+        THEN json_type(payload_json, '$.remoteChild') = 'object'
+          OR json_type(payload_json, '$.remoteLaunch') = 'object'
+        ELSE 0 END
   `;
 
   // Keep this predicate aligned with ProjectionStore's waiting link card query.

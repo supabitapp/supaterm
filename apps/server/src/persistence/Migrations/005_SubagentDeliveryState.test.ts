@@ -11,7 +11,7 @@ import Migration0003 from "./003_ActiveTurnItemIndexes.ts";
 import Migration0004 from "./004_ExcludeAttachmentPlaceholdersFromSearch.ts";
 
 it.effect(
-  "backfills each stored subagent's completion delivery state, even past an unreadable payload",
+  "backfills each stored subagent's completion delivery state and runs every later migration, even past an unreadable payload",
   () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -54,5 +54,7 @@ it.effect(
         { id: "pending", state: "pending" },
         { id: "unreadable", state: null },
       ]);
+
+      yield* runMigrations();
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: ":memory:" }))),
 );
