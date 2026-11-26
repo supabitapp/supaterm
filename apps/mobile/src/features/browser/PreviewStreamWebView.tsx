@@ -134,7 +134,7 @@ function offerDownload(
 const MAX_REFUSALS = 3;
 
 export function PreviewStreamWebView(
-  props: Omit<PreviewStreamConfiguration, "access"> &
+  props: Omit<PreviewStreamConfiguration, "access" | "labels"> &
     Omit<NativeStreamBridge, "onUnauthorized"> & {
       readonly environmentId: EnvironmentId;
       readonly paused?: boolean;
@@ -179,7 +179,9 @@ function AuthorizedPreviewStream({
   ref,
   environmentId,
   ...props
-}: PreviewStreamConfiguration & NativeStreamBridge & { readonly environmentId: EnvironmentId }) {
+}: Omit<PreviewStreamConfiguration, "labels"> &
+  NativeStreamBridge & { readonly environmentId: EnvironmentId }) {
+  const gt = useGT();
   const [attempt, setAttempt] = useState(0);
   const [previousAccess, setPreviousAccess] = useState(props.access);
   // Wait for refreshed access, including cookie credentials with unchanged JSON.
@@ -203,6 +205,10 @@ function AuthorizedPreviewStream({
     tabId: props.tabId,
     interactive: props.interactive,
     background: props.background,
+    labels: {
+      page: gt("Browser page"),
+      pageInput: gt("Browser page input"),
+    },
   } satisfies PreviewStreamConfiguration);
   return (
     <PreviewStreamDocumentView
@@ -468,12 +474,14 @@ function PreviewStreamDocumentView({
       {!compact && fileChooser && control?.controller === "you" ? (
         <View className="absolute inset-x-3 top-16 gap-3 rounded-xl border border-secondary-border bg-secondary p-4">
           <AppText className="text-sm text-secondary-foreground">
-            The page asks for {fileChooser.multiple ? "files" : "a file"}.
+            {fileChooser.multiple
+              ? gt("The page asks for files.")
+              : gt("The page asks for a file.")}
           </AppText>
           <View className="flex-row justify-end gap-3">
             <Button label={gt("Cancel")} tone="text" onPress={() => answerFileChooser(false)} />
             <Button
-              label={`Choose ${fileChooser.multiple ? "files" : "file"}`}
+              label={fileChooser.multiple ? gt("Choose files") : gt("Choose file")}
               tone="secondary"
               onPress={() => answerFileChooser(true)}
             />
