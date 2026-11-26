@@ -76,21 +76,23 @@ const injectFrom =
   };
 
 describe("1Password driver", () => {
+  // Process arguments reach process listings and diagnostics; references stay in the template.
+  const passesReferenceAsArgument = (invocations: ReadonlyArray<ReadonlyArray<string>>) =>
+    invocations.some((args) => args.some((arg) => arg.includes("op://")));
+
   it.effect("reads one reference from the account", () => {
-    const op = fakeOp(() => ({ stdout: "sk-live" }));
+    const op = fakeOp(injectFrom({ "op://Private/OpenAI/credential": "sk-live" }));
     return Effect.gen(function* () {
       assert.deepStrictEqual(yield* driver.read({ account }, ["op://Private/OpenAI/credential"]), [
         "sk-live",
       ]);
-      assert.deepStrictEqual(op.invocations, [
-        [
-          "--cache=false",
-          "read",
-          "--account=my.1password.com",
-          "--no-newline",
-          "op://Private/OpenAI/credential",
-        ],
+      assert.strictEqual(op.invocations.length, 1);
+      assert.deepStrictEqual(op.invocations[0]?.slice(0, 3), [
+        "--cache=false",
+        "inject",
+        "--account=my.1password.com",
       ]);
+      assert.isFalse(passesReferenceAsArgument(op.invocations));
     }).pipe(Effect.provide(op.layer));
   });
 
@@ -127,12 +129,11 @@ describe("1Password driver", () => {
   });
 
   it.effect("falls back to one read at a time when the batch fails", () => {
+    const inject = injectFrom({ "op://Private/OpenAI/credential": "sk-a" });
     const op = fakeOp((args) =>
-      args.includes("inject")
+      NodeFS.readFileSync(args[args.indexOf("-i") + 1]!, "utf8").includes("op://Private/Gone/key")
         ? { code: 1, stderr: '[ERROR] could not resolve "op://Private/Gone/key"' }
-        : args.at(-1) === "op://Private/Gone/key"
-          ? { code: 1, stderr: "[ERROR] item not found" }
-          : { stdout: "sk-a" },
+        : inject(args),
     );
     return Effect.gen(function* () {
       const values = yield* driver.read({ account }, [
@@ -142,6 +143,7 @@ describe("1Password driver", () => {
 
       assert.deepStrictEqual(values, ["sk-a", undefined]);
       assert.strictEqual(op.invocations.length, 3);
+      assert.isFalse(passesReferenceAsArgument(op.invocations));
     }).pipe(Effect.provide(op.layer));
   });
 
