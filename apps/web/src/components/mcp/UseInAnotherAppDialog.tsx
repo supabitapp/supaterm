@@ -4,13 +4,18 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import { AuthMcpClientAccess } from "@supaterm/contracts";
+import {
+  AuthMcpClientAccess,
+  managedCapabilityDenial,
+  managedRuntimeModeDenial,
+} from "@supaterm/contracts";
 import { CheckIcon, CopyIcon, PlugIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useNowSecond } from "~/hooks/useNowSecond";
 import { authEnvironment } from "~/state/auth";
+import { useManagedPolicy } from "~/state/managedPolicy";
 import { type EnvironmentPresentation, useEnvironmentIdentities } from "~/state/environments";
 import { peerLinkEnvironment } from "~/state/peerLinks";
 import { useEnvironmentQuery } from "~/state/query";
@@ -57,6 +62,11 @@ export function UseInAnotherAppDialog({
   const [code, setCode] = useState<MintedCode | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const policy = useManagedPolicy(environmentId);
+  // The server refuses codes for any level when its policy keeps remote clients out.
+  const remoteDenial = managedCapabilityDenial(policy, "remoteClients");
+  const levelDenial = (level: AuthMcpClientAccess) =>
+    remoteDenial ?? (level === "read-only" ? undefined : managedRuntimeModeDenial(policy, level));
 
   const mint = async () => {
     setPending(true);
@@ -131,7 +141,12 @@ export function UseInAnotherAppDialog({
               }}
             >
               {AuthMcpClientAccess.literals.map((level) => (
-                <AccessOption key={level} access={level} selected={level === access} />
+                <AccessOption
+                  key={level}
+                  access={level}
+                  selected={level === access}
+                  managedReason={levelDenial(level)}
+                />
               ))}
             </RadioGroup>
           </div>
@@ -150,7 +165,7 @@ export function UseInAnotherAppDialog({
           </Button>
           <Button
             size="comfortable"
-            disabled={pending}
+            disabled={pending || levelDenial(access) !== undefined}
             aria-busy={pending}
             onClick={() => void mint()}
           >

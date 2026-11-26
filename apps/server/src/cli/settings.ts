@@ -1,6 +1,5 @@
 import {
   BranchNamingMode,
-  DEFAULT_SERVER_SETTINGS,
   PullRequestMergeMethod,
   ResponseStreamingMode,
   RuntimeMode,
@@ -10,6 +9,7 @@ import {
 } from "@supaterm/contracts";
 import { resolveWorktreeSupatermHome } from "@supaterm/shared/devHome";
 import { fromJsonStringPretty } from "@supaterm/shared/schemaJson";
+import { applyServerSettingsPatch } from "@supaterm/shared/serverSettings";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import * as Config from "effect/Config";
 import * as Console from "effect/Console";
@@ -19,7 +19,14 @@ import * as Schema from "effect/Schema";
 import { Argument, Command } from "effect/cli";
 
 import { baseDirFlag } from "./config.ts";
-import { editSettingsObject, readSettingsObject, resolveSettingsPaths } from "./settingsFile.ts";
+import {
+  classifyManagedSetting,
+  editSettingsObject,
+  readSettingsObject,
+  resolveSettingsPaths,
+  vetManagedSettingWrite,
+} from "./settingsFile.ts";
+import { readInstalledPolicy } from "./policy.ts";
 
 const BOOLEAN_SETTING = { kind: "boolean", expected: "true or false" } as const;
 const STRING_SETTING = { kind: "string", expected: "a string" } as const;
@@ -197,10 +204,28 @@ const settingsGetCommand = Command.make("get", {
       const setting = yield* requireSettingName(flags.setting);
       const settingsPath = yield* resolveSettingsPath(flags.baseDir);
       const { settings: sparseSettings } = yield* readSettingsObject(settingsPath);
-      const value = Object.hasOwn(sparseSettings, setting)
-        ? sparseSettings[setting]
-        : DEFAULT_SERVER_SETTINGS[setting];
-      yield* Console.log(yield* encodeValueJson(value));
+      const policy = yield* readInstalledPolicy;
+      const isStored = Object.hasOwn(sparseSettings, setting);
+      const stored = isStored
+        ? yield* decodeServerSettingsPatch({ [setting]: sparseSettings[setting] }).pipe(
+            Effect.orElseSucceed(() => ({})),
+          )
+        : {};
+      const managed = classifyManagedSetting(
+        policy,
+        setting,
+        applyServerSettingsPatch(policy.settings.defaults, stored),
+      );
+      if (managed._tag === "Unmanaged") {
+        yield* Console.log(
+          yield* encodeValueJson(
+            isStored ? sparseSettings[setting] : policy.settings.defaults[setting],
+          ),
+        );
+        return;
+      }
+      yield* Console.log(yield* encodeValueJson(managed.effective));
+      yield* Console.error(`Managed by ${managed.organization}.`);
     }),
   ),
 );
@@ -224,8 +249,22 @@ const settingsSetCommand = Command.make("set", {
           expected: SETTABLE_SETTINGS[setting].expected,
         });
       }
+      const managed = yield* vetManagedSettingWrite(settingsPath, setting, (settings) =>
+        applyServerSettingsPatch(settings, patch),
+      );
+      if (managed._tag === "Locked") {
+        yield* Console.log(
+          `${setting} is managed by ${managed.organization} and already ${flags.value}; nothing to change.`,
+        );
+        return;
+      }
       yield* editSettingsObject(settingsPath, (settings) => ({ ...settings, [setting]: value }));
       yield* Console.log(`Set ${setting} in ${settingsPath}.`);
+      if (managed._tag === "Capped") {
+        yield* Console.log(
+          `${managed.organization}'s policy lowers it to ${yield* encodeValueJson(managed.effective)} while the policy applies.`,
+        );
+      }
     }),
   ),
 );

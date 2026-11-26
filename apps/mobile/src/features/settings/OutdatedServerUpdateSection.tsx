@@ -25,9 +25,11 @@ import { useGT, useMessages } from "gt-react-native";
 export function OutdatedServerUpdateSection({
   environmentId,
   label,
+  updatesDenial,
 }: {
   readonly environmentId: EnvironmentId;
   readonly label: string;
+  readonly updatesDenial: string | undefined;
 }) {
   const gt = useGT();
   const messages = useMessages();
@@ -101,20 +103,25 @@ export function OutdatedServerUpdateSection({
                   product: "Supaterm",
                 })}
         </Text>
+        {updatesDenial ? (
+          <Text className="text-sm text-foreground-muted">{updatesDenial}</Text>
+        ) : null}
         {error || state.status === "failed" ? (
           <Text selectable accessibilityRole="alert" className="text-sm text-danger-foreground">
             {error ?? (state.status === "failed" ? messages(state.message) : null)}
           </Text>
         ) : null}
       </View>
-      <SettingsActionRow
-        icon="arrow.clockwise"
-        label={gt("Check for updates")}
-        disabled={busy}
-        loading={checking}
-        onPress={check}
-      />
-      {release?.targetVersion ? (
+      {updatesDenial ? null : (
+        <SettingsActionRow
+          icon="arrow.clockwise"
+          label={gt("Check for updates")}
+          disabled={busy}
+          loading={checking}
+          onPress={check}
+        />
+      )}
+      {release?.targetVersion && !updatesDenial ? (
         <SettingsActionRow
           icon="arrow.up.circle"
           label={

@@ -2,8 +2,23 @@ import {
   type AuthMcpApprovalDecision,
   type AuthMcpApprovalDetails,
   type AuthMcpClientAccess,
+  isRuntimeModeAbove,
+  managedRuntimeModeCeilingMessage,
   parseMcpApprovalCode,
 } from "@supaterm/contracts";
+
+/** Why a managed policy keeps `access` from being granted, or undefined when it may be. */
+export function accessCeilingReason(
+  details: Pick<AuthMcpApprovalDetails, "runtimeModeCeiling">,
+  access: AuthMcpClientAccess,
+): string | undefined {
+  const ceiling = details.runtimeModeCeiling;
+  return ceiling === undefined ||
+    access === "read-only" ||
+    !isRuntimeModeAbove(access, ceiling.maxRuntimeMode)
+    ? undefined
+    : managedRuntimeModeCeilingMessage(ceiling.organization, ceiling.maxRuntimeMode);
+}
 
 /**
  * What Approve sends. A typed code is always checked as a code, even when the browser's

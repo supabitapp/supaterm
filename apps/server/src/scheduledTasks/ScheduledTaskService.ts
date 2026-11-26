@@ -16,6 +16,7 @@ import {
   type ScheduledTaskSetEnabledInput,
   type ScheduledTaskThreadMode,
   type ScheduledTaskUpsertInput,
+  managedRuntimeModeDenial,
   scheduledTaskThreadMode,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
@@ -23,6 +24,7 @@ import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -38,6 +40,7 @@ import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import { OrchestratorDispatchError } from "../orchestration-v2/Orchestrator.ts";
 import { userFacingDispatchErrorMessage } from "../orchestration-v2/UserFacingErrors.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as DueHint from "../scheduling/DueHint.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import { latestRootProviderFailure } from "@supaterm/shared/orchestrationV2ThreadError";
@@ -295,6 +298,13 @@ export const layer = Layer.effect(
     const serviceScope = yield* Effect.scope;
     const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
     const scheduler = yield* Scheduler.Scheduler;
+    const { managedPolicy } = yield* ServerSettings.ServerSettingsService;
+    // A task bound to a thread runs in that thread's mode, which the orchestrator checks instead.
+    const runtimeModeDenial = (task: {
+      readonly threadId?: string | null | undefined;
+      readonly runtimeMode: ScheduledTask["runtimeMode"];
+    }) =>
+      task.threadId == null ? managedRuntimeModeDenial(managedPolicy, task.runtimeMode) : undefined;
     const activeRuns = yield* Ref.make<ReadonlySet<ScheduledTaskId>>(new Set());
     // Sliding(1) coalesces the dirty-signal: every notification triggers a
     // full list() re-emit anyway, so a slow subscriber only ever needs the
@@ -782,39 +792,43 @@ export const layer = Layer.effect(
         // Effect.exit (not Effect.result) so defects and interruptions in the
         // dispatch are also captured and recorded as a failed run instead of
         // aborting before markCompleted.
+        // A task saved above the ceiling before the policy arrived records why it did not run.
+        const modeDenial = runtimeModeDenial(active);
         const result =
-          active.threadId === null
-            ? yield* Effect.exit(
-                threadLaunch
-                  .launch({
-                    commandId,
-                    projectId: active.projectId,
-                    title: active.title,
-                    modelSelection: active.modelSelection,
-                    runtimeMode: active.runtimeMode,
-                    interactionMode: active.interactionMode,
-                    workspaceStrategy: active.workspaceStrategy,
-                    initialMessage: {
-                      messageId,
-                      scheduledTaskId: active.id,
-                      text: prompt,
-                      attachments: [],
-                    },
-                    createdBy: active.createdBy,
-                    creationSource: active.creationSource,
-                  })
-                  .pipe(
-                    Effect.map((launched) => launched.threadId),
-                    Effect.tap((threadId) =>
-                      threadMode === "new_thread" ? Effect.void : bindThread(active, threadId),
+          modeDenial !== undefined
+            ? Exit.fail(taskError(modeDenial, { taskId: active.id }))
+            : active.threadId === null
+              ? yield* Effect.exit(
+                  threadLaunch
+                    .launch({
+                      commandId,
+                      projectId: active.projectId,
+                      title: active.title,
+                      modelSelection: active.modelSelection,
+                      runtimeMode: active.runtimeMode,
+                      interactionMode: active.interactionMode,
+                      workspaceStrategy: active.workspaceStrategy,
+                      initialMessage: {
+                        messageId,
+                        scheduledTaskId: active.id,
+                        text: prompt,
+                        attachments: [],
+                      },
+                      createdBy: active.createdBy,
+                      creationSource: active.creationSource,
+                    })
+                    .pipe(
+                      Effect.map((launched) => launched.threadId),
+                      Effect.tap((threadId) =>
+                        threadMode === "new_thread" ? Effect.void : bindThread(active, threadId),
+                      ),
                     ),
+                )
+              : yield* Effect.exit(
+                  sendBound(ThreadId.make(active.threadId), active.projectId, 2).pipe(
+                    Effect.as(ThreadId.make(active.threadId)),
                   ),
-              )
-            : yield* Effect.exit(
-                sendBound(ThreadId.make(active.threadId), active.projectId, 2).pipe(
-                  Effect.as(ThreadId.make(active.threadId)),
-                ),
-              );
+                );
 
         const completedAt = yield* localNow;
         const runSucceeded = result._tag === "Success";
@@ -1091,6 +1105,12 @@ export const layer = Layer.effect(
     const upsert: ScheduledTaskService["Service"]["upsert"] = Effect.fn(
       "ScheduledTaskService.upsert",
     )(function* (input) {
+      // Refused on save rather than at run time; a disabled task can still be saved, so one
+      // stored above the ceiling can be turned off before its mode is lowered.
+      const modeDenial = input.enabled ? runtimeModeDenial(input) : undefined;
+      if (modeDenial !== undefined) {
+        return yield* taskError(modeDenial, input.id === undefined ? {} : { taskId: input.id });
+      }
       const now = yield* localNow;
       const uuid =
         input.commandId === undefined
@@ -1187,6 +1207,8 @@ export const layer = Layer.effect(
     )(function* (input) {
       const existing = yield* loadTask(input.id);
       if (existing.enabled === input.enabled) return { task: existing };
+      const modeDenial = input.enabled ? runtimeModeDenial(existing) : undefined;
+      if (modeDenial !== undefined) return yield* taskError(modeDenial, { taskId: input.id });
       const now = yield* localNow;
       yield* requireFutureOnce(
         { enabled: input.enabled, schedule: existing.schedule },

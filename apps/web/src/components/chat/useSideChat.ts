@@ -7,6 +7,7 @@ import {
 } from "@supaterm/client-runtime/state/side-chats";
 import {
   AuthOrchestrationOperateScope,
+  clampManagedRuntimeMode,
   type EnvironmentId,
   type ModelSelection,
   type OrchestrationMessageContext,
@@ -33,6 +34,7 @@ import {
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { readThreadShell, useServerConfigs, waitForThreadShell } from "../../state/entities";
 import { useEnvironmentScope } from "../../state/session";
+import { readManagedPolicy } from "../../state/managedPolicy";
 import { enqueueThreadOutboxTurn } from "../../state/threadOutbox";
 import {
   captureOutboxAttachments,
@@ -147,7 +149,10 @@ export function useSideChat(input: {
     const { parent } = input;
     if (!parent) return null;
     const settings = input.readSettings();
-    const runtimeMode = settings.runtimeMode ?? parent.runtimeMode;
+    const inheritedMode = settings.runtimeMode ?? parent.runtimeMode;
+    const runtimeMode =
+      clampManagedRuntimeMode(readManagedPolicy(parent.environmentId), inheritedMode) ??
+      inheritedMode;
     const modelSelection = settings.modelSelection ?? parent.modelSelection;
     const draftId = newDraftId();
     const threadId = newThreadId();

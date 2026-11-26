@@ -219,6 +219,51 @@ it.effect("links, calls and forgets a peer through its relay tunnel", () => {
   );
 });
 
+it.effect("links through the relay are refused where the policy turns it off", () => {
+  const server = NodeHttp.createServer();
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const b = yield* serveB(box, server);
+      const pairing = yield* b.auth.issuePairingCredential();
+      const context = yield* layerLinkingEnvironment(laptop, undefined, undefined, {
+        schemaVersion: 1,
+        organization: "Example Corp",
+        limits: { relay: false },
+      }).pipe(Layer.build);
+      const links = Context.get(context, PeerLinks.PeerLinks);
+      const refused = yield* links
+        .link({
+          url: b.relay.address,
+          relayUrl: b.relay.url,
+          pairingCode: pairing.credential,
+          access: "auto",
+        })
+        .pipe(Effect.flip);
+      expect(refused).toMatchObject({
+        reason: "unreachable",
+        message:
+          "Example Corp's policy does not allow the Encrypted Relay, so this environment cannot reach linked environments through it.",
+      });
+      expect(yield* links.list).toEqual([]);
+      // A direct address still links.
+      const linked = yield* links.link({
+        url: b.url,
+        pairingCode: pairing.credential,
+        access: "auto",
+      });
+      expect(linked.environmentId).toBe(box.environmentId);
+    }),
+  ).pipe(
+    Effect.provide(
+      NodeHttpServer.layer(() => server, {
+        host: "127.0.0.1",
+        port: 0,
+        gracefulShutdownTimeout: 0,
+      }),
+    ),
+  );
+});
+
 it.effect("a link made again by another address closes the relay tunnel it no longer uses", () => {
   const server = NodeHttp.createServer();
   return Effect.scoped(

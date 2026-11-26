@@ -1,4 +1,8 @@
-import type { DesktopBridge, DesktopUpdateState } from "@supaterm/contracts";
+import {
+  type DesktopBridge,
+  type DesktopUpdateState,
+  managedUpdatesDenial,
+} from "@supaterm/contracts";
 import { TriangleAlertIcon } from "@supaterm/icons";
 import { type ComponentProps, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -8,6 +12,7 @@ import { cn } from "../../lib/utils";
 import { ensureLocalApi } from "../../localApi";
 import { desktopUpdateRestart } from "../../state/desktopUpdateRestart";
 import { useDesktopUpdateState } from "../../state/desktopUpdate";
+import { usePrimaryManagedPolicy } from "../../state/managedPolicy";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import {
   getArm64IntelBuildWarningDescription,
@@ -183,7 +188,9 @@ function SidebarUpdateControl() {
   const releaseNotesPopupRef = useRef<HTMLDivElement>(null);
   const releaseNotesTriggerId = useId();
 
-  const action = state ? resolveDesktopUpdateButtonAction(state) : "none";
+  // The desktop updates this machine, whose policy the primary environment reports.
+  const localUpdatesDenied = managedUpdatesDenial(usePrimaryManagedPolicy()) !== undefined;
+  const action = state && !localUpdatesDenied ? resolveDesktopUpdateButtonAction(state) : "none";
   const isDownloading = state?.status === "downloading";
   const localUpdateVersion =
     state && action !== "none" ? getDesktopUpdateDownloadedVersion(state) : null;

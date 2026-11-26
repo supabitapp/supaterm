@@ -42,7 +42,7 @@ export function BranchNamingSettings(props: {
   prefixFromRepository: boolean | null;
   prefix: string | null;
   instructions: string | null;
-  disabled: boolean;
+  disabled: Readonly<Record<"mode" | "prefix" | "instructions", boolean>>;
   onChange: (patch: ServerSettingsPatch) => void;
 }) {
   const gt = useGT();
@@ -73,7 +73,7 @@ export function BranchNamingSettings(props: {
           description={m(MODES[mode].description)}
           selected={choice === mode}
           separated={index > 0}
-          disabled={props.disabled}
+          disabled={props.disabled.mode}
           onPress={() => props.onChange(branchNamingChoicePatch(mode))}
         />
       ))}
@@ -92,7 +92,7 @@ export function BranchNamingSettings(props: {
             onChangeText={(text) => edit("branchNamePrefix", text)}
             defaultValue={props.prefix ?? ""}
             placeholder={props.prefix === null ? gt("Mixed") : gt("No prefix")}
-            editable={!props.disabled}
+            editable={!props.disabled.prefix}
             autoCapitalize="none"
             autoCorrect={false}
             className="min-h-10 rounded-xl px-3 py-2 text-base text-foreground"
@@ -117,7 +117,7 @@ export function BranchNamingSettings(props: {
                     prefix: "julius/",
                   })
             }
-            editable={!props.disabled}
+            editable={!props.disabled.instructions}
             multiline
             autoCapitalize="sentences"
             className="min-h-24 rounded-xl px-3 py-2 text-base text-foreground"

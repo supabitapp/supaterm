@@ -18,7 +18,8 @@ function describeUnavailableInstance(
   resolve: MessageResolver,
 ): string {
   const label = entry.displayName;
-  if (!entry.enabled || entry.status === "disabled") {
+  // An unavailable instance (a driver this build lacks or the policy leaves out) says why instead.
+  if ((!entry.enabled && entry.isAvailable) || entry.status === "disabled") {
     return resolve(msg("{label}: Disabled in settings.", { label }));
   }
   if (entry.status === "ready" && entry.isAvailable) {

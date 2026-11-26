@@ -19,6 +19,8 @@ import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { useState, type ReactElement, type ReactNode } from "react";
 import {
+  disallowedProviderMessage,
+  isManagedDriverAllowed,
   isProviderDriverKind,
   resolveProviderInstanceEnabled,
   type ProviderInstanceConfig,
@@ -50,6 +52,9 @@ import { DraftInput } from "../ui/draft-input";
 import { SecretSourceInput, type SecretSource } from "./SecretSourceInput";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Switch } from "../ui/switch";
+import { ManagedControl, ManagedNotice } from "../ManagedPolicy";
+import { useManagedPolicy } from "../../state/managedPolicy";
+import { managedInstanceLocks } from "@supaterm/client-runtime/managed-policy";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type {
@@ -295,6 +300,7 @@ function ProviderEnvironmentFieldRow(props: {
   readonly onRemove: (field: ProviderEnvironmentField) => void;
   readonly secretSources: ReadonlyArray<SecretSource>;
   readonly environmentId?: EnvironmentId | undefined;
+  readonly managedReason?: string | undefined;
 }) {
   const gt = useGT();
   const inputId = `${props.idPrefix}-environment-${props.field.name}`;
@@ -304,6 +310,7 @@ function ProviderEnvironmentFieldRow(props: {
     <SettingsRow
       title={<label htmlFor={inputId}>{props.field.label}</label>}
       description={props.field.description}
+      managed={props.managedReason}
       control={
         <div className="flex w-full min-w-0 items-center gap-2 @min-[32rem]/settings-row:w-56">
           {props.field.sensitive === false ? (
@@ -362,6 +369,8 @@ export function ProviderEnvironmentSection(props: {
   readonly onChange: (environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>) => void;
   readonly secretSources?: ReadonlyArray<SecretSource>;
   readonly environmentId?: EnvironmentId | undefined;
+  /** Variables an administrator's policy pins: listed by name, never editable or removable. */
+  readonly managed?: { readonly names: ReadonlySet<string>; readonly reason: string } | undefined;
 }) {
   const gt = useGT();
   const [storedDraft, setDraft] = useState(() =>
@@ -412,6 +421,8 @@ export function ProviderEnvironmentSection(props: {
   };
 
   const updateVariable = (id: string, patch: Partial<Omit<EnvironmentDraftRow, "id">>) => {
+    // A row named like a pinned variable renders as the policy's, with no way to edit or remove it.
+    if (patch.name !== undefined && props.managed?.names.has(patch.name)) return;
     const nextRows = rows.map((row) =>
       row.id === id
         ? {
@@ -466,6 +477,16 @@ export function ProviderEnvironmentSection(props: {
       {rows.length > 0 ? (
         <div className="mt-3 min-w-0 space-y-2 pb-2">
           {rows.map((variable, index) => {
+            if (props.managed?.names.has(variable.name)) {
+              return (
+                <div key={variable.id} className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <code className="min-w-0 truncate text-xs sm:w-44 sm:shrink-0">
+                    {variable.name}
+                  </code>
+                  <span className="text-xs text-muted-foreground">{props.managed.reason}</span>
+                </div>
+              );
+            }
             const Icon = variable.sensitive ? LockIcon : LockOpenIcon;
             return (
               <div key={variable.id} className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -691,6 +712,8 @@ interface ProviderInstanceCardProps {
   readonly selected?: boolean | undefined;
   readonly onSelect?: (() => void) | undefined;
   readonly readOnly?: boolean | undefined;
+  /** Why the policy locks this whole instance; the card is then read-only and says so. */
+  readonly managedReason?: string | undefined;
   readonly canWriteSettings?: boolean;
   readonly onUpdate: (nextInstance: ProviderInstanceConfig) => Promise<boolean>;
   readonly onDelete?: (() => void) | undefined;
@@ -765,6 +788,7 @@ export function ProviderInstanceCard({
   selected = false,
   onSelect,
   readOnly = false,
+  managedReason,
   canWriteSettings = true,
   onUpdate,
   onDelete,
@@ -838,6 +862,14 @@ export function ProviderInstanceCard({
   const displayName =
     instance.displayName?.trim() || driverOption?.label || String(instance.driver);
   const accentColor = normalizeProviderAccentColor(instance.accentColor);
+  const managedPolicy = useManagedPolicy(environmentId);
+  const instanceLocks = managedInstanceLocks(managedPolicy, instance.driver);
+  const managedDriverReason = isManagedDriverAllowed(managedPolicy, instance.driver)
+    ? undefined
+    : disallowedProviderMessage(
+        managedPolicy?.organization,
+        driverOption?.label ?? String(instance.driver),
+      );
   const { copyToClipboard } = useCopyToClipboard<{ providerName: string }>({
     onCopy: ({ providerName }) => {
       toastManager.add({
@@ -1216,13 +1248,16 @@ export function ProviderInstanceCard({
               />
             </span>
           ) : null}
-          <Switch
-            checked={projectOverride?.mixed ? false : enabled}
-            mixed={projectOverride?.mixed ?? false}
-            disabled={readOnly || (projectOverride !== undefined && !canWriteSettings)}
-            onCheckedChange={(checked) => updateEnabled(Boolean(checked))}
-            aria-label={gt("Enable {provider}", { provider: displayName })}
-          />
+          {/* The policy refuses switching it on; switching it off stays the user's call. */}
+          <ManagedControl reason={managedReason ?? (enabled ? undefined : managedDriverReason)}>
+            <Switch
+              checked={projectOverride?.mixed ? false : enabled}
+              mixed={projectOverride?.mixed ?? false}
+              disabled={readOnly || (projectOverride !== undefined && !canWriteSettings)}
+              onCheckedChange={(checked) => updateEnabled(Boolean(checked))}
+              aria-label={gt("Enable {provider}", { provider: displayName })}
+            />
+          </ManagedControl>
         </span>
       </div>
     );
@@ -1321,6 +1356,7 @@ export function ProviderInstanceCard({
       variant="settings"
       environmentId={environmentId}
       onChange={updateConfig}
+      managed={instanceLocks && { keys: instanceLocks.configKeys, reason: instanceLocks.reason }}
     />
   ) : (
     <SettingsRow
@@ -1342,6 +1378,11 @@ export function ProviderInstanceCard({
   return (
     <>
       <SettingsSection title={displayName} icon={titleIconNode} headerAction={editorHeaderAction}>
+        {managedReason !== undefined ? (
+          <div className="px-3 py-2.5 sm:px-4">
+            <ManagedNotice>{managedReason}</ManagedNotice>
+          </div>
+        ) : null}
         <SettingsRow title={gt("Status")} status={statusContent} />
         <SettingsRow
           title={gt("Display name")}
@@ -1394,6 +1435,12 @@ export function ProviderInstanceCard({
                   onRemove={removeEnvironmentField}
                   secretSources={secretSources}
                   environmentId={environmentId}
+                  managedReason={
+                    instanceLocks?.wholeEnvironment ||
+                    instanceLocks?.environmentNames.has(field.name)
+                      ? instanceLocks.reason
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -1429,16 +1476,29 @@ export function ProviderInstanceCard({
 
       <SettingsSection
         title={gt("Environment")}
-        inert={readOnly}
-        aria-disabled={readOnly || undefined}
+        inert={readOnly || instanceLocks?.wholeEnvironment}
+        aria-disabled={readOnly || instanceLocks?.wholeEnvironment || undefined}
         className={readOnly ? "opacity-50 select-none" : undefined}
       >
-        <ProviderEnvironmentSection
-          environment={genericEnvironment}
-          onChange={updateGenericEnvironment}
-          secretSources={secretSources}
-          environmentId={environmentId}
-        />
+        {instanceLocks?.wholeEnvironment ? (
+          <div className="px-3 py-2.5 sm:px-4">
+            <ManagedNotice>{instanceLocks.reason}</ManagedNotice>
+          </div>
+        ) : null}
+        <div className={instanceLocks?.wholeEnvironment ? "opacity-50" : undefined}>
+          <ProviderEnvironmentSection
+            environment={genericEnvironment}
+            onChange={updateGenericEnvironment}
+            secretSources={secretSources}
+            environmentId={environmentId}
+            managed={
+              instanceLocks && {
+                names: instanceLocks.environmentNames,
+                reason: instanceLocks.reason,
+              }
+            }
+          />
+        </div>
       </SettingsSection>
       {environmentId !== undefined && liveProvider?.driver === "acpRegistry" ? (
         <AcpSessionManagementSection

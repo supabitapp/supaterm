@@ -5,6 +5,8 @@ import {
   cliReleaseIndexPageUrl,
   cliReleaseChannelOf,
   newestCliReleaseVersion,
+  releaseAssetUrl,
+  updateFeedFileName,
   type CliReleaseChannel,
 } from "@supaterm/shared/cliRelease";
 import * as Console from "effect/Console";
@@ -24,8 +26,8 @@ import {
   ensurePinnedRuntimeInstalled,
   findPosixLauncher,
   generatedWindowsShimTarget,
+  isUnpublishedRelease,
   launcherOwnsVersionsDir,
-  PinnedRuntimeInstallError,
   pinnedRuntimePaths,
   PinnedRuntimePreflightBlockedError,
   pinnedRuntimeVersionsDir,
@@ -42,6 +44,8 @@ import {
   SERVICE_LAUNCHER_PROTOCOL,
 } from "../service/serviceProtocol.ts";
 import { runStagedServicePreflight } from "../service/servicePreflight.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
+import { managedUpdateMirror, managedUpdateRefusal } from "../policy/managedUpdates.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
@@ -102,6 +106,47 @@ export const resolveNewestVersion = Effect.fn("cli.update.resolve_newest")(funct
     if (releases.length === 0) break;
   }
   return yield* new CliUpdateError({ reason: `No published ${channel} release was found.` });
+});
+
+/** The version an update mirror's feed file for this platform offers on `channel`. */
+export const resolveMirrorVersion = Effect.fn("cli.update.resolve_mirror")(function* (
+  mirror: { readonly organization: string; readonly feedUrl: string },
+  channel: CliReleaseChannel,
+) {
+  if (channel === "preview") {
+    return yield* new CliUpdateError({
+      reason: `${mirror.organization}'s update mirror has no preview builds.`,
+    });
+  }
+  const httpClient = yield* HttpClient.HttpClient;
+  const fileName = updateFeedFileName(
+    channel === "nightly" ? "nightly" : "latest",
+    yield* HostProcess.Platform,
+    yield* HostProcess.Architecture,
+  );
+  const url = releaseAssetUrl(mirror.feedUrl, fileName);
+  // Not the URL, whose query can hold the mirror's access token.
+  const unreadable = new CliUpdateError({
+    reason: `Could not read ${fileName} from ${mirror.organization}'s update mirror.`,
+  });
+  const body = yield* httpClient.get(url).pipe(
+    Effect.flatMap(HttpClientResponse.filterStatusOk),
+    Effect.flatMap((response) => response.text),
+    Effect.mapError(() => unreadable),
+    Effect.timeoutOrElse({
+      duration: RELEASE_INDEX_TIMEOUT,
+      orElse: () => Effect.fail(unreadable),
+    }),
+  );
+  const version = /^version:\s*["']?([^"'\s]+)/m.exec(body)?.[1];
+  if (
+    version === undefined ||
+    !isExactServiceVersion(version) ||
+    cliReleaseChannelOf(version) !== channel
+  ) {
+    return yield* unreadable;
+  }
+  return version;
 });
 
 /**
@@ -255,7 +300,12 @@ export const updateCommand = Command.make("update", {
         assumeYes: flags.yes,
       }).pipe(
         Effect.provide(
-          Layer.mergeAll(CliService.layer(config), ProcessRunner.layer, FetchHttpClient.layer),
+          Layer.mergeAll(
+            CliService.layer(config),
+            ProcessRunner.layer,
+            FetchHttpClient.layer,
+            ManagedPolicy.layer,
+          ),
         ),
       );
     }),
@@ -295,9 +345,18 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
   const environment = yield* HostProcess.Environment;
   const httpClient = yield* HttpClient.HttpClient;
   const service = yield* BootService.BootService;
+  const policy = yield* ManagedPolicy.ManagedPolicy;
+  const mirror = managedUpdateMirror(policy.document);
 
   const currentVersion = packageJson.version;
   const channel = input.channel ?? cliReleaseChannelOf(currentVersion);
+  const refusal = managedUpdateRefusal(
+    policy.document,
+    input.requestedVersion === undefined ? channel : cliReleaseChannelOf(input.requestedVersion),
+  );
+  if (refusal !== undefined) {
+    return yield* new CliUpdateError({ reason: refusal });
+  }
   if (input.requestedVersion !== undefined && !isExactServiceVersion(input.requestedVersion)) {
     return yield* new CliUpdateError({
       reason: `'${input.requestedVersion}' is not an exact Supaterm version.`,
@@ -306,9 +365,11 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
   const progress = createUpdateProgress();
   progress.status("Checking for updates...");
   const targetVersion = yield* (
-    input.requestedVersion === undefined
-      ? resolveNewestVersion(channel)
-      : Effect.succeed(input.requestedVersion)
+    input.requestedVersion !== undefined
+      ? Effect.succeed(input.requestedVersion)
+      : mirror === undefined
+        ? resolveNewestVersion(channel)
+        : resolveMirrorVersion(mirror, channel)
   ).pipe(Effect.ensuring(Effect.sync(progress.finish)));
   const targetChannel = cliReleaseChannelOf(targetVersion);
 
@@ -420,7 +481,8 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
     httpClient,
     platform,
     arch,
-    releaseBaseUrl: environment[CLI_RELEASE_BASE_URL_ENV]?.trim() || undefined,
+    releaseBaseUrl: mirror?.feedUrl ?? (environment[CLI_RELEASE_BASE_URL_ENV]?.trim() || undefined),
+    requirePublishedRelease: mirror !== undefined,
     validate: (runtime) =>
       runStagedServicePreflight({
         runner,
@@ -452,17 +514,15 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
       PinnedRuntimePreflightBlockedError: (error) =>
         Effect.fail(new CliUpdateError({ reason: error.reason })),
     }),
-    Effect.catchIf(
-      (error): error is PinnedRuntimeInstallError =>
-        error._tag === "PinnedRuntimeInstallError" &&
-        error.step.startsWith("downloading the Supaterm release checksums") &&
-        String(error.cause).includes("404"),
-      () =>
-        Effect.fail(
-          new CliUpdateError({
-            reason: `No release archive was published for supaterm@${targetVersion}.`,
-          }),
-        ),
+    Effect.catchIf(isUnpublishedRelease, () =>
+      Effect.fail(
+        new CliUpdateError({
+          reason:
+            mirror === undefined
+              ? `No release archive was published for supaterm@${targetVersion}.`
+              : `${mirror.organization}'s update mirror has no supaterm@${targetVersion} for this machine.`,
+        }),
+      ),
     ),
   );
 

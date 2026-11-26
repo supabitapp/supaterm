@@ -40,6 +40,7 @@ const TailscaleCommandContext = {
 export const TailscaleStderrDiagnostic = Schema.Literals([
   "no-existing-handler",
   "not-logged-in",
+  "not-running",
   "permission-denied",
   "unsupported-target",
   "unknown",
@@ -51,6 +52,12 @@ const STDERR_DIAGNOSTIC_PATTERNS: ReadonlyArray<
 > = [
   [/handler does not exist/i, "no-existing-handler"],
   [/not logged in|logged out|needs? login/i, "not-logged-in"],
+  // Only answers that confirm no daemon; a dial can also fail for want of permission. Windows
+  // reports a missing service as its pipe not being found, without the usual prefix.
+  [
+    /doesn't appear to be running|tailscaled\.service not running|tailscale is stopped|tailscaled: the system cannot find the file specified|failed to connect to local tailscale[\s\S]*(connection refused|no such file or directory|cannot find the file)/i,
+    "not-running",
+  ],
   [/permission denied|access denied|must be root|operation not permitted/i, "permission-denied"],
   // The macOS apps, and tailscaled without SO_MARK, proxy only to localhost, 127.0.0.1 and ::1.
   [/doesn't support connecting to remote destinations/i, "unsupported-target"],
@@ -421,18 +428,6 @@ export const ensureTailscaleServe = Effect.fn("tailscale.ensureTailscaleServe")(
   return yield* runTailscaleCommand(args, TAILSCALE_SERVE_TIMEOUT);
 });
 
-export const disableTailscaleServe = Effect.fn("tailscale.disableTailscaleServe")(function* (
-  input: {
-    readonly servePort?: number;
-  } = {},
-): Effect.fn.Return<void, TailscaleCommandError, ChildProcessSpawner.ChildProcessSpawner> {
-  const servePort = input.servePort ?? DEFAULT_TAILSCALE_SERVE_PORT;
-  return yield* runTailscaleCommand(
-    ["serve", `--https=${servePort}`, "off"],
-    TAILSCALE_SERVE_TIMEOUT,
-  );
-});
-
 /** A Serve route: a web handler at `mount` on `servePort`, or a TCP forward without one. */
 export interface TailscaleServeRoute {
   readonly servePort: number;
@@ -444,6 +439,45 @@ export interface TailscaleServeRoute {
   /** The Tailscale Service it belongs to, or `foreground` for a `tailscale serve` still running. */
   readonly owner?: string;
 }
+
+/**
+ * The `tailscale` arguments that turn `route` off; a foreground route has none, since it ends with
+ * its command. A web route names its path: without one the CLI removes every handler on the port,
+ * and answers its own confirmation prompt with yes when nobody is there to answer.
+ */
+export const tailscaleServeOffArgs = (
+  route: TailscaleServeRoute,
+): ReadonlyArray<string> | undefined =>
+  route.owner === "foreground"
+    ? undefined
+    : [
+        "serve",
+        ...(route.owner === undefined ? [] : [`--service=${route.owner}`]),
+        ...(route.mount === undefined
+          ? [`--tcp=${route.servePort}`]
+          : [`--https=${route.servePort}`, `--set-path=${route.mount}`]),
+        "off",
+      ];
+
+/** Removes the web handler at `mount` on `servePort`, the root one `ensureTailscaleServe` adds by default. */
+export const disableTailscaleServe = Effect.fn("tailscale.disableTailscaleServe")(function* (
+  input: {
+    readonly servePort?: number;
+    readonly mount?: string;
+  } = {},
+): Effect.fn.Return<void, TailscaleCommandError, ChildProcessSpawner.ChildProcessSpawner> {
+  return yield* runTailscaleCommand(
+    tailscaleServeOffArgs({
+      servePort: input.servePort ?? DEFAULT_TAILSCALE_SERVE_PORT,
+      mount: input.mount ?? "/",
+    })!,
+    TAILSCALE_SERVE_TIMEOUT,
+  );
+});
+
+/** Removes a TCP forward on `servePort`; one port holds one forward, so nothing else goes. */
+export const disableTailscaleServeTcp = (servePort: number) =>
+  runTailscaleCommand(tailscaleServeOffArgs({ servePort })!, TAILSCALE_SERVE_TIMEOUT);
 
 const TailscaleServeConfigJson = Schema.Struct({
   TCP: Schema.optional(

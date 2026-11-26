@@ -22,6 +22,7 @@ import * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as PeerLinks from "./PeerLinks.ts";
 
 /** Long enough for the client to reach the linked environment and redeem it, and no longer. */
@@ -36,7 +37,7 @@ const ClientPairingApi = HttpApi.make(EnvironmentHttpApi.identifier)
 export class PeerClientPairingRefused extends Schema.TaggedError<PeerClientPairingRefused>()(
   "PeerClientPairingRefused",
   {
-    reason: Schema.Literals(["not_a_full_access_link", "no_scopes"]),
+    reason: Schema.Literals(["not_a_full_access_link", "no_scopes", "policy"]),
     message: Schema.String,
   },
 ) {}
@@ -85,14 +86,20 @@ export class PeerClientPairing extends Context.Service<
 
 const makeIssuer = Effect.gen(function* () {
   const auth = yield* EnvironmentAuth.EnvironmentAuth;
+  const { managedPolicy } = yield* ServerSettings.ServerSettingsService;
+  const maxRuntimeMode = managedPolicy?.limits?.maxRuntimeMode;
 
   const issue: PeerClientPairingIssuer["Service"]["issue"] = Effect.fn(
     "PeerClientPairingIssuer.issue",
   )(function* (caller, request) {
     // A full-access link's agents already run as this machine's user and could run
     // `supaterm auth pairing create` themselves, so minting here adds no power. Any lower link would
-    // gain more than it holds.
-    if (!caller.peerLink || caller.access !== "full-access") {
+    // gain more than it holds, and so would one an administrator's ceiling holds below full access.
+    if (
+      !caller.peerLink ||
+      caller.access !== "full-access" ||
+      (maxRuntimeMode !== undefined && maxRuntimeMode !== "full-access")
+    ) {
       return yield* new PeerClientPairingRefused({
         reason: "not_a_full_access_link",
         message: "Only a full-access link may pair a client here.",
@@ -101,14 +108,18 @@ const makeIssuer = Effect.gen(function* () {
     const via = caller.label.startsWith(PeerLinks.LINK_CLIENT_NAME_PREFIX)
       ? caller.label.slice(PeerLinks.LINK_CLIENT_NAME_PREFIX.length)
       : caller.label;
+    const refusedByPolicy = (error: { readonly message: string }) =>
+      Effect.fail(new PeerClientPairingRefused({ reason: "policy", message: error.message }));
     if (request.link !== undefined) {
       // A link pairing code, as this machine's own Sharing & access would mint: the full-access
       // caller could mint it by running the CLI here, so no access level is more than it holds.
-      const issued = yield* auth.issuePairingCredential({
-        access: request.link.access,
-        purpose: "peer-link",
-        label: `Link · via ${via}`,
-      });
+      const issued = yield* auth
+        .issuePairingCredential({
+          access: request.link.access,
+          purpose: "peer-link",
+          label: `Link · via ${via}`,
+        })
+        .pipe(Effect.catchTags({ ManagedPolicyRefusedError: refusedByPolicy }));
       return { credential: issued.credential, expiresAt: issued.expiresAt };
     }
     // Never more than the client holds where it asked, nor more than a pairing code grants.
@@ -120,11 +131,13 @@ const makeIssuer = Effect.gen(function* () {
       });
     }
     const clientLabel = Array.from(request.clientLabel).slice(0, CLIENT_LABEL_MAX_LENGTH).join("");
-    const issued = yield* auth.createPairingLink({
-      scopes,
-      ttl: CLIENT_PAIRING_TTL,
-      label: `${clientLabel} · via ${via}`,
-    });
+    const issued = yield* auth
+      .createPairingLink({
+        scopes,
+        ttl: CLIENT_PAIRING_TTL,
+        label: `${clientLabel} · via ${via}`,
+      })
+      .pipe(Effect.catchTags({ ManagedPolicyRefusedError: refusedByPolicy }));
     return { credential: issued.credential, expiresAt: issued.expiresAt };
   });
 

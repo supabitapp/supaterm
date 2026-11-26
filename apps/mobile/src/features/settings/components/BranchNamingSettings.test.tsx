@@ -48,7 +48,7 @@ function render(
         prefixFromRepository={false}
         prefix={saved.prefix ?? "supaterm"}
         instructions={saved.instructions ?? "Use issue IDs."}
-        disabled={disabled}
+        disabled={{ mode: disabled, prefix: disabled, instructions: disabled }}
         onChange={onChange}
       />,
     ),

@@ -157,8 +157,11 @@ export function BrowserImportWizard({
           <BlockedStep
             source={source}
             reason={step.reason}
+            message={step.message}
             onClose={onClose}
-            onRetry={isRetryableReason(step.reason) ? runImport : undefined}
+            onRetry={
+              step.message === undefined && isRetryableReason(step.reason) ? runImport : undefined
+            }
           />
         ) : (
           <ConfigureStep
@@ -624,11 +627,13 @@ function DoneStep({
 function BlockedStep({
   source,
   reason,
+  message,
   onClose,
   onRetry,
 }: {
   readonly source: BrowserImportSource;
   readonly reason: keyof typeof BROWSER_IMPORT_FAILURE_COPY;
+  readonly message: string | undefined;
   readonly onClose: () => void;
   readonly onRetry: (() => void) | undefined;
 }) {
@@ -641,7 +646,9 @@ function BlockedStep({
             Couldn&rsquo;t import from <Var>{source.name}</Var>
           </T>
         </DialogTitle>
-        <DialogDescription>{browserImportFailureMessage(reason, messages)}</DialogDescription>
+        <DialogDescription>
+          {message ?? browserImportFailureMessage(reason, messages)}
+        </DialogDescription>
       </DialogHeader>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>

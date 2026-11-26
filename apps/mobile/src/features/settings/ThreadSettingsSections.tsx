@@ -15,10 +15,15 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 import {
+  AUTO_MARK_DONE_KEYS,
   planAutoMarkDoneSettingsSync,
   type AutoMarkDoneSettings,
 } from "./autoMarkDoneSettingsSync";
-import { uniformMobileSetting, type ScopedMobileSettingsTarget } from "./settings-scoped-server";
+import {
+  managedSettingReason,
+  uniformMobileSetting,
+  type ScopedMobileSettingsTarget,
+} from "./settings-scoped-server";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import { T, useGT } from "gt-react-native";
 
@@ -63,6 +68,8 @@ export function ThreadBehaviorSettingsRows(props: {
     })),
   );
 
+  const disabledFor = (...keys: string[]) =>
+    disabled || managedSettingReason(displayTargets, ...keys) !== undefined;
   const afterDays = referenceSettings.sidebarAutoMarkDoneAfterDays;
 
   return (
@@ -73,14 +80,14 @@ export function ThreadBehaviorSettingsRows(props: {
             icon="clock"
             label={gt("Resume after usage limits")}
             value={uniformMobileSetting(displayTargets, "autoResumeLimitedThreads")}
-            disabled={disabled}
+            disabled={disabledFor("autoResumeLimitedThreads")}
             onValueChange={(value) => writeToAll({ autoResumeLimitedThreads: value })}
           />
           <SettingsSwitchRow
             icon="clock"
             label={gt("Snooze until limits reset")}
             value={uniformMobileSetting(displayTargets, "snoozeLimitedThreads")}
-            disabled={disabled}
+            disabled={disabledFor("snoozeLimitedThreads")}
             onValueChange={(value) => writeToAll({ snoozeLimitedThreads: value })}
           />
         </SettingsSection>
@@ -90,14 +97,14 @@ export function ThreadBehaviorSettingsRows(props: {
           icon="arrow.triangle.branch"
           label={gt("Automatically mark merged threads as Done")}
           value={referenceSettings.sidebarAutoMarkDoneOnMerge}
-          disabled={disabled}
+          disabled={disabledFor("sidebarAutoMarkDoneOnMerge")}
           onValueChange={(value) => writeToAll({ sidebarAutoMarkDoneOnMerge: value })}
         />
         <SettingsSwitchRow
           icon="clock"
           label={gt("Automatically mark inactive threads as Done")}
           value={afterDays !== null}
-          disabled={disabled}
+          disabled={disabledFor("sidebarAutoMarkDoneAfterDays")}
           onValueChange={(value) =>
             writeToAll({ sidebarAutoMarkDoneAfterDays: value ? AUTO_MARK_DONE_DEFAULT_DAYS : null })
           }
@@ -110,7 +117,7 @@ export function ThreadBehaviorSettingsRows(props: {
             </Text>
             <AutoMarkDoneDaysField
               value={afterDays}
-              disabled={disabled}
+              disabled={disabledFor("sidebarAutoMarkDoneAfterDays")}
               onValueChange={(value) => writeToAll({ sidebarAutoMarkDoneAfterDays: value })}
             />
           </View>
@@ -121,7 +128,7 @@ export function ThreadBehaviorSettingsRows(props: {
             label={gt("Keep threads with an open PR")}
             subtitle={gt("Inactivity does not mark threads with an open pull request as Done.")}
             value={referenceSettings.sidebarAutoMarkDoneKeepPullRequests}
-            disabled={disabled}
+            disabled={disabledFor("sidebarAutoMarkDoneKeepPullRequests")}
             onValueChange={(value) => writeToAll({ sidebarAutoMarkDoneKeepPullRequests: value })}
           />
         ) : null}
@@ -138,7 +145,7 @@ export function ThreadBehaviorSettingsRows(props: {
             <Button
               label={gt("Apply automatic completion defaults")}
               tone="secondary"
-              disabled={disabled}
+              disabled={disabledFor(...AUTO_MARK_DONE_KEYS)}
               onPress={() => writeToAll(autoMarkDonePatch)}
             />
           </View>

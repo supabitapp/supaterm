@@ -7,8 +7,10 @@ import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   AuthStandardClientScopes,
+  AuthSessionId,
   AuthTerminalOperateScope,
   type ExecutionEnvironmentDescriptor,
+  type ManagedPolicyDocument,
   ProviderInstanceId,
   ThreadId,
 } from "@supaterm/contracts";
@@ -25,6 +27,9 @@ import * as TestClock from "effect/testing/TestClock";
 import { Toolkit } from "effect/ai";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
+import * as ManagedLimits from "../policy/managedLimits.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
@@ -284,4 +289,61 @@ it.effect("a linked environment from before client pairing is never asked", () =
       expect(yield* Ref.get(b.bearers)).toEqual([]);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect(
+  "a full-access link pairs no client where the policy caps modes or keeps clients local",
+  () =>
+    Effect.gen(function* () {
+      const issueUnder = (document: ManagedPolicyDocument) =>
+        Effect.gen(function* () {
+          const policy = yield* ManagedPolicy.fromDocument("/test/policy.json", document);
+          const issuer = yield* PeerClientPairing.PeerClientPairingIssuer.pipe(
+            Effect.provide(
+              PeerClientPairing.layerIssuer.pipe(
+                Layer.provide(ServerSettings.layerTest({}, policy.summary)),
+                Layer.provide(
+                  Layer.mock(EnvironmentAuth.EnvironmentAuth)({
+                    createPairingLink: () =>
+                      Effect.fail(
+                        ManagedLimits.refuseRemoteClients(
+                          policy,
+                          "so this server cannot create pairing links",
+                        ),
+                      ),
+                  }),
+                ),
+              ),
+            ),
+          );
+          return yield* issuer
+            .issue(
+              {
+                sessionId: AuthSessionId.make("session-link"),
+                label: "Link · Laptop",
+                access: "full-access",
+                peerLink: true,
+              },
+              { scopes: AuthStandardClientScopes, clientLabel: "Phone" },
+            )
+            .pipe(Effect.flip);
+        });
+
+      const capped = yield* issueUnder({
+        schemaVersion: 1,
+        organization: "Example Corp",
+        limits: { maxRuntimeMode: "auto" },
+      });
+      expect(capped).toMatchObject({ reason: "not_a_full_access_link" });
+      const local = yield* issueUnder({
+        schemaVersion: 1,
+        organization: "Example Corp",
+        limits: { clients: ["desktop", "local-browser"] },
+      });
+      expect(local).toMatchObject({
+        reason: "policy",
+        message:
+          "Example Corp's policy does not allow remote clients, so this server cannot create pairing links.",
+      });
+    }),
 );

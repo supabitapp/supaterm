@@ -1,4 +1,4 @@
-import type { ServerAuthDescriptor } from "@supaterm/contracts";
+import type { ServerAuthDescriptor, ServerAuthPolicy } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -14,20 +14,19 @@ export class EnvironmentAuthPolicy extends Context.Service<
   }
 >()("supaterm/auth/EnvironmentAuthPolicy") {}
 
+/** The auth policy a server started with `config` runs under; Tailscale Serve counts as remote. */
+export function resolveServerAuthPolicy(
+  config: Pick<ServerConfig.ServerConfig["Service"], "mode" | "host" | "tailscaleServeEnabled">,
+): ServerAuthPolicy {
+  if (config.tailscaleServeEnabled || isRemoteReachableHost(config.host)) return "remote-reachable";
+  return config.mode === "desktop" ? "desktop-managed-local" : "loopback-browser";
+}
+
 /** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const serverEnvironment = yield* ServerEnvironment.ServerEnvironmentIdentity;
-  const isRemoteReachable = config.tailscaleServeEnabled || isRemoteReachableHost(config.host);
-
-  const policy =
-    config.mode === "desktop"
-      ? isRemoteReachable
-        ? "remote-reachable"
-        : "desktop-managed-local"
-      : isRemoteReachable
-        ? "remote-reachable"
-        : "loopback-browser";
+  const policy = resolveServerAuthPolicy(config);
 
   const bootstrapMethods: ServerAuthDescriptor["bootstrapMethods"] =
     policy === "desktop-managed-local"

@@ -104,6 +104,18 @@ describe("browser target resolver", () => {
           canOperateTerminal: true,
           url: "http://192.168.1.25:3001/",
         },
+        {
+          serverConfig: {
+            ...tunnelHost,
+            managedPolicy: {
+              organization: "Example Corp",
+              lockedSettings: [],
+              limits: { previewTunnel: false },
+            },
+          },
+          canOperateTerminal: true,
+          url: "http://192.168.1.25:3001/",
+        },
         { serverConfig: tunnelHost, canOperateTerminal: false, url: "http://192.168.1.25:3001/" },
       ];
       for (const { serverConfig, canOperateTerminal, url } of cases) {

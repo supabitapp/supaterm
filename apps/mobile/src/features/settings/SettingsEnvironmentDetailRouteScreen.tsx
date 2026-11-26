@@ -4,6 +4,7 @@ import { useNavigation, type StaticScreenProps } from "@react-navigation/native"
 import {
   AuthProvidersManageScope,
   AuthOrchestrationReadScope,
+  managedUpdatesDenial,
   type EnvironmentId,
   type ServerProvider,
 } from "@supaterm/contracts";
@@ -28,6 +29,7 @@ import { ConnectionEnvironmentRow } from "../connection/ConnectionEnvironmentRow
 import { EnvironmentRoutesSection } from "./EnvironmentRoutesSection";
 import { OutdatedServerUpdateSection } from "./OutdatedServerUpdateSection";
 import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import {
@@ -95,6 +97,9 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
   const version = config?.environment.serverVersion;
   const checkedRelease = release?.fromVersion === version ? release : null;
   const capabilities = config?.environment.capabilities;
+  const managedPolicy = config?.managedPolicy;
+  const supportUrl = managedPolicy?.supportUrl;
+  const updatesDenial = managedUpdatesDenial(managedPolicy);
   async function run(label: string, action: () => Promise<void>) {
     if (pendingRef.current) return;
     pendingRef.current = true;
@@ -220,6 +225,7 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
               <OutdatedServerUpdateSection
                 environmentId={environmentId}
                 label={environment.environmentLabel}
+                updatesDenial={updatesDenial}
               />
             ) : !connected ? (
               <Text className="px-2 text-sm text-foreground-muted">
@@ -252,6 +258,16 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                         Version <Var>{version}</Var>
                       </T>
                     </Text>
+                    {managedPolicy ? (
+                      <Text className="text-sm text-foreground-muted">
+                        <T>
+                          Managed by <Var>{managedPolicy.organization}</Var>
+                        </T>
+                      </Text>
+                    ) : null}
+                    {updatesDenial ? (
+                      <Text className="text-sm text-foreground-muted">{updatesDenial}</Text>
+                    ) : null}
                     {running ? (
                       <Text className="text-sm text-foreground-muted">
                         {updateState.stage === "resuming"
@@ -263,7 +279,7 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                         {messages(updateState.message)}
                       </Text>
                     ) : null}
-                    {checkedRelease ? (
+                    {checkedRelease && !updatesDenial ? (
                       <Text className="text-sm text-foreground-muted">
                         {checkedRelease.targetVersion
                           ? gt("Version {version} is available.", {
@@ -273,6 +289,7 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                       </Text>
                     ) : null}
                     {checkedRelease?.targetVersion &&
+                    !updatesDenial &&
                     !supportsEnvironmentUpdate(config.environment.capabilities) ? (
                       <Text className="text-sm text-foreground-muted">
                         {capabilities?.serverSelfUpdate === "desktop-managed"
@@ -283,22 +300,34 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                       </Text>
                     ) : null}
                   </View>
-                  <SettingsActionRow
-                    icon="arrow.clockwise"
-                    label={gt("Check for updates")}
-                    disabled={disabled}
-                    loading={pending === "check"}
-                    onPress={() => {
-                      if (disabled) return;
-                      const fromVersion = config.environment.serverVersion;
-                      void run("check", async () => {
-                        const exit = await checkRelease(async () => fromVersion);
-                        // `run` owns the error message, so a failed lookup rethrows to it.
-                        if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
-                      });
-                    }}
-                  />
+                  {supportUrl ? (
+                    <SettingsActionRow
+                      icon="questionmark.bubble"
+                      label={gt("Get help from {organization}", {
+                        organization: managedPolicy.organization,
+                      })}
+                      onPress={() => void tryOpenExternalUrl(supportUrl)}
+                    />
+                  ) : null}
+                  {updatesDenial ? null : (
+                    <SettingsActionRow
+                      icon="arrow.clockwise"
+                      label={gt("Check for updates")}
+                      disabled={disabled}
+                      loading={pending === "check"}
+                      onPress={() => {
+                        if (disabled) return;
+                        const fromVersion = config.environment.serverVersion;
+                        void run("check", async () => {
+                          const exit = await checkRelease(async () => fromVersion);
+                          // `run` owns the error message, so a failed lookup rethrows to it.
+                          if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
+                        });
+                      }}
+                    />
+                  )}
                   {checkedRelease?.targetVersion &&
+                  !updatesDenial &&
                   supportsEnvironmentUpdate(config.environment.capabilities) ? (
                     <SettingsActionRow
                       icon="arrow.up.circle"

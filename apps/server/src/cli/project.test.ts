@@ -47,6 +47,7 @@ import {
   persistServerRuntimeState,
 } from "../serverRuntimeState.ts";
 import * as ServerSettings from "../serverSettings.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import { ProjectHasThreadsError } from "./project.ts";
 
@@ -102,7 +103,11 @@ const withProjectService = <A, E>(
       Layer.provideMerge(ProjectFaviconResolver.layer),
       Layer.provideMerge(SupatermProjectFileLoader.layer),
       Layer.provideMerge(WorkspacePaths.layer),
-      Layer.provideMerge(ServerSettings.layer.pipe(Layer.provide(ServerSecretStore.layer))),
+      Layer.provideMerge(
+        ServerSettings.layer.pipe(
+          Layer.provide(Layer.merge(ServerSecretStore.layer, ManagedPolicy.layerTest())),
+        ),
+      ),
       Layer.provideMerge(SqlitePersistence.layerConfig),
       Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
       Layer.provide(ServerConfig.layer(config)),

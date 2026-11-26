@@ -8,6 +8,7 @@ import {
 } from "@supaterm/contracts";
 
 import { useUpdateEnvironmentSettings } from "../../hooks/useSettings";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { useEnvironmentScope } from "../../state/session";
 import { ENVIRONMENT_MACHINE_KIND_LABELS, EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import {
@@ -24,7 +25,7 @@ import { m, type MessageResolver } from "~/i18n/messages";
 
 export function resolveEnvironmentIconPickerLock(
   input: {
-    readonly serverConfig: Pick<ServerConfig, "environment"> | null;
+    readonly serverConfig: Pick<ServerConfig, "environment" | "managedPolicy"> | null;
     readonly operateAccess: "granted" | "denied" | "pending";
   },
   resolve: MessageResolver = m,
@@ -35,7 +36,7 @@ export function resolveEnvironmentIconPickerLock(
   if (input.operateAccess !== "granted") {
     return resolve(msg("Your session on this environment cannot change its settings."));
   }
-  return null;
+  return managedSettingDenial([input.serverConfig.managedPolicy], ["environmentIcon"]) ?? null;
 }
 
 export function EnvironmentIconMenu({
@@ -43,7 +44,7 @@ export function EnvironmentIconMenu({
   serverConfig,
 }: {
   readonly environmentId: EnvironmentId;
-  readonly serverConfig: Pick<ServerConfig, "environment"> | null;
+  readonly serverConfig: Pick<ServerConfig, "environment" | "managedPolicy"> | null;
 }) {
   const messages = useMessages();
   const gt = useGT();

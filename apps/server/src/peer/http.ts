@@ -48,8 +48,10 @@ export const layer = HttpApiBuilder.group(
         );
         return yield* issuer.issue(caller, args.payload).pipe(
           Effect.catchTags({
-            PeerClientPairingRefused: () =>
-              failEnvironmentOperationForbidden("link_client_pairing_refused"),
+            PeerClientPairingRefused: (refused) =>
+              refused.reason === "policy"
+                ? failEnvironmentOperationForbidden("managed_policy_refused", refused.message)
+                : failEnvironmentOperationForbidden("link_client_pairing_refused"),
           }),
           Effect.catchIf(EnvironmentAuth.isServerAuthInternalError, (cause) =>
             failEnvironmentInternal("pairing_credential_issuance_failed", cause),

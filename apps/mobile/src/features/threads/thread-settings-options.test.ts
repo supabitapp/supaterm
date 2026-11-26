@@ -2,7 +2,12 @@ import {
   getPromptControlledTraits,
   getTraitSelectChange,
 } from "@supaterm/client-runtime/model-traits";
-import { ProviderInstanceId, type ProviderOptionDescriptor } from "@supaterm/contracts";
+import {
+  ProviderInstanceId,
+  type ManagedPolicySummary,
+  type ProviderOptionDescriptor,
+  type RuntimeMode,
+} from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -10,7 +15,62 @@ import {
   resolveProviderOptionDescriptors,
   withImplicitFastModeSelection,
 } from "../../lib/providerOptions";
-import { reasoningSliderOptions, selectableChoices } from "./thread-settings-options";
+import {
+  RUNTIME_MODE_CHOICES,
+  managedRuntimeModeSwitch,
+  reasoningSliderOptions,
+  resolveNewThreadRuntimeMode,
+  selectableChoices,
+  withManagedRuntimeModeLimits,
+} from "./thread-settings-options";
+
+const policy = (organization: string, maxRuntimeMode?: RuntimeMode): ManagedPolicySummary => ({
+  organization,
+  lockedSettings: [],
+  ...(maxRuntimeMode === undefined ? {} : { limits: { maxRuntimeMode } }),
+});
+
+describe("managed runtime mode limits", () => {
+  it("disables modes above the strictest target's ceiling with that target's reason", () => {
+    const choices = withManagedRuntimeModeLimits(RUNTIME_MODE_CHOICES, [
+      policy("Wide Corp", "auto"),
+      undefined,
+      policy("Narrow Corp", "auto-accept-edits"),
+    ]);
+
+    expect(choices.map((choice) => [choice.mode, choice.disabledReason])).toEqual([
+      ["approval-required", undefined],
+      ["auto-accept-edits", undefined],
+      ["auto", "Narrow Corp limits threads to Auto-accept edits."],
+      ["full-access", "Wide Corp limits threads to Auto."],
+    ]);
+  });
+
+  it("drops a new thread's draft mode above the ceiling for the default held to it", () => {
+    const capped = policy("Corp", "auto");
+    expect(resolveNewThreadRuntimeMode("full-access", "auto", capped)).toBe("auto");
+    expect(resolveNewThreadRuntimeMode("approval-required", "auto", capped)).toBe(
+      "approval-required",
+    );
+    expect(resolveNewThreadRuntimeMode(undefined, "auto", capped)).toBe("auto");
+    expect(resolveNewThreadRuntimeMode(undefined, "full-access", capped)).toBe("auto");
+    expect(resolveNewThreadRuntimeMode("full-access", "auto", undefined)).toBe("full-access");
+  });
+
+  it("offers the broadest mode the provider supports under the ceiling", () => {
+    const capped = policy("Corp", "auto");
+    expect(managedRuntimeModeSwitch(capped, "full-access", undefined)).toEqual({
+      denial: "Corp limits threads to Auto.",
+      target: expect.objectContaining({ mode: "auto", label: "Auto" }),
+    });
+    expect(
+      managedRuntimeModeSwitch(capped, "full-access", ["approval-required", "full-access"])?.target
+        ?.mode,
+    ).toBe("approval-required");
+    expect(managedRuntimeModeSwitch(capped, "auto", undefined)).toBeUndefined();
+    expect(managedRuntimeModeSwitch(undefined, "full-access", undefined)).toBeUndefined();
+  });
+});
 
 const effortDescriptor: Extract<ProviderOptionDescriptor, { type: "select" }> = {
   id: "effort",

@@ -17,7 +17,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { PrimaryEnvironmentHttpClient } from "~/environments/primary/httpClient";
 import { runPrimaryHttp } from "~/lib/runtime";
 import { cn } from "~/lib/utils";
-import { resolveApprovalDecision } from "./ConnectAgentSurface.logic";
+import { accessCeilingReason, resolveApprovalDecision } from "./ConnectAgentSurface.logic";
 import { runtimeModeConfig } from "../chat/runtimeModeConfig";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
@@ -253,7 +253,12 @@ export function ConnectAgentSurface() {
               onValueChange={(value) => setAccess(value as AuthMcpClientAccess)}
             >
               {AuthMcpClientAccess.literals.map((option) => (
-                <AccessOption key={option} access={option} selected={option === access} />
+                <AccessOption
+                  key={option}
+                  access={option}
+                  selected={option === access}
+                  managedReason={accessCeilingReason(details, option)}
+                />
               ))}
             </RadioGroup>
             <p className="text-xs text-muted-foreground">
@@ -309,17 +314,20 @@ function ConnectAgentHeading({
 export function AccessOption({
   access,
   selected,
+  managedReason,
 }: {
   readonly access: AuthMcpClientAccess;
   readonly selected: boolean;
+  readonly managedReason?: string | undefined;
 }) {
   const messages = useMessages();
   const { label, description, icon: Icon } = accessConfig[access];
   return (
     <RadioPrimitive.Root
       value={access}
+      disabled={managedReason !== undefined}
       className={cn(
-        "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-left outline-none transition-[background-color,border-color,box-shadow]",
+        "flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-left outline-none transition-[background-color,border-color,box-shadow] data-disabled:cursor-not-allowed data-disabled:opacity-50",
         "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
         selected
           ? "border-primary bg-background ring-2 ring-inset ring-primary/25 dark:border-transparent dark:bg-primary/10 dark:ring-1 dark:ring-primary/30"
@@ -335,7 +343,9 @@ export function AccessOption({
       />
       <span className="min-w-0">
         <span className="block text-sm font-medium text-foreground">{messages(label)}</span>
-        <span className="block text-xs text-muted-foreground">{messages(description)}</span>
+        <span className="block text-xs text-muted-foreground">
+          {managedReason ?? messages(description)}
+        </span>
       </span>
     </RadioPrimitive.Root>
   );

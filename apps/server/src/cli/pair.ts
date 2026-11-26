@@ -41,6 +41,8 @@ import * as HttpApiClient from "effect/http-api/HttpApiClient";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
+import * as ManagedLimits from "../policy/managedLimits.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import { resolveBoundEndpoints } from "../environment/DirectEndpoints.ts";
 import { resolveBaseDir } from "../os-jank.ts";
 import {
@@ -605,6 +607,14 @@ export const pairCommand = Command.make("pair", {
         pairingBaseUrl = relayEndpoint;
         notes.push(`Paired clients show this host as Relay · ${relayName(relayEndpoint)}.`);
       } else if (flags.tailscale) {
+        // Serve stays on after this command exits, so refuse before turning it on.
+        const policy = yield* ManagedPolicy.ManagedPolicy.pipe(Effect.provide(ManagedPolicy.layer));
+        if (!ManagedLimits.allowsRemoteClients(policy)) {
+          return yield* ManagedLimits.refuseRemoteClients(
+            policy,
+            "so Tailscale Serve cannot be turned on",
+          );
+        }
         const resolved = yield* resolveTailscalePairingBase({
           target,
           servePort: flags.tailscaleServePort,

@@ -15,6 +15,8 @@ import {
   type DesktopWslState,
   type EnvironmentId,
   type RelayConnectionInfo,
+  allowsPreviewTunnel,
+  managedCapabilityDenial,
   resolveEnvironmentMachineKind,
 } from "@supaterm/contracts";
 import {
@@ -24,7 +26,11 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import { useUpdateEnvironmentSettings, useUpdatePrimarySettings } from "../../hooks/useSettings";
-import { PublicRelaySettings, usePublicRelayStatus } from "./PublicRelaySettings";
+import {
+  isPublicRelayActive,
+  PublicRelaySettings,
+  usePublicRelayStatus,
+} from "./PublicRelaySettings";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { resolvePairingShareValue } from "./pairingUrls";
 import { PairingLinkCreatedDialog } from "./PairingLinkCreatedDialog";
@@ -49,6 +55,8 @@ import {
 } from "./ConnectionsSettings.logic";
 import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
+import { ManagedByOrganization } from "../ManagedPolicy";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
 import { useSearchableSetting } from "./settingsSearch";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
@@ -741,6 +749,13 @@ function ConnectionsSettingsContent({
     ? desktopAdvertisedEndpoints.filter((endpoint) => !isTailscaleHttpsEndpoint(endpoint))
     : [];
   const accessServerConfig = accessEnvironment?.serverConfig ?? null;
+  const accessPolicy = accessServerConfig?.managedPolicy;
+  // Turning remote access off stays possible; only the way in is managed.
+  const remoteClientsDenial = managedCapabilityDenial(accessPolicy, "remoteClients");
+  const relayActive = isPublicRelayActive(accessServerConfig?.settings, accessPolicy);
+  const previewTunnelDenial =
+    managedCapabilityDenial(accessPolicy, "previewTunnel") ??
+    managedSettingDenial([accessPolicy], ["enablePreviewTunnel"]);
   const relayStatus = usePublicRelayStatus(accessEnvironmentId);
   const relayEndpointUrl =
     relayStatus?.state === "registered" ? relayStatus.relayEndpoint : undefined;
@@ -986,23 +1001,28 @@ function ConnectionsSettingsContent({
       return (
         <SettingsRow
           {...searchableSetting("wsl-backend")}
-          description={gt(
-            "WSL is unavailable, so Windows is running instead. Turn WSL off to clear this preference.",
-          )}
+          description={
+            desktopWslState.managedPolicyReason ??
+            gt(
+              "WSL is unavailable, so Windows is running instead. Turn WSL off to clear this preference.",
+            )
+          }
           status={
             desktopWslError ? (
               <span className="block text-destructive">{desktopWslError}</span>
             ) : null
           }
           control={
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isUpdatingWslBackend}
-              onClick={() => handleSelectWslMode(BACKEND_VALUE_WSL_OFF)}
-            >
-              <T>Switch to Windows</T>
-            </Button>
+            desktopWslState.enabled || desktopWslState.wslOnly ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isUpdatingWslBackend}
+                onClick={() => handleSelectWslMode(BACKEND_VALUE_WSL_OFF)}
+              >
+                <T>Switch to Windows</T>
+              </Button>
+            ) : null
           }
         />
       );
@@ -1120,6 +1140,7 @@ function ConnectionsSettingsContent({
             aria-label={gt("Enable Tailscale HTTPS")}
           />
         }
+        managed={serveEnabled ? undefined : remoteClientsDenial}
       />
     );
   };
@@ -1181,6 +1202,7 @@ function ConnectionsSettingsContent({
         ) : null
       }
       control={renderNetworkAccessToggle()}
+      managed={isLocalBackendNetworkAccessible ? undefined : remoteClientsDenial}
     />
   );
   const renderDisabledNetworkAccessRow = () => (
@@ -1275,6 +1297,11 @@ function ConnectionsSettingsContent({
               ) : null
             }
           >
+            {accessPolicy ? (
+              <div className="px-3 py-2 sm:px-4">
+                <ManagedByOrganization policy={accessPolicy} />
+              </div>
+            ) : null}
             {renamePrimaryOpen && accessEnvironment && (
               <RenameEnvironmentDialog
                 environment={accessEnvironment}
@@ -1285,6 +1312,7 @@ function ConnectionsSettingsContent({
               <PublicRelaySettings
                 status={relayStatus}
                 settings={primaryServerConfig?.settings}
+                policy={primaryServerConfig?.managedPolicy}
                 disabled={!canWriteSettings}
                 update={updatePrimarySettings}
               />
@@ -1365,9 +1393,10 @@ function ConnectionsSettingsContent({
                 description={gt(
                   "Lets other devices open this machine's local servers: browser tabs loaded on the device, Open on this device, and port forwarding. Off: browser tabs stream from this machine.",
                 )}
+                managed={previewTunnelDenial}
                 control={
                   <Switch
-                    checked={accessServerConfig.settings.enablePreviewTunnel}
+                    checked={allowsPreviewTunnel(accessServerConfig)}
                     disabled={!canWriteAccess}
                     aria-label={gt("Allow the preview tunnel")}
                     onCheckedChange={(enabled) =>
@@ -1393,7 +1422,7 @@ function ConnectionsSettingsContent({
                   <AuthorizedClientsHeaderAction
                     environmentId={accessEnvironmentId}
                     triggerRef={pairingLinkTriggerRef}
-                    relayEnabled={accessServerConfig?.settings.publicRelayEnabled ?? false}
+                    relayEnabled={relayActive}
                     delegatableScopes={currentSessionScopes ?? []}
                     mcpEnvironment={
                       accessServerConfig?.environment.capabilities.mcpApprovalCodes === true

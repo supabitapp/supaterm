@@ -160,7 +160,9 @@ export function isWslSettingsRowVisible(input: {
   readonly error: string | null;
 }): boolean {
   const { state, error } = input;
-  return state ? state.available || state.enabled || state.wslOnly : error !== null;
+  return state
+    ? state.available || state.enabled || state.wslOnly || state.managedPolicyReason !== undefined
+    : error !== null;
 }
 
 /**

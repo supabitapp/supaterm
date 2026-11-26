@@ -145,6 +145,51 @@ describe("collectServerUpdateTargets", () => {
       ["stable-desktop", "on the stable channel"],
     ]);
   });
+
+  it("skips servers whose policy refuses the update, with the policy's message", () => {
+    const managed = (
+      id: string,
+      updates: { mode: "off" } | { mode: "auto"; allowNightly: false },
+      selfUpdate: "boot-service" | "desktop-managed" = "boot-service",
+    ) => {
+      const base = machine(id, "0.0.40", selfUpdate);
+      return {
+        ...base,
+        serverConfig: {
+          ...base.serverConfig!,
+          managedPolicy: { organization: "Example Corp", lockedSettings: [], limits: { updates } },
+        },
+      };
+    };
+    const machines = [
+      managed("off", { mode: "off" }),
+      managed("no-nightly", { mode: "auto", allowNightly: false }),
+      // A desktop app updates from its own feed, whatever track this app is on.
+      managed("desktop-no-nightly", { mode: "auto", allowNightly: false }, "desktop-managed"),
+    ];
+
+    expect(
+      collectServerUpdateTargets(machines, "0.0.50").skipped.map((entry) => [
+        entry.label,
+        entry.reason,
+      ]),
+    ).toEqual([["off", "Example Corp manages Supaterm updates."]]);
+    expect(
+      collectServerUpdateTargets(
+        machines.map((entry) => ({
+          ...entry,
+          serverConfig: {
+            ...entry.serverConfig,
+            environment: {
+              ...entry.serverConfig.environment,
+              serverVersion: "0.0.49-nightly.20261001.3",
+            },
+          },
+        })),
+        "0.0.50-nightly.20261028.1",
+      ).skipped.map((entry) => entry.label),
+    ).toEqual(["off", "no-nightly"]);
+  });
 });
 
 describe("collectChannelSwitchTargets", () => {
@@ -215,6 +260,18 @@ describe("collectChannelSwitchTargets", () => {
     ]);
   });
 
+  const managedHost = (base: UpdateEverythingMachine): UpdateEverythingMachine => ({
+    ...base,
+    serverConfig: {
+      ...base.serverConfig!,
+      managedPolicy: {
+        organization: "Example Corp",
+        lockedSettings: [],
+        limits: { updates: { mode: "auto", allowNightly: false } },
+      },
+    },
+  });
+
   it("moves stable hosts to nightly only when nightly knows their database", () => {
     const nightly = { channel: "nightly" as const, version: NIGHTLY, databaseMigration: 72 };
     const { targets, skipped } = collectChannelSwitchTargets(
@@ -226,6 +283,8 @@ describe("collectChannelSwitchTargets", () => {
         // Already on Nightly, so it needs an update rather than a channel switch.
         withoutDesktopControl(machine("behind-desktop", OLD_NIGHTLY, "desktop-managed")),
         machine("current", NIGHTLY, "boot-service"),
+        // The server refuses a track its policy rules out, so the dialog skips it up front.
+        managedHost(host(machine("no-nightly", "0.1.2", "boot-service"), 70)),
       ],
       nightly,
     );
@@ -240,6 +299,10 @@ describe("collectChannelSwitchTargets", () => {
       ],
       ["old-desktop", "change the update track on that machine"],
       ["behind-desktop", "update Supaterm on that machine"],
+      [
+        "no-nightly",
+        "Example Corp manages Supaterm updates. Only stable releases can be installed.",
+      ],
     ]);
   });
 });

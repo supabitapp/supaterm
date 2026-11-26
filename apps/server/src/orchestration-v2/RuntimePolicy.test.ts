@@ -1,6 +1,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
+  type ManagedPolicySummary,
   type ModelSelection,
   type OrchestrationV2AppThread,
   ProjectId,
@@ -17,6 +18,7 @@ import * as Stream from "effect/Stream";
 import type { ProviderInstance } from "@supaterm/provider-core/server/driver";
 import { acpPermissionDisposition } from "@supaterm/provider-acp/server/clientPolicy";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
 import * as WorkspaceFolders from "../workspace/WorkspaceFolders.ts";
@@ -94,10 +96,12 @@ const layerWorkspaceFoldersTest = Layer.mock(WorkspaceFolders.WorkspaceFolders)(
     Effect.succeed(input.worktreePath === null ? trackedWorkspace : noWorkspace),
 });
 
-const layerWithWorkspaceFolders = (
+const layerWithPolicy = (
+  policy?: ManagedPolicySummary,
   layerWorkspaceFolders: Layer.Layer<WorkspaceFolders.WorkspaceFolders> = layerWorkspaceFoldersTest,
 ) =>
   RuntimePolicy.layerFromProjectStore.pipe(
+    Layer.provide(ServerSettings.layerTest({}, policy)),
     Layer.provide(layerWorkspaceFolders),
     Layer.provide(
       Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
@@ -133,14 +137,15 @@ const layerWithWorkspaceFolders = (
     ),
   );
 
-const layerTest = layerWithWorkspaceFolders();
+const layerTest = layerWithPolicy();
 
 // The real folder resolution over a recorded task folder, for a project that tracks `/tracked/api`.
 const layerTaskFolderStore = TaskFolderStore.layer.pipe(
   Layer.provide(SqlitePersistence.layerMemory),
   Layer.provide(NodeServices.layer),
 );
-const layerTaskFolderPolicy = layerWithWorkspaceFolders(
+const layerTaskFolderPolicy = layerWithPolicy(
+  undefined,
   WorkspaceFolders.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
@@ -246,6 +251,36 @@ it.layer(layerTaskFolderPolicy)("RuntimePolicyV2 in a task folder", (it) => {
         { folders: workspace?.folders.map((folder) => folder.path), roots: workspace?.extraRoots },
         { folders: ["/worktrees/task/tracked/api"], roots: ["/worktrees/task/tracked/api"] },
       );
+    }),
+  );
+});
+
+it.layer(
+  layerWithPolicy({
+    organization: "Example Corp",
+    lockedSettings: [],
+    limits: { maxRuntimeMode: "auto-accept-edits" },
+  }),
+)("RuntimePolicyV2 under a runtime mode ceiling", (it) => {
+  it.effect("refuses to start a turn above the ceiling, such as one resumed after a restart", () =>
+    Effect.gen(function* () {
+      const policy = yield* RuntimePolicy.RuntimePolicyV2;
+      const now = yield* DateTime.now;
+      const resolve = (runtimeMode: RuntimeMode) =>
+        policy.resolve({
+          thread: makeThread({ now, worktreePath: "/work", runtimeMode }),
+          modelSelection,
+        });
+
+      const refused = yield* resolve("full-access").pipe(Effect.flip);
+      assert.equal(refused._tag, "RuntimePolicyAboveCeilingError");
+      assert.equal(
+        refused.message,
+        "Example Corp limits threads to Auto-accept edits. Switch this thread's mode to continue.",
+      );
+      const allowed = yield* resolve("auto-accept-edits");
+      assert.equal(allowed.runtimeMode, "auto-accept-edits");
+      assert.equal(allowed.maxRuntimeMode, "auto-accept-edits");
     }),
   );
 });

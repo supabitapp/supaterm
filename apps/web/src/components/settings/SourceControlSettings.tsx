@@ -18,7 +18,12 @@ import {
   resolveServerBackgroundActivitySettings,
 } from "@supaterm/shared/backgroundActivitySettings";
 
-import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
+import {
+  useManagedSettingDenial,
+  useScopedSettings,
+  useUpdateScopedSettings,
+} from "./useScopedSettings";
+import { ManagedControl } from "../ManagedPolicy";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
@@ -392,7 +397,9 @@ function GitFetchIntervalSettings() {
       getBackgroundActivityBaseProfile(settings.backgroundActivity),
     ).automaticGitFetchInterval,
   );
+  const fetchIntervalDenial = useManagedSettingDenial(["backgroundActivity"]);
   const canResetFetchInterval =
+    fetchIntervalDenial === undefined &&
     automaticGitFetchIntervalSeconds !== defaultAutomaticGitFetchIntervalSeconds;
   const setting = searchableSetting("git-fetch-interval");
 
@@ -436,31 +443,35 @@ function GitFetchIntervalSettings() {
             </T>
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <NumberField
-            value={automaticGitFetchIntervalSeconds}
-            min={0}
-            step={GIT_FETCH_INTERVAL_STEP_SECONDS}
-            size="sm"
-            className="w-32"
-            onValueChange={(value) =>
-              updateSettings(
-                backgroundActivityOverrideSettings(settings.backgroundActivity, {
-                  automaticGitFetchInterval: Duration.seconds(normalizeFetchIntervalSeconds(value)),
-                }),
-              )
-            }
-          >
-            <NumberFieldGroup>
-              <NumberFieldDecrement aria-label={gt("Decrease fetch interval")} />
-              <NumberFieldInput aria-label={gt("Automatic Git fetch interval in seconds")} />
-              <NumberFieldIncrement aria-label={gt("Increase fetch interval")} />
-            </NumberFieldGroup>
-          </NumberField>
-          <span className="text-xs text-muted-foreground">
-            <T>seconds</T>
-          </span>
-        </div>
+        <ManagedControl reason={fetchIntervalDenial}>
+          <div className="flex shrink-0 items-center gap-2">
+            <NumberField
+              value={automaticGitFetchIntervalSeconds}
+              min={0}
+              step={GIT_FETCH_INTERVAL_STEP_SECONDS}
+              size="sm"
+              className="w-32"
+              onValueChange={(value) =>
+                updateSettings(
+                  backgroundActivityOverrideSettings(settings.backgroundActivity, {
+                    automaticGitFetchInterval: Duration.seconds(
+                      normalizeFetchIntervalSeconds(value),
+                    ),
+                  }),
+                )
+              }
+            >
+              <NumberFieldGroup>
+                <NumberFieldDecrement aria-label={gt("Decrease fetch interval")} />
+                <NumberFieldInput aria-label={gt("Automatic Git fetch interval in seconds")} />
+                <NumberFieldIncrement aria-label={gt("Increase fetch interval")} />
+              </NumberFieldGroup>
+            </NumberField>
+            <span className="text-xs text-muted-foreground">
+              <T>seconds</T>
+            </span>
+          </div>
+        </ManagedControl>
       </div>
     </SettingsSearchTarget>
   );

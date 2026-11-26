@@ -5,6 +5,7 @@ import {
   type AuthCreatePairingCredentialInput,
   EnvironmentHttpApi,
   MCP_PEER_LINK_SOFTWARE_ID,
+  type ManagedPolicySummary,
 } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -23,6 +24,8 @@ import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ServerHttp from "../http.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as McpOAuth from "./McpOAuth.ts";
 import * as McpOAuthHttp from "./mcpOAuthHttp.ts";
@@ -35,19 +38,28 @@ class AuthTestApi extends HttpApi.make("environment")
 
 const layerConfig = ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-mcp-oauth-test-" });
 const layerEnvironmentAuth = EnvironmentAuth.layer.pipe(
+  Layer.provide(ManagedPolicy.layerTest()),
   Layer.provide(Sqlite.layerMemory),
   Layer.provideMerge(ServerSecretStore.layer),
   Layer.provideMerge(ServerEnvironment.layerIdentity),
   Layer.provide(layerConfig),
 );
-const makeLayerRoutes = (capture: (auth: EnvironmentAuth.EnvironmentAuth["Service"]) => void) =>
+const makeLayerRoutes = (
+  capture: (auth: EnvironmentAuth.EnvironmentAuth["Service"]) => void,
+  policy?: ManagedPolicySummary,
+) =>
   Layer.mergeAll(
     Layer.effectDiscard(
       EnvironmentAuth.EnvironmentAuth.pipe(Effect.tap((auth) => Effect.sync(() => capture(auth)))),
     ),
     HttpApiBuilder.layer(AuthTestApi).pipe(
       Layer.provide(AuthHttp.layer),
-      Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
+      Layer.provide(
+        McpOAuthHttp.layer.pipe(
+          Layer.provide(McpOAuth.layer),
+          Layer.provide(ServerSettings.layerTest({}, policy)),
+        ),
+      ),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
       Layer.provide(ServerHttp.layerApiBodyLimit),
     ),
@@ -84,6 +96,7 @@ type Handler = (request: Request) => Effect.Effect<Response>;
 
 const withRoutes = <A, E>(
   use: (handler: Handler, auth: EnvironmentAuth.EnvironmentAuth["Service"]) => Effect.Effect<A, E>,
+  policy?: ManagedPolicySummary,
 ) =>
   Effect.gen(function* () {
     const random = yield* SecureRandom.SecureRandom;
@@ -91,7 +104,7 @@ const withRoutes = <A, E>(
     let routerAuth: EnvironmentAuth.EnvironmentAuth["Service"] | undefined;
     const layerRoutes = makeLayerRoutes((auth) => {
       routerAuth = auth;
-    });
+    }, policy);
     return yield* Effect.acquireUseRelease(
       Effect.sync(() => HttpRouter.toWebHandler(layerRoutes, { disableLogger: true })),
       (web) =>
@@ -307,6 +320,22 @@ it.effect("registers loopback and https clients and never redirects for an unver
       expect(forgedDetails.status).toBe(400);
       expect(yield* json<Record<string, unknown>>(forgedDetails)).not.toHaveProperty("redirectTo");
     }),
+  ),
+);
+
+it.effect("shows the policy's runtime-mode ceiling on the approval page", () =>
+  withRoutes(
+    (handler) =>
+      Effect.gen(function* () {
+        const clientId = yield* registeredClientId(handler);
+        const details = yield* handler(
+          postJson("/oauth/mcp/approval", authorizeParams(clientId)),
+        ).pipe(Effect.flatMap(json<Record<string, unknown>>));
+        expect(details).toMatchObject({
+          runtimeModeCeiling: { organization: "Example Corp", maxRuntimeMode: "auto" },
+        });
+      }),
+    { organization: "Example Corp", lockedSettings: [], limits: { maxRuntimeMode: "auto" } },
   ),
 );
 

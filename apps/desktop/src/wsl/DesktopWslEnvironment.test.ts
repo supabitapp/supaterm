@@ -13,14 +13,17 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { afterAll, expect } from "vite-plus/test";
 import * as NodeChildProcess from "node:child_process";
 
+import { ManagedPolicyFileError } from "@supaterm/shared/managedPolicyFile";
+
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
+import * as DesktopManagedPolicy from "../app/DesktopManagedPolicy.ts";
 import {
   DesktopWslEnvironment,
   layer as layerDesktopWslEnvironment,
+  resolveAvailability,
   buildWslRuntimeInstallScript,
   buildWslRuntimePruneScript,
   buildWslRuntimeProbeScript,
-  makeIsAvailable,
   parseResolvedPath,
   parseSupatermHome,
   parseWslRuntimeRoot,
@@ -481,6 +484,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         Layer.provide(
           Layer.mergeAll(
             layerFakeWslExe(home),
+            DesktopManagedPolicy.layerTest(),
             Layer.effect(
               DesktopEnvironment.DesktopEnvironment,
               Effect.map(
@@ -606,26 +610,6 @@ const registrySpawner = (keys: ReadonlyArray<string>) =>
     ),
   );
 
-const isAvailable = (serviceKeys: ReadonlyArray<string>) =>
-  makeIsAvailable("win32", "/windows").pipe(
-    Effect.provide(
-      Layer.mergeAll(
-        FileSystem.layerNoop({ exists: (path) => Effect.succeed(path === WSL_EXE) }),
-        Path.layer,
-      ),
-    ),
-    Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, registrySpawner(serviceKeys)),
-  );
-
-describe("makeIsAvailable", () => {
-  it.effect("needs a registered WSL service, not just the System32 install stub", () =>
-    Effect.gen(function* () {
-      assert.isFalse(yield* isAvailable([]));
-      assert.isTrue(yield* isAvailable([STORE_SERVICE]));
-      assert.isTrue(yield* isAvailable([INBOX_SERVICE]));
-    }),
-  );
-});
 describe("windowsToWslPathImpl", () => {
   it.effect("runs wslpath without a shell so folder names stay one literal argument", () =>
     Effect.gen(function* () {
@@ -667,6 +651,57 @@ describe("windowsToWslPathImpl", () => {
         "-u",
         "C:/a$b & c;(d)",
       ]);
+    }),
+  );
+});
+
+const availability = (
+  policy?: Parameters<typeof DesktopManagedPolicy.layerTest>[0],
+  wslExe = WSL_EXE,
+  serviceKeys: ReadonlyArray<string> = [STORE_SERVICE],
+) =>
+  resolveAvailability("win32", "/windows").pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        FileSystem.layerNoop({ exists: (path) => Effect.succeed(path === wslExe) }),
+        Path.layer,
+        DesktopManagedPolicy.layerTest(policy),
+      ),
+    ),
+    Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, registrySpawner(serviceKeys)),
+  );
+
+describe("resolveAvailability", () => {
+  it.effect("needs a registered WSL service, not just the System32 install stub", () =>
+    Effect.gen(function* () {
+      assert.deepEqual(yield* availability(undefined, WSL_EXE, []), { _tag: "Missing" });
+      assert.deepEqual(yield* availability(undefined, WSL_EXE, [STORE_SERVICE]), {
+        _tag: "Available",
+      });
+      assert.deepEqual(yield* availability(undefined, WSL_EXE, [INBOX_SERVICE]), {
+        _tag: "Available",
+      });
+    }),
+  );
+
+  it.effect("turns WSL off on a machine with a managed policy, even an invalid one", () =>
+    Effect.gen(function* () {
+      const managed = { schemaVersion: 1, organization: "Example Corp" } as const;
+      assert.deepEqual(yield* availability(), { _tag: "Available" });
+      assert.deepEqual(yield* availability(managed), {
+        _tag: "Managed",
+        reason: "Example Corp manages Supaterm on this machine, so the WSL backend is off.",
+      });
+      assert.deepEqual(
+        yield* availability(new ManagedPolicyFileError({ path: "/test", reason: "bad JSON" })),
+        {
+          _tag: "Managed",
+          reason:
+            "The WSL backend is off because Supaterm cannot use this machine's managed policy.",
+        },
+      );
+      // Without WSL installed the policy is not the reason it is off.
+      assert.deepEqual(yield* availability(managed, "/elsewhere/wsl.exe"), { _tag: "Missing" });
     }),
   );
 });

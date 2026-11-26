@@ -34,8 +34,10 @@ supaterm settings set publicRelayEnabled true
 Use `supaterm settings set publicRelayUrl <relay-url>` when the host should use a
 different `ws://` or `wss://` relay service. Run `supaterm settings list` to see
 the supported settings and accepted values, or `supaterm settings get publicRelayEnabled` to
-check the effective value. Pass `--base-dir <path>` when the server uses a
-custom Supaterm home. When no home is configured, a linked worktree uses its
+check the effective value. On a machine with a
+[managed policy](./managed-policy.md#clients-and-the-encrypted-relay), the
+administrator can lock these settings or turn the relay off. Pass
+`--base-dir <path>` when the server uses a custom Supaterm home. When no home is configured, a linked worktree uses its
 own `.supaterm` directory.
 
 For browser access, install the [Supaterm command line](./install.md) on the
@@ -236,7 +238,7 @@ The mapping created by `pair --tailscale` persists across restarts. Remove its
 default-port mapping with:
 
 ```bash
-tailscale serve --https=443 off
+tailscale serve --https=443 --set-path=/ off
 ```
 
 If that port is already in use, choose another with
@@ -349,7 +351,8 @@ access → Preview tunnel** on the host to stop other devices from loading its
 `localhost` pages themselves: port forwarding and **Open on this device** go
 away, and open tunnels close. Tabs keep working by streaming from the host, so
 anyone who can use the host's browser tabs can still view its `localhost` pages
-there.
+there. An administrator can also turn it off with a
+[managed policy](./managed-policy.md#preview-tunnel).
 
 The first tab downloads a headless Chrome, about 120 MB, into the Supaterm home. It
 is the same browser [HTML renders](html-renders.md) use, so a host downloads it

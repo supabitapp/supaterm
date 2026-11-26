@@ -51,6 +51,7 @@ import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerHttp from "../http.ts";
 import * as ServerSettings from "../serverSettings.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpToolAccess from "./McpToolAccess.ts";
@@ -1419,7 +1420,10 @@ it.effect("admits provider and OAuth client credentials and points only clients 
 it.effect("accepts case-insensitive MCP bearer schemes and diagnoses rejected credentials", () => {
   const messages: Array<unknown> = [];
   const logger = Logger.make(({ message }) => messages.push(message));
-  const layerAuth = Layer.mergeAll(EnvironmentAuth.layer, McpSessionRegistry.layer).pipe(
+  const layerAuth = Layer.mergeAll(
+    EnvironmentAuth.layer.pipe(Layer.provide(ManagedPolicy.layerTest())),
+    McpSessionRegistry.layer,
+  ).pipe(
     Layer.provideMerge(
       Layer.mock(ServerEnvironment.ServerEnvironment)({
         getEnvironmentId: Effect.succeed(environmentId),

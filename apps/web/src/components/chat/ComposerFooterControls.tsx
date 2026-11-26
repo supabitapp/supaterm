@@ -22,8 +22,11 @@ import { ProviderModelPicker } from "./ProviderModelPicker";
 import { runtimeModeConfig } from "./runtimeModeConfig";
 import { useComposerMenuState } from "./useComposerMenuState";
 
-export type RuntimeModeOption = { mode: RuntimeMode } & (typeof runtimeModeConfig)[RuntimeMode];
-const supervisedRuntimeModeOption = {
+export type RuntimeModeOption = {
+  mode: RuntimeMode;
+  disabledReason?: string;
+} & (typeof runtimeModeConfig)[RuntimeMode];
+const supervisedRuntimeModeOption: RuntimeModeOption = {
   mode: "approval-required" as const,
   ...runtimeModeConfig["approval-required"],
 };
@@ -75,6 +78,7 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
                 <SelectItem
                   key={option.mode}
                   value={option.mode}
+                  disabled={option.disabledReason !== undefined}
                   hideIndicator
                   className="min-w-64"
                 >
@@ -85,7 +89,7 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
                         {m(option.label)}
                       </span>
                       <span className="text-muted-foreground text-xs leading-4">
-                        {m(option.description)}
+                        {option.disabledReason ?? m(option.description)}
                       </span>
                     </div>
                   </div>

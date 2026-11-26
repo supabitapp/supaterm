@@ -4,6 +4,7 @@ import { buildPairingUrl } from "@supaterm/shared/remote";
 import {
   applyWslEnableSelection,
   isServerNetworkAccessible,
+  isWslSettingsRowVisible,
   parseManualDesktopSshTarget,
   resolveAccessEnvironmentId,
   resolveCurrentOriginPairingUrl,
@@ -149,6 +150,19 @@ describe("applyWslEnableSelection", () => {
 
     expect(calls).toEqual(["setWslOnly:false", "setWslDistro:Debian", "setWslBackendEnabled:true"]);
     expect(state).toMatchObject({ enabled: true, distro: "Debian", wslOnly: false });
+  });
+});
+
+describe("isWslSettingsRowVisible", () => {
+  it("shows why a managed policy keeps an installed WSL off", () => {
+    const off = { ...baseWslState, available: false, enabled: false, wslOnly: false };
+    expect(isWslSettingsRowVisible({ state: off, error: null })).toBe(false);
+    expect(
+      isWslSettingsRowVisible({
+        state: { ...off, managedPolicyReason: "Example Corp manages Supaterm on this machine." },
+        error: null,
+      }),
+    ).toBe(true);
   });
 });
 

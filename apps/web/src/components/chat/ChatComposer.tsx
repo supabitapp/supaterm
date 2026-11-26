@@ -298,6 +298,9 @@ const COMPOSER_SCROLL_GESTURE_RESET_MS = 120;
 import { toastManager } from "../ui/toast";
 import { Spinner } from "../ui/spinner";
 import { PlayIcon, ReplyIcon } from "@supaterm/icons";
+import { useManagedPolicy } from "../../state/managedPolicy";
+import { managedRuntimeModeBannerItem } from "./ComposerManagedRuntimeMode";
+import { capRuntimeModeOptions } from "./runtimeModeCeiling.logic";
 import { ResponseReplyBarLink } from "./AssistantCitationChip";
 import { NO_PROVIDER_MODEL_SELECTION } from "../../providerInstances";
 import { type AppModelOption, getAppModelOptionsForInstance } from "../../modelSelection";
@@ -1042,15 +1045,21 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     multipleModelSelections,
     providerStatuses,
   );
-  const compatibleRuntimeModeOptions =
+  const supportedRuntimeModeOptions =
     supportedRuntimeModes && supportedRuntimeModes.length > 0
       ? runtimeModeOptions.filter((option) => supportedRuntimeModes.includes(option.mode))
       : runtimeModeOptions;
-  const compatibleRuntimeMode = compatibleRuntimeModeOptions.some(
+  const compatibleRuntimeMode = supportedRuntimeModeOptions.some(
     (option) => option.mode === runtimeMode,
   )
     ? runtimeMode
-    : (compatibleRuntimeModeOptions[0]?.mode ?? runtimeMode);
+    : (supportedRuntimeModeOptions[0]?.mode ?? runtimeMode);
+  const runtimeModeCeiling = capRuntimeModeOptions(
+    useManagedPolicy(environmentId),
+    supportedRuntimeModeOptions,
+    runtimeMode,
+  );
+  const compatibleRuntimeModeOptions = runtimeModeCeiling.options;
 
   const canQueueSelectedProvider =
     !noProviderAvailable ||
@@ -1069,6 +1078,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     (activePendingProgress
       ? attachmentBlockReason
       : (attachmentBlockReason ??
+        runtimeModeCeiling.denial ??
         (multipleModelSelections === null ? providerSendBlockReason : null)));
   const submissionTarget = activePendingProgress ? "pending-user-input" : "provider-turn";
   const submissionBlocked = isComposerSubmissionBlocked({
@@ -2629,9 +2639,20 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     expandMobileComposer: expandMobileComposerStable,
     submitComposer: submitComposerStable,
   });
+  const runtimeModeCeilingBanner =
+    runtimeModeCeiling.denial === undefined || activePendingProgress
+      ? null
+      : managedRuntimeModeBannerItem(
+          runtimeModeCeiling.denial,
+          runtimeModeCeiling.fallback,
+          handleRuntimeModeChange,
+        );
+  const policyBannerItems = runtimeModeCeilingBanner
+    ? [...props.bannerItems, runtimeModeCeilingBanner]
+    : props.bannerItems;
   const bannerItems: readonly ComposerBannerStackItem[] = replyTo
     ? [
-        ...props.bannerItems,
+        ...policyBannerItems,
         {
           id: "reply-to",
           variant: "default",
@@ -2646,7 +2667,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           onDismiss: () => setComposerDraftReplyTo(composerDraftTarget, null),
         },
       ]
-    : props.bannerItems;
+    : policyBannerItems;
   const hasImageAttachmentAttention = standaloneComposerImages.some((image) => {
     const upload = uploadsByImageId[image.id];
     const failedInCurrentEnvironment =

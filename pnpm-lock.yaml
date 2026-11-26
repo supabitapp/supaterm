@@ -2004,6 +2004,9 @@ importers:
       effect:
         specifier: 4.1.5
         version: 4.1.5(patch_hash=4efcfa75f4af910e670008caaea1aa2ce73194092a2bcc3e9be61658a6b88187)
+      ffi-rs:
+        specifier: 1.3.2
+        version: 1.3.2
       get-east-asian-width:
         specifier: ^1.6.0
         version: 1.6.0

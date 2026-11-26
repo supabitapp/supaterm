@@ -8,10 +8,12 @@ import type {
 import { cliReleaseChannelOf, desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 import { compareSemverVersions } from "@supaterm/shared/semver";
 
+import { managedServerUpdateDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   isServerUpdateChannelCompatible,
   resolveServerSelfUpdateCapability,
   resolveVersionMismatch,
+  serverUpdatePolicyDenial,
   supportsDesktopAppUpdate,
 } from "~/versionSkew";
 import type { ServerUpdateOutcome, ServerUpdateTarget } from "../ServerUpdateAction";
@@ -24,6 +26,7 @@ export interface UpdateEverythingMachine {
   readonly serverConfig: {
     readonly environment: ServerConfig["environment"];
     readonly settings: Pick<ServerConfig["settings"], "continueThreadsAfterServerUpdate">;
+    readonly managedPolicy?: ServerConfig["managedPolicy"];
   } | null;
   readonly connected: boolean;
   /** Why the connection is down, when it says, in the active language. */
@@ -100,6 +103,11 @@ export function collectServerUpdateTargets(
       continue;
     }
     const selfUpdate = resolveServerSelfUpdateCapability(config);
+    const managedDenial = serverUpdatePolicyDenial(config.managedPolicy, selfUpdate, targetVersion);
+    if (managedDenial !== undefined) {
+      skip(managedDenial);
+      continue;
+    }
     const desktopAppUpdate = supportsDesktopAppUpdate(config);
     if (selfUpdate === null) {
       skip(resolve(msg("needs a manual update")));
@@ -269,7 +277,8 @@ export function collectChannelSwitchTargets(
       if (
         !("skip" in move) &&
         move.selfUpdate === "desktop-managed" &&
-        unavailableReason(machine, resolve) === null
+        unavailableReason(machine, resolve) === null &&
+        managedServerUpdateDenial(config.managedPolicy, release.version) === undefined
       ) {
         targets.push({ ...target(move.selfUpdate, serverVersion), trackOnly: true });
       }
@@ -278,6 +287,11 @@ export function collectChannelSwitchTargets(
     const unavailable = unavailableReason(machine, resolve);
     if (config === null || serverVersion === undefined || unavailable !== null) {
       skip(unavailable ?? resolve(msg("not connected")));
+      continue;
+    }
+    const managedDenial = managedServerUpdateDenial(config.managedPolicy, release.version);
+    if (managedDenial !== undefined) {
+      skip(managedDenial);
       continue;
     }
     const move = trackSwitchMove(config, sameTrack, resolve);

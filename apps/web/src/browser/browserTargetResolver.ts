@@ -1,8 +1,10 @@
 import {
+  allowsPreviewTunnel,
   AuthTerminalOperateScope,
   type BrowserNavigationTarget,
   type EnvironmentId,
   type ExecutionEnvironmentCapabilities,
+  type ManagedPolicySummary,
   type PreviewUrlResolution,
   type ServerSettings,
 } from "@supaterm/contracts";
@@ -102,6 +104,7 @@ export const loopbackTunnelUsable = (environment: {
           readonly capabilities: Pick<ExecutionEnvironmentCapabilities, "previewTunnelSetting">;
         };
         readonly settings: Pick<ServerSettings, "enablePreviewTunnel">;
+        readonly managedPolicy?: ManagedPolicySummary | undefined;
       }
     | null
     | undefined;
@@ -110,7 +113,7 @@ export const loopbackTunnelUsable = (environment: {
   tunnelsEnvironmentLoopback(environment.target) &&
   environment.canOperateTerminal &&
   environment.serverConfig?.environment.capabilities.previewTunnelSetting === true &&
-  environment.serverConfig.settings.enablePreviewTunnel;
+  allowsPreviewTunnel(environment.serverConfig);
 
 const resolveLoopbackUrl = (
   environmentId: EnvironmentId,

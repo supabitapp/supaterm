@@ -7,6 +7,7 @@ import type * as HttpServerRequest from "effect/http/HttpServerRequest";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Effect's Digest is effectful; the cookie name stays a plain function.
 import * as NodeCrypto from "node:crypto";
 import * as NodeNet from "node:net";
+import { normalizeHostname } from "@supaterm/shared/hostClassification";
 import * as Mac from "effect/crypto/Mac";
 import * as Base64Url from "effect/encoding/Base64Url";
 import * as Result from "effect/Result";
@@ -46,21 +47,22 @@ export function resolveSessionCookieName(input: {
   return `${SESSION_COOKIE_NAME}_${input.port}_${instanceHash}`;
 }
 
-export function isRemoteReachableHost(host: string | undefined): boolean {
-  if (host === "0.0.0.0" || host === "::" || host === "[::]") {
-    return true;
-  }
-  if (!host || host.length === 0) {
-    return false;
-  }
-  return !(
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1" ||
-    host === "[::1]" ||
-    host.startsWith("127.")
-  );
+/**
+ * The loopback address a server given `host` listens on, or undefined when it may listen beyond
+ * this machine. Unset means 127.0.0.1. Only a loopback literal or `localhost` counts: Node listens
+ * on every interface for an empty host, and any other name resolves through DNS.
+ */
+export function loopbackBindAddress(host: string | undefined): string | undefined {
+  if (host === undefined) return "127.0.0.1";
+  const address = normalizeHostname(host);
+  if (address === "localhost") return "127.0.0.1";
+  return (NodeNet.isIPv4(address) && address.startsWith("127.")) || address === "::1"
+    ? address
+    : undefined;
 }
+
+export const isRemoteReachableHost = (host: string | undefined): boolean =>
+  loopbackBindAddress(host) === undefined;
 
 export function base64UrlEncode(input: string | Uint8Array): string {
   return typeof input === "string"

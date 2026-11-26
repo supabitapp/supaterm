@@ -1,9 +1,11 @@
 import type {
   EnvironmentId,
+  ManagedPolicySummary,
   ServerConfig,
   ServerInstallation,
   ServerSelfUpdateCapability,
 } from "@supaterm/contracts";
+import { managedServerUpdateDenial } from "@supaterm/client-runtime/managed-policy";
 import type { ServerUpdateState } from "@supaterm/client-runtime/state/server";
 import { cliReleaseChannelOf } from "@supaterm/shared/cliRelease";
 import { compareSemverVersions, parseSemver } from "@supaterm/shared/semver";
@@ -118,6 +120,18 @@ export function resolveServerSelfUpdateCapability(
   serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
 ): ServerSelfUpdateCapability | null {
   return serverConfig?.environment.capabilities.serverSelfUpdate ?? null;
+}
+
+/** Why a server's policy refuses this update; a desktop app installs a version of its own choosing. */
+export function serverUpdatePolicyDenial(
+  policy: ManagedPolicySummary | undefined,
+  selfUpdate: ServerSelfUpdateCapability | null,
+  targetVersion: string,
+): string | undefined {
+  return managedServerUpdateDenial(
+    policy,
+    selfUpdate === "desktop-managed" ? undefined : targetVersion,
+  );
 }
 
 export function supportsDesktopAppUpdate(

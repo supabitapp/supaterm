@@ -589,6 +589,7 @@ function useUpdateSettingsTarget(environmentId: EnvironmentId | null) {
             target?.serverConfig?.settings,
             sourceSettings,
             targetId === environmentId,
+            target?.serverConfig?.managedPolicy,
           );
           if (Object.keys(targetPatch).length === 0) continue;
           const session = appAtomRegistry.get(environmentSession.sessionStateAtom(targetId));

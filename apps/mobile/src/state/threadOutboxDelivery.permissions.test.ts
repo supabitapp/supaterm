@@ -63,6 +63,7 @@ const state = vi.hoisted(() => ({
     shellThreadFamilies: false,
     providers: [{ instanceId: "codex", driver: "codex", models: [] }],
     environment: { capabilities: {} },
+    managedPolicy: undefined as import("@supaterm/contracts").ManagedPolicySummary | undefined,
   },
 }));
 vi.mock("react-native", () => ({ Alert: { alert: vi.fn() } }));
@@ -207,6 +208,7 @@ vi.mock("./use-composer-drafts", async () => {
 
 import { appAtomRegistry } from "./atom-registry";
 import { environmentSession } from "./session";
+import { threadComposerErrorsAtom } from "./thread-composer-error";
 import {
   dispatchingQueuedMessageIdsAtom,
   editingQueuedMessageIdsAtom,
@@ -264,6 +266,7 @@ beforeEach(() => {
   setOperateGrant("secondary", false);
   state.draftText = "Keep this draft separate";
   state.config.shellThreadFamilies = false;
+  state.config.managedPolicy = undefined;
   state.modelUnavailable.mockReset().mockReturnValue(false);
   state.uploadVoice.mockReset();
   state.audioExists = true;
@@ -796,6 +799,46 @@ describe("queued delivery timing", () => {
     await deliveryAfter(() => appAtomRegistry.set(environments, connected));
     expect(state.start).toHaveBeenCalledTimes(2);
     expect(remaining()).toEqual([]);
+  });
+});
+
+describe("queued messages above the managed runtime ceiling", () => {
+  const capAtAuto = () => {
+    state.config.managedPolicy = {
+      organization: "Example Corp",
+      lockedSettings: [],
+      limits: { maxRuntimeMode: "auto" },
+    };
+  };
+
+  it("hands the message back to the draft without switching the thread's mode", async () => {
+    setOperateGrant("secondary", true);
+    capAtAuto();
+    await state.manager.enqueue(message());
+    await runDrain();
+    expect(state.runtime).not.toHaveBeenCalled();
+    expect(state.start).not.toHaveBeenCalled();
+    expect(remaining()).toEqual([]);
+    expect(state.draftText).toContain("Keep this queued");
+    expect(Object.values(appAtomRegistry.get(threadComposerErrorsAtom))).toEqual([
+      { message: "Example Corp limits threads to Auto.", messageId: "message" },
+    ]);
+  });
+
+  it("holds a recording instead of restoring it to the draft", async () => {
+    setOperateGrant("secondary", true);
+    capAtAuto();
+    await state.manager.enqueue(
+      message({ text: "", voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" } }),
+    );
+    await runDrain();
+    expect(state.uploadVoice).not.toHaveBeenCalled();
+    expect(state.runtime).not.toHaveBeenCalled();
+    expect(remaining()[0]).toMatchObject({
+      failure: "Example Corp limits threads to Auto.",
+      voice: { sizeBytes: 96_044 },
+    });
+    expect(state.draftText).toBe("Keep this draft separate");
   });
 });
 

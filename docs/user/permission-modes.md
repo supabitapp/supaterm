@@ -15,6 +15,9 @@ and modes you choose in a draft keep their permissions.
 | **Auto**              | Uses the provider's automatic review to approve routine actions and ask about others. |
 | **Full access**       | Allows commands and edits without approval prompts.                                   |
 
+An administrator can cap the modes available on a machine with a
+[managed policy](./managed-policy.md#permission-modes); modes above the cap show who manages them.
+
 Approve or reject requests in the conversation to let the agent continue. On web and desktop, each
 request shows on its own row where the agent is waiting, with the full command or file list; on
 mobile it appears above the composer. You can also send a message instead: it declines the waiting
