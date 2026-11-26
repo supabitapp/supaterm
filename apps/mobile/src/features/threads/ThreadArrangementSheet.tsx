@@ -51,7 +51,7 @@ import {
 } from "./threadListV2";
 import { useThreadListNow } from "./use-thread-list-now";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import { useGT } from "gt-react-native";
+import { T, useGT } from "gt-react-native";
 
 const keyOf = (thread: EnvironmentThreadShell) => scopedThreadKey(thread.environmentId, thread.id);
 type Section = "pinned" | "active" | "snoozed" | "done";
@@ -424,7 +424,7 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                 accessibilityLabel={gt("Close arrange threads")}
               />
               <Text className="px-5 pb-3 text-sm text-foreground-muted">
-                Drag to reorder, pin, or mark as Done. Changes save when you drop.
+                <T>Drag to reorder, pin, or mark as Done. Changes save when you drop.</T>
               </Text>
               <View
                 onLayout={(event) => {
@@ -559,7 +559,9 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                                 ? gt("Loading", { $context: "older threads are loading" })
                                 : olderDoneShelf.failed
                                   ? gt("Could not load older threads. Retry")
-                                  : `Show more (${doneCount - visibleDone.length} Done hidden)`}
+                                  : gt("Show more ({count} Done hidden)", {
+                                      count: doneCount - visibleDone.length,
+                                    })}
                             </Text>
                           </Pressable>
                         ) : (

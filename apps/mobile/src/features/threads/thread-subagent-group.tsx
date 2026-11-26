@@ -207,11 +207,13 @@ export function ThreadSubagentGroup(props: {
                   accessibilityHint={
                     target === null
                       ? agent.remoteChild !== undefined
-                        ? `Runs on ${agent.remoteChild.label}`
+                        ? gt("Runs on {label}", { label: agent.remoteChild.label })
                         : gt("Provider-managed agent")
                       : target.linked === undefined
                         ? gt("Opens this agent's thread")
-                        : `Opens a read-only view of this agent's thread on ${target.linked.label}`
+                        : gt("Opens a read-only view of this agent's thread on {label}", {
+                            label: target.linked.label,
+                          })
                   }
                   disabled={target === null}
                   onPress={() => {

@@ -13,7 +13,7 @@ import { AppText } from "../../components/ui/AppText";
 import { childThreadApprovalsAtom, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { PendingApprovalCard } from "./PendingApprovalCard";
-import { useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 function ChildApproval({ entry }: { entry: ChildThreadApproval }) {
   const gt = useGT();
@@ -24,7 +24,9 @@ function ChildApproval({ entry }: { entry: ChildThreadApproval }) {
   return (
     <View className="mx-3.5 my-2 gap-2">
       <AppText className="font-supaterm-bold text-sm text-foreground">
-        Approval from {entry.title}
+        <T>
+          Approval from <Var>{entry.title}</Var>
+        </T>
       </AppText>
       <PendingApprovalCard
         canOperateThread={canRespond}

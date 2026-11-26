@@ -175,7 +175,9 @@ function AgentRow(props: {
         accessibilityHint={
           subagent.remoteChild === undefined
             ? gt("Provider-managed agent. Its work appears in the transcript.")
-            : `Runs on ${subagent.remoteChild.label}. Connect to it to open its thread.`
+            : gt("Runs on {label}. Connect to it to open its thread.", {
+                label: subagent.remoteChild.label,
+              })
         }
       >
         {row}
@@ -186,7 +188,9 @@ function AgentRow(props: {
         accessibilityHint={
           target.linked === undefined
             ? gt("Opens this agent's thread")
-            : `Opens a read-only view of this agent's thread on ${target.linked.label}`
+            : gt("Opens a read-only view of this agent's thread on {label}", {
+                label: target.linked.label,
+              })
         }
         onPress={() => props.onOpen(target, subagent.title)}
         className="min-w-0 flex-1 active:bg-subtle"

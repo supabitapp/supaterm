@@ -1,6 +1,7 @@
 import { StackActions, useNavigation, useRoute, type Route } from "@react-navigation/native";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { useGT } from "gt-react-native";
 import { useState } from "react";
 import { ScrollView, TextInput, View } from "react-native";
 
@@ -16,6 +17,7 @@ import { alertSideChatQueued, startSideChat, useSideChatDisabledReason } from ".
  * which forks under the route's side chat id, so a retry here never forks twice.
  */
 export function SideChatDraftRouteScreen() {
+  const gt = useGT();
   const navigation = useNavigation();
   const route =
     useRoute<Route<string, { environmentId?: string; threadId?: string; sideChatId?: string }>>();
@@ -55,7 +57,7 @@ export function SideChatDraftRouteScreen() {
 
   return (
     <View className="flex-1 bg-screen">
-      <AppBar title="Side chat" onBack={() => navigation.goBack()} />
+      <AppBar title={gt("Side chat")} onBack={() => navigation.goBack()} />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
@@ -64,10 +66,16 @@ export function SideChatDraftRouteScreen() {
         <View className="gap-3 p-4">
           <Text className="text-sm text-foreground-muted">
             {disabledReason ??
-              `Ask about “${parent?.title ?? "this thread"}” without adding to it. It keeps working while you ask.`}
+              (parent
+                ? gt("Ask about “{title}” without adding to it. It keeps working while you ask.", {
+                    title: parent.title,
+                  })
+                : gt(
+                    "Ask about “this thread” without adding to it. It keeps working while you ask.",
+                  ))}
           </Text>
           <TextInput
-            accessibilityLabel="Side chat message"
+            accessibilityLabel={gt("Side chat message")}
             value={text}
             onChangeText={setText}
             autoFocus
@@ -75,12 +83,12 @@ export function SideChatDraftRouteScreen() {
             scrollEnabled
             textAlignVertical="top"
             readOnly={sending}
-            placeholder="Ask a side question"
+            placeholder={gt("Ask a side question")}
             placeholderTextColorClassName="accent-foreground-muted"
             className="max-h-60 min-h-28 rounded-2xl bg-card p-3 font-sans text-base text-foreground"
           />
           <Button
-            label="Send"
+            label={gt("Send", { $context: "verb, button" })}
             tone="primary"
             fullWidth
             loading={sending}

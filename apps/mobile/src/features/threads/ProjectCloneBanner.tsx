@@ -7,7 +7,7 @@ import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { cn } from "../../lib/cn";
 import { useInlineConfirm } from "../../lib/useInlineConfirm";
 import { AppText as Text } from "../../components/ui/AppText";
-import { useMessages, useGT } from "gt-react-native";
+import { T, useMessages, useGT, Var } from "gt-react-native";
 
 export function ProjectCloneBanner(props: {
   readonly clone: ProjectCloneSnapshot;
@@ -26,7 +26,9 @@ export function ProjectCloneBanner(props: {
         <AppActivityIndicator size="small" />
         <View className="min-w-0 flex-1">
           <Text className="font-supaterm-medium text-sm" numberOfLines={1}>
-            Cloning {name}
+            <T>
+              Cloning <Var>{name}</Var>
+            </T>
           </Text>
           <Text className="text-xs text-foreground-muted" numberOfLines={1}>
             {projectCloneProgressSummary(clone, m)}
@@ -62,7 +64,7 @@ export function ProjectCloneBanner(props: {
       ) : null}
       <View className="mt-2 flex-row justify-end gap-2">
         <BannerAction
-          label={confirm.armed === "remove" ? "Confirm removal" : gt("Remove project")}
+          label={confirm.armed === "remove" ? gt("Confirm removal") : gt("Remove project")}
           {...confirm.bind("remove", props.onRemove)}
         />
         <BannerAction label={gt("Retry")} onPress={props.onRetry} />

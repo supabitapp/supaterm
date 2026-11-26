@@ -715,7 +715,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     }
     const sideChatCommand = resolveSideChatCommand(draftMessage, sideChat.disabledReason);
     if (sideChatCommand.kind === "refuse") {
-      Dialog.alert("Side chat not started", sideChatCommand.reason);
+      Dialog.alert(gt("Side chat not started"), sideChatCommand.reason);
       return;
     }
     if (sideChatCommand.kind === "start") {
@@ -844,7 +844,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       ) : showSuggestionAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Use suggested prompt"
+          accessibilityLabel={gt("Use suggested prompt")}
           disabled={isSubmissionLocked}
           icon="text.bubble"
           variant="primary"

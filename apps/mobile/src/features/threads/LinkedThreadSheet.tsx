@@ -236,6 +236,7 @@ function LinkedThreadComposer(props: {
   readonly action?: React.ReactNode;
   readonly notice?: React.ReactNode;
 }) {
+  const gt = useGT();
   const { label, via } = props;
   return (
     <>
@@ -246,7 +247,9 @@ function LinkedThreadComposer(props: {
             <T>Read-only</T>
           </Text>
           <Text numberOfLines={1} className="font-sans text-xs text-foreground-secondary">
-            {`On ${label} via ${via}${props.working ? " · Working" : ""}`}
+            {props.working
+              ? gt("On {label} via {via} · Working", { label, via })
+              : gt("On {label} via {via}", { label, via })}
           </Text>
         </View>
         {props.action}
@@ -343,7 +346,9 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
         >
           {view === null || projection === null ? (
             failure === null ? (
-              <Text className="pt-6 text-sm text-foreground-muted">Reading from {label}…</Text>
+              <Text className="pt-6 text-sm text-foreground-muted">
+                {gt("Reading from {label}…", { label })}
+              </Text>
             ) : (
               <FailureCard failure={failure} stale={false} onRetry={retry} />
             )
@@ -354,7 +359,7 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
                   <Button
                     size="compact"
                     tone="text"
-                    label={view.history.loading ? "Loading earlier…" : gt("Load earlier")}
+                    label={view.history.loading ? gt("Loading earlier…") : gt("Load earlier")}
                     disabled={view.history.loading}
                     onPress={view.loadEarlier}
                   />
@@ -403,7 +408,7 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
                   accessibilityLiveRegion="polite"
                   className="px-2 text-xs text-foreground-muted"
                 >
-                  {`Connecting to ${label}…`}
+                  {gt("Connecting to {label}…", { label })}
                 </Text>
               ) : connectState.phase === "unreachable" ? (
                 <View

@@ -41,7 +41,7 @@ import { SettingsSection } from "../settings/components/SettingsSection";
 import { Button } from "../../components/ui/Button";
 import { Sheet } from "../../components/ui/Sheet";
 import { LINK_ACCESS_CHOICES, linkAccessLabel } from "./thread-settings-options";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 const LINK_SYMBOL: AppSymbolName = { ios: "link", android: "desktop_windows" };
 
@@ -366,16 +366,21 @@ function LinkRequestSheet(props: {
             />
             {target.kind === "machine" ? (
               <Text className="font-sans text-xs text-foreground-muted">
-                This app has no address for {target.label} that another machine can reach. Enter its
-                https or Tailscale address.
+                <T>
+                  This app has no address for <Var>{target.label}</Var> that another machine can
+                  reach. Enter its https or Tailscale address.
+                </T>
               </Text>
             ) : null}
           </View>
         ) : null}
         {useExisting ? (
           <Text className="font-sans text-sm leading-5 text-foreground-muted">
-            This environment is already linked to {targetName}. The agent can use that link as it
-            is. To change its access, forget it in Settings → Environments and link again.
+            <T>
+              This environment is already linked to <Var>{targetName}</Var>. The agent can use that
+              link as it is. To change its access, forget it in Settings → Environments and link
+              again.
+            </T>
           </Text>
         ) : target.kind === "none" ? null : (
           <>
@@ -394,8 +399,17 @@ function LinkRequestSheet(props: {
                   spellCheck={false}
                 />
                 <Text className="font-sans text-xs text-foreground-muted">
-                  Create a link on {targetName ?? "a machine"}: Settings → Sharing & access →
-                  Authorized clients → Create link, then paste its code here.
+                  {targetName === null ? (
+                    <T>
+                      Create a link on a machine: Settings → Sharing & access → Authorized clients →
+                      Create link, then paste its code here.
+                    </T>
+                  ) : (
+                    <T>
+                      Create a link on <Var>{targetName}</Var>: Settings → Sharing & access →
+                      Authorized clients → Create link, then paste its code here.
+                    </T>
+                  )}
                 </Text>
               </View>
             )}
