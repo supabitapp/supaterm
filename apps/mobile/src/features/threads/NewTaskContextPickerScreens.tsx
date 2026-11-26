@@ -25,6 +25,7 @@ import * as Haptics from "expo-haptics";
 import { useNavigation } from "@react-navigation/native";
 import { useRef, useState, type ReactNode } from "react";
 import { sanitizeNewRefName } from "@supaterm/shared/git";
+import { fileBasename } from "@supaterm/shared/path";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -388,24 +389,46 @@ export function RepositoriesPickerScreen({
   choices,
   selection,
   hint,
+  listsUnavailable = false,
   onChange,
 }: {
   readonly choices: ReadonlyArray<WorktreeRepositoryChoice> | null;
   readonly selection: WorktreeRepositorySelection;
   readonly hint: string;
+  /** Also lists chosen repositories the project no longer offers, so they can be unchecked. */
+  readonly listsUnavailable?: boolean;
   readonly onChange: (repositories: ReadonlyArray<string>) => void;
 }) {
   const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const selected = new Set(selection.selected);
+  const unavailable = listsUnavailable ? selection.unavailable : [];
+  const selected = new Set([...selection.selected, ...unavailable]);
+  const rows =
+    choices === null
+      ? null
+      : [
+          ...choices.map((choice) => ({
+            repositoryPath: choice.repositoryPath,
+            title: choice.name,
+            subtitle:
+              choice.relativePath !== undefined && choice.relativePath !== choice.name
+                ? choice.relativePath
+                : undefined,
+          })),
+          ...unavailable.map((repositoryPath) => ({
+            repositoryPath,
+            title: fileBasename(repositoryPath),
+            subtitle: gt("Unavailable"),
+          })),
+        ];
   const toggle = (repositoryPath: string) => {
-    if (choices === null) return;
+    if (rows === null) return;
     void Haptics.selectionAsync();
     onChange(
-      choices.flatMap((choice) =>
-        (choice.repositoryPath === repositoryPath) !== selected.has(choice.repositoryPath)
-          ? [choice.repositoryPath]
+      rows.flatMap((row) =>
+        (row.repositoryPath === repositoryPath) !== selected.has(row.repositoryPath)
+          ? [row.repositoryPath]
           : [],
       ),
     );
@@ -436,7 +459,7 @@ export function RepositoriesPickerScreen({
     <View className="flex-1 bg-sheet" collapsable={false}>
       <AppBar title={gt("Repositories")} hideBottomBorder onBack={() => navigation.goBack()} />
       <ScreenContent>
-        {choices === null || choices.length === 0 ? (
+        {rows === null || rows.length === 0 ? (
           <View className="flex-1 items-center justify-center gap-3 px-4">
             {choices === null ? <AppActivityIndicator /> : null}
             <Text className="text-center text-sm text-foreground-muted">
@@ -457,24 +480,20 @@ export function RepositoriesPickerScreen({
               paddingHorizontal: 16,
               paddingTop: 16,
             }}
-            data={choices}
-            extraData={selection.selected}
-            keyExtractor={(choice) => choice.repositoryPath}
+            data={rows}
+            extraData={selection}
+            keyExtractor={(row) => row.repositoryPath}
             ListHeaderComponent={header}
             renderItem={({ item, index }) => (
               <SelectionRow
                 icon="folder"
                 role="checkbox"
                 isFirst={index === 0}
-                isLast={index === choices.length - 1}
+                isLast={index === rows.length - 1}
                 onPress={() => toggle(item.repositoryPath)}
                 selected={selected.has(item.repositoryPath)}
-                subtitle={
-                  item.relativePath !== undefined && item.relativePath !== item.name
-                    ? item.relativePath
-                    : undefined
-                }
-                title={item.name}
+                subtitle={item.subtitle}
+                title={item.title}
               />
             )}
             showsVerticalScrollIndicator={false}

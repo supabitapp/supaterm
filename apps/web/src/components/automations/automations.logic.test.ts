@@ -32,7 +32,6 @@ import {
   taskToDraft,
   unbindDraftFromThread,
   validateAutomationsSearch,
-  workspaceStrategyFromDraft,
 } from "./automations.logic";
 
 const laptopId = EnvironmentId.make("laptop");
@@ -218,12 +217,8 @@ describe("editing scheduled task branch settings", () => {
       repositories: [{ path: "/work/api" }],
     } as const;
     const draft = taskToDraft({ ...legacyTask, workspaceStrategy });
-    expect(workspaceStrategyFromDraft({ ...draft, title: "Renamed" }, "release")).toEqual(
-      workspaceStrategy,
-    );
-    expect(
-      workspaceStrategyFromDraft(changeDraftProject(draft, "other-project"), "release"),
-    ).toEqual({ type: "worktree", baseRef: "release", startFromOrigin: true });
+    expect(draft.repositories).toEqual(["/work/api"]);
+    expect(changeDraftProject(draft, "other-project").repositories).toBeUndefined();
   });
 });
 

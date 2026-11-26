@@ -8,7 +8,6 @@ import {
   type ScheduledTaskThreadMode,
   scheduledTaskThreadMode,
   type ModelSelection,
-  type OrchestrationV2ThreadLaunchWorkspaceStrategy,
   type RuntimeMode,
   type ProviderInteractionMode,
   type ServerSettings,
@@ -376,23 +375,6 @@ export function unbindDraftFromThread(draft: DraftState): DraftState {
 export function changeDraftProject(draft: DraftState, projectId: string): DraftState {
   if (projectId === draft.projectId) return draft;
   return { ...unbindDraftFromThread(draft), projectId, repositories: undefined };
-}
-
-export function workspaceStrategyFromDraft(
-  draft: DraftState,
-  baseRef: string,
-): OrchestrationV2ThreadLaunchWorkspaceStrategy {
-  if (draft.workspaceMode === "root") return { type: "root" };
-  if (draft.workspaceMode === "existing_worktree")
-    return { type: "existing_worktree", worktreePath: draft.existingWorktreePath.trim() };
-  return {
-    type: "worktree",
-    baseRef,
-    startFromOrigin: draft.startFromOrigin,
-    ...(draft.repositories === undefined
-      ? {}
-      : { repositories: draft.repositories.map((path) => ({ path })) }),
-  };
 }
 
 /** Threads a task can move to. The current one is left out; the picker always shows it. */

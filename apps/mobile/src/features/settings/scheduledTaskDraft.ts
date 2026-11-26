@@ -1,7 +1,6 @@
 import { scheduledTaskThreadMode } from "@supaterm/contracts";
 import type {
   ModelSelection,
-  OrchestrationV2ThreadLaunchWorkspaceStrategy,
   ServerConfig,
   ProjectId,
   RuntimeMode,
@@ -197,23 +196,6 @@ export function changeDraftProject(
 ): ScheduledTaskDraft {
   if (projectId === draft.projectId) return draft;
   return { ...unbindDraftFromThread(draft), projectId, repositories: undefined };
-}
-
-export function workspaceStrategyFromDraft(
-  draft: ScheduledTaskDraft,
-  baseRef: string,
-): OrchestrationV2ThreadLaunchWorkspaceStrategy {
-  if (draft.workspace === "root") return { type: "root" };
-  if (draft.workspace === "existing_worktree")
-    return { type: "existing_worktree", worktreePath: draft.checkoutPath.trim() };
-  return {
-    type: "worktree",
-    baseRef,
-    startFromOrigin: draft.startFromOrigin,
-    ...(draft.repositories === undefined
-      ? {}
-      : { repositories: draft.repositories.map((path) => ({ path })) }),
-  };
 }
 
 export function createDraft(

@@ -56,7 +56,10 @@ import { ScheduledTaskPromptField } from "./components/ScheduledTaskPromptField"
 import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilterHeader";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
-import { resolveWorktreeRepositorySelection } from "@supaterm/client-runtime/state/thread-repositories";
+import {
+  resolveWorktreeRepositorySelection,
+  scheduledTaskWorkspaceStrategy,
+} from "@supaterm/client-runtime/state/thread-repositories";
 import { useWorktreeRepositoryChoices } from "../../state/use-worktree-repository-choices";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
 import {
@@ -66,7 +69,6 @@ import {
   scheduledTaskDefaultModel,
   scheduleFromDraft,
   unbindDraftFromThread,
-  workspaceStrategyFromDraft,
   type ScheduledTaskDraft as Draft,
 } from "./scheduledTaskDraft";
 import { settingsTargetsForProject } from "./settings-environment-filter.logic";
@@ -640,6 +642,10 @@ function TaskForm({
     draftProject,
     draft.workspace === "worktree",
   );
+  const repositorySelection = resolveWorktreeRepositorySelection(
+    { choices: repositoryChoices, chosen: draft.repositories },
+    m,
+  );
   const automaticBaseRefs = usePaginatedBranches({
     environmentId,
     cwd: automaticBaseRefCwd,
@@ -741,7 +747,13 @@ function TaskForm({
       threadId: draft.threadId,
       ...(draft.threadId === null && draft.task?.threadId != null ? { unbindThread: true } : {}),
       ...(offersThreadModes ? { threadMode: draft.threadMode } : {}),
-      workspaceStrategy: workspaceStrategyFromDraft(draft, worktreeBaseRef),
+      workspaceStrategy: scheduledTaskWorkspaceStrategy({
+        mode: draft.workspace,
+        baseRef: worktreeBaseRef,
+        startFromOrigin: draft.startFromOrigin,
+        worktreePath: draft.checkoutPath,
+        selection: repositorySelection,
+      }),
       runtimeMode: draft.runtimeMode,
       interactionMode: draft.task?.interactionMode ?? "default",
       creationSource: draft.task?.creationSource ?? "mobile",
@@ -977,18 +989,14 @@ function TaskForm({
           ) : null}
           {draft.workspace === "worktree" &&
           repositoryChoices !== null &&
-          repositoryChoices.length > 0 ? (
+          (repositoryChoices.length > 0 || repositorySelection.unavailable.length > 0) ? (
             <PickerRow
               label={gt("Repositories")}
-              value={m(
-                resolveWorktreeRepositorySelection(
-                  {
-                    choices: repositoryChoices,
-                    chosen: draft.repositories,
-                  },
-                  m,
-                ).label,
-              )}
+              value={
+                repositorySelection.unavailable.length > 0
+                  ? gt("A repository is unavailable")
+                  : repositorySelection.label
+              }
               borderTop
               disabled={saving || dictationPending || environmentUnavailable}
               onPress={() => navigation.navigate("SettingsScheduledTaskRepositories")}
