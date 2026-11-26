@@ -1733,18 +1733,39 @@ export const ClientServerSettingsPatch = ServerSettingsPatch.mapFields(
   Struct.omit(["defaultTheme", "defaultThemeSetAt", "defaultAppearance", "defaultAppearanceSetAt"]),
 );
 
-/** The host runs saved project scripts, some without anyone asking: on worktree creation and on done. */
-function carriesProjectScripts(patch: ServerSettingsPatch): boolean {
+const sameProjectScripts = Schema.toEquivalence(Schema.Array(ProjectScript));
+
+export type SavedProjectScripts = Pick<
+  ServerSettings,
+  "defaultProjectScripts" | "projectSettingsOverrides"
+>;
+
+/**
+ * The host runs saved project scripts, some without anyone asking: on worktree creation and on
+ * done. Clients resend a project's whole override entry, so scripts equal to `saved` change nothing.
+ */
+function changesProjectScripts(
+  patch: ServerSettingsPatch,
+  saved: SavedProjectScripts | undefined,
+): boolean {
+  const changes = (
+    next: ReadonlyArray<ProjectScript> | undefined,
+    current: ReadonlyArray<ProjectScript> | undefined,
+  ) => next !== undefined && (current === undefined || !sameProjectScripts(next, current));
   return (
-    patch.defaultProjectScripts !== undefined ||
-    Object.values(patch.projectSettingsOverrides ?? {}).some(
-      (overrides) => overrides?.defaultProjectScripts !== undefined,
+    changes(patch.defaultProjectScripts, saved?.defaultProjectScripts) ||
+    Object.entries(patch.projectSettingsOverrides ?? {}).some(([projectId, overrides]) =>
+      changes(
+        overrides?.defaultProjectScripts,
+        saved?.projectSettingsOverrides[projectId as ProjectId]?.defaultProjectScripts,
+      ),
     )
   );
 }
 
 export function requiredScopesForServerSettingsPatch(
   patch: ServerSettingsPatch,
+  saved?: SavedProjectScripts,
 ): ReadonlyArray<AuthEnvironmentScope> {
   // A project's provider switches turn instances on and off like the machine-level ones.
   let changesProviders = Object.values(patch.projectSettingsOverrides ?? {}).some(
@@ -1773,7 +1794,7 @@ export function requiredScopesForServerSettingsPatch(
     ...(changesProviders ? [AuthProvidersManageScope] : []),
     ...(changesAccess ? [AuthAccessWriteScope] : []),
     // Saving a script is choosing a command for the host to run, wherever the patch carries it.
-    ...(carriesProjectScripts(patch) ? [AuthOrchestrationOperateScope] : []),
+    ...(changesProjectScripts(patch, saved) ? [AuthOrchestrationOperateScope] : []),
   ];
 }
 
