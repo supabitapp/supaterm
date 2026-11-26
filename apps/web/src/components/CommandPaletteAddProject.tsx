@@ -15,7 +15,7 @@ import { Kbd, KbdGroup } from "./ui/kbd";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 export function remoteProjectSourceIcon(
   source: AddProjectRemoteSource,
@@ -144,10 +144,20 @@ export function NewProjectSummary(props: {
             {named ? props.name : gt("New project")}
           </span>
           <span className="flex min-w-0 gap-1 text-muted-foreground/85 text-xs">
-            <span className="shrink-0">{named ? "Creates" : "Goes in"}</span>
+            <span className="shrink-0">
+              {named ? (
+                <T context="followed by the new project's folder">Creates</T>
+              ) : (
+                <T context="followed by the folder new projects go in">Goes in</T>
+              )}
+            </span>
             <MiddleTruncate value={(named ? props.pathPreview : props.projectsRoot) ?? ""} />
             {props.environmentLabel === null ? null : (
-              <span className="max-w-[40%] shrink-0 truncate">on {props.environmentLabel}</span>
+              <span className="max-w-[40%] shrink-0 truncate">
+                <T>
+                  on <Var>{props.environmentLabel}</Var>
+                </T>
+              </span>
             )}
           </span>
         </span>

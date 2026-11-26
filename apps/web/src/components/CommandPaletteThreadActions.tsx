@@ -18,6 +18,7 @@ import {
   TimerIcon,
   TrashIcon,
 } from "@supaterm/icons";
+import { msg } from "gt-react";
 
 import {
   ADDON_ICON_CLASS,
@@ -26,6 +27,7 @@ import {
   type CommandPaletteSubmenuItem,
 } from "./CommandPalette.logic";
 import type { ThreadActionMenuId } from "./threadActionMenu.logic";
+import { m, type MessageResolver } from "../i18n/messages";
 
 interface ThreadPaletteCommand {
   readonly icon: IconComponent;
@@ -77,17 +79,17 @@ const THREAD_PALETTE_COMMANDS: Record<
     shortcutCommand: "thread.mark-done",
   },
   "auto-mark-done:enabled": {
-    title: "Turn on automatic completion",
+    title: msg("Turn on automatic completion"),
     icon: TimerIcon,
     searchTerms: ["automatic completion", "auto mark done", "enable"],
   },
   "auto-mark-done:disabled": {
-    title: "Turn off automatic completion",
+    title: msg("Turn off automatic completion"),
     icon: TimerIcon,
     searchTerms: ["automatic completion", "auto mark done", "disable", "long running"],
   },
   snooze: {
-    title: "Snooze thread",
+    title: msg("Snooze thread"),
     icon: ClockIcon,
     searchTerms: ["snooze", "later", "remind", "defer"],
   },
@@ -99,33 +101,33 @@ const THREAD_PALETTE_COMMANDS: Record<
     shortcutCommand: "thread.regenerateTitle",
   },
   "mark-unread": {
-    title: "Mark thread unread",
+    title: msg("Mark thread unread"),
     icon: MailUnreadIcon,
     searchTerms: ["unread", "mark", "thread"],
   },
   "copy-path": {
-    title: "Copy workspace path",
+    title: msg("Copy workspace path"),
     icon: FolderIcon,
     searchTerms: ["copy", "path", "folder", "directory", "worktree", "cwd"],
   },
   "copy-branch": {
-    title: "Copy branch name",
+    title: msg("Copy branch name"),
     icon: GitBranchIcon,
     searchTerms: ["copy", "branch", "git"],
   },
   "copy-thread": {
-    title: "Copy thread",
+    title: msg("Copy thread"),
     icon: MessageSquareIcon,
     searchTerms: ["copy", "thread", "chip", "reference", "context"],
   },
   "copy-thread-id": {
-    title: "Copy thread ID",
+    title: msg("Copy thread ID"),
     icon: HashIcon,
     searchTerms: ["copy", "thread id", "reference"],
   },
   archive: { icon: ArchiveIcon, searchTerms: ["archive", "hide", "thread"] },
   delete: {
-    title: "Delete thread",
+    title: msg("Delete thread"),
     icon: TrashIcon,
     searchTerms: ["delete", "remove", "trash", "thread"],
   },
@@ -134,14 +136,16 @@ const THREAD_PALETTE_COMMANDS: Record<
 export function buildThreadPaletteItems(
   items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
   run: (action: ThreadActionMenuId) => Promise<void>,
+  resolve: MessageResolver = m,
 ): Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> {
   return items.flatMap((item): Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> => {
     // A checked choice is the current setting; only the way to change it is a command.
     if (item.checked) return [];
     const command = isSnoozePresetAction(item.id) ? null : THREAD_PALETTE_COMMANDS[item.id];
-    if (command === null) return item.children ? buildThreadPaletteItems(item.children, run) : [];
+    if (command === null)
+      return item.children ? buildThreadPaletteItems(item.children, run, resolve) : [];
     const Icon = command.icon;
-    const title = command.title ?? item.label;
+    const title = command.title === undefined ? item.label : resolve(command.title);
     const shared = {
       value: `action:thread:${item.id}`,
       title,

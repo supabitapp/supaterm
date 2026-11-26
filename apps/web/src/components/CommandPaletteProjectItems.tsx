@@ -13,19 +13,13 @@ import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 import { ProjectFavicon } from "./ProjectFavicon";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { COMMAND_PALETTE_META_ICON_CLASS, CommandPaletteMetaDot } from "./ThreadCommandSubtitle";
-import { T } from "gt-react";
+import { T, useGT } from "gt-react";
 
 export interface CommandPaletteProjectLocation {
   readonly kind: "local" | "remote";
   readonly label: string;
   readonly machine: EnvironmentMachineKind;
 }
-
-const UNKNOWN_PROJECT_LOCATION: CommandPaletteProjectLocation = {
-  kind: "remote",
-  label: "Remote",
-  machine: "server",
-};
 
 interface ProjectItemsInput {
   readonly projects: ReadonlyArray<CommandPaletteProject>;
@@ -107,7 +101,12 @@ function ProjectLocationDescription(props: {
   readonly workspaceRoot: string;
   readonly current?: boolean;
 }) {
-  const location = props.location ?? UNKNOWN_PROJECT_LOCATION;
+  const gt = useGT();
+  const location: CommandPaletteProjectLocation = props.location ?? {
+    kind: "remote",
+    label: gt("Remote", { $context: "machine location" }),
+    machine: "server",
+  };
   return (
     <span className="flex min-w-0 items-center gap-1">
       {props.current ? (

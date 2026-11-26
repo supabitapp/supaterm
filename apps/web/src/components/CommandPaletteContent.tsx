@@ -54,7 +54,7 @@ type CommandPaletteContentProps = Omit<ComponentProps<typeof Command>, "children
 
 export function CommandPaletteContent({
   children,
-  escapeLabel = "Close",
+  escapeLabel,
   footerActionLabel,
   footerTrailing,
   inputAccessory,
@@ -120,7 +120,7 @@ export function CommandPaletteContent({
             ) : null}
             <KbdGroup>
               <Kbd>Esc</Kbd>
-              <span>{escapeLabel}</span>
+              <span>{escapeLabel ?? <T>Close</T>}</span>
             </KbdGroup>
           </div>
           {footerTrailing}

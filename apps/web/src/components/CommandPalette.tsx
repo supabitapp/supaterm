@@ -298,14 +298,18 @@ import { useChatPaneStore } from "../chatPanes/store";
 import { focusAdjacentPaneFromKeyboard } from "../chatPanes/actions";
 import { threadRecentUse } from "@supaterm/shared/paletteSearch";
 import { isImeComposing } from "~/lib/imeComposition";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, useMessages, msg, Var } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
 const ADD_PROJECT_ENTRY_GROUP = "add-project";
 const NEW_THREAD_IN_GROUP = "projects";
 
 /** The submenu an open intent starts in; its groups resolve while rendering. */
-function openIntentView(intent: CommandPaletteOpenIntent | null): CommandPaletteView | null {
+function openIntentView(
+  intent: CommandPaletteOpenIntent | null,
+  resolve: MessageResolver,
+): CommandPaletteView | null {
   switch (intent?.kind) {
     case "add-project":
       return {
@@ -315,12 +319,12 @@ function openIntentView(intent: CommandPaletteOpenIntent | null): CommandPalette
     case "new-thread-in":
       return {
         addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
-        groups: [{ value: NEW_THREAD_IN_GROUP, label: "Projects", items: [] }],
+        groups: [{ value: NEW_THREAD_IN_GROUP, label: resolve(msg("Projects")), items: [] }],
       };
     case "change-theme":
       return {
         addonIcon: <PaletteIcon className={ADDON_ICON_CLASS} />,
-        groups: [{ value: "themes", label: msg("Change theme"), items: [] }],
+        groups: [{ value: "themes", label: resolve(msg("Change theme")), items: [] }],
       };
     case "search":
     case undefined:
@@ -439,6 +443,7 @@ function OpenCommandPaletteDialog(props: {
   readonly initialContext: CommandPaletteReturnContext | undefined;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const navigate = useNavigate();
   const pathname = useLocation({ select: (location) => location.pathname });
   const composerHandleRef = useComposerHandleContext();
@@ -454,7 +459,7 @@ function OpenCommandPaletteDialog(props: {
   );
   const linkedThreadSearch = initialSearch.linkedThreadSearch;
   const [searchState, dispatchSearch] = useReducer(reduceCommandPaletteSearchState, null, () => {
-    const view = props.initialContext ? null : openIntentView(props.openIntent);
+    const view = props.initialContext ? null : openIntentView(props.openIntent, messages);
     return view
       ? { query: "", views: [{ view, parentQuery: "" }] }
       : createCommandPaletteSearchState(initialSearch.query);
@@ -542,7 +547,7 @@ function OpenCommandPaletteDialog(props: {
     onError: (message) =>
       toastManager.add({
         type: "error",
-        title: "Could not start a side chat",
+        title: gt("Could not start a side chat"),
         description: message,
       }),
   });
@@ -1153,7 +1158,7 @@ function OpenCommandPaletteDialog(props: {
             />
             <TooltipPopup align="end" side="left">
               {disabledHint ??
-                "Open Settings -> Source control & issues to configure this provider."}
+                gt("Open Settings -> Source control & issues to configure this provider.")}
             </TooltipPopup>
           </Tooltip>
         </span>
@@ -1343,9 +1348,12 @@ function OpenCommandPaletteDialog(props: {
         value: "action:new-thread",
         searchTerms: ["new thread", "chat", "create", "draft"],
         title: (
-          <>
-            New thread in <span className="font-semibold">{activeProjectTitle}</span>
-          </>
+          <T>
+            New thread in{" "}
+            <span className="font-semibold">
+              <Var>{activeProjectTitle}</Var>
+            </span>
+          </T>
         ),
         searchTitle: gt("New thread in {project}", { project: activeProjectTitle }),
         icon: <SquarePenIcon className={ITEM_ICON_CLASS} />,
@@ -1369,7 +1377,7 @@ function OpenCommandPaletteDialog(props: {
       icon: <SquarePenIcon className={ITEM_ICON_CLASS} />,
       addonIcon: <SquarePenIcon className={ADDON_ICON_CLASS} />,
       shortcutCommand: "projectPicker.toggle",
-      groups: [{ value: NEW_THREAD_IN_GROUP, label: "Projects", items: projectThreadItems }],
+      groups: [{ value: NEW_THREAD_IN_GROUP, label: gt("Projects"), items: projectThreadItems }],
     });
   }
 
@@ -1390,7 +1398,7 @@ function OpenCommandPaletteDialog(props: {
       kind: "action",
       value: "action:voice-input",
       searchTerms: ["voice", "dictate", "dictation", "microphone", "speak", "record", "transcribe"],
-      title: "Start voice input",
+      title: gt("Start voice input"),
       icon: <MicIcon className={ITEM_ICON_CLASS} />,
       shortcutCommand: "composer.voice",
       run: async () => toggleVoiceInput(),
@@ -1412,7 +1420,7 @@ function OpenCommandPaletteDialog(props: {
         "triage",
         "help",
       ],
-      title: "Send feedback",
+      title: gt("Send feedback"),
       icon: <MessageSquareTextIcon className={ITEM_ICON_CLASS} />,
       run: () => startTriage(triageEnvironmentId),
     });
@@ -1440,7 +1448,7 @@ function OpenCommandPaletteDialog(props: {
       {
         kind: "action",
         value: "action:pane-split-right",
-        title: "Open a thread on the right",
+        title: gt("Open a thread on the right"),
         searchTerms: ["split", "side by side", "pane", "right", "beside"],
         icon: <ColumnsIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "pane.splitRight",
@@ -1450,7 +1458,7 @@ function OpenCommandPaletteDialog(props: {
       {
         kind: "action",
         value: "action:pane-split-down",
-        title: "Open a thread below",
+        title: gt("Open a thread below"),
         searchTerms: ["split", "pane", "down", "below", "stack"],
         icon: <RowsIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "pane.splitDown",
@@ -1466,7 +1474,7 @@ function OpenCommandPaletteDialog(props: {
       {
         kind: "action",
         value: "action:pane-close",
-        title: "Close pane",
+        title: gt("Close pane"),
         searchTerms: ["pane", "close", "split"],
         icon: <XIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "pane.close",
@@ -1478,7 +1486,7 @@ function OpenCommandPaletteDialog(props: {
       {
         kind: "action",
         value: "action:pane-close-others",
-        title: "Close other panes",
+        title: gt("Close other panes"),
         searchTerms: ["pane", "close", "others", "unsplit", "single"],
         icon: <SquareIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "pane.closeOthers",
@@ -1490,7 +1498,7 @@ function OpenCommandPaletteDialog(props: {
       {
         kind: "action",
         value: "action:pane-focus-next",
-        title: "Focus next pane",
+        title: gt("Focus next pane"),
         searchTerms: ["pane", "focus", "next", "switch"],
         icon: <ArrowRightIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "pane.focusNext",
@@ -1501,7 +1509,7 @@ function OpenCommandPaletteDialog(props: {
       {
         kind: "action",
         value: "action:pane-equalize",
-        title: "Make panes the same size",
+        title: gt("Make panes the same size"),
         searchTerms: ["pane", "equalize", "even", "reset", "size"],
         icon: <ColumnsIcon className={ITEM_ICON_CLASS} />,
         run: async () => {
@@ -1603,7 +1611,7 @@ function OpenCommandPaletteDialog(props: {
           kind: "action",
           value: "action:fork-thread",
           searchTerms: ["fork", "thread", "branch", "conversation", "duplicate"],
-          title: "Fork thread",
+          title: gt("Fork thread"),
           icon: <GitForkIcon className={ITEM_ICON_CLASS} />,
           shortcutCommand: "thread.fork",
           disabled: forkDisabled,
@@ -1616,7 +1624,7 @@ function OpenCommandPaletteDialog(props: {
         kind: "action",
         value: "action:side-chat",
         searchTerms: ["side chat", "btw", "aside", "question", "ask"],
-        title: "Start side chat",
+        title: gt("Start side chat"),
         icon: <MessagesSquareIcon className={ITEM_ICON_CLASS} />,
         shortcutCommand: "thread.sideChat",
         run: async () => sideChat.openDraft(),
@@ -1693,7 +1701,7 @@ function OpenCommandPaletteDialog(props: {
   if (activeThread !== null) {
     const { items, run } = threadActions(activeThread);
     actionItems.push(
-      ...buildThreadPaletteItems(items, run).filter(
+      ...buildThreadPaletteItems(items, run, messages).filter(
         // Without a pull request, the copy-reference command above already copies the thread ID.
         (item) =>
           item.value !== "action:thread:copy-thread-id" ||
@@ -1850,7 +1858,7 @@ function OpenCommandPaletteDialog(props: {
       "timer",
       "run automatically",
     ],
-    title: "Open automations",
+    title: gt("Open automations"),
     icon: <CalendarClockIcon className={ITEM_ICON_CLASS} />,
     shortcutCommand: "automations.open",
     run: async () => {
