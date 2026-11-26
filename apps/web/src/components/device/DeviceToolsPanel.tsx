@@ -393,6 +393,7 @@ function ChoiceSelect<V extends string>(props: {
   readonly onChange: (value: V) => Promise<unknown>;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const current = props.options.find((option) => option.value === props.value);
   return (
     <Select
@@ -405,7 +406,7 @@ function ChoiceSelect<V extends string>(props: {
       <SelectTrigger size="xs" className="w-40" aria-label={props.ariaLabel}>
         <SelectValue>
           {current ? (
-            current.label
+            m(current.label)
           ) : (
             <span className="text-muted-foreground">{props.placeholder ?? gt("Unknown")}</span>
           )}
@@ -414,7 +415,7 @@ function ChoiceSelect<V extends string>(props: {
       <SelectPopup align="end" alignItemWithTrigger={false}>
         {props.options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
-            {option.label}
+            {m(option.label)}
           </SelectItem>
         ))}
       </SelectPopup>

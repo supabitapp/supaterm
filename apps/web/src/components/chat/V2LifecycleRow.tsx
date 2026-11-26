@@ -369,11 +369,11 @@ const NOTIFICATION_OUTCOME_STATUS: Record<
 };
 
 const NOTIFICATION_OUTCOME_LABEL: Record<OrchestrationV2Notification["outcome"], string> = {
-  completed: "Finished",
-  failed: "Failed",
-  cancelled: "Stopped",
-  updated: "Updated",
-  unknown: "Finished",
+  completed: msg("Finished", { $context: "subagent task outcome" }),
+  failed: msg("Failed", { $context: "subagent task outcome" }),
+  cancelled: msg("Stopped", { $context: "subagent task outcome" }),
+  updated: msg("Updated", { $context: "subagent task outcome" }),
+  unknown: msg("Finished", { $context: "subagent task outcome" }),
 };
 
 export function SubagentNotificationLink(props: {
@@ -387,6 +387,7 @@ export function SubagentNotificationLink(props: {
   readonly fallback: ReactNode;
 }) {
   const gt = useGT();
+  const m = useMessages();
   // Follow-up tasks share a child conversation; this notice reports a particular task result.
   const agent = useAtomValue(
     environmentThreadDetails.threadAtom(props.parentRef),
@@ -422,7 +423,7 @@ export function SubagentNotificationLink(props: {
         : {
             event: {
               status: NOTIFICATION_OUTCOME_STATUS[props.outcome],
-              label: NOTIFICATION_OUTCOME_LABEL[props.outcome],
+              label: m(NOTIFICATION_OUTCOME_LABEL[props.outcome]),
               timestamp: formatShortTimestamp(props.createdAt, props.timestampFormat),
             },
           })}
