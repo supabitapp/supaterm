@@ -30,6 +30,7 @@ import {
   dispatchedCommands,
   emitThreadEvent,
   installFakeEnvironment,
+  runningRun,
   threadWithHistory,
   type FakeDriver,
 } from "../../test/fakeEnvironment";
@@ -266,6 +267,46 @@ it("the approve shortcut answers the approval the timeline shows first", async (
       ),
     ).toEqual([[newerRequest, "accept"]]),
   );
+});
+
+it("a queued message sending on one thread leaves the next thread's queue usable in the same pane", async () => {
+  const withQueuedRun = (name: string) => {
+    const history = threadWithHistory(name, 1);
+    const queued = runningRun(history.id, `${name}-queued`, 2, `${name}-queued`);
+    return { ...history, runs: [...history.runs, { ...queued, status: "queued" as const }] };
+  };
+  const first = withQueuedRun("queue-first");
+  const second = withQueuedRun("queue-second");
+  using _environment = installFakeEnvironment([first, second]);
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${second.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  const open = async (threadId: ThreadId) => {
+    await act(() =>
+      router.navigate({
+        to: "/$environmentId/$threadId",
+        params: { environmentId: ENVIRONMENT_ID, threadId },
+      }),
+    );
+    await expect.element(page.getByText(`Answer 0 for ${threadId}.`)).toBeVisible();
+  };
+  const sendNow = page.getByRole("button", { name: "Send now" });
+  await expect.element(sendNow).toBeEnabled();
+  await open(first.id);
+  await sendNow.click();
+  await expect.element(sendNow).toBeDisabled();
+
+  await open(second.id);
+  await expect.element(sendNow).toBeEnabled();
 });
 
 it("a stashed prompt ending in a file chip restores with the chip", async () => {

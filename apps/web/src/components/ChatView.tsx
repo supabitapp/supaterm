@@ -3277,6 +3277,7 @@ export default function ChatView(props: ChatViewProps) {
   const queuedRunsControl =
     isServerThread && activeThread ? (
       <QueuedRunsControl
+        key={routeThreadKey}
         ref={queuedRunsControlRef}
         steerShortcutLabel={shortcutLabelForCommand(keybindings, "thread.steerQueuedMessage", {
           context: { terminalFocus: false },
