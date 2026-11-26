@@ -142,7 +142,14 @@ function ProviderSetupActions({
     installation === null
       ? gt("Checking the Antigravity runtime.")
       : installation?.phase === "downloading"
-        ? `Downloading ${(installation.downloadedBytes / 1_000_000).toFixed(1)} MB${installation.totalBytes === null ? "" : ` of ${(installation.totalBytes / 1_000_000).toFixed(1)} MB`}.`
+        ? installation.totalBytes === null
+          ? gt("Downloading {downloaded} MB.", {
+              downloaded: (installation.downloadedBytes / 1_000_000).toFixed(1),
+            })
+          : gt("Downloading {downloaded} MB of {total} MB.", {
+              downloaded: (installation.downloadedBytes / 1_000_000).toFixed(1),
+              total: (installation.totalBytes / 1_000_000).toFixed(1),
+            })
         : installation?.phase === "extracting"
           ? gt("Extracting Antigravity.")
           : installation?.phase === "verifying"
@@ -154,8 +161,10 @@ function ProviderSetupActions({
                   ? gt("The configured Antigravity runtime is unavailable.")
                   : gt("The configured Antigravity runtime has not been checked.")
                 : installation?.totalBytes
-                  ? `${Math.ceil(installation.totalBytes / 1_000_000)} MB download.`
-                  : "Not installed.";
+                  ? gt("{size} MB download.", {
+                      size: Math.ceil(installation.totalBytes / 1_000_000),
+                    })
+                  : gt("Not installed.");
 
   async function runCommand<A, E>(
     label: string,
@@ -279,7 +288,9 @@ function ProviderSetupActions({
                 <RemoveRuntimeButton
                   environmentLabel={environmentLabel}
                   disabled={actionsDisabled || authActive}
-                  onRemove={() => void runCommand("Removing runtime", () => removeInstall(target))}
+                  onRemove={() =>
+                    void runCommand(gt("Removing runtime"), () => removeInstall(target))
+                  }
                 />
               ) : null}
             </div>

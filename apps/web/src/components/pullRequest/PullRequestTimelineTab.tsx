@@ -387,6 +387,7 @@ function ConversationGroup({
   onOpen: (url: string) => void;
   reactions: ReactionSurface;
 }) {
+  const gt = useGT();
   const [open, setOpen] = useState(
     () =>
       revealAnchor != null &&
@@ -414,11 +415,17 @@ function ConversationGroup({
           >
             <span className="min-w-0 flex-1">
               <span className="block text-xs font-semibold">
-                {events.length.toLocaleString()} {events.length === 1 ? "comment" : "comments"}
+                {gt("{count, plural, one {{formatted} comment} other {{formatted} comments}}", {
+                  count: events.length,
+                  formatted: events.length.toLocaleString(),
+                })}
               </span>
               <span className="block truncate text-3xs text-muted-foreground">
-                {actors.length.toLocaleString()} {actors.length === 1 ? "author" : "authors"} ·{" "}
-                <RelativeTime timestamp={first.at} />
+                {gt("{count, plural, one {{formatted} author} other {{formatted} authors}}", {
+                  count: actors.length,
+                  formatted: actors.length.toLocaleString(),
+                })}{" "}
+                · <RelativeTime timestamp={first.at} />
               </span>
             </span>
             <ChevronDownIcon
@@ -471,6 +478,7 @@ function ReviewThreadEvent({
   onOpen: (url: string) => void;
   reactions: ReactionSurface;
 }) {
+  const gt = useGT();
   const dismissed = pullRequestReviewOutcome(event.reviewState) === "dismissed";
   const [expanded, setExpanded] = useState(
     () =>
@@ -530,7 +538,11 @@ function ReviewThreadEvent({
             {replyCount > 0 ? (
               <>
                 {" "}
-                · {replyCount.toLocaleString()} {replyCount === 1 ? "reply" : "replies"}
+                ·{" "}
+                {gt("{count, plural, one {{formatted} reply} other {{formatted} replies}}", {
+                  count: replyCount,
+                  formatted: replyCount.toLocaleString(),
+                })}
               </>
             ) : null}
           </span>

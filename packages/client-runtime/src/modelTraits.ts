@@ -7,6 +7,8 @@ import {
 } from "@supaterm/shared/model";
 import type { SpeedToggle } from "./providerSpeedToggle.ts";
 import { REASONING_EFFORT_OPTION_IDS } from "./state/threadExecution.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 const REASONING_DESCRIPTOR_IDS: ReadonlySet<string> = new Set([
   ...REASONING_EFFORT_OPTION_IDS,
@@ -117,7 +119,9 @@ export function buildTraitsTriggerLabel(input: {
   ultrathinkPromptControlled: boolean;
   modelSelection?: ModelSelection | null;
   reportedModelSelection?: ModelSelection | null | undefined;
+  resolve?: MFunctionType;
 }): string {
+  const resolve = input.resolve ?? mFallback;
   let speedFallbackLabel: string | null = null;
   const labels: Array<string> = [];
   const singleOptionLabels: Array<string> = [];
@@ -140,7 +144,9 @@ export function buildTraitsTriggerLabel(input: {
       input.ultrathinkPromptControlled && descriptor.id === input.primarySelectDescriptorId
         ? "Ultrathink"
         : descriptor.type === "boolean"
-          ? `${descriptor.label} ${descriptor.currentValue === true ? "On" : "Off"}`
+          ? descriptor.currentValue === true
+            ? resolve(msg("{label} On", { label: descriptor.label }))
+            : resolve(msg("{label} Off", { label: descriptor.label }))
           : (getProviderOptionCurrentLabel(
               descriptor,
               input.modelSelection,

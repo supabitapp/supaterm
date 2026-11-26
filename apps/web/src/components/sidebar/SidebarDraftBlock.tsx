@@ -115,7 +115,9 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
       ? promptPreview
       : attachmentCount === 0 && props.terminalLabel !== null
         ? props.terminalLabel
-        : `${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`;
+        : gt("{count, plural, one {{count} attachment} other {{count} attachments}}", {
+            count: attachmentCount,
+          });
   const accessibility = resolveSidebarRowAccessibility({
     title: preview,
     statusLabel: gt("Unsent draft"),

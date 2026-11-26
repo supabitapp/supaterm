@@ -107,7 +107,7 @@ import {
   saveUsagePagePreferences,
   type UsagePagePreferences,
 } from "./usagePagePreferences";
-import { T, useMessages, useGT, Var } from "gt-react";
+import { T, useMessages, useGT, Var, useLocale } from "gt-react";
 
 function isUsageMetric(value: string | null | undefined): value is UsageMetric {
   return METRIC_OPTIONS.some((option) => option.value === value);
@@ -209,6 +209,7 @@ function UsageModelDialogHost({
 }
 
 export function UsagePage() {
+  const locale = useLocale();
   const gt = useGT();
   const [preferences, setPreferences] = useState(readUsagePagePreferences);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -385,8 +386,14 @@ export function UsagePage() {
 
   const windowLabel =
     shownHourly && shownWindow.sinceTime !== undefined && shownWindow.untilTime !== undefined
-      ? `${formatDateTimeShort(shownWindow.sinceTime, shownWindow.timeZone, hour12)} to ${formatDateTimeShort(shownWindow.untilTime, shownWindow.timeZone, hour12)}`
-      : `${formatDayShort(shownWindow.sinceDay)} to ${formatDayShort(shownWindow.untilDay)}`;
+      ? gt("{start} to {end}", {
+          start: formatDateTimeShort(shownWindow.sinceTime, shownWindow.timeZone, hour12, locale),
+          end: formatDateTimeShort(shownWindow.untilTime, shownWindow.timeZone, hour12, locale),
+        })
+      : gt("{start} to {end}", {
+          start: formatDayShort(shownWindow.sinceDay, locale),
+          end: formatDayShort(shownWindow.untilDay, locale),
+        });
   const topbarContent = (
     <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 py-2 @4xl/usage-header:flex">
       <WorkspaceBreadcrumb ariaLabel={gt("Usage breadcrumb")} className="min-w-0">
@@ -756,9 +763,10 @@ function UsageOverview({
             const totals = merged.providers.find((entry) => entry.provider === provider);
             const share = metric === "cost" ? (totals?.costShare ?? 0) : (totals?.tokenShare ?? 0);
             const providerSessions = totals?.sessions ?? 0;
-            const sessionLabel = `${formatCount(providerSessions)} ${
-              providerSessions === 1 ? "session" : "sessions"
-            }`;
+            const sessionLabel = gt(
+              "{count, plural, one {{formatted} session} other {{formatted} sessions}}",
+              { count: providerSessions, formatted: formatCount(providerSessions) },
+            );
             const providerLoading = loadingProviders.has(provider);
             const awaitingData = providerLoading && !providersWithData.has(provider);
             return (
@@ -1283,7 +1291,7 @@ function UsageEnvironmentFilter({
                       ? gt("Refreshing…")
                       : progress.phase === "partway"
                         ? updatingProvidersLabel(progress.providers, providerLabel, messages)
-                        : "Ready";
+                        : gt("Ready", { $context: "environment usage status" });
           return (
             <MenuCheckboxItem
               key={environment.environmentId}

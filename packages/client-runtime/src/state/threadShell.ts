@@ -25,6 +25,8 @@ import {
   threadKey,
   threadRefsEqual,
 } from "./entities.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 const EMPTY_THREADS: ReadonlyArray<OrchestrationV2ThreadShell> = Object.freeze([]);
 const EMPTY_SCOPED_THREAD_REFS: ReadonlyArray<ScopedThreadRef> = Object.freeze([]);
@@ -196,15 +198,27 @@ const sameRequests = (
 
 export function childThreadInputsTitle(
   children: ReadonlyArray<Pick<EnvironmentThreadShell, "hasPendingApprovals" | "lineage">>,
+  resolve: MFunctionType = mFallback,
 ): string {
   const approvals = children.filter((child) => child.hasPendingApprovals).length;
   const need = approvals === 0 ? "input" : approvals === children.length ? "approval" : "you";
   const sideChats = children.filter((child) => child.lineage.sideChat === true).length;
-  const noun =
-    sideChats === children.length ? "side chat" : sideChats === 0 ? "subagent" : "thread";
-  return children.length === 1
-    ? `${noun === "side chat" ? "Side chat" : "Subagent"} needs ${need}`
-    : `${children.length} ${noun}s need ${need}`;
+  const noun = sideChats === children.length ? "sideChat" : sideChats === 0 ? "subagent" : "thread";
+  if (children.length === 1) {
+    return noun === "sideChat"
+      ? need === "approval"
+        ? resolve(msg("Side chat needs approval"))
+        : resolve(msg("Side chat needs input"))
+      : need === "approval"
+        ? resolve(msg("Subagent needs approval"))
+        : resolve(msg("Subagent needs input"));
+  }
+  return resolve(
+    msg(
+      "{noun, select, sideChat {{count} side chats} subagent {{count} subagents} other {{count} threads}} need {need, select, approval {approval} you {you} other {input}}",
+      { noun, need, count: children.length },
+    ),
+  );
 }
 
 const sameWireThreadShell = Schema.toEquivalence(OrchestrationV2ThreadShell);

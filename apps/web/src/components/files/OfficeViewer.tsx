@@ -307,7 +307,7 @@ function ExtendedOfficeViewer(props: {
             formatted: sheet.columns.toLocaleString(),
           })}
           {fileSize !== undefined
-            ? ` · ${fileSize === 0 ? "0 bytes" : formatAttachmentSize(fileSize)}`
+            ? ` · ${fileSize === 0 ? gt("0 bytes") : formatAttachmentSize(fileSize)}`
             : ""}
         </div>
       ) : null}
@@ -322,7 +322,7 @@ function ExtendedOfficeViewer(props: {
             <DocumentPages
               html={documentPage.html}
               name={`${props.name}: ${pageTitle(page)}`}
-              details={`${documentDetails}${fileSize !== undefined ? ` · ${fileSize === 0 ? "0 bytes" : formatAttachmentSize(fileSize)}` : ""}`}
+              details={`${documentDetails}${fileSize !== undefined ? ` · ${fileSize === 0 ? gt("0 bytes") : formatAttachmentSize(fileSize)}` : ""}`}
             />
           </Suspense>
         </>

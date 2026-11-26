@@ -450,7 +450,9 @@ export function ComposerDictationConfirmAction(props: {
   readonly submitsMessage?: boolean;
 }) {
   const gt = useGT();
-  const confirmationLabel = props.submitsMessage ? "Transcribe and send" : "Finish dictation";
+  const confirmationLabel = props.submitsMessage
+    ? gt("Transcribe and send")
+    : gt("Finish dictation");
   return (
     <SessionCapsuleButton
       accessibilityLabel={

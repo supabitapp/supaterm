@@ -39,7 +39,7 @@ import {
   pullRequestChecksStatePresentation,
   resolvePullRequestState,
 } from "./pullRequestPresentation";
-import { msg, T, useGT, useMessages } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { changeRequestTermKind } from "./changeRequestTerm";
 import { resolveFilterOptions } from "./pullRequestListOptions";
 
@@ -250,7 +250,12 @@ export function PullRequestDetailGhost({
               updated={
                 seed ? (
                   <span>
-                    updated <RelativeTime timestamp={seed.updatedAt} />
+                    <T context="followed by a relative time such as 5m ago or just now">
+                      updated{" "}
+                      <Var>
+                        <RelativeTime timestamp={seed.updatedAt} />
+                      </Var>
+                    </T>
                   </span>
                 ) : (
                   <GhostBar className="h-3 w-16" />
@@ -302,7 +307,10 @@ export function PullRequestDetailGhost({
                 changedFiles === null ? (
                   <GhostBar className="h-3 w-10" />
                 ) : (
-                  `${changedFiles.toLocaleString()} ${changedFiles === 1 ? "file" : "files"}`
+                  gt("{count, plural, one {{formatted} file} other {{formatted} files}}", {
+                    count: changedFiles,
+                    formatted: changedFiles.toLocaleString(),
+                  })
                 )
               }
               diffStat={

@@ -19,9 +19,10 @@ export type SecretRequestItem = Extract<
 >;
 
 /** The agent's commands read the value from a file, so the card must not promise more. */
-export const SECRET_REQUEST_PRIVACY_NOTE =
-  "Secrets are kept out of chat history and automatically deleted";
-const SECRET_REQUEST_DEFAULT_PLACEHOLDER = "Paste the secret";
+export const SECRET_REQUEST_PRIVACY_NOTE = msg(
+  "Secrets are kept out of chat history and automatically deleted",
+);
+const SECRET_REQUEST_DEFAULT_PLACEHOLDER = msg("Paste the secret");
 
 export interface SecretRequestInput {
   /** Key in the card's values: the field name, or "" for a request without fields. */

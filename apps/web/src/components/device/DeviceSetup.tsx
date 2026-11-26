@@ -20,10 +20,12 @@ import { m, type MessageResolver } from "~/i18n/messages";
 
 const platformName = (platform: DevicePlatform) => (platform === "ios" ? "iOS" : "Android");
 
-export const deviceHubDescription =
-  "Open simulators and emulators here or on a remote device host.";
-export const agentDeviceDescription =
-  "Let new agent sessions start and control devices. Required tools set up automatically.";
+export const deviceHubDescription = msg(
+  "Open simulators and emulators here or on a remote device host.",
+);
+export const agentDeviceDescription = msg(
+  "Let new agent sessions start and control devices. Required tools set up automatically.",
+);
 
 /** Platforms whose latest listing on a ready host may be missing devices. */
 export const incompleteListings = (
@@ -184,6 +186,7 @@ export function DeviceSetup(props: {
   readonly state: DeviceServiceState;
   readonly onComplete?: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const canConfigure = useEnvironmentScope(props.environmentId, AuthSettingsWriteScope);
   const configure = useAtomCommand(deviceEnvironment.configure);
@@ -233,7 +236,7 @@ export function DeviceSetup(props: {
               <T>Enable the device hub</T>
             </h3>
             <div className="flex items-start justify-between gap-4">
-              <p className="text-muted-foreground">{deviceHubDescription}</p>
+              <p className="text-muted-foreground">{messages(deviceHubDescription)}</p>
               <Switch
                 checked={enabled}
                 disabled={!canConfigure || busy || pending !== null}
@@ -278,7 +281,7 @@ export function DeviceSetup(props: {
               <T>Allow agent control</T>
             </h3>
             <div className="flex items-start justify-between gap-4">
-              <p className="text-muted-foreground">{agentDeviceDescription}</p>
+              <p className="text-muted-foreground">{messages(agentDeviceDescription)}</p>
               <Switch
                 checked={props.state.agentAccessEnabled}
                 disabled={!canConfigure || !enabled || busy || pending !== null}
@@ -449,7 +452,12 @@ export function PlatformStatus(props: {
       <div>
         <p className="font-medium">
           {props.platform}
-          {showMessage ? null : <span className="sr-only"> ready</span>}
+          {showMessage ? null : (
+            <span className="sr-only">
+              {" "}
+              <T context="a device platform is ready">ready</T>
+            </span>
+          )}
         </p>
         {showMessage ? (
           <p className="text-xs text-muted-foreground">{props.status.message}</p>

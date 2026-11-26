@@ -18,6 +18,8 @@ import {
   runAtomCommand,
   type AtomCommand,
 } from "./runtime.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export function createAttachmentEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
@@ -208,12 +210,20 @@ export function formatAttachmentSize(sizeBytes: number): string {
   return kilobytes >= 1024 ? `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB` : `${kilobytes} KB`;
 }
 
-export function fileAttachmentTooLargeMessage(name: string, maxUploadBytes: number): string {
-  const maxUploadSize =
+export function fileAttachmentTooLargeMessage(
+  name: string,
+  maxUploadBytes: number,
+  resolve: MFunctionType = mFallback,
+): string {
+  const size =
     maxUploadBytes >= 1024 * 1024 && maxUploadBytes % (1024 * 1024) === 0
-      ? `${maxUploadBytes / (1024 * 1024)} MB`
+      ? resolve(msg("{count} MB", { count: maxUploadBytes / (1024 * 1024) }))
       : maxUploadBytes >= 1024 && maxUploadBytes % 1024 === 0
-        ? `${maxUploadBytes / 1024} KB`
-        : `${maxUploadBytes} ${maxUploadBytes === 1 ? "byte" : "bytes"}`;
-  return `'${name}' exceeds the ${maxUploadSize} attachment limit.`;
+        ? resolve(msg("{count} KB", { count: maxUploadBytes / 1024 }))
+        : resolve(
+            msg("{count, plural, one {{count} byte} other {{count} bytes}}", {
+              count: maxUploadBytes,
+            }),
+          );
+  return resolve(msg("''{name}'' exceeds the {size} attachment limit.", { name, size }));
 }

@@ -27,12 +27,12 @@ import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "./components/SettingsSection";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 
 const FOLDER_STATE_LABELS: Record<WorkspaceFolderState, string> = {
   git: msg("Git repository"),
-  plain: "Folder",
-  missing: "Missing",
+  plain: msg("Folder", { $context: "a plain folder that is not a Git repository" }),
+  missing: msg("Missing", { $context: "folder state: not found on disk" }),
 };
 
 /** Tracked folders are paths on one environment, so each checkout gets its own section. */
@@ -40,6 +40,7 @@ export function ProjectRepositoriesSection(props: {
   readonly member: EnvironmentProject;
   readonly title: string;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const { member } = props;
   const tracked = member.trackedFolders ?? [];
@@ -128,7 +129,9 @@ export function ProjectRepositoriesSection(props: {
     return (
       <SettingsSection
         title={props.title}
-        footer="Repositories inside this project's folder are part of it as soon as they are there."
+        footer={gt(
+          "Repositories inside this project's folder are part of it as soon as they are there.",
+        )}
       >
         {null}
       </SettingsSection>
@@ -143,7 +146,7 @@ export function ProjectRepositoriesSection(props: {
           icon="folder"
           label={folder.name}
           description={folder.path}
-          {...(folder.state === undefined ? {} : { detail: FOLDER_STATE_LABELS[folder.state] })}
+          {...(folder.state === undefined ? {} : { detail: m(FOLDER_STATE_LABELS[folder.state]) })}
           accessory={
             // A repository inside the project folder is there for as long as it is on disk.
             folder.discovered === true ? undefined : (

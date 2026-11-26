@@ -19,7 +19,7 @@ import {
   resolveSubagentRowPresentation,
   type SubagentRowPresentation,
 } from "./threadAgentsPresentation";
-import { useMessages } from "gt-react-native";
+import { useMessages, T, Var } from "gt-react-native";
 
 type SubagentRowSubagent = Pick<
   OrchestrationV2Subagent,
@@ -143,7 +143,9 @@ function SubagentMetadata(props: {
       </Text>
       {presentation.runsOn !== null ? (
         <Text numberOfLines={1} className="shrink text-xs text-foreground-muted">
-          on {presentation.runsOn}
+          <T>
+            on <Var>{presentation.runsOn}</Var>
+          </T>
         </Text>
       ) : null}
       <Text

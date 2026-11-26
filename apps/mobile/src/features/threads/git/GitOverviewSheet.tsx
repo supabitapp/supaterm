@@ -154,12 +154,17 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
   const currentStatusSummary =
     repository !== undefined
       ? gitStatus.data?.isRepo
-        ? `${gitStatus.data.refName ?? "Detached HEAD"} · ${statusSummary(gitStatus.data)}`
+        ? `${gitStatus.data.refName ?? gt("Detached HEAD")} · ${statusSummary(gitStatus.data)}`
         : statusSummary(gitStatus.data)
       : taskFolder !== null && trackedRepositoryCount > 0
-        ? `${taskFolder.repositories.length} ${taskFolder.repositories.length === 1 ? "repository worktree" : "repository worktrees"}`
+        ? gt(
+            "{count, plural, one {{count} repository worktree} other {{count} repository worktrees}}",
+            { count: taskFolder.repositories.length },
+          )
         : trackedRepositoryCount > 0
-          ? `${trackedRepositoryCount} ${trackedRepositoryCount === 1 ? "repository" : "repositories"}`
+          ? gt("{count, plural, one {{count} repository} other {{count} repositories}}", {
+              count: trackedRepositoryCount,
+            })
           : statusSummary(gitStatus.data);
   const currentWorktreePath = repository === undefined ? selectedThreadWorktreePath : null;
   const gitOperationLabel = gitState.gitOperationLabel;
@@ -285,11 +290,15 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
     }
     if (item.dialogAction === "commit" && status.hasWorkingTreeChanges) {
       const fileCount = status.workingTree?.files.length ?? 0;
-      return `${fileCount} file${fileCount === 1 ? "" : "s"} changed`;
+      return gt("{count, plural, one {{count} file changed} other {{count} files changed}}", {
+        count: fileCount,
+      });
     }
     if (item.dialogAction === "push" && (status.aheadCount ?? 0) > 0) {
       const ahead = status.aheadCount ?? 0;
-      return `${ahead} commit${ahead === 1 ? "" : "s"} ahead`;
+      return gt("{count, plural, one {{count} commit ahead} other {{count} commits ahead}}", {
+        count: ahead,
+      });
     }
     if (item.kind === "open_pr" && status.pr?.number != null) {
       return `${shortLabel} #${status.pr.number} ${status.pr.state ?? "open"}`;

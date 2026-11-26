@@ -106,8 +106,6 @@ export interface PendingUserInputCardProps {
 /** Long enough to see the picked option highlight before the next question replaces it. */
 const SINGLE_SELECT_ADVANCE_DELAY_MS = 200;
 
-const FALLBACK_TITLE = "Fill in the pending answers";
-
 /**
  * Both pages travel the window width on one curve, so they move as a unit and
  * sit side by side instead of overlapping; the card clips whatever is outside it.
@@ -275,8 +273,14 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   useEffect(() => cancelAutoAdvance, [cancelAutoAdvance]);
   const pushDirection = useSharedValue(1);
   const describeQuestion = (index: number) => {
-    const header = questions[index]?.header ?? FALLBACK_TITLE;
-    return questionCount > 1 ? `${header}, question ${index + 1} of ${questionCount}` : header;
+    const header = questions[index]?.header ?? gt("Fill in the pending answers");
+    return questionCount > 1
+      ? gt("{header}, question {index} of {count}", {
+          header,
+          index: index + 1,
+          count: questionCount,
+        })
+      : header;
   };
   const goToQuestion = (index: number) => {
     cancelAutoAdvance();
@@ -399,7 +403,9 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                   <T>User input needed</T>
                 </Text>
                 <Text className="font-sans text-xs text-foreground-muted">
-                  {questionCount} question{questionCount === 1 ? "" : "s"}
+                  {gt("{count, plural, one {{count} question} other {{count} questions}}", {
+                    count: questionCount,
+                  })}
                 </Text>
               </View>
               {timer}
@@ -448,11 +454,14 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                       question ? proseDirectionStyle(question.header, setDirection) : undefined
                     }
                   >
-                    {question?.header ?? FALLBACK_TITLE}
+                    {question?.header ?? gt("Fill in the pending answers")}
                   </Text>
                   {questionCount > 1 ? (
                     <Text className="font-sans text-xs tabular-nums text-foreground-muted">
-                      {questionIndex + 1} of {questionCount}
+                      {gt("{index} of {count}", {
+                        index: questionIndex + 1,
+                        count: questionCount,
+                      })}
                     </Text>
                   ) : null}
                 </QuestionPage>

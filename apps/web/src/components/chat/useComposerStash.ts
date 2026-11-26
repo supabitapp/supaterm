@@ -71,7 +71,7 @@ import { useStableCallback } from "../../hooks/useStableCallback";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 import type { ChatComposerProps } from "./ChatComposer";
 import { useInputsChanged, useInputsChangedWhileActive } from "./useInputsChanged";
-import { msg } from "gt-react";
+import { msg, useGT } from "gt-react";
 import { m } from "~/i18n/messages";
 
 /**
@@ -126,6 +126,7 @@ export function useComposerStash(input: {
     dispatchMode?: ComposerDispatchMode,
   ) => Promise<void> | null;
 }) {
+  const gt = useGT();
   const {
     environmentId,
     composerDraftTarget,
@@ -516,24 +517,24 @@ export function useComposerStash(input: {
 
   const stashSendBlockedReason =
     routeKind === "draft"
-      ? "Send one prompt to start this thread first"
+      ? gt("Send one prompt to start this thread first")
       : isEditingQueuedMessage
-        ? "Finish editing the queued message first"
+        ? gt("Finish editing the queued message first")
         : activePendingProgress
-          ? "Answer the pending question first"
+          ? gt("Answer the pending question first")
           : !canQueueMessage || !canQueueSelectedProvider
-            ? "Sending is unavailable right now"
+            ? gt("Sending is unavailable right now")
             : isSendBusy
-              ? "Wait for the current send to finish"
+              ? gt("Wait for the current send to finish")
               : sendDisabledReason;
   const stashSendAllBlockedReason = isSendingAllStash
-    ? "Sending stashed prompts…"
+    ? gt("Sending stashed prompts…")
     : stashSendBlockedReason !== null
       ? stashSendBlockedReason
       : composerDraftHasUserContent(composerDraft)
-        ? "Send or stash your draft first"
+        ? gt("Send or stash your draft first")
         : stashQueue.some((entry) => entry.pendingImageCount)
-          ? "Still saving stashed images"
+          ? gt("Still saving stashed images")
           : null;
 
   // Runs between sends, so it re-checks what the previous send may have changed:

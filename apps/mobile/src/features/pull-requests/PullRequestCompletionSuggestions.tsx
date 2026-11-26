@@ -5,7 +5,7 @@ import { GlassSurface } from "../../components/ui/GlassSurface";
 import { PullRequestAvatar } from "./PullRequestPresentation";
 import type { PullRequestCompletion } from "@supaterm/shared/pullRequestComposerTrigger";
 import type { usePullRequestCompletions } from "./usePullRequestCompletions";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const COPY = {
   mention: {
@@ -22,9 +22,14 @@ const COPY = {
   },
 } as const;
 
-const STATE_LABEL = { open: "Open", closed: "Closed", merged: "Merged" } as const;
+const STATE_LABEL = {
+  open: msg("Open", { $context: "issue or pull request state" }),
+  closed: msg("Closed", { $context: "issue or pull request state" }),
+  merged: msg("Merged", { $context: "issue or pull request state" }),
+} as const;
 
 function CompletionRow({ completion }: { readonly completion: PullRequestCompletion }) {
+  const m = useMessages();
   if (completion.kind === "mention") {
     const { actor } = completion;
     return (
@@ -51,7 +56,7 @@ function CompletionRow({ completion }: { readonly completion: PullRequestComplet
         {candidate.title}
       </Text>
       <Text className="shrink-0 text-xs text-foreground-tertiary">
-        {STATE_LABEL[candidate.state]}
+        {m(STATE_LABEL[candidate.state])}
       </Text>
     </>
   );
@@ -63,6 +68,7 @@ export function PullRequestCompletionSuggestions({
 }: {
   readonly completions: ReturnType<typeof usePullRequestCompletions>;
 }) {
+  const m = useMessages();
   const gt = useGT();
   if (completions.kind === null) return null;
   const copy = COPY[completions.kind];
@@ -77,7 +83,7 @@ export function PullRequestCompletionSuggestions({
           className="max-h-[180px]"
           keyboardShouldPersistTaps="always"
           showsVerticalScrollIndicator={false}
-          accessibilityLabel={copy.label}
+          accessibilityLabel={m(copy.label)}
         >
           {completions.candidates.map((completion, index) => (
             <Pressable
@@ -98,7 +104,7 @@ export function PullRequestCompletionSuggestions({
       ) : (
         <View className="px-3.5 py-2.5">
           <Text className="text-xs text-foreground-tertiary">
-            {copy[completions.isLoading ? "pending" : completions.failed ? "failed" : "none"]}
+            {m(copy[completions.isLoading ? "pending" : completions.failed ? "failed" : "none"])}
           </Text>
         </View>
       )}

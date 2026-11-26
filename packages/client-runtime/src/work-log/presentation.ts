@@ -255,16 +255,21 @@ export function liveActivityToolStatus(status: string | undefined, presentTense:
   return "completed";
 }
 
-function genericCommandStatusLabel(status: ReturnType<typeof liveActivityToolStatus>) {
-  return status === "inProgress"
-    ? msg("Running command")
-    : status === "failed"
-      ? msg("Failed command")
-      : status === "declined"
-        ? msg("Declined command")
-        : status === "stopped"
-          ? msg("Stopped command")
-          : msg("Ran command");
+export function genericCommandStatusLabel(
+  status: ReturnType<typeof liveActivityToolStatus>,
+  resolve: MFunctionType = mFallback,
+) {
+  return resolve(
+    status === "inProgress"
+      ? msg("Running command")
+      : status === "failed"
+        ? msg("Failed command")
+        : status === "declined"
+          ? msg("Declined command")
+          : status === "stopped"
+            ? msg("Stopped command")
+            : msg("Ran command"),
+  );
 }
 
 const GENERIC_COMMAND_TITLES = new Set(["Ran command", "Run command", "Command"]);
@@ -275,6 +280,7 @@ export function commandlessCommandLabel(
     "itemType" | "command" | "toolTitle" | "label" | "structuredPayload"
   >,
   status: ReturnType<typeof liveActivityToolStatus>,
+  resolve: MFunctionType = mFallback,
 ): string | null {
   if (entry.itemType !== "command_execution" || entry.command?.trim()) return null;
   // The provider's own title, before a client substitutes its fallback.
@@ -282,7 +288,7 @@ export function commandlessCommandLabel(
     entry.structuredPayload ? entry.structuredPayload.title : entry.toolTitle || entry.label
   )?.trim();
   return !title || GENERIC_COMMAND_TITLES.has(normalizeCompactToolLabel(title))
-    ? genericCommandStatusLabel(status)
+    ? genericCommandStatusLabel(status, resolve)
     : null;
 }
 

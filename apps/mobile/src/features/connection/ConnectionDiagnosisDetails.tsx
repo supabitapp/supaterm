@@ -21,7 +21,6 @@ import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 import { T, useGT } from "gt-react-native";
 
 const HOP_MARK = { ok: "✓", failed: "✕", unchecked: "–" } as const;
-const HOP_NOTE = { ok: "", failed: " · Failed", unchecked: " · Not checked" } as const;
 
 /** Same model as the web Settings row; null while connected, off, or not failed. */
 export function useConnectionDiagnosis(
@@ -65,7 +64,13 @@ export function ConnectionDiagnosisDetails(props: {
               hop.result === "failed" ? "text-danger-foreground" : "text-foreground-muted",
             )}
           >
-            {`${HOP_MARK[hop.result]}  ${hop.label}${HOP_NOTE[hop.result]}`}
+            {`${HOP_MARK[hop.result]}  ${hop.label}${
+              hop.result === "failed"
+                ? ` · ${gt("Failed", { $context: "connection check result" })}`
+                : hop.result === "unchecked"
+                  ? ` · ${gt("Not checked", { $context: "connection check result" })}`
+                  : ""
+            }`}
           </Text>
         ))}
       </View>

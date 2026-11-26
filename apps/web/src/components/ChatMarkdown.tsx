@@ -645,7 +645,7 @@ function useChatMarkdownState({
         let description =
           error instanceof Error
             ? error.message
-            : "The file could not be loaded. It may have been moved or deleted.";
+            : gt("The file could not be loaded. It may have been moved or deleted.");
         if (
           isAssetNotFoundError(error) &&
           error.resource._tag === "media-file" &&
@@ -663,7 +663,10 @@ function useChatMarkdownState({
               hostEnvironmentId: appAtomRegistry.get(hostEnvironmentIdAtom),
             }).mode !== "local-exec"
           ) {
-            description = `The file was not found on ${target.label} at ${error.checkedPath ?? error.resource.path}.`;
+            description = gt("The file was not found on {machine} at {path}.", {
+              machine: target.label,
+              path: error.checkedPath ?? error.resource.path,
+            });
           }
         }
         toastManager.add(
@@ -1597,6 +1600,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
     );
   },
   img: function MarkdownImage({ node, title, src, alt, ...props }) {
+    const gt = useGT();
     const {
       expandMedia,
       cwd,
@@ -1640,7 +1644,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
       const name =
         (filePath ?? classifiedSrc.split(/[?#]/, 1)[0] ?? "").split(/[\\/]/).at(-1) ||
         altText ||
-        "Audio";
+        gt("Audio", { $context: "fallback name for an audio file" });
       if (imageSource._tag !== "Direct" && !(filePath && threadRef)) {
         return <ChatMarkdownImageFallback alt={altText} copyMarkdown={copyMarkdown} kind="audio" />;
       }

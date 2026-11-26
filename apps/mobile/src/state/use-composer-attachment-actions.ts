@@ -22,7 +22,7 @@ import {
   type ComposerDraftInsertion,
 } from "./use-composer-drafts";
 import { startComposerDraftOperation } from "./composerDraftOperations";
-import { msg } from "gt-react-native";
+import { msg, useGT } from "gt-react-native";
 import { m } from "../i18n/messages";
 
 export function useComposerAttachmentActions(props: {
@@ -30,6 +30,7 @@ export function useComposerAttachmentActions(props: {
   readonly serverConfig: ServerConfig | null | undefined;
   readonly locked?: boolean;
 }) {
+  const gt = useGT();
   const reservedNames = useRef(new Map<string, Set<string>>());
   const maxUploadBytes =
     props.serverConfig?.environment.capabilities.fileAttachments?.maxUploadBytes;
@@ -63,7 +64,11 @@ export function useComposerAttachmentActions(props: {
     const problems = [
       ...(error ? [error] : []),
       ...(rejected
-        ? [`You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} attachments per message.`]
+        ? [
+            gt("You can attach up to {max} attachments per message.", {
+              max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+            }),
+          ]
         : []),
       ...(skipped ? [skipped] : []),
     ];
@@ -116,7 +121,7 @@ export function useComposerAttachmentActions(props: {
       try {
         const result = await convertPastedImagesToAttachments({ uris });
         const appended = await append(key, signal, result.attachments, insertion);
-        report("Could not paste images", result.error, appended);
+        report(gt("Could not paste images"), result.error, appended);
         if (signal.aborted) return false;
         if (result.error) return false;
         if (appended.rejected > 0) return false;
@@ -150,7 +155,7 @@ export function useComposerAttachmentActions(props: {
           ...paste.selection,
         });
         if (appended.rejected) await removePersistedComposerAttachmentFile(attachment.fileUri);
-        report("Could not attach pasted text", null, appended);
+        report(gt("Could not attach pasted text"), null, appended);
       } catch (error) {
         Dialog.alert(
           m(msg("Could not attach pasted text")),

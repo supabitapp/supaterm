@@ -230,7 +230,9 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
       ),
     ],
   };
-  const subtitle = `${draftKey ? "Draft attachment" : "Attachment"}${sizeBytes > 0 ? ` · ${formatAttachmentSize(sizeBytes)}` : ""}`;
+  const subtitle = `${
+    draftKey ? gt("Draft attachment") : gt("Attachment")
+  }${sizeBytes > 0 ? ` · ${formatAttachmentSize(sizeBytes)}` : ""}`;
   const refresh = useRefreshAssetUrl(environmentId, resource);
   const capabilities = useEnvironmentServerConfig(environmentId)?.environment.capabilities;
   const threadId = params.threadId ? ThreadId.make(params.threadId) : null;

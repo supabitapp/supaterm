@@ -47,34 +47,36 @@ import { IssueListRow } from "./IssueListRow";
 import type { WorkspaceFilterMenu } from "../layout/workspace/workspace-filter-menu";
 import { WorkspaceHeaderActions } from "../layout/workspace/WorkspaceHeaderActions";
 import { issueListFiltersAtom } from "./issueListFilters";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 const DEFAULT_ISSUE_LIST_INPUT = { state: "open", involvement: "all", limit: 50 } as const;
 const STATES = {
-  open: "Open",
-  closed: "Closed",
+  open: msg("Open", { $context: "issue state" }),
+  closed: msg("Closed", { $context: "issue state" }),
   all: msg("All states"),
 } as const satisfies Record<IssueListState, string>;
 const INVOLVEMENT = {
-  all: "Everyone",
+  all: msg("Everyone", { $context: "issue filter" }),
   assigned: msg("Assigned to you"),
   authored: msg("Opened by you"),
   mentioned: msg("Mentioning you"),
 } as const satisfies Record<IssueInvolvement, string>;
 const SORTS = {
   updated: msg("Recently updated"),
-  created: "Newest",
+  created: msg("Newest", { $context: "sort order" }),
 } as const satisfies Record<IssueListSort, string>;
 
 function choices<Value extends string>(
   options: Readonly<Record<Value, string>>,
   selected: Value,
+  resolve: MessageResolver,
   /** Prefixes the ids, for a menu that holds more than one set of choices. */
   field?: string,
 ) {
   return (Object.entries(options) as Array<[Value, string]>).map(([id, title]) => ({
     id: field ? `${field}:${id}` : id,
-    title,
+    title: resolve(title),
     state: id === selected ? ("on" as const) : ("off" as const),
   }));
 }
@@ -97,6 +99,7 @@ export function IssuesScreen(
   } = {},
 ) {
   const gt = useGT();
+  const messages = useMessages();
   const primaryColumn = use(NativePrimaryColumnContext);
   const workspace = useWorkspaceTabs()!;
   const { environments } = useWorkspaceState();
@@ -166,7 +169,10 @@ export function IssuesScreen(
           continueIssuePage(
             page,
             AsyncResult.isFailure(result)
-              ? { failure: failure instanceof Error ? failure.message : "The next page failed." }
+              ? {
+                  failure:
+                    failure instanceof Error ? failure.message : m(msg("The next page failed.")),
+                }
               : result.value,
           ),
         ] as const;
@@ -186,7 +192,7 @@ export function IssuesScreen(
     ...groups.flatMap((group) => [
       ...(group.tracker.configured
         ? []
-        : [`${group.tracker.host}: ${group.tracker.detail ?? "This tracker cannot be read."}`]),
+        : [`${group.tracker.host}: ${group.tracker.detail ?? gt("This tracker cannot be read.")}`]),
       ...group.errors.map((error) => `${error.projectTitle}: ${error.message}`),
     ]),
   ];
@@ -221,18 +227,18 @@ export function IssuesScreen(
     assignee !== null;
   // One filter menu in the header holds every filter, as the pull request list's does.
   const filterMenu: WorkspaceFilterMenu = {
-    title: STATES[state],
+    title: messages(STATES[state]),
     accessibilityLabel: gt("Filter issues"),
     actions: [
       {
         id: "state",
         title: gt("State", { $context: "issue state filter" }),
-        subactions: choices(STATES, state, "state"),
+        subactions: choices(STATES, state, messages, "state"),
       },
       {
         id: "involvement",
         title: gt("Involvement"),
-        subactions: choices(INVOLVEMENT, involvement, "involvement"),
+        subactions: choices(INVOLVEMENT, involvement, messages, "involvement"),
       },
       {
         id: "labels",
@@ -249,7 +255,7 @@ export function IssuesScreen(
       {
         id: "sort",
         title: gt("Sort", { $context: "noun, sort order menu" }),
-        subactions: choices(SORTS, sort, "sort"),
+        subactions: choices(SORTS, sort, messages, "sort"),
       },
       { id: "reset", title: gt("Reset filters"), attributes: { disabled: !customized } },
     ],

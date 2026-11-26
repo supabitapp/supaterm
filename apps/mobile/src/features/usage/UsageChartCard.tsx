@@ -35,6 +35,7 @@ export function UsageChartCard(props: {
   /** Grows the chart past `height` to match a taller neighbouring column. */
   readonly fill?: boolean;
 }) {
+  const gt = useGT();
   const { merged, metric, isPast24Hours } = props;
   const colors = useProviderColors();
   const [fillHeight, setFillHeight] = useState(0);
@@ -142,7 +143,10 @@ export function UsageChartCard(props: {
                   />
                 </Svg>
                 <Text className="text-xs text-foreground-tertiary tabular-nums">
-                  avg {format(average)}
+                  {gt("avg {value}", {
+                    value: format(average),
+                    $context: "abbreviation of average",
+                  })}
                 </Text>
               </View>
             ) : null}

@@ -75,7 +75,13 @@ export default function Spreadsheet(props: {
       .then((value) => {
         if (!value) throw new Error(m(msg("This workbook has no visible sheets.")));
         setPreview({ opened: { ...value, engine } });
-        onDetails(`${value.tabs.length} sheet${value.tabs.length === 1 ? "" : "s"}`);
+        onDetails(
+          m(
+            msg("{count, plural, one {{count} sheet} other {{count} sheets}}", {
+              count: value.tabs.length,
+            }),
+          ),
+        );
       })
       .catch(fail);
     return () => {

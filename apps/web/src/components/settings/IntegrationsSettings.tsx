@@ -176,9 +176,9 @@ const RESPONSIVE_SEED_SIZE = { width: 1280, height: 800 } as const;
 const NO_GROUPING: Intl.NumberFormatOptions = { useGrouping: false };
 
 const APPEARANCE_LABELS: Readonly<Record<PreviewAppearancePreference, string>> = {
-  system: "System",
-  light: "Light",
-  dark: "Dark",
+  system: msg("System", { $context: "appearance follows the system" }),
+  light: msg("Light", { $context: "appearance" }),
+  dark: msg("Dark", { $context: "appearance" }),
 };
 
 const zoomLabel = (zoomFactor: number) => `${Math.round(zoomFactor * 100)}%`;
@@ -537,6 +537,7 @@ function BrowserZoomSetting({ disabled }: { readonly disabled: boolean }) {
 }
 
 function BrowserAppearanceSetting({ disabled }: { readonly disabled: boolean }) {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const appearance = useClientSettings((settings) => settings.browserDefaultAppearance);
@@ -571,12 +572,12 @@ function BrowserAppearanceSetting({ disabled }: { readonly disabled: boolean }) 
             className="w-full sm:w-40"
             aria-label={gt("Default browser appearance")}
           >
-            <SelectValue>{APPEARANCE_LABELS[appearance]}</SelectValue>
+            <SelectValue>{m(APPEARANCE_LABELS[appearance])}</SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {Object.entries(APPEARANCE_LABELS).map(([value, label]) => (
               <SelectItem hideIndicator key={value} value={value}>
-                {label}
+                {m(label)}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -682,6 +683,7 @@ const LINK_TARGET_LABELS: Readonly<Record<BrowserLinkTarget, string>> = {
 };
 
 function BrowserLinkTargetSetting({ disabled }: { readonly disabled: boolean }) {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const linkTarget = useClientSettings((settings) => settings.browserLinkTarget);
@@ -713,12 +715,12 @@ function BrowserLinkTargetSetting({ disabled }: { readonly disabled: boolean }) 
           }}
         >
           <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={gt("Open links in")}>
-            <SelectValue>{LINK_TARGET_LABELS[linkTarget]}</SelectValue>
+            <SelectValue>{m(LINK_TARGET_LABELS[linkTarget])}</SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {(Object.keys(LINK_TARGET_LABELS) as ReadonlyArray<BrowserLinkTarget>).map((target) => (
               <SelectItem hideIndicator key={target} value={target}>
-                {LINK_TARGET_LABELS[target]}
+                {m(LINK_TARGET_LABELS[target])}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -735,10 +737,11 @@ const SEARCH_ENGINE_LABELS: Readonly<Record<BrowserSearchEngine, string>> = {
   brave: "Brave Search",
   kagi: "Kagi",
   ecosia: "Ecosia",
-  custom: "Custom",
+  custom: msg("Custom", { $context: "custom search engine" }),
 };
 
 function BrowserSearchEngineSetting() {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const engine = useClientSettings((settings) => settings.browserSearchEngine);
@@ -775,12 +778,12 @@ function BrowserSearchEngineSetting() {
             }}
           >
             <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={gt("Search engine")}>
-              <SelectValue>{SEARCH_ENGINE_LABELS[engine]}</SelectValue>
+              <SelectValue>{m(SEARCH_ENGINE_LABELS[engine])}</SelectValue>
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
               {BrowserSearchEngine.literals.map((literal) => (
                 <SelectItem hideIndicator key={literal} value={literal}>
-                  {SEARCH_ENGINE_LABELS[literal]}
+                  {m(SEARCH_ENGINE_LABELS[literal])}
                 </SelectItem>
               ))}
             </SelectPopup>
@@ -880,6 +883,7 @@ function DeviceIntegrationControls({
   enabled: boolean;
   agentAccessEnabled: boolean;
 }) {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const messages = useMessages();
   const gt = useGT();
@@ -1008,7 +1012,7 @@ function DeviceIntegrationControls({
         {...searchableSetting("device-hub")}
         serverScoped
         settingKeys={["enableDeviceSupport"]}
-        description={deviceHubDescription}
+        description={m(deviceHubDescription)}
         control={
           <>
             <span className="text-xs">
@@ -1099,7 +1103,7 @@ function DeviceIntegrationControls({
         {...searchableSetting("agent-device-access")}
         serverScoped
         settingKeys={["enableAgentDeviceAccess"]}
-        description={agentDeviceDescription}
+        description={m(agentDeviceDescription)}
         control={
           <>
             <span className="text-xs">
@@ -1142,9 +1146,9 @@ function DeviceIntegrationControls({
 }
 
 const AGENT_OPEN_TARGET_LABELS: Readonly<Record<BrowserAgentOpenTarget, string>> = {
-  floating: "Floating preview",
-  panel: "Right panel",
-  background: "In the background",
+  floating: msg("Floating preview"),
+  panel: msg("Right panel"),
+  background: msg("In the background"),
 };
 
 function BrowserAgentOpenTargetSetting() {

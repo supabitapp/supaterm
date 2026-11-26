@@ -48,6 +48,7 @@ import {
 } from "./useScopedSettings";
 import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
 import { msg, T, useGT, Var } from "gt-react";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export function WorktreesDirectoryRow() {
   const searchableSetting = useSearchableSetting();
@@ -230,7 +231,7 @@ function RetentionControl({
               }}
             />
             <span aria-hidden="true" className="self-center pr-2 text-xs">
-              days
+              <T context="unit after a number of days">days</T>
             </span>
             <NumberFieldIncrement aria-label={gt("Increase {label}", { label })} />
           </NumberFieldGroup>
@@ -261,12 +262,13 @@ const KEEP_WHEN_LABELS = {
 function lastRunSummary(
   entries: readonly { readonly label: string; readonly counts: string }[],
   machineCount: number,
+  resolve: MessageResolver = m,
 ) {
   const first = entries[0];
   if (!first) return "";
   if (machineCount <= 1) return first.counts;
   if (entries.length === machineCount && entries.every((entry) => entry.counts === first.counts)) {
-    return `${first.counts} on every machine`;
+    return resolve(msg("{counts} on every machine", { counts: first.counts }));
   }
   return entries.map((entry) => `${entry.label}: ${entry.counts}`).join(" · ");
 }
@@ -337,7 +339,10 @@ function CleanupResults({
                 <span className="text-xs text-muted-foreground">
                   {[
                     entry.kind !== "worktree" && entry.files !== null
-                      ? `${entry.files.toLocaleString()} ${entry.files === 1 ? "file" : "files"}`
+                      ? gt("{count, plural, one {{formatted} file} other {{formatted} files}}", {
+                          count: entry.files,
+                          formatted: entry.files.toLocaleString(),
+                        })
                       : null,
                     entry.bytes !== null ? formatBytes(entry.bytes) : null,
                   ]
@@ -431,7 +436,9 @@ function CleanupSection() {
       report,
       label: settingsScopeEnvironmentLabel(environment, connectedEnvironments),
       counts: report
-        ? `${report.counts.removed} removed, ${report.counts.kept} kept${report.counts.failed > 0 ? `, ${report.counts.failed} failed` : ""}`
+        ? report.counts.failed > 0
+          ? gt("{removed} removed, {kept} kept, {failed} failed", report.counts)
+          : gt("{removed} removed, {kept} kept", report.counts)
         : "",
       description: report
         ? report.counts.failed > 0

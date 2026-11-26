@@ -18,7 +18,8 @@ import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { CustomModelEditor } from "./CustomModelEditor";
-import { T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
+import type { MessageResolver } from "../../i18n/messages";
 
 const CUSTOM_MODEL_PLACEHOLDER_BY_KIND: Partial<Record<ProviderDriverKind, string>> = {
   [ProviderDriverKind.make("codex")]: "gpt-6.7-codex-ultra-preview",
@@ -42,6 +43,7 @@ function hasReasoningControl(model: ServerProviderModel): boolean {
 function describeModelCapabilities(
   model: ServerProviderModel,
   flagMissingReasoning: boolean,
+  resolve: MessageResolver,
 ): string[] {
   const descriptors = model.capabilities?.optionDescriptors ?? [];
   const labels: string[] = [];
@@ -52,7 +54,7 @@ function describeModelCapabilities(
         descriptor.type === "select" &&
         descriptor.options.some((option) => option.id === "fast" || option.label === "Fast")),
   );
-  if (hasFastMode) labels.push("Fast mode");
+  if (hasFastMode) labels.push(resolve(msg("Fast mode")));
   if (
     flagMissingReasoning &&
     !model.isCustom &&
@@ -60,7 +62,7 @@ function describeModelCapabilities(
     !PROVIDER_ALIAS_SLUGS.has(model.slug) &&
     !hasReasoningControl(model)
   ) {
-    labels.push("No reasoning");
+    labels.push(resolve(msg("No reasoning")));
   }
   return labels;
 }
@@ -540,7 +542,8 @@ const ProviderModelRow = memo(function ProviderModelRow({
   readonly onRemove: (slug: string) => void;
 }) {
   const gt = useGT();
-  const capLabels = describeModelCapabilities(model, flagMissingReasoning);
+  const m = useMessages();
+  const capLabels = describeModelCapabilities(model, flagMissingReasoning, m);
   const nameClassName = cn("text-xs", isHidden ? "text-muted-foreground" : "text-foreground/90");
   const pickerTooltip = model.isCustom
     ? gt("Custom models are always shown in the picker")
@@ -564,9 +567,11 @@ const ProviderModelRow = memo(function ProviderModelRow({
               variant="ghost-muted"
               disabled={!canWritePreferences}
               onClick={() => onToggleFavorite(model.slug)}
-              aria-label={`${isFavorite ? "Remove" : "Add"} ${model.name} ${
-                isFavorite ? "from" : "to"
-              } favorites`}
+              aria-label={
+                isFavorite
+                  ? gt("Remove {model} from favorites", { model: model.name })
+                  : gt("Add {model} to favorites", { model: model.name })
+              }
             />
           }
         >

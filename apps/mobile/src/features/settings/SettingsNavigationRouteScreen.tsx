@@ -70,7 +70,7 @@ export function SettingsNavigationRouteScreen() {
                   {hidden.includes(tab)
                     ? gt("Hidden", { $context: "navigation tab visibility status" })
                     : enabled.indexOf(tab) < capacity
-                      ? `Tab ${enabled.indexOf(tab) + 1}`
+                      ? gt("Tab {position}", { position: enabled.indexOf(tab) + 1 })
                       : gt("In Settings")}
                 </Text>
               </View>

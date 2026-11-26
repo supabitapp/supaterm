@@ -42,7 +42,13 @@ const VIEWPORTS = [
       width: preset.width,
       height: preset.height,
     };
-    return [{ id: `preset:${preset.id}`, title: `${category} (${preset.label})`, setting }];
+    const title =
+      category === "Phone"
+        ? msg("Phone ({preset})", { preset: preset.label, $context: "browser viewport size" })
+        : category === "Tablet"
+          ? msg("Tablet ({preset})", { preset: preset.label, $context: "browser viewport size" })
+          : msg("Desktop ({preset})", { preset: preset.label, $context: "browser viewport size" });
+    return [{ id: `preset:${preset.id}`, title, setting }];
   }),
 ];
 

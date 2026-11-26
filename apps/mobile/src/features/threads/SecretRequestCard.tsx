@@ -102,6 +102,7 @@ function PendingSecretRequestForm(props: {
   readonly item: SecretRequestItem;
   readonly iconColor: ColorValue;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { item } = props;
   const answer = useAtomCommand(serverEnvironment.answerSecretRequest, {
@@ -310,7 +311,7 @@ function PendingSecretRequestForm(props: {
             type="monochrome"
           />
           <Text className="flex-1 font-sans text-xs text-foreground-muted">
-            {SECRET_REQUEST_PRIVACY_NOTE}
+            {messages(SECRET_REQUEST_PRIVACY_NOTE)}
           </Text>
         </View>
         <Button

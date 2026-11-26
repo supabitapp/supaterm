@@ -15,7 +15,7 @@ import {
   ReadOnlyComposerLead,
   ReadOnlyComposerStatus,
 } from "./ReadOnlyComposerBar";
-import { T, useMessages } from "gt-react";
+import { T, useMessages, useGT } from "gt-react";
 
 export function ProviderSubagentBar(props: {
   readonly provider: ProviderInstanceEntry | null;
@@ -26,6 +26,7 @@ export function ProviderSubagentBar(props: {
   readonly onOpenParent: (() => void) | null;
   readonly actions?: ReactNode;
 }) {
+  const gt = useGT();
   const messages = useMessages();
   const { status } = props;
   const live = status !== null && isOrchestrationV2WorkActive(status.status);
@@ -42,7 +43,7 @@ export function ProviderSubagentBar(props: {
       actions={
         <>
           <span role="status" className="sr-only">
-            {`${modelDescription} subagent: ${announcement}`}
+            {gt("{model} subagent: {status}", { model: modelDescription, status: announcement })}
           </span>
           <span className="shrink-0 text-muted-foreground @max-[640px]/composer-surface:sr-only">
             <T>Runs on its own</T>

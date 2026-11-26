@@ -126,9 +126,9 @@ const SIDEBAR_PROJECT_SORT_ORDER_LABELS: Record<SidebarProjectSortOrder, string>
 const isSidebarProjectSortOrder = Schema.is(SidebarProjectSortOrder);
 
 const TIMESTAMP_FORMAT_LABELS = {
-  locale: "System default",
-  "12-hour": "12-hour",
-  "24-hour": "24-hour",
+  locale: msg("System default"),
+  "12-hour": msg("12-hour"),
+  "24-hour": msg("24-hour"),
 } as const;
 
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
@@ -269,7 +269,7 @@ function AboutVersionSection() {
     actionLabel[action] ?? statusLabel[updateState?.status ?? ""] ?? gt("Check for Updates");
   const description =
     action === "download" || action === "install"
-      ? "Update available."
+      ? gt("Update available.")
       : (getDesktopUpdateDisabledReason(updateState, messages) ?? null);
 
   return (
@@ -419,7 +419,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.appearanceContrast !== DEFAULT_UNIFIED_SETTINGS.appearanceContrast
       ? [gt("Contrast")]
       : []),
-    ...(settings.glassOpacity !== DEFAULT_UNIFIED_SETTINGS.glassOpacity ? ["Glass opacity"] : []),
+    ...(settings.glassOpacity !== DEFAULT_UNIFIED_SETTINGS.glassOpacity
+      ? [gt("Glass opacity")]
+      : []),
     ...(settings.diffColorScheme !== DEFAULT_UNIFIED_SETTINGS.diffColorScheme
       ? [gt("Diff colors")]
       : []),
@@ -441,7 +443,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? [gt("In-app notifications")]
       : []),
     ...(settings.sidebarThreadGrouping !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping
-      ? ["Thread grouping"]
+      ? [gt("Thread grouping")]
       : []),
     ...(settings.sidebarProjectGroupingMode !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode
       ? [gt("Project Grouping")]
@@ -451,14 +453,14 @@ export function useSettingsRestore(onRestored?: () => void) {
       : []),
     ...(settings.sidebarAutoMarkDoneAfterDays !==
     DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays
-      ? ["Automatically mark inactive threads as Done"]
+      ? [gt("Automatically mark inactive threads as Done")]
       : []),
     ...(settings.sidebarAutoMarkDoneKeepPullRequests !==
     DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneKeepPullRequests
-      ? ["Keep threads with an open PR"]
+      ? [gt("Keep threads with an open PR")]
       : []),
     ...(settings.sidebarAutoMarkDoneOnMerge !== DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneOnMerge
-      ? ["Automatically mark merged threads as Done"]
+      ? [gt("Automatically mark merged threads as Done")]
       : []),
     ...(settings.autoResumeLimitedThreads !== DEFAULT_UNIFIED_SETTINGS.autoResumeLimitedThreads
       ? [gt("Resume after usage limits")]
@@ -472,11 +474,11 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.wordWrap !== DEFAULT_UNIFIED_SETTINGS.wordWrap ? [gt("Word wrap")] : []),
     ...(settings.persistComposerContextStrip !==
     DEFAULT_UNIFIED_SETTINGS.persistComposerContextStrip
-      ? ["Usage limits"]
+      ? [gt("Usage limits")]
       : []),
     ...getChangedTypographySettingLabels(settings),
     ...(settings.diffFilesCollapsed !== DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed
-      ? ["Collapse diff files"]
+      ? [gt("Collapse diff files")]
       : []),
     ...(settings.diffIgnoreWhitespace !== DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace
       ? [gt("Diff whitespace changes")]
@@ -491,19 +493,21 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.composerRichTextEnabled !== DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled
       ? [gt("Rich text composer")]
       : []),
-    ...(settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut ? ["Send shortcut"] : []),
+    ...(settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut
+      ? [gt("Send shortcut")]
+      : []),
     ...(settings.voiceLanguage !== DEFAULT_UNIFIED_SETTINGS.voiceLanguage
-      ? ["Voice language"]
+      ? [gt("Voice language")]
       : []),
     ...(settings.voiceHoldToTalkKey !== DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey
-      ? ["Hold to talk"]
+      ? [gt("Hold to talk")]
       : []),
     ...(settings.voiceMicrophone !== DEFAULT_UNIFIED_SETTINGS.voiceMicrophone
-      ? ["Microphone"]
+      ? [gt("Microphone")]
       : []),
     ...(settings.voiceAvoidBluetoothMicrophone !==
     DEFAULT_UNIFIED_SETTINGS.voiceAvoidBluetoothMicrophone
-      ? ["Use the Mac's microphone instead of Bluetooth"]
+      ? [gt("Use the Mac's microphone instead of Bluetooth")]
       : []),
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? [gt("Follow-up behavior")]
@@ -559,7 +563,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.confirmThreadDelete !== DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete
       ? [gt("Delete confirmation")]
       : []),
-    ...(isTextGenerationModelDirty ? ["Text generation model"] : []),
+    ...(isTextGenerationModelDirty ? [gt("Text generation model")] : []),
     ...(settings.threadTitleInstructions !== DEFAULT_UNIFIED_SETTINGS.threadTitleInstructions
       ? [gt("Thread title instructions")]
       : []),
@@ -573,9 +577,10 @@ export function useSettingsRestore(onRestored?: () => void) {
     if (changedSettingLabels.length === 0) return;
     const api = readLocalApi();
     const confirmed = await (api ?? ensureLocalApi()).dialogs.confirm(
-      ["Restore default settings?", `This will reset: ${changedSettingLabels.join(", ")}.`].join(
-        "\n",
-      ),
+      [
+        gt("Restore default settings?"),
+        gt("This will reset: {settings}.", { settings: changedSettingLabels.join(", ") }),
+      ].join("\n"),
       { variant: "destructive" },
     );
     if (!confirmed) return;
@@ -707,6 +712,7 @@ export function useSettingsRestore(onRestored?: () => void) {
 const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 7;
 
 export function GeneralSettingsPanel() {
+  const messages = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
@@ -1038,17 +1044,19 @@ export function GeneralSettingsPanel() {
                 className="w-full sm:w-40"
                 aria-label={gt("Timestamp format")}
               >
-                <SelectValue>{TIMESTAMP_FORMAT_LABELS[settings.timestampFormat]}</SelectValue>
+                <SelectValue>
+                  {messages(TIMESTAMP_FORMAT_LABELS[settings.timestampFormat])}
+                </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
                 <SelectItem hideIndicator value="locale">
-                  {TIMESTAMP_FORMAT_LABELS.locale}
+                  {messages(TIMESTAMP_FORMAT_LABELS.locale)}
                 </SelectItem>
                 <SelectItem hideIndicator value="12-hour">
-                  {TIMESTAMP_FORMAT_LABELS["12-hour"]}
+                  {messages(TIMESTAMP_FORMAT_LABELS["12-hour"])}
                 </SelectItem>
                 <SelectItem hideIndicator value="24-hour">
-                  {TIMESTAMP_FORMAT_LABELS["24-hour"]}
+                  {messages(TIMESTAMP_FORMAT_LABELS["24-hour"])}
                 </SelectItem>
               </SelectPopup>
             </Select>
@@ -1066,7 +1074,10 @@ export function ChatSettingsPanel() {
   const followUpOverrideShortcut = {
     enter: `${modifierLabel} + Enter`,
     "mod-enter": `${modifierLabel} + Shift + Enter`,
-    "mod-enter-multiline": `${modifierLabel} + Enter, or ${modifierLabel} + Shift + Enter in multiline prompts,`,
+    "mod-enter-multiline": gt(
+      "{modifier} + Enter, or {modifier} + Shift + Enter in multiline prompts,",
+      { modifier: modifierLabel },
+    ),
   } as const;
   const sendShortcutOptions = [
     { value: "enter", label: "Enter" },
@@ -1250,12 +1261,13 @@ const TOOL_CALL_VISIBILITY_LABELS: Record<ToolCallVisibility, string> = {
   showAll: msg("Show all"),
   hideSuccessful: msg("Hide successful"),
   hideAll: msg("Hide all"),
-  zen: "Zen",
+  zen: msg("Zen", { $context: "tool call visibility" }),
 };
 
 const isToolCallVisibility = Schema.is(ToolCallVisibility);
 
 function ToolCallVisibilityRow() {
+  const messages = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
@@ -1284,12 +1296,14 @@ function ToolCallVisibilityRow() {
           }}
         >
           <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={gt("Tool calls in chat")}>
-            <SelectValue>{TOOL_CALL_VISIBILITY_LABELS[settings.toolCallVisibility]}</SelectValue>
+            <SelectValue>
+              {messages(TOOL_CALL_VISIBILITY_LABELS[settings.toolCallVisibility])}
+            </SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {ToolCallVisibility.literals.map((value) => (
               <SelectItem key={value} value={value}>
-                {TOOL_CALL_VISIBILITY_LABELS[value]}
+                {messages(TOOL_CALL_VISIBILITY_LABELS[value])}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -2015,7 +2029,7 @@ export function ThreadsSettingsPanel() {
               >
                 <SelectValue>
                   {(value: ResponseStreamingMode | null) =>
-                    value === null ? "Mixed" : RESPONSE_STREAMING_MODE_LABELS[value]
+                    value === null ? gt("Mixed") : RESPONSE_STREAMING_MODE_LABELS[value]
                   }
                 </SelectValue>
               </SelectTrigger>

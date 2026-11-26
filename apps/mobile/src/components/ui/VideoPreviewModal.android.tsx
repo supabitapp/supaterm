@@ -20,7 +20,7 @@ import { usePreparedConnection } from "../../state/session";
 import { AppText } from "./AppText";
 import { MediaPreviewHeader } from "../MediaPreviewHeader";
 import { MediaVideoPlayer } from "../MediaVideoPlayer";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 export type { VideoPreviewSource } from "../../lib/videoPreviewSource";
 
@@ -34,6 +34,7 @@ interface PlaybackState {
 }
 
 function useMediaPlayback(source: MediaVideoPreviewSource): PlaybackState {
+  const messages = useMessages();
   const environmentId = "environmentId" in source ? source.environmentId : null;
   const resource = "resource" in source ? source.resource : null;
   const connection = usePreparedConnection(environmentId);
@@ -51,7 +52,7 @@ function useMediaPlayback(source: MediaVideoPreviewSource): PlaybackState {
       (connection._tag === "None" || asset._tag === "Failure"),
     unavailableDetail:
       asset._tag === "Failure" && asset.reason === "missing-file-access"
-        ? MISSING_FILE_ACCESS_MESSAGE
+        ? messages(MISSING_FILE_ACCESS_MESSAGE)
         : undefined,
     error: null,
     actionsSource: source.actionsSource,
@@ -59,10 +60,11 @@ function useMediaPlayback(source: MediaVideoPreviewSource): PlaybackState {
 }
 
 function useLocalPlayback(source: LocalVideoPreviewSource): PlaybackState {
+  const gt = useGT();
   const { attachment } = source;
   const preview = useLocalAttachmentPreview(attachment);
   const { uri } = preview;
-  const error = preview.error ? preview.error.message || "Could not load this video." : null;
+  const error = preview.error ? preview.error.message || gt("Could not load this video.") : null;
   const mimeType = videoMimeType(attachment) ?? attachment.mimeType;
   return {
     uri,

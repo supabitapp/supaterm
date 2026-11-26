@@ -142,7 +142,7 @@ function SourceLinkRow({
     });
     setBusy(false);
     if (result._tag === "MintFailed" || result._tag === "LinkFailed") {
-      failureToast("Could not link the environment", result.failure);
+      failureToast(gt("Could not link the environment"), result.failure);
     }
   };
   const forget = async () => {
@@ -164,16 +164,26 @@ function SourceLinkRow({
         });
       }
     } else if (!isAtomCommandInterrupted(result)) {
-      failureToast("Could not forget the link", squashAtomCommandFailure(result));
+      failureToast(gt("Could not forget the link"), squashAtomCommandFailure(result));
     }
   };
   const choose = async (next: LinkChoice) => {
     if (busy || next === row.value) return;
     const confirmation =
       next === LINK_OFF
-        ? `Stop agents on ${source.label} from working on ${target.label}? ${source.label} forgets the link, and its session on ${target.label} ends too if it answers.`
+        ? gt(
+            "Stop agents on {source} from working on {target}? {source} forgets the link, and its session on {target} ends too if it answers.",
+            { source: source.label, target: target.label },
+          )
         : row.linked
-          ? `Let agents on ${source.label} work on ${target.label} at ${messages(accessConfig[next].label)}? ${source.label} links again with a new code. Its old session stays in ${target.label}'s Sharing & access until you revoke it there, and a task starting over the old link right now may need starting again.`
+          ? gt(
+              "Let agents on {source} work on {target} at {access}? {source} links again with a new code. Its old session stays in {target}'s Sharing & access until you revoke it there, and a task starting over the old link right now may need starting again.",
+              {
+                source: source.label,
+                target: target.label,
+                access: messages(accessConfig[next].label),
+              },
+            )
           : null;
     if (
       confirmation !== null &&

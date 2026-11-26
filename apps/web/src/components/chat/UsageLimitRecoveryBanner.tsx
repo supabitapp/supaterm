@@ -21,7 +21,7 @@ import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { copyAdminRequest } from "./ThreadErrorBanner";
 import { T, msg, useGT } from "gt-react";
-import { m } from "~/i18n/messages";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 type RecoveryProps = {
   runId: RunId;
@@ -73,15 +73,19 @@ function limitRecoveryScheduleState(
 
 export function useUsageLimitRecoveryBannerItem(
   props: RecoveryProps | null,
+  resolve: MessageResolver = m,
 ): ComposerBannerStackItem | null {
   const displayAt = props === null ? null : limitRecoveryScheduleState(props).displayAt;
   const resetPassed = useDeadlinePassed(props === null ? null : parseEpochMs(props.resetAt));
   const displayPassed = useDeadlinePassed(parseEpochMs(displayAt));
   if (props === null) return null;
-  return usageLimitRecoveryBannerItem({ ...props, resetPassed, displayPassed });
+  return usageLimitRecoveryBannerItem({ ...props, resetPassed, displayPassed }, resolve);
 }
 
-export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
+export function usageLimitRecoveryBannerItem(
+  props: RecoveryProps,
+  resolve: MessageResolver = m,
+): ComposerBannerStackItem {
   const { runId, errorCode, resetAt, timestampFormat } = props;
   const { canSchedule, resumes, displayAt } = limitRecoveryScheduleState(props);
   const resetAtMs = parseEpochMs(resetAt);
@@ -95,9 +99,15 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
   ) : null;
   const resumesUpcoming = resumes && !displayPassed;
   const shownAt = resumesUpcoming ? displayAt : resetAt;
-  const resetDescription = shownAt
-    ? `${resumesUpcoming ? "Resumes" : resetPassed ? "Reset" : "Resets"} ${formatUpcomingTimestamp(shownAt, timestampFormat)}`
-    : "Reset time unavailable; retry manually";
+  const formattedTime = shownAt ? formatUpcomingTimestamp(shownAt, timestampFormat) : null;
+  const resetDescription =
+    formattedTime !== null
+      ? resumesUpcoming
+        ? resolve(msg("Resumes {time}", { time: formattedTime }))
+        : resetPassed
+          ? resolve(msg("Reset {time}", { time: formattedTime }))
+          : resolve(msg("Resets {time}", { time: formattedTime }))
+      : resolve(msg("Reset time unavailable; retry manually"));
   if (!chatGptLimit) {
     return {
       id: `usage-limit-recovery:${runId}`,

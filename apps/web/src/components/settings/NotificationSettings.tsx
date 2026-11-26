@@ -11,9 +11,10 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { SettingsRow } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
-import { useGT } from "gt-react";
+import { useGT, useMessages } from "gt-react";
 
 export function NotificationSettings() {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const mode = useScopedSettings((settings) => settings.notificationMode);
@@ -79,12 +80,12 @@ export function NotificationSettings() {
             className="w-full sm:w-56"
             aria-label={gt("Thread notifications")}
           >
-            <SelectValue>{NOTIFICATION_MODE_LABELS[mode]}</SelectValue>
+            <SelectValue>{m(NOTIFICATION_MODE_LABELS[mode])}</SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {Object.entries(NOTIFICATION_MODE_LABELS).map(([value, label]) => (
               <SelectItem key={value} hideIndicator value={value}>
-                {label}
+                {m(label)}
               </SelectItem>
             ))}
           </SelectPopup>

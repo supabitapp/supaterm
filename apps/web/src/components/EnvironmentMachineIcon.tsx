@@ -2,6 +2,7 @@ import type { EnvironmentMachineKind } from "@supaterm/contracts";
 import { CloudIcon, type IconProps, LaptopIcon, MonitorIcon, ServerIcon } from "@supaterm/icons";
 import { useId, type FunctionComponent, type SVGProps } from "react";
 import { LinuxIcon } from "./Icons";
+import { msg } from "gt-react";
 
 // Read once per renderer, not per icon: long environment lists do no native IPC work.
 const nativeMachineIcons =
@@ -76,11 +77,11 @@ const ICON_BY_KIND: Record<EnvironmentMachineKind, FunctionComponent<IconProps>>
 };
 
 export const ENVIRONMENT_MACHINE_KIND_LABELS: Record<EnvironmentMachineKind, string> = {
-  server: "Server",
-  cloud: "Cloud VM",
-  linux: "Linux/WSL",
-  desktop: "Desktop",
-  laptop: "Laptop",
+  server: msg("Server"),
+  cloud: msg("Cloud VM"),
+  linux: msg("Linux/WSL"),
+  desktop: msg("Desktop"),
+  laptop: msg("Laptop"),
   "mac-mini": "Mac mini",
   "mac-studio": "Mac Studio",
 };

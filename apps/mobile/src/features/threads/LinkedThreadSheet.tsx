@@ -115,7 +115,7 @@ function ActivityRow(props: {
       : fetchedItem
         ? (turnItemOutputText(fetchedItem) ?? gt("No output."))
         : fetched.error
-          ? `Couldn't load output: ${fetched.error}`
+          ? gt("Couldn't load output: {error}", { error: fetched.error })
           : fetched.data
             ? gt("Output is no longer available.")
             : gt("Loading output…");

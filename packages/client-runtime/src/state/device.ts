@@ -7,7 +7,8 @@ import {
   createEnvironmentRpcCommand,
   createEnvironmentRpcSubscriptionAtomFamily,
 } from "./runtime.ts";
-import { msg } from "gt-i18n";
+import { msg, mFallback } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export function createDeviceEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
@@ -94,12 +95,15 @@ export function createDeviceEnvironmentAtoms<R, E>(
   };
 }
 
-export function deviceToolVersionLabels(tools: DeviceToolVersions | undefined) {
-  if (!tools) return ["Device tool versions have not been checked."];
+export function deviceToolVersionLabels(
+  tools: DeviceToolVersions | undefined,
+  resolve: MFunctionType = mFallback,
+) {
+  if (!tools) return [resolve(msg("Device tool versions have not been checked."))];
   return (
     [
-      ["Device hub", tools.hub],
-      ["Agent tools", tools.agent],
+      [resolve(msg("Device hub")), tools.hub],
+      [resolve(msg("Agent tools")), tools.agent],
     ] as const
   ).map(([name, tool]) => {
     const installed = tool.installedVersions.length ? tool.installedVersions.join(", ") : "none";
@@ -121,5 +125,6 @@ export function deviceToolUpdatePolicy(tools: DeviceToolVersions | undefined) {
         "Required tools are installed automatically when needed. Checking versions does not install or start anything.",
       );
 }
-export const deviceToolUpdateOwnership =
-  "This environment's Supaterm server chooses device tool versions for itself and its SSH hosts. Update that server to receive newer tool versions; updating only your browser or mobile app does not update a remote server.";
+export const deviceToolUpdateOwnership = msg(
+  "This environment's Supaterm server chooses device tool versions for itself and its SSH hosts. Update that server to receive newer tool versions; updating only your browser or mobile app does not update a remote server.",
+);

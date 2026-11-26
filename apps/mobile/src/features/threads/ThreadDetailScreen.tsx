@@ -468,6 +468,7 @@ function ThreadDetailBody(
     >;
   },
 ) {
+  const messages = useMessages();
   const resolveMessage = useMessages();
   const gt = useGT();
   const selectedThreadDetailRef: ScopedThreadRef | null = props.draftMode
@@ -842,6 +843,7 @@ function ThreadDetailBody(
   };
   const pendingBackgroundWork = presentPendingBackgroundWork(
     props.selectedThread.pendingBackgroundTasks,
+    messages,
   );
   const extensionStatus = props.extensionStatuses?.length
     ? {
@@ -883,7 +885,7 @@ function ThreadDetailBody(
         : gt("Dismiss");
     const wake =
       lifecycleSnoozed && snoozedUntil !== null
-        ? snoozeWakeLabel(snoozedUntil, { now: lifecycleNow })
+        ? snoozeWakeLabel(snoozedUntil, { now: lifecycleNow }, messages)
         : "now";
     return {
       key: "lifecycle",
@@ -975,7 +977,7 @@ function ThreadDetailBody(
     if (childInput) {
       return {
         kind: "child-input",
-        label: childThreadInputsTitle(childThreadInputs),
+        label: childThreadInputsTitle(childThreadInputs, messages),
         accessibilityLabel: childInput.hasPendingApprovals
           ? gt("Open approval from {title}", { title: childInput.title })
           : gt("Open question from {title}", { title: childInput.title }),

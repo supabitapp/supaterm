@@ -26,6 +26,7 @@ import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { request } from "../rpc/client.ts";
 import type { ProjectFaviconCache, ProjectFaviconTarget } from "../projectFaviconCache.ts";
 import { createEnvironmentQueryAtomFamily } from "./runtime.ts";
+import { msg } from "gt-i18n";
 
 const ASSET_URL_REFRESH_INTERVAL_MS = 30 * 60_000;
 const ASSET_URL_IDLE_TTL_MS = 60 * 60_000;
@@ -84,8 +85,9 @@ export type AssetUrlState =
       readonly fileRevision?: string;
     };
 
-export const MISSING_FILE_ACCESS_MESSAGE =
-  "This connection cannot read host files. Pair again with a new link to view it.";
+export const MISSING_FILE_ACCESS_MESSAGE = msg(
+  "This connection cannot read host files. Pair again with a new link to view it.",
+);
 
 export function blockedAssetUrlState(
   resource: AssetResource | null,

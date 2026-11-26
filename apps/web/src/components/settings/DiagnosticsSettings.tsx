@@ -1,9 +1,14 @@
 import { ProcessSignalActions } from "./ProcessSignalActions";
 import { resolveUsageAccess } from "@supaterm/client-runtime/state/usage-access";
 import { environmentSession } from "../../state/session";
-import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
+import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import { AuthEnvironmentMaintainScope } from "@supaterm/contracts";
+import type {
+  ServerProcessDiagnosticsEntry,
+  ServerProcessResourceHistorySummary,
+  ServerProcessSignal,
+} from "@supaterm/contracts";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
   CopyIcon,
@@ -19,11 +24,6 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { useRef, useState, type ReactNode } from "react";
-import type {
-  ServerProcessDiagnosticsEntry,
-  ServerProcessResourceHistorySummary,
-  ServerProcessSignal,
-} from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 
@@ -466,13 +466,18 @@ function ResourceHistoryProcessNameCell({
   process: ServerProcessResourceHistorySummary;
   visualDepth: number;
 }) {
+  const gt = useGT();
   const name = formatShortProcessName(process.command);
 
   return (
     <div
       className="grid min-w-0 grid-cols-[1.25rem_0.375rem_minmax(0,1fr)] items-center gap-2"
       style={{ paddingLeft: `${Math.min(visualDepth, 6) * 10}px` }}
-      aria-label={`${process.isServerRoot ? "Root" : "Child"} process ${name}`}
+      aria-label={
+        process.isServerRoot
+          ? gt("Root process {name}", { name })
+          : gt("Child process {name}", { name })
+      }
     >
       <span className="size-5 shrink-0" aria-hidden="true" />
       <span

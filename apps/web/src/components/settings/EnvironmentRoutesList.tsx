@@ -86,7 +86,9 @@ export function EnvironmentRoutesList({
   const confirmRemove = async (route: ConnectionRoute) => {
     const address = connectionRouteAddress(route);
     const confirmed = await requestConfirmDialog(
-      `Remove ${connectionRouteLabel(route)} route?${address === null ? "" : `\n${address}`}`,
+      address === null
+        ? gt("Remove {route} route?", { route: connectionRouteLabel(route) })
+        : gt("Remove {route} route?\n{address}", { route: connectionRouteLabel(route), address }),
       { variant: "destructive" },
     );
     if (confirmed !== true) return;

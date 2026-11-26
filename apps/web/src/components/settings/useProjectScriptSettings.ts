@@ -1,11 +1,4 @@
 import { AuthSettingsWriteScope, EnvironmentAuthorizationError } from "@supaterm/contracts";
-import { readEnvironmentScope } from "../../state/session";
-import {
-  isAtomCommandInterrupted,
-  mapAtomCommandResult,
-  squashAtomCommandFailure,
-  type AtomCommandResult,
-} from "@supaterm/client-runtime/state/runtime";
 import {
   type EnvironmentId,
   type ProjectId,
@@ -13,6 +6,13 @@ import {
   type ResolvedKeybindingsConfig,
   type ServerSettings,
 } from "@supaterm/contracts";
+import { readEnvironmentScope } from "../../state/session";
+import {
+  isAtomCommandInterrupted,
+  mapAtomCommandResult,
+  squashAtomCommandFailure,
+  type AtomCommandResult,
+} from "@supaterm/client-runtime/state/runtime";
 import { resolveProjectScripts } from "@supaterm/shared/projectScripts";
 import {
   clearProjectSettingsOverrides,
@@ -79,8 +79,12 @@ export function useProjectScriptSettings(
     keybinding?: string | null,
   ): Promise<AtomCommandResult<void, unknown>> {
     if (savingRef.current || targets.length === 0) {
-      const message = "No available machine, or another action change is saving.";
-      toastManager.add({ type: "error", title: m(msg("Actions not saved")), description: message });
+      const message = m(msg("No available machine, or another action change is saving."));
+      toastManager.add({
+        type: "error",
+        title: m(msg("Actions not saved")),
+        description: message,
+      });
       return AsyncResult.failure(Cause.fail(new Error(message)));
     }
     if (

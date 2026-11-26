@@ -382,7 +382,7 @@ function requestErrors(results: readonly PromiseSettledResult<unknown>[]) {
           ? [
               result.reason instanceof Error
                 ? result.reason.message
-                : "Couldn't load pull requests.",
+                : m(msg("Couldn't load pull requests.")),
             ]
           : [],
       )

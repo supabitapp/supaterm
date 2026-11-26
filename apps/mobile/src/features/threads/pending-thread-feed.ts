@@ -12,6 +12,8 @@ import type {
   QueuedThreadMessage,
 } from "../../state/thread-outbox-model";
 import { scopedThreadKey } from "../../lib/scopedEntities";
+import { msg } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export type PendingThreadFeedEntry = ThreadFeedEntry & {
   readonly pendingMessage?: QueuedThreadMessage;
@@ -186,6 +188,7 @@ export function createPendingTurnAppender() {
   return (
     feed: ReadonlyArray<PendingThreadFeedEntry>,
     options: { readonly zen: boolean; readonly dispatchingMessageId: MessageId | null },
+    resolve: MessageResolver = m,
   ): ReadonlyArray<PendingThreadFeedEntry | PendingFoldFeedEntry> => {
     const last = feed.at(-1);
     if (
@@ -206,7 +209,7 @@ export function createPendingTurnAppender() {
     ) {
       return feed;
     }
-    const label = last.acknowledged ? "Starting…" : "Sending…";
+    const label = last.acknowledged ? resolve(msg("Starting…")) : resolve(msg("Sending…"));
     if (activity?.createdAt !== last.createdAt || activity.label !== label) {
       activity = {
         type: "thinking",

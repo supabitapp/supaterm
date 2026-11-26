@@ -147,7 +147,7 @@ export function selectIncomingShareAttachments(input: {
     }
     const maxFileAttachmentBytes = clampFileAttachmentUploadBytes(input.maxFileAttachmentBytes);
     if (attachment.sizeBytes > maxFileAttachmentBytes) {
-      warnings.push(fileAttachmentTooLargeMessage(attachment.name, maxFileAttachmentBytes));
+      warnings.push(fileAttachmentTooLargeMessage(attachment.name, maxFileAttachmentBytes, m));
       continue;
     }
     attachments.push(attachment);
@@ -337,7 +337,7 @@ export async function buildIncomingShareDraft(input: {
           continue;
         }
         if (sizeBytes > PROVIDER_SEND_TURN_MAX_FILE_BYTES) {
-          warnings.push(fileAttachmentTooLargeMessage(name, PROVIDER_SEND_TURN_MAX_FILE_BYTES));
+          warnings.push(fileAttachmentTooLargeMessage(name, PROVIDER_SEND_TURN_MAX_FILE_BYTES, m));
           if (persistedFileUri) {
             await releaseOwnedFiles(input.fileReader, [persistedFileUri]);
           }
@@ -356,7 +356,9 @@ export async function buildIncomingShareDraft(input: {
             continue;
           }
           if (sizeBytes > PROVIDER_SEND_TURN_MAX_FILE_BYTES) {
-            warnings.push(fileAttachmentTooLargeMessage(name, PROVIDER_SEND_TURN_MAX_FILE_BYTES));
+            warnings.push(
+              fileAttachmentTooLargeMessage(name, PROVIDER_SEND_TURN_MAX_FILE_BYTES, m),
+            );
             await releaseOwnedFiles(input.fileReader, [persistedFileUri]);
             continue;
           }
@@ -432,7 +434,7 @@ export async function buildIncomingShareDraft(input: {
           continue;
         }
         if (sizeBytes > PROVIDER_SEND_TURN_MAX_IMAGE_BYTES) {
-          warnings.push(fileAttachmentTooLargeMessage(name, PROVIDER_SEND_TURN_MAX_IMAGE_BYTES));
+          warnings.push(fileAttachmentTooLargeMessage(name, PROVIDER_SEND_TURN_MAX_IMAGE_BYTES, m));
           continue;
         }
         attachments.push({

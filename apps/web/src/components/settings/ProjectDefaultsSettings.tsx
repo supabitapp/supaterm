@@ -49,6 +49,7 @@ function isWorktreeSubmodules(value: string | null): value is WorktreeSubmodules
 }
 
 export function ProjectDefaultsSettings({ category }: { category: ProjectSettingsCategory }) {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const messages = useMessages();
   const gt = useGT();
@@ -67,12 +68,15 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       ? providersByEnvironment.get(representative.environmentId)
       : undefined) ?? EMPTY_SERVER_PROVIDERS;
   const entries = providerInstanceEntriesFor(providers, settings, target?.projectId ?? null);
-  const presentation = resolveDefaultModelSettingsPresentation({
-    entries,
-    providers,
-    settings,
-    projectId: target?.projectId ?? null,
-  });
+  const presentation = resolveDefaultModelSettingsPresentation(
+    {
+      entries,
+      providers,
+      settings,
+      projectId: target?.projectId ?? null,
+    },
+    m,
+  );
   const selection = presentation.selection;
   const modelOptions = getCustomModelOptionsByInstance(
     settings,
@@ -141,10 +145,16 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       title={gt("Model")}
       status={
         mixedModel
-          ? `${automaticModel ? "Automatic defaults differ." : "Defaults differ."} Select one environment or choose a shared model to edit effort.`
+          ? automaticModel
+            ? gt(
+                "Automatic defaults differ. Select one environment or choose a shared model to edit effort.",
+              )
+            : gt("Defaults differ. Select one environment or choose a shared model to edit effort.")
           : (presentation.providerNote ??
             effortDisabledReason ??
-            (!unavailable && modelSource !== "project" && automaticModel ? "Automatic" : undefined))
+            (!unavailable && modelSource !== "project" && automaticModel
+              ? gt("Automatic")
+              : undefined))
       }
       resetAction={
         settings.defaultModelSelection !== null ? (

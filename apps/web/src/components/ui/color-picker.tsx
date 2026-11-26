@@ -131,8 +131,8 @@ export function ColorSaturationValuePlane({
       </span>
       {(
         [
-          ["s", "Saturation"],
-          ["v", "Brightness"],
+          ["s", gt("Saturation")],
+          ["v", gt("Brightness")],
         ] as const
       ).map(([axis, axisLabel]) => (
         <label key={axis} className="contents">

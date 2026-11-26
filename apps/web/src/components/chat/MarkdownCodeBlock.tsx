@@ -175,12 +175,13 @@ export function MarkdownCodeBlock({
         cause,
       ),
   });
-  const wrapLabel = wrapped ? "Disable line wrap" : "Wrap lines";
-  const copyLabel = copied ? "Copied" : "Copy code";
+  const wrapLabel = wrapped ? gt("Disable line wrap") : gt("Wrap lines");
+  const copyLabel = copied ? gt("Copied") : gt("Copy code");
   const command = code.trim();
   if (confirmingCommand !== null && confirmingCommand !== command) setConfirmingCommand(null);
   const lineCount = command.split("\n").length;
-  const runLabel = lineCount > 1 ? `Run ${lineCount} lines in terminal` : "Run in terminal";
+  const runLabel =
+    lineCount > 1 ? gt("Run {lineCount} lines in terminal", { lineCount }) : gt("Run in terminal");
   const canRun =
     onRunShellCommand !== undefined &&
     !isStreaming &&

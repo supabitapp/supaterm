@@ -282,7 +282,9 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
       ? `${formatUpcomingTimestamp(resetAt, timestampFormat, undefined, timeZone)} (${timeZone})`
       : null;
     const label = warning
-      ? `Usage limit reached.${resetTime ? ` Retry after ${resetTime}.` : ""}`
+      ? resetTime
+        ? gt("Usage limit reached. Retry after {resetTime}.", { resetTime })
+        : gt("Usage limit reached.")
       : workEntry.label;
     const retryRunId =
       failureItem.runId !== null &&
@@ -361,8 +363,8 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
   const showsReasoningHeading = isReasoning && expanded;
   const previewText = showsReasoningHeading
     ? workEntry.toolLifecycleStatus === "inProgress"
-      ? "Thinking"
-      : "Thought"
+      ? gt("Thinking")
+      : gt("Thought")
     : questionHeading || display.text;
   const pathTail = showsReasoningHeading || questionHeading ? undefined : display.tail;
   const answerPreview =
@@ -452,7 +454,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     .filter(Boolean)
     .join(": ");
   const accessibleDisplayText = showFailedIndicator
-    ? `${accessiblePreview}, tool call failed`
+    ? gt("{label}, tool call failed", { label: accessiblePreview })
     : accessiblePreview;
   const rowToggleProps = canExpandProjectedItem
     ? {
@@ -638,6 +640,7 @@ function WorkEntryLogDetails({
   viewedImagePath: string | null;
   onInitialOutputReady: () => void;
 }) {
+  const m = useMessages();
   const ctx = use(TimelineRowCtx);
   const groupViewedImages = use(WorkGroupViewCtx)?.viewedImages;
   // Images in this entry's expanded body page through the group's viewed images, like its strip.
@@ -656,6 +659,7 @@ function WorkEntryLogDetails({
           workspaceRoot,
           previewText,
           viewedImage ? viewedImagePath : null,
+          m,
         );
   return (
     // A formatting context keeps child margins inside the measured panel height.

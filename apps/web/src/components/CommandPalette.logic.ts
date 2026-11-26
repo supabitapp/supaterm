@@ -354,15 +354,20 @@ export type CommandPaletteMode = "root" | "root-browse" | "submenu" | "submenu-b
 
 export type CommandPaletteProject = Project & { readonly displayName: string };
 
-export function buildCommandPaletteProjectMetadata(input: {
-  readonly projects: ReadonlyArray<Pick<Project, "environmentId" | "title" | "workspaceRoot">>;
-  readonly locationByEnvironmentId: ReadonlyMap<EnvironmentId, { readonly label: string }>;
-}) {
+export function buildCommandPaletteProjectMetadata(
+  input: {
+    readonly projects: ReadonlyArray<Pick<Project, "environmentId" | "title" | "workspaceRoot">>;
+    readonly locationByEnvironmentId: ReadonlyMap<EnvironmentId, { readonly label: string }>;
+  },
+  resolve: MessageResolver = m,
+) {
   const searchTerms: string[] = [];
   const environmentLabels = new Set<string>();
 
   for (const project of input.projects) {
-    const label = input.locationByEnvironmentId.get(project.environmentId)?.label ?? "Remote";
+    const label =
+      input.locationByEnvironmentId.get(project.environmentId)?.label ??
+      resolve(msg("Remote", { $context: "machine location" }));
     searchTerms.push(project.title, project.workspaceRoot, label);
     environmentLabels.add(label);
   }
@@ -859,8 +864,8 @@ export function remoteProjectInputPlaceholder(
   }
   return resolve(
     msg("Enter {source} repository ({hint})", {
-      source: addProjectRemoteSourceLabel(flow.source),
-      hint: addProjectRemoteSourcePathHint(flow.source),
+      source: addProjectRemoteSourceLabel(flow.source, resolve),
+      hint: addProjectRemoteSourcePathHint(flow.source, resolve),
     }),
   );
 }

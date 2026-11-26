@@ -6,23 +6,23 @@ import { ColorHueSlider, ColorSaturationValuePlane } from "../ui/color-picker";
 import { Input } from "../ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { T, useGT } from "gt-react";
+import { T, useGT, msg } from "gt-react";
 export function getThemeRoleLabel(role: ThemeColorRole): string {
   const labels: Partial<Record<ThemeColorRole, string>> = {
-    canvas: "Background",
-    toolbar: "Toolbar background",
-    toolbarForeground: "Toolbar text",
-    toolbarBorder: "Toolbar border",
-    toolbarControl: "Toolbar control",
-    toolbarControlForeground: "Toolbar control text",
-    toolbarControlHover: "Toolbar control hover",
-    accent: "Accent color",
-    errorForeground: "Error text",
-    errorSurface: "Error background",
-    warningForeground: "Warning text",
-    warningSurface: "Warning background",
-    updateForeground: "Update text",
-    updateSurface: "Update background",
+    canvas: msg("Background"),
+    toolbar: msg("Toolbar background"),
+    toolbarForeground: msg("Toolbar text"),
+    toolbarBorder: msg("Toolbar border"),
+    toolbarControl: msg("Toolbar control"),
+    toolbarControlForeground: msg("Toolbar control text"),
+    toolbarControlHover: msg("Toolbar control hover"),
+    accent: msg("Accent color"),
+    errorForeground: msg("Error text"),
+    errorSurface: msg("Error background"),
+    warningForeground: msg("Warning text"),
+    warningSurface: msg("Warning background"),
+    updateForeground: msg("Update text"),
+    updateSurface: msg("Update background"),
   };
   const label = labels[role];
   if (label) return label;
@@ -184,7 +184,7 @@ function ThemeColorPickerPanel({
           onInteractionEnd={committer.flush}
         />
         <ColorHueSlider
-          label={`${label} hue`}
+          label={gt("{label} hue", { label })}
           value={hsv.h}
           onChange={(h) => commitHsv({ ...hsv, h })}
           onInteractionEnd={committer.flush}

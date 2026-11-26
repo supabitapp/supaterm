@@ -244,7 +244,7 @@ export function PullRequestPrimaryAction({
   const confirm = useInlineConfirm<"merge" | "enable-auto-merge">();
   const actionPending = pendingAction !== null;
   const disableAutoMergeLabel =
-    pendingAction === "disable-auto-merge" ? "Disabling..." : "Disable auto-merge";
+    pendingAction === "disable-auto-merge" ? gt("Disabling...") : gt("Disable auto-merge");
   // The off switch doubles as the indicator, as on the host.
   const armedAutoMergeStatus = gt(
     "{label} is enabled: the host will merge this on its own once its requirements are met",
@@ -328,9 +328,12 @@ export function PullRequestPrimaryAction({
           render={<span className="inline-flex shrink-0" />}
           tip={
             mergeBlockedReason ??
-            (pendingAction === "enable-auto-merge" ? "Enabling..." : pendingAutoMergeLabel)
+            (pendingAction === "enable-auto-merge" ? gt("Enabling...") : pendingAutoMergeLabel)
           }
-          armedTip={`Click again to enable auto-merge. The host may merge #${pullRequestNumber} right away.`}
+          armedTip={gt(
+            "Click again to enable auto-merge. The host may merge #{pullRequestNumber} right away.",
+            { pullRequestNumber },
+          )}
         >
           <Button
             size="xs"
@@ -372,9 +375,13 @@ export function PullRequestPrimaryAction({
           render={<span className="inline-flex shrink-0" />}
           tip={
             mergeBlockedReason ??
-            (pendingAction === "merge" ? "Merging..." : selectedMergeMethodLabel)
+            (pendingAction === "merge" ? gt("Merging...") : selectedMergeMethodLabel)
           }
-          armedTip={`Click again to ${selectedMergeMethodLabel.toLowerCase()} #${pullRequestNumber} into ${baseBranch}`}
+          armedTip={gt("Click again to {method} #{number} into {base}", {
+            method: selectedMergeMethodLabel.toLowerCase(),
+            number: pullRequestNumber,
+            base: baseBranch,
+          })}
         >
           <Button
             size="xs"
@@ -437,8 +444,13 @@ export function PullRequestApproveWorkflowsButton({
     <InlineConfirmTooltip
       armed={armed}
       render={<span className="ml-auto inline-flex shrink-0" />}
-      tip={pendingAction === "approve-workflows" ? "Approving..." : "Approve workflows to run"}
-      armedTip={`Click again to let ${workflowApprovalsRequired} ${workflowApprovalsRequired === 1 ? "workflow" : "workflows"} from #${pullRequestNumber} run. Review the code and workflow changes first.`}
+      tip={
+        pendingAction === "approve-workflows" ? gt("Approving...") : gt("Approve workflows to run")
+      }
+      armedTip={gt(
+        "{count, plural, one {Click again to let {count} workflow from #{number} run. Review the code and workflow changes first.} other {Click again to let {count} workflows from #{number} run. Review the code and workflow changes first.}}",
+        { count: workflowApprovalsRequired, number: pullRequestNumber },
+      )}
     >
       <Button
         size="xs"

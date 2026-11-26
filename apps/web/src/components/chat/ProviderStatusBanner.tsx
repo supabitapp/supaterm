@@ -155,7 +155,7 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
   const status = presence.value;
   const canRefresh = useAtomValue(serverEnvironment.refreshProviders.permissionAtom(environmentId));
   const refreshProviders = useAtomCommand(serverEnvironment.refreshProviders, {
-    label: "Refresh provider status",
+    label: gt("Refresh provider status"),
   });
   const refreshingRef = useRef(false);
   const [isRefreshing, setIsRefreshing] = useState(false);

@@ -17,7 +17,7 @@ import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff"
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { PullRequestCompletionSuggestions } from "./PullRequestCompletionSuggestions";
 import { usePullRequestCompletions } from "./usePullRequestCompletions";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 export type InlineCommentParams = PullRequestParams & {
   readonly draftId?: string;
@@ -28,6 +28,7 @@ export type InlineCommentParams = PullRequestParams & {
   readonly code: string;
 };
 export function PullRequestInlineCommentScreen({ route }: StaticScreenProps<InlineCommentParams>) {
+  const messages = useMessages();
   const gt = useGT();
   const params = route.params;
   const navigation = useNavigation();
@@ -91,7 +92,7 @@ export function PullRequestInlineCommentScreen({ route }: StaticScreenProps<Inli
     <PullRequestSheetContent
       busy={busy}
       title={saved ? gt("Edit review comment") : gt("Review comment")}
-      subtitle={`#${params.number} · ${reviewPositionLabel(params.position)}`}
+      subtitle={`#${params.number} · ${reviewPositionLabel(params.position, messages)}`}
       footer={
         <Button
           fullWidth

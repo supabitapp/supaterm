@@ -22,6 +22,7 @@ import {
 import { THOUGHT_PREVIEW_SOURCE_MAX_LENGTH } from "./TimelineWorkEntryRow.logic";
 import {
   commandlessCommandLabel,
+  genericCommandStatusLabel,
   liveActivityToolStatus,
   normalizeCompactToolLabel,
   resolveWorkEntryToolPresentation,
@@ -36,7 +37,6 @@ import {
 } from "@supaterm/client-runtime/work-log/presentation";
 import {
   deriveRevertTurnCountByUserMessageId,
-  formatDuration,
   isStreamingMessageTextUpdate,
   isStreamingTurnItemTextUpdate,
   timelineEntryIsPersistentResourceCard,
@@ -67,6 +67,7 @@ import {
 import type { ThreadRunSummary } from "@supaterm/client-runtime/state/shell";
 import type { ToolCallVisibility } from "@supaterm/contracts/settings";
 import { resolveSupatermMcpToolDefinition } from "@supaterm/shared/supatermMcpToolPresentation";
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
 import { compactDynamicToolOutput } from "@supaterm/shared/toolOutput";
 import { htmlRenderReferencesEqual, type HtmlRenderReference } from "@supaterm/shared/htmlRender";
 import { mcpAppReferencesEqual, type McpAppReference } from "@supaterm/shared/mcpApp";
@@ -174,6 +175,7 @@ export function workEntryDisplay(
   const commandless = commandlessCommandLabel(
     entry,
     liveActivityToolStatus(entry.toolLifecycleStatus, false),
+    resolve,
   );
   if (commandless) return { text: commandless };
   const action = toolGroupAction(entry);
@@ -283,30 +285,32 @@ export function liveWorkEntryLabel(
     );
   }
   const toolPresentation = resolveWorkEntryToolPresentation(
-    {
-      ...entry,
-      toolLifecycleStatus: status,
-    },
+    { ...entry, toolLifecycleStatus: status },
     undefined,
-    m,
+    resolve,
   );
   if (toolPresentation) return toolPresentation.displayName;
   const command = entry.command?.trim();
   if (command) {
-    const verb =
+    const program = commandProgramName(command);
+    if (program == null) {
+      return genericCommandStatusLabel(status, resolve);
+    }
+    return resolve(
       status === "inProgress"
-        ? "Running"
+        ? msg("Running {program}", { program })
         : status === "failed"
-          ? "Failed"
+          ? msg("Failed {program}", { program })
           : status === "declined"
-            ? "Declined"
+            ? msg("Declined {program}", { program })
             : status === "stopped"
-              ? "Stopped"
-              : "Ran";
-    return `${verb} ${commandProgramName(command) ?? "command"}`;
+              ? msg("Stopped {program}", { program })
+              : msg("Ran {program}", { program }),
+    );
   }
   return (
-    commandlessCommandLabel(entry, status) ?? workEntryDisplayLabel(entry, workspaceRoot, resolve)
+    commandlessCommandLabel(entry, status, resolve) ??
+    workEntryDisplayLabel(entry, workspaceRoot, resolve)
   );
 }
 
@@ -1109,6 +1113,7 @@ function deriveTurnFolds(input: {
   runlessWorkActive: boolean;
   liveSubagentEntryIds: ReadonlySet<string>;
   retainedAssistantReplyEntryIds: ReadonlySet<string>;
+  resolve: MessageResolver;
 }): ReadonlyMap<string, TurnFold> {
   const interruptedRunIds = new Set<RunId>();
   const promptIndexByRunId = new Map<RunId, number>();
@@ -1299,14 +1304,15 @@ function deriveTurnFolds(input: {
             maxIsoTimestamp(group.terminalEntry?.message.updatedAt ?? null, lastEntryEnd) ??
               lastEntryEnd,
           );
-    const duration = elapsedMs !== null ? formatDuration(elapsedMs) : null;
+    const { resolve } = input;
+    const duration = elapsedMs !== null ? formatDuration(elapsedMs, resolve) : null;
     const label = isLatestInterruptedTurn
       ? duration
-        ? `You stopped after ${duration}`
-        : "You stopped this response"
+        ? resolve(msg("You stopped after {duration}", { duration }))
+        : resolve(msg("You stopped this response"))
       : duration
-        ? `Worked for ${duration}`
-        : "Worked";
+        ? resolve(msg("Worked for {duration}", { duration }))
+        : resolve(msg("Worked"));
 
     // The top row keeps the whole turn's time, steers included. Work after a
     // steer folds under its own row below that steer, keyed apart from the run
@@ -1341,8 +1347,10 @@ function deriveTurnFolds(input: {
         entryIds: new Set(entries.map((entry) => entry.id)),
         label:
           segmentMs !== null
-            ? m(msg("Continued for {duration}", { duration: formatDuration(segmentMs) }))
-            : m(msg("Continued")),
+            ? resolve(
+                msg("Continued for {duration}", { duration: formatDuration(segmentMs, resolve) }),
+              )
+            : resolve(msg("Continued")),
       });
     }
   }
@@ -1662,6 +1670,7 @@ function deriveTimelineTurnFolds(
     runlessWorkActive: input.isWorking && input.runlessWorkActive === true,
     liveSubagentEntryIds: liveSubagentCardEntryIds(timelineEntries),
     retainedAssistantReplyEntryIds: retainedReplyIds,
+    resolve: m,
   });
 }
 
@@ -1758,6 +1767,7 @@ export function deriveMessagesTimelineRows(
         runlessWorkActive,
         liveSubagentEntryIds,
         retainedAssistantReplyEntryIds: retainedAssistantReplyIds,
+        resolve,
       });
   const timelineEntryById = new Map(timelineEntries.map((entry) => [entry.id, entry]));
   const collapsedEntryIds = new Set<string>();

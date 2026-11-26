@@ -8,6 +8,7 @@ import {
 import type { AuthMcpClientAccess, EnvironmentId, PeerLinkSummary } from "@supaterm/contracts";
 import type * as DateTime from "effect/DateTime";
 import { m } from "~/i18n/messages";
+import { msg } from "gt-react";
 
 export const LINK_OFF = "off";
 export type LinkChoice = AuthMcpClientAccess | typeof LINK_OFF;
@@ -55,16 +56,24 @@ export function linkPermissionRow(input: {
 }): LinkPermissionRow {
   // A stale list could hide a link, so nothing changes until the source answers.
   if (input.listError !== null) {
-    return { ...UNKNOWN, note: `Could not read ${input.sourceLabel}'s links: ${input.listError}` };
+    return {
+      ...UNKNOWN,
+      note: m(
+        msg("Could not read {source}'s links: {error}", {
+          source: input.sourceLabel,
+          error: input.listError,
+        }),
+      ),
+    };
   }
   if (input.links === null) return { ...UNKNOWN, note: null };
   const current = input.links.find((link) => link.environmentId === input.targetId) ?? null;
   const health = current === null ? null : peerLinkHealth(current, input.now);
   const live = current !== null && health?.kind !== "expired";
   const mintBlocker = !input.connected
-    ? `Connect to ${input.targetLabel} to change this.`
+    ? m(msg("Connect to {target} to change this.", { target: input.targetLabel }))
     : !input.mayMint
-      ? `This app may not grant access on ${input.targetLabel}.`
+      ? m(msg("This app may not grant access on {target}.", { target: input.targetLabel }))
       : null;
   const intermediary = input.intermediaries.find(
     ({ environmentId }) => environmentId !== input.sourceId,
@@ -76,11 +85,15 @@ export function linkPermissionRow(input: {
         ? null
         : { _tag: "Through", intermediary };
   const blocker = !input.canLink
-    ? `This app may not change links on ${input.sourceLabel}.`
+    ? m(msg("This app may not change links on {source}.", { source: input.sourceLabel }))
     : route === null
       ? mintBlocker
       : !input.reachable
-        ? `No other machine can reach ${input.targetLabel} at an address this app knows.`
+        ? m(
+            msg("No other machine can reach {target} at an address this app knows.", {
+              target: input.targetLabel,
+            }),
+          )
         : null;
   const grant = blocker === null ? route : null;
   const healthNote =
@@ -89,7 +102,12 @@ export function linkPermissionRow(input: {
       : peerLinkHealthText(health, m);
   const routeNote =
     grant?._tag === "Through"
-      ? `${grant.intermediary.label} links to ${input.targetLabel} at full access, so it gets the pairing code.`
+      ? m(
+          msg("{intermediary} links to {target} at full access, so it gets the pairing code.", {
+            intermediary: grant.intermediary.label,
+            target: input.targetLabel,
+          }),
+        )
       : null;
   return {
     value: live ? current.access : LINK_OFF,

@@ -133,6 +133,7 @@ export function InlineReviewThreads({
   threads: ReadonlyArray<PullRequestReviewThread>;
   renderThread: (thread: PullRequestReviewThread, hidden: boolean) => ReactNode;
 }) {
+  const gt = useGT();
   const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
   // A conversation seen open stays shown once resolved, so it does not vanish under the reader.
   const open = threads.filter((thread) => !thread.isResolved);
@@ -146,8 +147,10 @@ export function InlineReviewThreads({
     authors.set(comment.author?.login ?? "ghost", comment.author);
   }
   if (authors.size === 0) authors.set("ghost", null);
-  const label =
-    resolved.length === 1 ? "Resolved conversation" : `${resolved.length} resolved conversations`;
+  const label = gt(
+    "{count, plural, =1 {Resolved conversation} other {{count} resolved conversations}}",
+    { count: resolved.length },
+  );
   return (
     <>
       {resolved.length > 0 ? (
@@ -326,9 +329,16 @@ export function ReviewThreadCard({
           {thread.isResolved
             ? gt("Resolved", { $context: "review thread state" })
             : gt("Open", { $context: "review thread state" })}{" "}
-          · {commentCount} {commentCount === 1 ? "comment" : "comments"}
+          ·{" "}
+          {gt("{count, plural, one {{count} comment} other {{count} comments}}", {
+            count: commentCount,
+          })}
         </button>
-        {thread.isOutdated ? <span>outdated</span> : null}
+        {thread.isOutdated ? (
+          <span>
+            <T context="a review thread on code that has changed since">outdated</T>
+          </span>
+        ) : null}
         {onFix ? (
           <Button
             size="compact"

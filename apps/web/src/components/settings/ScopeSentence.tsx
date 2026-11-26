@@ -64,6 +64,7 @@ type ScopeMenuProps = Omit<ScopeSentenceProps, "lead">;
 
 /** "<lead> <project> across <environment>", with a picker for each axis. */
 export function ScopeSentence({ lead, ...props }: ScopeSentenceProps) {
+  const gt = useGT();
   if (props.presentation === "filters") {
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-2" role="group" aria-label={lead}>
@@ -82,7 +83,11 @@ export function ScopeSentence({ lead, ...props }: ScopeSentenceProps) {
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="shrink-0">
           {/* A legacy checkout link names one environment without `machine`. */}
-          {props.value.machine || props.scope.kind === "checkout" ? "on" : "across"}
+          {props.value.machine || props.scope.kind === "checkout"
+            ? gt("on", { $context: "settings scope sentence: <project> on <environment>" })
+            : gt("across", {
+                $context: "settings scope sentence: <project> across <environments>",
+              })}
         </span>
         <EnvironmentScopeMenu {...props} />
       </span>
@@ -321,7 +326,9 @@ function CheckoutScopeMenu({ value, groups, onChange }: ScopeMenuProps) {
   const selected = checkouts.find((member) => member.physicalProjectKey === value.checkout);
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <span className="shrink-0">in</span>
+      <span className="shrink-0">
+        {gt("in", { $context: "settings scope sentence: <environment> in <checkout>" })}
+      </span>
       <ScopeMenu
         ariaLabel={gt("Checkout scope")}
         icon={<FolderIcon aria-hidden className="size-3.5 shrink-0" />}
@@ -395,7 +402,9 @@ function ProjectScopeMenu({ value, groups, environments, onChange, presentation 
         return {
           value: group.projectKey,
           label: group.displayName,
-          secondary: group.archived ? ["Archived", location].filter(Boolean).join(" · ") : location,
+          secondary: group.archived
+            ? [gt("Archived"), location].filter(Boolean).join(" · ")
+            : location,
           icon: <ProjectFavicon project={group} className="size-3.5 shrink-0" />,
         };
       })}

@@ -57,7 +57,8 @@ import {
 } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
 
@@ -73,33 +74,36 @@ export function readPromptUltrathink(prompt: string): PromptUltrathink {
 }
 
 const SAVED_OPTION_LABELS: Readonly<Record<string, string>> = {
-  agent: "Agent",
-  effort: "Effort",
+  agent: msg("Agent", { $context: "model option name" }),
+  effort: msg("Effort", { $context: "model option name" }),
   reasoningEffort: msg("Reasoning effort"),
-  variant: "Reasoning",
+  variant: msg("Reasoning", { $context: "model option name" }),
 };
 
-function savedOptionLabel(id: string): string {
-  return (
-    SAVED_OPTION_LABELS[id] ??
-    id.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (character) => character.toUpperCase())
-  );
+function savedOptionLabel(id: string, resolve: MessageResolver): string {
+  const saved = SAVED_OPTION_LABELS[id];
+  return saved !== undefined
+    ? resolve(saved)
+    : id
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/^./, (character) => character.toUpperCase());
 }
 
 function buildUnavailableModelOptionDescriptors(
   selections: ProviderOptions | null | undefined,
+  resolve: MessageResolver,
 ): ReadonlyArray<ProviderOptionDescriptor> {
   return (selections ?? []).map((selection) =>
     typeof selection.value === "boolean"
       ? {
           id: selection.id,
-          label: savedOptionLabel(selection.id),
+          label: savedOptionLabel(selection.id, resolve),
           type: "boolean" as const,
           currentValue: selection.value,
         }
       : {
           id: selection.id,
-          label: savedOptionLabel(selection.id),
+          label: savedOptionLabel(selection.id, resolve),
           type: "select" as const,
           options: [{ id: selection.value, label: selection.value }],
           currentValue: selection.value,
@@ -136,6 +140,7 @@ function getSelectedTraits(
   promptUltrathink: PromptUltrathink,
   modelOptions: ProviderOptions | null | undefined,
   allowPromptInjectedEffort: boolean,
+  resolve: MessageResolver = m,
 ) {
   const caps = getProviderModelCapabilities(models, model, provider);
   const modelIsUnavailable =
@@ -144,6 +149,7 @@ function getSelectedTraits(
   const descriptors = modelIsUnavailable
     ? buildUnavailableModelOptionDescriptors(
         modelOptions?.filter((option) => option.id !== "agent" || option.value !== "plan"),
+        resolve,
       )
     : getProviderOptionDescriptors({
         caps,
@@ -209,6 +215,7 @@ function getTraitsSectionVisibility(input: {
   promptUltrathink?: PromptUltrathink | undefined;
   modelOptions: ProviderOptions | null | undefined;
   allowPromptInjectedEffort?: boolean;
+  resolve?: MessageResolver;
 }) {
   const selected = getSelectedTraits(
     input.provider,
@@ -217,6 +224,7 @@ function getTraitsSectionVisibility(input: {
     input.promptUltrathink ?? "none",
     input.modelOptions,
     input.allowPromptInjectedEffort ?? true,
+    input.resolve,
   );
 
   const speedToggle = selected.modelIsUnavailable ? null : getSpeedToggle(selected.descriptors);
@@ -383,6 +391,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
   ...persistence
 }: TraitsMenuContentProps & TraitsPersistence & { omitToggleOnlyOptions?: boolean }) {
   const gt = useGT();
+  const resolve = useMessages();
   const modelSelection =
     instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null;
   const updateModelOptions = useUpdateModelOptions(provider, instanceId, model, persistence);
@@ -393,6 +402,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
     promptUltrathink,
     modelOptions,
     allowPromptInjectedEffort,
+    resolve,
   });
   const {
     descriptors,
@@ -568,6 +578,7 @@ function SpeedToggleControl({
   shortcutLabel: string | null;
   onSelect: (value: string | boolean) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const composerFloatingLayerProps = useComposerMenuProps();
   const choices = getSpeedToggleChoices(speedToggle, descriptors);
@@ -581,7 +592,7 @@ function SpeedToggleControl({
       activeBackground={false}
       disabled={disabled}
       {...(choices
-        ? { "aria-label": SPEED_TOGGLE_LABELS[speedToggle.level] }
+        ? { "aria-label": messages(SPEED_TOGGLE_LABELS[speedToggle.level]) }
         : {
             "aria-label": gt("Fast mode"),
             "aria-pressed": speedOn,
@@ -599,7 +610,7 @@ function SpeedToggleControl({
         />
       </TooltipTrigger>
       <TooltipPopup side="top" shortcut={shortcutLabel}>
-        {SPEED_TOGGLE_LABELS[speedToggle.level]}
+        {messages(SPEED_TOGGLE_LABELS[speedToggle.level])}
       </TooltipPopup>
     </Tooltip>
   );
@@ -676,9 +687,11 @@ export const TraitsPicker = memo(function TraitsPicker({
     speedShortcutLabel?: string | null;
     disabled?: boolean;
   }) {
+  const messages = useMessages();
   const composerFloatingLayerProps = useComposerMenuProps();
   const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
   const updateModelOptions = useUpdateModelOptions(provider, instanceId, model, persistence);
+  const resolve = useMessages();
   const {
     descriptors,
     primarySelectDescriptor,
@@ -693,6 +706,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     promptUltrathink,
     modelOptions,
     allowPromptInjectedEffort,
+    resolve,
   });
   if (!hasAnyControls) {
     return null;
@@ -728,6 +742,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     ultrathinkPromptControlled,
     modelSelection: instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null,
     reportedModelSelection,
+    resolve: messages,
   });
 
   const isCodexStyle = provider === "codex";

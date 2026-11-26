@@ -239,7 +239,7 @@ export function SourceControlWritingSettingsSection() {
             >
               <SelectValue>
                 {(value: SourceControlWritingStyleMode | null) =>
-                  value === null ? "Mixed" : MODE_OPTIONS[value].label
+                  value === null ? gt("Mixed") : MODE_OPTIONS[value].label
                 }
               </SelectValue>
             </SelectTrigger>

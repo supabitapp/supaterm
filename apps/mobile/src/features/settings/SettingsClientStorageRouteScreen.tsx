@@ -35,7 +35,9 @@ export function SettingsClientStorageRouteScreen() {
   const isClearing = clearResult.waiting;
   const confirm = useInlineConfirm<"all">();
   const summary = AsyncResult.isSuccess(summaryResult) ? summaryResult.value : null;
-  const clearAllLabel = summary ? `Clear ${formatBytes(summary.payloadBytes)}` : "Clear caches";
+  const clearAllLabel = summary
+    ? gt("Clear {size}", { size: formatBytes(summary.payloadBytes) })
+    : gt("Clear caches");
   const environmentSummaries = useMemo(
     () =>
       [...(summary?.environments ?? [])].sort((left, right) => {

@@ -168,8 +168,6 @@ function OpenContentSearchDialog(props: {
   };
   const fileCount = new Set(matches.map((match) => match.path)).size;
   const resultCount = `${matches.length.toLocaleString()}${search.truncated ? "+" : ""}`;
-  const resultNoun = matches.length === 1 && !search.truncated ? "result" : "results";
-  const fileNoun = fileCount === 1 ? "file" : "files";
   const showSearchStatus =
     search.canReadFiles &&
     (search.hasQuery || search.isPending || search.error !== null || search.invalidRegex);
@@ -252,7 +250,15 @@ function OpenContentSearchDialog(props: {
               <T>Invalid regular expression</T>
             </span>
           ) : (
-            `${resultCount} ${resultNoun} in ${fileCount.toLocaleString()} ${fileNoun}`
+            gt(
+              "{count, plural, one {{results} result} other {{results} results}} in {fileCount, plural, one {{files} file} other {{files} files}}",
+              {
+                count: search.truncated ? Math.max(matches.length, 2) : matches.length,
+                results: resultCount,
+                fileCount,
+                files: fileCount.toLocaleString(),
+              },
+            )
           )}
         </div>
       ) : null}

@@ -31,7 +31,9 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
         title:
           selectedIds === null
             ? gt("All environments")
-            : `${selectedTargets.length} ${selectedTargets.length === 1 ? "environment" : "environments"}`,
+            : gt("{count, plural, one {{count} environment} other {{count} environments}}", {
+                count: selectedTargets.length,
+              }),
         items: [
           {
             id: "all",
@@ -63,7 +65,9 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
           },
           ...selectableProjectGroups.map((group) => ({
             id: `project:${group.key}`,
-            title: projectMenuLabel(group),
+            title: group.archived
+              ? gt("{project} · Archived", { project: group.label })
+              : group.label,
             selected: selectedProjectKey === group.key,
             onPress: () => selectProject(group.key),
           })),
@@ -72,6 +76,3 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
     ],
   };
 }
-
-const projectMenuLabel = (group: { readonly label: string; readonly archived: boolean }) =>
-  group.archived ? `${group.label} · Archived` : group.label;

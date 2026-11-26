@@ -42,15 +42,15 @@ import {
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 
 const NO_TRACKED_FOLDERS: ReadonlyArray<ProjectTrackedFolder> = [];
 const BROWSE_SUGGESTION_LIMIT = 100;
 
 const FOLDER_STATE_LABELS: Record<WorkspaceFolderState, string> = {
   git: msg("Git repository"),
-  plain: "Folder",
-  missing: "Missing",
+  plain: msg("Folder", { $context: "a plain folder that is not a Git repository" }),
+  missing: msg("Missing", { $context: "folder state: not found on disk" }),
 };
 
 /** Tracked folder paths belong to one checkout's machine, so each checkout has its own list. */
@@ -75,6 +75,7 @@ export function ProjectRepositoriesSettings({
 }
 
 function CheckoutRepositories({ member }: { member: SidebarProjectGroupMember }) {
+  const m = useMessages();
   const gt = useGT();
   const environmentId = member.environmentId;
   const { environments } = useEnvironments();
@@ -173,7 +174,7 @@ function CheckoutRepositories({ member }: { member: SidebarProjectGroupMember })
                 <span className="min-w-0 truncate">{folder.name}</span>
                 {folder.state ? (
                   <Badge size="sm" variant={folder.state === "missing" ? "warning" : "outline"}>
-                    {FOLDER_STATE_LABELS[folder.state]}
+                    {m(FOLDER_STATE_LABELS[folder.state])}
                   </Badge>
                 ) : null}
               </span>
@@ -191,7 +192,7 @@ function CheckoutRepositories({ member }: { member: SidebarProjectGroupMember })
                   variant="ghost"
                   disabled={disabled}
                   aria-label={gt("Remove {name} from the project", { name: folder.name })}
-                  onClick={() => void save({ untrack: folder.path }, "Failed to remove folder")}
+                  onClick={() => void save({ untrack: folder.path }, gt("Failed to remove folder"))}
                 >
                   <T>Remove</T>
                 </Button>
@@ -223,7 +224,7 @@ function CheckoutRepositories({ member }: { member: SidebarProjectGroupMember })
               variant="ghost"
               disabled={disabled}
               aria-label={gt("Add {name} to the project", { name: folder.name })}
-              onClick={() => void save({ track: folder }, "Failed to add folder")}
+              onClick={() => void save({ track: folder }, gt("Failed to add folder"))}
             >
               <T>Add</T>
             </Button>

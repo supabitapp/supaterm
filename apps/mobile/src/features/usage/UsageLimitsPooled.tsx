@@ -214,10 +214,14 @@ function PoolWindowCard({
             </Text>
           ) : null}
           <View className="flex-row items-baseline gap-1.5">
-            <Text className="text-3xl font-supaterm-bold tabular-nums text-foreground">
-              {pool.remainingPercent}%
+            <Text className="text-sm leading-(--text-3xl--line-height) text-foreground-muted">
+              <T>
+                <Text className="text-3xl font-supaterm-bold tabular-nums text-foreground">
+                  <Var>{pool.remainingPercent}</Var>%
+                </Text>{" "}
+                left
+              </T>
             </Text>
-            <Text className="text-sm text-foreground-muted">left</Text>
           </View>
         </View>
         {pool.pace ? (

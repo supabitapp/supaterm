@@ -192,6 +192,7 @@ export function DevicePreviewScreen({
             "\n\n" +
             deviceToolVersionLabels(
               state.data?.hosts.find((host) => host.id === preview?.session.hostId)?.tools,
+              m,
             ).join("\n") +
             "\n" +
             (state.data?.hosts.find((host) => host.id === preview?.session.hostId)

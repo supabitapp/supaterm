@@ -215,7 +215,9 @@ function IssueIdentity(props: {
           <T>Assignees</T>
         </Text>
         {issue.assignees.length === 0 ? (
-          <Text className="text-xs text-foreground-muted">none</Text>
+          <Text className="text-xs text-foreground-muted">
+            <T context="no assignees">none</T>
+          </Text>
         ) : null}
         {issue.assignees.map((actor) => (
           <View key={actor.login} className="flex-row items-center gap-1.5">
@@ -364,6 +366,7 @@ function IssueCommentCard(props: {
   readonly comment: IssueComment;
   readonly canReact: boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { comment } = props;
   return (
@@ -373,7 +376,9 @@ function IssueCommentCard(props: {
         <Text className="min-w-0 flex-1 text-sm font-supaterm-medium" numberOfLines={1}>
           {comment.author?.login ?? gt("Unknown author")}
         </Text>
-        <Text className="text-2xs text-foreground-tertiary">{relativeTime(comment.createdAt)}</Text>
+        <Text className="text-2xs text-foreground-tertiary">
+          {relativeTime(comment.createdAt, undefined, messages)}
+        </Text>
       </View>
       <PullRequestMarkdown markdown={comment.body} />
       {comment.reactions !== undefined ? (
@@ -395,9 +400,10 @@ function IssueEventRow({
   readonly params: IssueParams;
   readonly event: IssueEvent;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
-  const sentence = issueEventSentence(event);
+  const sentence = issueEventSentence(event, messages);
   const source = event.reference;
   const at = event.detail === null ? -1 : sentence.indexOf(event.detail);
   // Only a git host's tracker shares its host with the change request it links.
@@ -452,7 +458,9 @@ function IssueEventRow({
           </>
         )}
       </Text>
-      <Text className="text-2xs text-foreground-tertiary">{relativeTime(event.createdAt)}</Text>
+      <Text className="text-2xs text-foreground-tertiary">
+        {relativeTime(event.createdAt, undefined, messages)}
+      </Text>
     </View>
   );
 }

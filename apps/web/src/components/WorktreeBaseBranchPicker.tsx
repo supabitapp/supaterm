@@ -75,7 +75,10 @@ export function WorktreeBaseBranchPicker({
       : branches.isFetchingNextPage
         ? gt("Loading more refs...")
         : hasNextPage
-          ? `Showing ${branches.refs.length.toLocaleString()} of ${(branches.data?.totalCount ?? branches.refs.length).toLocaleString()} refs`
+          ? gt("Showing {shown} of {total} refs", {
+              shown: branches.refs.length.toLocaleString(),
+              total: (branches.data?.totalCount ?? branches.refs.length).toLocaleString(),
+            })
           : null);
   const handleOpenChange = (next: boolean) => {
     setOpen(next);

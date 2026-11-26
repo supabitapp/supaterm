@@ -226,7 +226,7 @@ function useSettingsIndexSections(): SettingsListSection[] {
         ...(navigationCustomizationAvailable()
           ? [page("SettingsNavigation", "line.3.horizontal", gt("Navigation tabs"))]
           : []),
-        page("SettingsKeyboard", "keyboard", "Keyboard"),
+        page("SettingsKeyboard", "keyboard", gt("Keyboard")),
       ],
     },
     {
@@ -256,10 +256,14 @@ function useSettingsIndexSections(): SettingsListSection[] {
     },
     {
       rows: [
-        serverPage("SettingsEnvironmentVoiceTranscription", "mic", "Voice transcription"),
-        serverPage("SettingsEnvironmentMaintenance", "arrow.clockwise", "Maintenance"),
-        page("SettingsAbout", "info.circle", "About"),
-        page("SettingsArchive", "archivebox", "Archive"),
+        serverPage("SettingsEnvironmentVoiceTranscription", "mic", gt("Voice transcription")),
+        serverPage("SettingsEnvironmentMaintenance", "arrow.clockwise", gt("Maintenance")),
+        page("SettingsAbout", "info.circle", gt("About")),
+        page(
+          "SettingsArchive",
+          "archivebox",
+          gt("Archive", { $context: "noun, settings page of archived threads" }),
+        ),
       ],
     },
   ];

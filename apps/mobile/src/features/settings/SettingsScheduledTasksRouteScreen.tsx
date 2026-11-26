@@ -877,14 +877,20 @@ function TaskForm({
           title={gt("Destination")}
           footer={
             draft.threadMode === "new_thread"
-              ? "Each run starts a new thread."
-              : `${
-                  draft.threadMode === "continue"
-                    ? "Runs continue one conversation."
-                    : "Runs share one thread, each in a fresh session without earlier runs' context."
-                }${
-                  draft.threadId === null ? " The first run starts the thread." : ""
-                } Deleting it also deletes this task.`
+              ? gt("Each run starts a new thread.")
+              : draft.threadMode === "continue"
+                ? draft.threadId === null
+                  ? gt(
+                      "Runs continue one conversation. The first run starts the thread. Deleting it also deletes this task.",
+                    )
+                  : gt("Runs continue one conversation. Deleting it also deletes this task.")
+                : draft.threadId === null
+                  ? gt(
+                      "Runs share one thread, each in a fresh session without earlier runs' context. The first run starts the thread. Deleting it also deletes this task.",
+                    )
+                  : gt(
+                      "Runs share one thread, each in a fresh session without earlier runs' context. Deleting it also deletes this task.",
+                    )
           }
         >
           {offersThreadModes ? (
@@ -1135,7 +1141,7 @@ function TaskForm({
                 <View key={field}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${field === "date" ? "Date" : "Time"}, ${label}`}
+                    accessibilityLabel={`${field === "date" ? gt("Date") : gt("Time", { $context: "time of day" })}, ${label}`}
                     onPress={() => setRunAtPicker((open) => (open === field ? null : field))}
                     className="min-h-14 flex-row items-center gap-3 border-t border-border-subtle px-4 py-3 active:opacity-70"
                   >

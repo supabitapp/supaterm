@@ -102,8 +102,11 @@ export function SidebarUpdateReleaseNotes({
           const linkLabel =
             releaseNote.stats ??
             (omittedItemCount === 0
-              ? "View release on GitHub"
-              : `${omittedItemCount} more ${omittedItemCount === 1 ? "change" : "changes"} on GitHub`);
+              ? gt("View release on GitHub")
+              : gt(
+                  "{count, plural, one {{count} more change on GitHub} other {{count} more changes on GitHub}}",
+                  { count: omittedItemCount },
+                ));
 
           if (releaseNote.intro !== undefined) {
             return (

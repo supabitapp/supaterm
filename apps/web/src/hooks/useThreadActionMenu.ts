@@ -129,7 +129,7 @@ export function useThreadActionMenu(input: {
       !readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope)
     ) {
       failureToast(
-        "Thread action unavailable",
+        m(msg("Thread action unavailable")),
         new Error("This connection cannot change threads."),
       );
       return;
@@ -289,7 +289,9 @@ export function useThreadActionMenu(input: {
         });
         if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
           failureToast(
-            didArchive ? "Thread archived, but navigation failed" : "Failed to archive thread",
+            didArchive
+              ? m(msg("Thread archived, but navigation failed"))
+              : m(msg("Failed to archive thread")),
             squashAtomCommandFailure(result),
           );
         }

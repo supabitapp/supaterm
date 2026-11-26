@@ -189,7 +189,10 @@ function PullRequestIdentity(props: {
         <PullRequestDiffStats additions={pr.additions ?? 0} deletions={pr.deletions ?? 0} compact />
         {"changedFiles" in pr && pr.changedFiles !== undefined ? (
           <Text className="text-2xs text-foreground-muted">
-            {pr.changedFiles.toLocaleString()} {pr.changedFiles === 1 ? "file" : "files"}
+            {gt("{count, plural, one {{shown} file} other {{shown} files}}", {
+              count: pr.changedFiles,
+              shown: pr.changedFiles.toLocaleString(),
+            })}
           </Text>
         ) : (
           <View className="h-3 w-12 rounded bg-subtle-strong" />
@@ -511,7 +514,10 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
     action.confirm(
       "delete-branch",
       pullRequestActionLabel("delete-branch", terminology, messages),
-      `Delete ${pr.headBranch} from ${pr.headRepositoryNameWithOwner ?? pr.repository}? Local branches and worktrees are not changed.`,
+      gt("Delete {branch} from {repository}? Local branches and worktrees are not changed.", {
+        branch: pr.headBranch,
+        repository: pr.headRepositoryNameWithOwner ?? pr.repository,
+      }),
     );
   const stack = usePullRequestStack(params, pr);
   const refreshActivity = useAtomRefresh(composerPullRequests.activity(requestTarget(params)));

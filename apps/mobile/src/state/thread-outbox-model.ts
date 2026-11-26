@@ -43,6 +43,8 @@ import { withImplicitFastModeSelection } from "../lib/providerOptions";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import type { DraftComposerAttachment } from "../lib/composerImages";
 import { resolveProviderInteractionMode } from "./provider-interaction-mode";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 const THREAD_OUTBOX_SCHEMA_VERSION = 5;
 
@@ -291,12 +293,12 @@ export function resolveVoiceDeliveryStep(
     }
     return shouldRetryThreadOutboxDelivery(error)
       ? { step: "retry" }
-      : hold(error instanceof Error ? error.message : "The recording couldn't be sent.");
+      : hold(error instanceof Error ? error.message : m(msg("The recording couldn't be sent.")));
   }
   const { text, submission } = outcome.result;
   if (submission?.status === "sent") return { step: "delivered", transcript: text };
   if (submission?.status === "noSpeech" || text.trim().length === 0) {
-    return hold("No speech was detected.");
+    return hold(m(msg("No speech was detected.")));
   }
-  return hold("Transcribed, but the message couldn't be sent. Edit it or try again.", text);
+  return hold(m(msg("Transcribed, but the message couldn't be sent. Edit it or try again.")), text);
 }

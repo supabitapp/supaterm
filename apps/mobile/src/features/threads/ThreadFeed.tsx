@@ -4,7 +4,6 @@ import { CollapsibleUserMessageBody } from "./CollapsibleUserMessageBody";
 import { toServerClock } from "@supaterm/client-runtime/clock";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
-import type { DraftComposerAttachment } from "../../lib/composerImages";
 import {
   createThreadHistoryPrefetcher,
   THREAD_HISTORY_PREFETCH_VIEWPORTS,
@@ -73,6 +72,7 @@ import {
   type EnvironmentId,
   MessageId,
   type OrchestrationV2ProjectedTurnItem,
+  type OrchestrationV2TurnItem,
   type RepositoryIdentity,
   type RunId,
   type ScheduledTaskId,
@@ -108,7 +108,10 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { classifyMarkdownImageSource } from "@supaterm/client-runtime/markdown-images";
-import { resolveViewedImageAsset } from "@supaterm/client-runtime/work-log/presentation";
+import {
+  contextCompactionTokenCounts,
+  resolveViewedImageAsset,
+} from "@supaterm/client-runtime/work-log/presentation";
 import {
   renderCodexInlineDirectivesAsMarkdown,
   splitCodexArtifactTemplateMarkdown,
@@ -162,6 +165,7 @@ import {
   remoteAttachmentImageSource,
 } from "../../lib/filePreviewGallery";
 import { composerImageGallery } from "../../lib/composerImageGallery";
+import type { DraftComposerAttachment } from "../../lib/composerImages";
 import {
   isFileBackedComposerAttachment,
   type FileBackedComposerAttachment,
@@ -253,7 +257,7 @@ import {
 } from "../../lib/markdownLinks";
 import {
   createThreadFeedCache,
-  threadFeedCompactionTitles,
+  threadFeedCompactionIdleAges,
   failedFeedRunIds,
   deriveThreadFeedPresentation,
   threadFeedRunIsInProgress,
@@ -359,7 +363,7 @@ import {
 } from "./threadFeedEndFollow";
 import { useMessageTimeFormatter } from "./useMessageTimeFormatter";
 import { T, useMessages, useGT, msg, useLocale } from "gt-react-native";
-import { m } from "../../i18n/messages";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 const WIDE_MARKDOWN_BLOCK_OPTIONS = {
   // Native iOS blockquotes and adjacent selectable text are separate layout
@@ -815,7 +819,8 @@ function MessageAttachmentFile(props: {
   const isPdf = isPdfFile(attachment);
   const fileTypeLabel = isPdf
     ? "PDF"
-    : (attachment.name.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toUpperCase() ?? "File");
+    : (attachment.name.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toUpperCase() ??
+      gt("File", { $context: "generic file type label" }));
   const sizeLabel = formatAttachmentSize(attachment.sizeBytes);
   const httpBaseUrl = Option.isSome(preparedConnection)
     ? preparedConnection.value.httpBaseUrl
@@ -874,7 +879,9 @@ function MessageAttachmentFile(props: {
       if (controller.signal.aborted) return finish(null);
       if (result._tag === "Failure") {
         const error = squashAtomCommandFailure(result);
-        return finish(error instanceof Error ? error.message : "The attachment is unavailable.");
+        return finish(
+          error instanceof Error ? error.message : gt("The attachment is unavailable."),
+        );
       }
       const url = resolveAssetUrl(httpBaseUrl, result.value.relativeUrl);
       if (url === null) return finish(gt("The attachment could not be opened."));
@@ -888,7 +895,9 @@ function MessageAttachmentFile(props: {
       );
       if (shared._tag === "Failure") {
         const error = squashAtomCommandFailure(shared);
-        return finish(error instanceof Error ? error.message : "The attachment is unavailable.");
+        return finish(
+          error instanceof Error ? error.message : gt("The attachment is unavailable."),
+        );
       }
       finish(null);
     })();
@@ -1624,7 +1633,7 @@ function AgentMessageFoldHeader(props: {
   const senderShell = useQuietThreadShell(
     props.senderThreadId ? scopeThreadRef(props.environmentId, props.senderThreadId) : null,
   );
-  const label = senderShell?.title.trim() || props.senderTitle?.trim() || "Agent";
+  const label = senderShell?.title.trim() || props.senderTitle?.trim() || gt("Agent");
   return (
     <Pressable
       accessibilityRole="button"
@@ -1901,11 +1910,27 @@ function RunFoldButton({
   );
 }
 
-function compactionLabel(label: string, title: string | undefined) {
+function compactionLabel(
+  label: string,
+  item: OrchestrationV2TurnItem,
+  idleAge: string | undefined,
+  resolve: MessageResolver,
+) {
+  const tokens =
+    item.type === "compaction" && item.status === "completed"
+      ? contextCompactionTokenCounts(item)
+      : null;
   const text =
-    title !== undefined && label.startsWith("Context compacted")
-      ? title + label.slice("Context compacted".length)
-      : label;
+    idleAge === undefined || item.type !== "compaction" || item.status !== "completed"
+      ? label
+      : tokens
+        ? resolve(
+            msg("Context compacted after {age} idle {before} → {after} tokens", {
+              age: idleAge,
+              ...tokens,
+            }),
+          )
+        : resolve(msg("Context compacted after {age} idle", { age: idleAge }));
   // Non-breaking spaces keep "549K → 16.8K tokens" on one line when the label wraps.
   return text.replace(/ (→|tokens)/g, "\u00A0$1").replace(/→ /g, "→\u00A0");
 }
@@ -1968,7 +1993,8 @@ function renderFeedEntry(
     readonly workGroupScrollPositions: Map<string, ThreadWorkGroupScrollPosition>;
     readonly terminalAssistantMessageIds: ReadonlySet<string>;
     readonly inProgressTurnId: RunId | null;
-    readonly compactionTitlesByEntryId: ReadonlyMap<string, string>;
+    readonly compactionIdleAgesByEntryId: ReadonlyMap<string, string>;
+    readonly resolve: MessageResolver;
     readonly failedRunIds: ReadonlySet<RunId>;
     readonly onCopyWorkRow: (rowId: string, value: string) => void;
     readonly onToggleWorkGroup: (groupId: string, anchorKey?: string) => void;
@@ -2194,7 +2220,12 @@ function renderFeedEntry(
         label={
           failure
             ? `${label} · ${failure}`
-            : compactionLabel(label, props.compactionTitlesByEntryId.get(entry.id))
+            : compactionLabel(
+                label,
+                item,
+                props.compactionIdleAgesByEntryId.get(entry.id),
+                props.resolve,
+              )
         }
         icon={
           item.status === "failed" ? "exclamationmark.circle" : "arrow.down.right.and.arrow.up.left"
@@ -2981,6 +3012,7 @@ let lastSplitViewport: { windowWidth: number; width: number; height: number } | 
 
 export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const gt = useGT();
+  const messages = useMessages();
   const formatMessageTime = useMessageTimeFormatter();
   const { listRef, onIsAtEndChange, onHeaderMaterialVisibilityChange } = props;
   const workflowOpening = useWorkflowOpening(props.environmentId, props.threadId);
@@ -3687,10 +3719,14 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         )?.id ?? null)
       : null;
   const [appendPendingTurn] = useState(createPendingTurnAppender);
-  const listFeed = appendPendingTurn(presentedFeed, {
-    zen: props.toolCallVisibility === "zen",
-    dispatchingMessageId: props.dispatchingMessageId,
-  });
+  const listFeed = appendPendingTurn(
+    presentedFeed,
+    {
+      zen: props.toolCallVisibility === "zen",
+      dispatchingMessageId: props.dispatchingMessageId,
+    },
+    messages,
+  );
   const pendingFoldMessageId =
     listFeed.findLast((entry) => entry.type === "pending-fold")?.messageId ?? null;
   const [groupFeed] = useState(createThreadFeedGrouping);
@@ -3802,7 +3838,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     { anchorOffset: anchorTopInset + CHAT_LIST_ANCHOR_OFFSET },
   );
   const failedRunIds = failedFeedRunIds(props.feed, props.latestRun);
-  const compactionTitlesByEntryId = threadFeedCompactionTitles(props.feed);
+  const compactionIdleAgesByEntryId = threadFeedCompactionIdleAges(props.feed);
   const terminalAssistantMessageIds = (() => {
     const terminalIdsByTurn = new Map<RunId, string>();
     for (const entry of props.feed) {
@@ -4145,7 +4181,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             workGroupScrollPositions,
             terminalAssistantMessageIds,
             inProgressTurnId,
-            compactionTitlesByEntryId,
+            compactionIdleAgesByEntryId,
+            resolve: messages,
             failedRunIds,
             onCopyWorkRow,
             onToggleWorkGroup,

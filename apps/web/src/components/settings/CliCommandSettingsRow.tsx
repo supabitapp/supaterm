@@ -10,7 +10,7 @@ import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { SettingsRow } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 import { m } from "../../i18n/messages";
 
 const FAILURE_TITLES = {
@@ -50,6 +50,7 @@ export function useDesktopCliCommand() {
 }
 
 export function CliCommandSettingsRow() {
+  const resolve = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { state, busy, run } = useDesktopCliCommand();
@@ -57,14 +58,41 @@ export function CliCommandSettingsRow() {
   if (!state?.supported) return null;
   const installed = state.installedPath !== null;
   const description = state.shadowedBy
-    ? `Another supaterm at ${state.shadowedBy} runs first in a new terminal. Remove it to use Supaterm's.`
+    ? resolve(
+        msg(
+          "Another supaterm at {path} runs first in a new terminal. Remove it to use Supaterm's.",
+          {
+            path: state.shadowedBy,
+          },
+        ),
+      )
     : !installed
-      ? "Run Supaterm's CLI as `supaterm` from any terminal."
+      ? resolve(msg("Run Supaterm's CLI as `supaterm` from any terminal."))
       : state.onPath
-        ? `Installed at ${state.installedPath}. Open a new terminal to use it.`
+        ? resolve(
+            msg("Installed at {path}. Open a new terminal to use it.", {
+              path: state.installedPath,
+            }),
+          )
         : state.pathSetup?.added
-          ? `Installed at ${state.installedPath} and added to PATH in ${state.pathSetup.file}. Open a new terminal to use it.`
-          : `Installed at ${state.installedPath}, which is not on your PATH yet.${state.pathSetup ? "" : " Add its folder to your PATH to run `supaterm`."}`;
+          ? resolve(
+              msg(
+                "Installed at {path} and added to PATH in {file}. Open a new terminal to use it.",
+                { path: state.installedPath, file: state.pathSetup.file },
+              ),
+            )
+          : state.pathSetup
+            ? resolve(
+                msg("Installed at {path}, which is not on your PATH yet.", {
+                  path: state.installedPath,
+                }),
+              )
+            : resolve(
+                msg(
+                  "Installed at {path}, which is not on your PATH yet. Add its folder to your PATH to run `supaterm`.",
+                  { path: state.installedPath },
+                ),
+              );
 
   return (
     <SettingsRow

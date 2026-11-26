@@ -38,7 +38,7 @@ import {
   previewStreamMessage,
   type PreviewStreamConfiguration,
 } from "./preview-stream-document";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 export interface PreviewStreamRef {
@@ -278,6 +278,7 @@ function PreviewStreamDocumentView({
   readonly onStreaming: () => void;
   readonly onRecoverProcess: () => boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const webView = useRef<WebView<object>>(null);
   const active = useRef(true);
@@ -370,7 +371,7 @@ function PreviewStreamDocumentView({
       {!compact && control?.controller !== "you" ? (
         <View className="flex-row items-center justify-between gap-2 border-b border-secondary-border px-3 py-2">
           <AppText className="text-xs text-foreground-muted">
-            {previewStreamControlLabel(control)}
+            {previewStreamControlLabel(control, messages)}
           </AppText>
           {control?.canOperate ? (
             <Button
@@ -430,7 +431,7 @@ function PreviewStreamDocumentView({
                 return;
               case "hostSetup":
                 setHostSetup({ need: message.need, command: message.command });
-                fail(previewStreamHostSetupMessage(message));
+                fail(previewStreamHostSetupMessage(message, m));
                 return;
               case "viewport":
                 onViewport?.(message);

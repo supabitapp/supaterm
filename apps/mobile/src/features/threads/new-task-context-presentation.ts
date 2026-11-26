@@ -31,14 +31,17 @@ export function resolveNewTaskWorkspaceSelection(input: {
   };
 }
 
-export function resolveNewTaskWorkspaceLabel(input: {
-  readonly workspaceMode: WorkspaceMode;
-  readonly worktreePath: string | null;
-}): "Current checkout" | "Current worktree" | "New worktree" {
+export function resolveNewTaskWorkspaceLabel(
+  input: {
+    readonly workspaceMode: WorkspaceMode;
+    readonly worktreePath: string | null;
+  },
+  resolve: MessageResolver = m,
+): string {
   if (input.workspaceMode === "worktree") {
-    return "New worktree";
+    return resolve(msg("New worktree"));
   }
-  return input.worktreePath ? "Current worktree" : "Current checkout";
+  return input.worktreePath ? resolve(msg("Current worktree")) : resolve(msg("Current checkout"));
 }
 
 export function resolveNewTaskBranchWorktreePath(input: {

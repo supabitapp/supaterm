@@ -78,7 +78,6 @@ const ZipFailure = Schema.Struct({
 });
 type ZipFailure = typeof ZipFailure.Type;
 
-const SAVE_ZIP_HINT = "Save the ZIP to open it in another app.";
 const TOO_LARGE: ZipFailure = {
   title: msg("Too large to browse here"),
   detail: msg("Browsing works up to {size}. Save the ZIP to open it in another app.", {
@@ -147,7 +146,11 @@ async function openArchive(bytes: ArrayBuffer): Promise<ZipArchive> {
     throw new ZipFailureError({
       failure: {
         title: msg("Couldn't browse this ZIP"),
-        detail: `${isZipError(cause) ? zipErrorText(cause.code, m) : errorMessage(cause, "It may be incomplete or damaged.")} ${SAVE_ZIP_HINT}`,
+        detail: msg("{reason} Save the ZIP to open it in another app.", {
+          reason: isZipError(cause)
+            ? zipErrorText(cause.code, m)
+            : errorMessage(cause, m(msg("It may be incomplete or damaged."))),
+        }),
         retry: false,
       },
     });
@@ -251,6 +254,7 @@ function ZipTreeRowView(props: {
   readonly onToggle: (path: string) => void;
   readonly onOpen: (entry: ZipEntry) => void;
 }) {
+  const gt = useGT();
   const { node, depth } = props.row;
   const entry = node.entry;
   const folder = entry ? null : zipFolderLabel(node.label);
@@ -290,7 +294,9 @@ function ZipTreeRowView(props: {
         {entry
           ? formatAttachmentSize(entry.sizeBytes)
           : props.collapsed
-            ? `${node.fileCount} ${node.fileCount === 1 ? "file" : "files"}`
+            ? gt("{count, plural, one {{count} file} other {{count} files}}", {
+                count: node.fileCount,
+              })
             : ""}
       </Text>
     </Pressable>
@@ -523,7 +529,7 @@ export function ZipArchiveView(props: {
           name={props.name}
           subtitle={
             archive
-              ? `${archive.fileCount} ${archive.fileCount === 1 ? "file" : "files"}${props.sizeBytes > 0 ? ` · ${formatAttachmentSize(props.sizeBytes)}` : ""}`
+              ? `${gt("{count, plural, one {{count} file} other {{count} files}}", { count: archive.fileCount })}${props.sizeBytes > 0 ? ` · ${formatAttachmentSize(props.sizeBytes)}` : ""}`
               : props.subtitle
           }
           onSave={props.onSave}
@@ -680,7 +686,7 @@ function ZipEntryView(props: {
           setContent({
             status: "failed",
             title: null,
-            message: errorMessage(cause, "Could not read this file."),
+            message: errorMessage(cause, m(msg("Could not read this file."))),
           });
       });
     return () => {

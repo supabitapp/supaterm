@@ -96,13 +96,13 @@ function AudioChip(props: AudioPreviewProps) {
   const open = props.onOpen ?? (props.failed ? props.onRetry : undefined);
   const action = props.failed
     ? props.onOpen
-      ? "Open"
-      : "Retry"
+      ? gt("Open", { $context: "verb, opens an audio file" })
+      : gt("Retry")
     : loading
-      ? "Loading"
+      ? gt("Loading")
       : playing
-        ? "Pause"
-        : "Play";
+        ? gt("Pause", { $context: "verb, pauses audio playback" })
+        : gt("Play");
   // The icon set has no pause glyph, so the playing state shows stop.
   const Icon = props.failed
     ? TriangleAlertIcon
@@ -127,7 +127,11 @@ function AudioChip(props: AudioPreviewProps) {
       />
       <ContextChipAction
         className="ml-0 [&_svg]:size-[1.17em]"
-        aria-label={`${props.failed ? "Audio unavailable. " : ""}${action} ${props.name}`}
+        aria-label={
+          props.failed
+            ? gt("Audio unavailable. {action} {name}", { action, name: props.name })
+            : gt("{action} {name}", { action, name: props.name })
+        }
         disabled={loading}
         onClick={() => {
           if (props.failed) {
@@ -152,7 +156,11 @@ function AudioChip(props: AudioPreviewProps) {
             type="button"
             className="block max-w-full cursor-pointer truncate rounded-sm text-left focus-visible:outline-2 focus-visible:outline-foreground"
             onClick={open}
-            aria-label={`${props.failed && !props.onOpen ? "Retry" : "Preview"} ${props.name}`}
+            aria-label={
+              props.failed && !props.onOpen
+                ? gt("Retry {name}", { name: props.name })
+                : gt("Preview {name}", { name: props.name })
+            }
           >
             {middleTruncateAttachmentName(props.name)}
           </button>

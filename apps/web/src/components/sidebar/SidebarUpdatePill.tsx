@@ -202,7 +202,7 @@ function SidebarUpdateControl() {
     ? everything.summary
     : state
       ? getDesktopUpdateButtonTooltip(state, messages)
-      : "Update available";
+      : gt("Update available");
   const isInteractionDisabled =
     (!runsEverything && isDesktopUpdateButtonDisabled(state)) ||
     isChecking ||

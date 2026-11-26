@@ -539,7 +539,7 @@ function DeleteActionButton({
             disabled={disabled}
             {...confirm.bind("delete", onDelete)}
           >
-            <InlineConfirmLabel armed={armed} idle="Delete" confirm="Confirm delete" />
+            <InlineConfirmLabel armed={armed} idle="Delete" confirm={gt("Confirm delete")} />
           </Button>
         }
       />

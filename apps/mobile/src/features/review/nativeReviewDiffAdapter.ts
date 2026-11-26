@@ -473,12 +473,12 @@ function prepareFileRows(file: ReviewRenderableFile): PreparedNativeReviewFileRo
   }
   rows.push(...noticeRowsForFile(file));
   if (file.noEOFCRAdditions || file.noEOFCRDeletions) {
-    const side = file.noEOFCRAdditions
+    const text = file.noEOFCRAdditions
       ? file.noEOFCRDeletions
-        ? "Old and new files have"
-        : "New file has"
-      : "Old file has";
-    rows.push(createNoticeRow(file.id, "eof", `${side} no newline at end of file.`));
+        ? m(msg("Old and new files have no newline at end of file."))
+        : m(msg("New file has no newline at end of file."))
+      : m(msg("Old file has no newline at end of file."));
+    rows.push(createNoticeRow(file.id, "eof", text));
   }
   const prepared: PreparedNativeReviewFileRows = {
     fileId: file.id,

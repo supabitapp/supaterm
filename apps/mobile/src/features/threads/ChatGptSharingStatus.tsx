@@ -21,8 +21,12 @@ export function ChatGptSharingStatus({ provider }: { provider: ServerProvider | 
             gt("ChatGPT sharing is on"),
             [
               provider?.auth.email,
-              "Eligible usage uses your ChatGPT plan. Credit settings and limits are managed in ChatGPT.",
-              "Fast and Ultrafast are unavailable with this ChatGPT connection. Use an existing Codex CLI login for speed options your account supports.",
+              gt(
+                "Eligible usage uses your ChatGPT plan. Credit settings and limits are managed in ChatGPT.",
+              ),
+              gt(
+                "Fast and Ultrafast are unavailable with this ChatGPT connection. Use an existing Codex CLI login for speed options your account supports.",
+              ),
             ]
               .filter(Boolean)
               .join("\n\n"),

@@ -722,7 +722,7 @@ export function HomeScreen(props: HomeScreenProps) {
     props.selectedEnvironmentId === null
       ? null
       : (props.savedConnectionsById[props.selectedEnvironmentId]?.environmentLabel ??
-        "this environment");
+        gt("this environment"));
   const emptyState = resolveHomeEmptyState(
     {
       phase: props.catalogState.phase,

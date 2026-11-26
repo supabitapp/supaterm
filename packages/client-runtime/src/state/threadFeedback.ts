@@ -65,15 +65,24 @@ export interface LocalChatMessage {
 export function codexFeedbackMessage(
   submission: CodexFeedbackSubmission,
   role: "user" | "assistant" = "user",
+  resolve: MFunctionType = mFallback,
 ): LocalChatMessage {
   const text =
     role === "user"
       ? submission.command
       : submission.status === "sent"
-        ? `Feedback sent to OpenAI.\n\nThread ID: \`${submission.feedbackId}\``
+        ? resolve(
+            msg("Feedback sent to OpenAI.\n\nThread ID: `{feedbackId}`", {
+              feedbackId: submission.feedbackId,
+            }),
+          )
         : submission.status === "failed"
-          ? `Could not send feedback to OpenAI.\n\n${submission.errorMessage}`
-          : "Sending feedback to OpenAI...";
+          ? resolve(
+              msg("Could not send feedback to OpenAI.\n\n{errorMessage}", {
+                errorMessage: submission.errorMessage,
+              }),
+            )
+          : resolve(msg("Sending feedback to OpenAI..."));
 
   return {
     id: role === "user" ? submission.id : MessageId.make(`${submission.id}:feedback`),

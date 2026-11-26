@@ -3,7 +3,8 @@ import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitatio
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import { composerFileLinksToPlainText } from "@supaterm/shared/composerMentionTokens";
 import { truncate } from "@supaterm/shared/String";
-import { msg } from "gt-i18n";
+import { msg, mFallback } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export interface ThreadTitleSeedInput {
   readonly text: string;
@@ -35,7 +36,10 @@ export function threadTitleTextFromPrompt(value: string): string {
   );
 }
 
-export function deriveThreadTitleSeed(input: ThreadTitleSeedInput): string {
+export function deriveThreadTitleSeed(
+  input: ThreadTitleSeedInput,
+  resolve: MFunctionType = mFallback,
+): string {
   const text = threadTitleTextFromPrompt(input.text);
   if (text.length > 0) {
     return truncate(text);
@@ -48,7 +52,7 @@ export function deriveThreadTitleSeed(input: ThreadTitleSeedInput): string {
 
   const attachmentName = normalizeTitleSeed(input.attachments[0]?.name ?? "");
   if (attachmentName.length > 0) {
-    return truncate(`File: ${attachmentName}`);
+    return truncate(resolve(msg("File: {name}", { name: attachmentName })));
   }
 
   for (const label of input.fallbackLabels ?? []) {

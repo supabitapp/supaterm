@@ -341,7 +341,11 @@ function ProjectBindings({
                 onValueChange={(next) => void change(project.id, next)}
               >
                 <SelectTrigger
-                  aria-label={`${tracker.displayName} ${tracker.scopeNoun} for ${project.title}`}
+                  aria-label={gt("{tracker} {scope} for {project}", {
+                    tracker: tracker.displayName,
+                    scope: tracker.scopeNoun,
+                    project: project.title,
+                  })}
                   className="w-full @min-[32rem]/settings-row:w-56"
                   size="sm"
                 >

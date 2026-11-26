@@ -21,6 +21,7 @@ import {
   resolveThreadDetailsCardDensity,
 } from "./threadDetailsCardLayout";
 import { observeResize } from "../../lib/observeResize";
+import { useGT } from "gt-react";
 
 export function ThreadDetailsCard({
   threadRef,
@@ -38,11 +39,12 @@ export function ThreadDetailsCard({
   onContextMenu?: MouseEventHandler<HTMLDivElement>;
   children: (density: "full" | "compact" | "essential") => ReactNode;
 }) {
+  const gt = useGT();
   const canvas = useChatCanvas();
   const preferredPlacement = canvas?.preferredDetailsCard ?? null;
   const placement = canvas?.detailsCardPlacement ?? null;
   const mode = placement ? "inline" : "popover";
-  const detailsArea = workspaceAreaProps("details", 3, "Thread details");
+  const detailsArea = workspaceAreaProps("details", 3, gt("Thread details"));
   const detailsFocusKey = `details:${threadRef.environmentId}:${threadRef.threadId}`;
   const popoverSideOffset = canvas?.detailsPopoverSideOffset ?? 0;
   const inlineOpen = useRightPanelStore((state) =>

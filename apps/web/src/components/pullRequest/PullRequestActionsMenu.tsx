@@ -70,7 +70,12 @@ function deleteBranchHint(
 ): string {
   if (!connected) return resolve(msg("Reconnect to delete this branch"));
   if (armed) return resolve(msg("Local branches and worktrees are not changed"));
-  return `${detail.headBranch} in ${detail.headRepositoryNameWithOwner ?? detail.repository}`;
+  return resolve(
+    msg("{branch} in {repository}", {
+      branch: detail.headBranch,
+      repository: detail.headRepositoryNameWithOwner ?? detail.repository,
+    }),
+  );
 }
 
 /**

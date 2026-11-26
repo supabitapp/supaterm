@@ -350,7 +350,14 @@ export function UsageProviderChart({
     resolution === "hour" && referenceTime !== undefined
       ? formatRelativeHourShort(period, referenceTime, timeZone, hour12, m)
       : formatPeriod(period);
-  const ariaLabel = `${resolution === "hour" ? "Hourly" : "Daily"} ${metric === "tokens" ? "processed tokens" : "cost"} by provider`;
+  const ariaLabel =
+    resolution === "hour"
+      ? metric === "tokens"
+        ? gt("Hourly processed tokens by provider")
+        : gt("Hourly cost by provider")
+      : metric === "tokens"
+        ? gt("Daily processed tokens by provider")
+        : gt("Daily cost by provider");
 
   if (resolution === "day" && periods.length >= CALENDAR_MIN_DAYS) {
     return (
@@ -371,7 +378,9 @@ export function UsageProviderChart({
         {average > 0 ? (
           <>
             <span aria-hidden className="w-3 border-t border-dashed border-muted-foreground" />
-            {format(average)} {resolution === "hour" ? "hourly" : "daily"} average
+            {resolution === "hour"
+              ? gt("{value} hourly average", { value: format(average) })
+              : gt("{value} daily average", { value: format(average) })}
           </>
         ) : null}
       </div>

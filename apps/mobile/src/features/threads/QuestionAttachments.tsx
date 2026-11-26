@@ -40,7 +40,8 @@ import { ComposerDictationStartAction } from "../voice-input/ComposerDictationCo
 import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
-import { useGT, useMessages } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
+import { m } from "../../i18n/messages";
 export function QuestionAttachments(props: {
   requestId: string;
   question: UserInputQuestion;
@@ -306,7 +307,7 @@ function attachProblems(
   const skipped = skippedDuplicateAttachmentsMessage(result.duplicates);
   return [
     ...(result.error ? [result.error] : []),
-    ...(result.rejected > 0 ? ["Too many attachments."] : []),
+    ...(result.rejected > 0 ? [m(msg("Too many attachments."))] : []),
     ...(skipped ? [skipped] : []),
   ];
 }

@@ -69,7 +69,7 @@ export function PullRequestMergeControls(props: {
       : null,
     AsyncResult.isSuccess(preferences) ? preferences.value.pullRequestMergeMethod : undefined,
   );
-  const scope = stack.stack ? pullRequestStackMerge(stack.stack, pr.number, terminology) : null;
+  const scope = stack.stack ? pullRequestStackMerge(stack.stack, pr.number, terminology, m) : null;
   const canMergeSingle = singlePullRequestMergeAllowed({
     supportsStackActions: stack.supportsStackActions,
     hasStack: stack.stack !== null,

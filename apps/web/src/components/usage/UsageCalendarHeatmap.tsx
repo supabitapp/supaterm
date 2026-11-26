@@ -1,5 +1,5 @@
 import type { UsageProviderKind } from "@supaterm/contracts";
-import { T, useGT } from "gt-react";
+import { T, useGT, useLocale } from "gt-react";
 import { useState } from "react";
 
 import {
@@ -20,8 +20,13 @@ const LEVEL_CLASS: Record<UsageCalendarLevel, string> = {
   4: "bg-foreground/90",
 };
 const CELL_PITCH = 32;
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const LABELED_WEEKDAYS = new Set(["Mon", "Wed", "Fri"]);
+const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+const LABELED_WEEKDAYS: ReadonlySet<string> = new Set(["mon", "wed", "fri"]);
+// 2024-01-01 was a Monday; the slot index counts days from it.
+const weekdayLabel = (slot: number, locale: string) =>
+  new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(
+    Date.UTC(2024, 0, 1 + slot),
+  );
 
 export function UsageCalendarHeatmap({
   days,
@@ -39,6 +44,7 @@ export function UsageCalendarHeatmap({
   readonly loading: boolean;
 }) {
   const gt = useGT();
+  const locale = useLocale();
   const [active, setActive] = useState<number | null>(null);
   const totals = columns.map((column) => column.total);
   const calendar = buildUsageCalendar(days, totals);
@@ -95,9 +101,9 @@ export function UsageCalendarHeatmap({
         onMouseLeave={() => setActive(null)}
       >
         <div className="grid grid-rows-7 gap-1 pt-5 text-3xs text-muted-foreground">
-          {WEEKDAYS.map((weekday) => (
+          {WEEKDAYS.map((weekday, slot) => (
             <span key={weekday} className="flex h-7 items-center">
-              {LABELED_WEEKDAYS.has(weekday) ? weekday : ""}
+              {LABELED_WEEKDAYS.has(weekday) ? weekdayLabel(slot, locale) : ""}
             </span>
           ))}
         </div>

@@ -956,20 +956,26 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const recede = environmentConnected && shouldRecedeThreadRow({ status, selected });
   // The timestamp is precomputed on the list item (same stamps the done
   // tail sorts by) so a minute tick only re-renders rows that draw it.
-  const timeLabel = props.timeLabel;
-  const rowAccessibilityLabel = threadListV2RowAccessibilityLabel({
-    title: thread.title,
-    variant,
-    woke: showsWoke,
-    statusLabel: statusLabel?.label,
-    // A row whose environment is not connected shows that state where its time would be.
-    timeLabel: environmentConnected ? timeLabel : (rowStatusLabel?.label ?? timeLabel),
-    snoozeWakeLabel: environmentConnected && snoozedRow ? props.snoozeWakeLabelText : undefined,
-    providerNameLabel,
-    hasUnsentDraft,
-    hasQueuedMessages: props.hasQueuedMessages === true,
-    regeneratingTitle: isRegeneratingTitle,
-  });
+  // List items keep marked text so they stay the same objects across a language switch.
+  const timeLabel = props.timeLabel && m(props.timeLabel);
+  const snoozeWakeLabelText =
+    props.snoozeWakeLabelText === undefined ? undefined : m(props.snoozeWakeLabelText);
+  const rowAccessibilityLabel = threadListV2RowAccessibilityLabel(
+    {
+      title: thread.title,
+      variant,
+      woke: showsWoke,
+      statusLabel: statusLabel?.label,
+      // A row whose environment is not connected shows that state where its time would be.
+      timeLabel: environmentConnected ? timeLabel : (rowStatusLabel?.label ?? timeLabel),
+      snoozeWakeLabel: environmentConnected && snoozedRow ? snoozeWakeLabelText : undefined,
+      providerNameLabel,
+      hasUnsentDraft,
+      hasQueuedMessages: props.hasQueuedMessages === true,
+      regeneratingTitle: isRegeneratingTitle,
+    },
+    m,
+  );
 
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
   const markThreadUnread = useAtomCommand(threadEnvironment.markUnread, { reportFailure: false });
@@ -1800,8 +1806,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
           >
             {!environmentConnected
               ? rowStatusLabel?.label
-              : snoozedRow && props.snoozeWakeLabelText !== undefined
-                ? props.snoozeWakeLabelText
+              : snoozedRow && snoozeWakeLabelText !== undefined
+                ? snoozeWakeLabelText
                 : timeLabel}
           </Text>
         </View>

@@ -279,7 +279,11 @@ export function IssueTrackerProjectRows(props: {
     return (
       <Menu
         key={project.id}
-        title={`${tracker.displayName} ${tracker.scopeNoun} for ${project.title}`}
+        title={gt("{tracker} {scope} for {project}", {
+          tracker: tracker.displayName,
+          scope: tracker.scopeNoun,
+          project: project.title,
+        })}
         actions={[
           {
             id: UNBOUND,

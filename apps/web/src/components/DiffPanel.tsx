@@ -542,10 +542,10 @@ export default function DiffPanel({
       : undefined;
   const selectedGitScopeLabel =
     selectedCommitSha !== null
-      ? (selectedCommitSubject ?? `Commit ${selectedCommitSha.slice(0, 7)}`)
+      ? (selectedCommitSubject ?? gt("Commit {sha}", { sha: selectedCommitSha.slice(0, 7) }))
       : selectedGitScope === "unstaged"
-        ? "Uncommitted"
-        : "Changes";
+        ? gt("Uncommitted")
+        : gt("Changes");
   const selectedScopeLabel = toolCallSelection
     ? gt("Tool call")
     : selectedRunId === null
@@ -553,12 +553,12 @@ export default function DiffPanel({
         ? (selectedCommitSubject ?? gt("Commit", { $context: "a git commit" }))
         : selectedGitScopeLabel
       : selectedTurn?.runId === latestTurn?.runId
-        ? "Latest turn"
-        : `Turn ${selectedCheckpointTurnCount ?? "?"}`;
+        ? gt("Latest turn")
+        : gt("Turn {count}", { count: selectedCheckpointTurnCount ?? "?" });
   const reviewSectionTitle = toolCallSelection
     ? gt("Tool call")
     : selectedTurn
-      ? `Turn ${selectedCheckpointTurnCount ?? "?"}`
+      ? gt("Turn {count}", { count: selectedCheckpointTurnCount ?? "?" })
       : selectedGitScopeLabel;
   const headerCommitSha = selectedRunId === null ? selectedCommitSha : null;
   // The project's remote is the thread folder's; another repository's commits are not on it.

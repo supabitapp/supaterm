@@ -55,6 +55,7 @@ import {
 import type { ReviewCommentContext } from "~/reviewCommentContext";
 import { msg } from "gt-react";
 import { m, type MessageResolver } from "~/i18n/messages";
+import { changeRequestTermKind } from "~/components/pullRequest/changeRequestTerm";
 
 const PREVIEW_LABEL_MAX_CHARS = 48;
 const RESPONSE_LABEL_MAX_CHARS = 64;
@@ -77,14 +78,41 @@ function basename(filePath: string): string {
   return filePath.split(/[\\/]/).at(-1) ?? filePath;
 }
 
-export function reviewCommentContextLabel(comment: ReviewCommentPresentation): string {
+function diffRangeLabel(
+  start: string,
+  end: string | undefined,
+  before: boolean,
+  resolve: MessageResolver | undefined,
+): string {
+  if (resolve === undefined) {
+    return `L${start}${end ? ` to L${end}` : ""}${before ? " (before)" : ""}`;
+  }
+  if (end === undefined) {
+    return before
+      ? resolve(msg("L{start} (before)", { $context: "line in the old version of a diff" }), {
+          start,
+        })
+      : `L${start}`;
+  }
+  return before
+    ? resolve(
+        msg("L{start} to L{end} (before)", { $context: "line range in the old version of a diff" }),
+        { start, end },
+      )
+    : resolve(msg("L{start} to L{end}", { $context: "line range in a diff" }), { start, end });
+}
+
+export function reviewCommentContextLabel(
+  comment: ReviewCommentPresentation,
+  resolve?: MessageResolver,
+): string {
   const pullRequestNumber = pullRequestContextNumber(comment);
   if (isPullRequestSummaryContext(comment) && pullRequestNumber !== null) {
     return `#${pullRequestNumber}`;
   }
   const diffRange = /^([+-])(\d+)(?: to \1(\d+))?$/u.exec(comment.rangeLabel);
   const rangeLabel = diffRange
-    ? `L${diffRange[2]}${diffRange[3] ? ` to L${diffRange[3]}` : ""}${diffRange[1] === "-" ? " (before)" : ""}`
+    ? diffRangeLabel(diffRange[2]!, diffRange[3], diffRange[1] === "-", resolve)
     : comment.rangeLabel;
   const sectionPullRequest = /^pull-request:(\d+)$/u.exec(comment.sectionId)?.[1];
   const prefix = sectionPullRequest === undefined ? "" : `#${sectionPullRequest} `;
@@ -116,11 +144,52 @@ export function pullRequestContextDisplayState(
   return pullRequest.state === "open" && pullRequest.isDraft ? "draft" : pullRequest.state;
 }
 
-export function pullRequestContextKindLabel(comment: ReviewCommentPresentation): string {
+export function pullRequestContextKindLabel(
+  comment: ReviewCommentPresentation,
+  resolve?: MessageResolver,
+): string {
   const url = comment.pullRequest?.url;
   const host = url === undefined ? null : sourceControlClients.findByChangeRequestUrl(url);
   const term = (host ?? sourceControlClients.get(undefined)).changeRequest.singular;
   const state = pullRequestContextDisplayState(comment);
+  if (resolve !== undefined) {
+    const variables = { term: changeRequestTermKind({ singular: term }) };
+    switch (state) {
+      case null:
+        return resolve(
+          msg("{term, select, mr {Merge request} cr {Change request} other {Pull request}}"),
+          variables,
+        );
+      case "open":
+        return resolve(
+          msg(
+            "{term, select, mr {Open merge request} cr {Open change request} other {Open pull request}}",
+          ),
+          variables,
+        );
+      case "draft":
+        return resolve(
+          msg(
+            "{term, select, mr {Draft merge request} cr {Draft change request} other {Draft pull request}}",
+          ),
+          variables,
+        );
+      case "merged":
+        return resolve(
+          msg(
+            "{term, select, mr {Merged merge request} cr {Merged change request} other {Merged pull request}}",
+          ),
+          variables,
+        );
+      case "closed":
+        return resolve(
+          msg(
+            "{term, select, mr {Closed merge request} cr {Closed change request} other {Closed pull request}}",
+          ),
+          variables,
+        );
+    }
+  }
   if (state === null) return capitalizeTerm(term);
   return `${capitalizeTerm(state)} ${term}`;
 }

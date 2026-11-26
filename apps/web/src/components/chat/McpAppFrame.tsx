@@ -270,11 +270,19 @@ export function McpAppFrame(props: {
       commands: readLive,
       confirmTool: async ({ name, title, arguments: args }) =>
         (await ask(
-          `Allow ${app.server} to run ${title ?? name}?\n${JSON.stringify(args, null, 2)}`,
+          gt("Allow {server} to run {tool}?\n{input}", {
+            server: app.server,
+            tool: title ?? name,
+            input: JSON.stringify(args, null, 2),
+          }),
         )) === true,
       confirmDownload: async (files) =>
-        (await ask(`Save ${files.map((file) => file.name).join(", ")} from ${app.server}?`)) ===
-        true,
+        (await ask(
+          gt("Save {names} from {server}?", {
+            names: files.map((file) => file.name).join(", "),
+            server: app.server,
+          }),
+        )) === true,
       saveFile: ({ name, mimeType, bytes }) =>
         saveBlob(new Blob([bytes.slice()], { type: mimeType }), name),
     });
@@ -295,7 +303,9 @@ export function McpAppFrame(props: {
         const send = readLive().props.onSendMessage;
         if (send === undefined)
           throw new McpAppHostRefusal({ message: "Messages are not available here." });
-        const approved = await ask(`Send this message from ${app.server}?\n${text}`);
+        const approved = await ask(
+          gt("Send this message from {server}?\n{text}", { server: app.server, text }),
+        );
         if (approved !== true) throw new McpAppHostRefusal({ message: "Declined by the user." });
         await send(text);
       },

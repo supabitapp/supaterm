@@ -24,7 +24,8 @@ import {
   postponeUpdateRestart,
   retryFailedUpdateRunServers,
 } from "./updateEverythingRun";
-import { T, useGT, useMessages } from "gt-react";
+import { T, useGT, useMessages, msg } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 function useNow(intervalMs: number | null): number {
   const step = intervalMs ?? 60_000;
@@ -58,14 +59,21 @@ function restartSecondsLeft(run: UpdateEverythingRun, now: number): number | nul
     : null;
 }
 
-function localStatusLabel(run: UpdateEverythingRun, local: UpdateRunLocalState, now: number) {
+function localStatusLabel(
+  run: UpdateEverythingRun,
+  local: UpdateRunLocalState,
+  now: number,
+  resolve: MessageResolver,
+) {
   const seconds = restartSecondsLeft(run, now);
-  if (seconds !== null) return `restarts in ${seconds}s`;
-  if (run.phase === "installing") return "restarting";
+  if (seconds !== null) return resolve(msg("restarts in {seconds}s", { seconds }));
+  if (run.phase === "installing") return resolve(msg("restarting"));
   if (local?.status === "downloading") {
-    return `downloading${local.percent === null ? "" : ` ${Math.floor(local.percent)}%`}`;
+    return local.percent === null
+      ? resolve(msg("downloading"))
+      : resolve(msg("downloading {percent}%", { percent: Math.floor(local.percent) }));
   }
-  return "restarts after the servers";
+  return resolve(msg("restarts after the servers"));
 }
 
 export function SidebarUpdateCapsule({
@@ -82,6 +90,7 @@ export function SidebarUpdateCapsule({
   readonly icon: ReactNode;
   readonly onRestart?: () => Promise<void>;
 }) {
+  const m = useMessages();
   const messages = useMessages();
   const gt = useGT();
   const machines = useUpdateRunMachineViews(run, current);
@@ -172,7 +181,9 @@ export function SidebarUpdateCapsule({
               "rounded-full text-xs font-medium tabular-nums ring-1 ring-current/22 ring-inset",
           )}
         >
-          {restartSeconds !== null ? `${restartSeconds}s` : icon}
+          {restartSeconds !== null
+            ? m(msg("{seconds}s", { seconds: restartSeconds, $context: "countdown until restart" }))
+            : icon}
         </span>
       </div>
       <PopoverPopup side="top" align="end" padding="compact" width="sm">
@@ -183,7 +194,7 @@ export function SidebarUpdateCapsule({
                 <T>This app</T>
               </span>
               <span className="text-muted-foreground tabular-nums">
-                {localStatusLabel(run, local, now)}
+                {localStatusLabel(run, local, now, m)}
               </span>
             </div>
           ) : onRestart ? (

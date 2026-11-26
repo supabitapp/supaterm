@@ -136,10 +136,15 @@ export const Route = createFileRoute("/_chat/")({
 });
 
 function HostedStaticOnboardingState() {
+  const gt = useGT();
   const localEnvironmentOff = isLocalEnvironmentDisabled();
   const description = localEnvironmentOff
-    ? "The local environment is turned off. Connect a remote environment, or turn the local environment back on in Environments."
-    : "Open Environments and add that machine using its pairing link. This app must be able to reach it.";
+    ? gt(
+        "The local environment is turned off. Connect a remote environment, or turn the local environment back on in Environments.",
+      )
+    : gt(
+        "Open Environments and add that machine using its pairing link. This app must be able to reach it.",
+      );
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">

@@ -1,34 +1,5 @@
 import { type OrchestrationV2ProviderTurn, type RunAttemptId } from "@supaterm/contracts";
 import {
-  deriveLatestThreadRun,
-  deriveThreadRuntime,
-} from "@supaterm/client-runtime/state/thread-execution";
-import { turnChanges } from "@supaterm/client-runtime/state/thread-repositories";
-import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
-import {
-  latestUnheldRun,
-  usageLimitRunPresentedAsLatest,
-} from "@supaterm/shared/orchestrationV2ThreadError";
-import * as Option from "effect/Option";
-import {
-  outboxDispatchMode,
-  type ComposerDispatchMode,
-} from "@supaterm/client-runtime/state/composer-dispatch";
-import { removeInlineContextReference } from "~/lib/composerContextReferences";
-import {
-  previewAnnotationContextLabel,
-  reviewCommentContextLabel,
-  terminalContextReference,
-  type ReferenceContextRecord,
-} from "../lib/composerContextRecords";
-import { formatTerminalContextLabel } from "../lib/terminalContext";
-import type { ReviewCommentContext } from "../reviewCommentContext";
-import type { SetStateAction } from "react";
-import { applyClaudePromptEffortPrefix, resolvePromptInjectedEffort } from "@supaterm/shared/model";
-import { getProviderModelCapabilities } from "../providerModels";
-import { sanitizeThreadErrorMessage } from "@supaterm/client-runtime/errors";
-import type { EnvironmentThread, ThreadStructure } from "@supaterm/client-runtime/state/shell";
-import {
   ANTIGRAVITY_DEFAULT_MODEL,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   type AssetCreateUrlInput,
@@ -53,6 +24,36 @@ import {
   type RunId,
   type WorktreeSetupSnapshot,
 } from "@supaterm/contracts";
+import {
+  deriveLatestThreadRun,
+  deriveThreadRuntime,
+} from "@supaterm/client-runtime/state/thread-execution";
+import { turnChanges } from "@supaterm/client-runtime/state/thread-repositories";
+import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
+import {
+  latestUnheldRun,
+  usageLimitRunPresentedAsLatest,
+} from "@supaterm/shared/orchestrationV2ThreadError";
+import * as Option from "effect/Option";
+import {
+  outboxDispatchMode,
+  type ComposerDispatchMode,
+} from "@supaterm/client-runtime/state/composer-dispatch";
+import { removeInlineContextReference } from "~/lib/composerContextReferences";
+import { stripInlineContextReferences } from "~/lib/composerContextReferences";
+import {
+  previewAnnotationContextLabel,
+  reviewCommentContextLabel,
+  terminalContextReference,
+  type ReferenceContextRecord,
+} from "../lib/composerContextRecords";
+import { formatTerminalContextLabel } from "../lib/terminalContext";
+import { filterTerminalContextsWithText, type TerminalContextDraft } from "../lib/terminalContext";
+import type { ReviewCommentContext } from "../reviewCommentContext";
+import type { SetStateAction } from "react";
+import { applyClaudePromptEffortPrefix, resolvePromptInjectedEffort } from "@supaterm/shared/model";
+import { getProviderModelCapabilities } from "../providerModels";
+import { sanitizeThreadErrorMessage } from "@supaterm/client-runtime/errors";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import * as DateTime from "effect/DateTime";
 import { resolveAssetUrl } from "@supaterm/client-runtime/state/assets";
@@ -67,6 +68,7 @@ import {
   codexArtifactTemplateUsePrompt,
   type CodexArtifactTemplate,
 } from "@supaterm/shared/codexArtifactTemplates";
+import type { EnvironmentThread, ThreadStructure } from "@supaterm/client-runtime/state/shell";
 import { presentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
   type ChatMessage,
@@ -81,13 +83,11 @@ import type {
   DraftId,
   DraftThreadState,
 } from "../composerDraftStore";
+import type { DraftThreadEnvMode } from "../composerDraftStore";
 import * as Schema from "effect/Schema";
 import { threadHasStarted } from "../lib/chatThreadActions";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentThreadDetails } from "../state/threads";
-import { filterTerminalContextsWithText, type TerminalContextDraft } from "../lib/terminalContext";
-import { stripInlineContextReferences } from "~/lib/composerContextReferences";
-import type { DraftThreadEnvMode } from "../composerDraftStore";
 import { type ComposerSubmissionIntent } from "../composer-logic";
 import { type TimelineEntry } from "../session-logic";
 import type { PreviewMiniPlayerSource } from "../previewMiniPlayerStore";
@@ -1476,14 +1476,24 @@ export function planComposerTurn(input: {
 }
 
 /** Fallback title sources for a message with no text of its own. */
-export function sendTitleFallbackLabels(snapshot: ComposerSendSnapshot) {
+export function sendTitleFallbackLabels(
+  snapshot: ComposerSendSnapshot,
+  resolve: MessageResolver = m,
+) {
   const terminalContext = snapshot.terminalContexts[0];
   const reviewComment = snapshot.reviewComments[0];
   const previewAnnotation = snapshot.previewAnnotations[0];
   return [
     terminalContext ? formatTerminalContextLabel(terminalContext) : undefined,
-    reviewComment ? `Review: ${reviewCommentContextLabel(reviewComment)}` : undefined,
-    previewAnnotation ? previewAnnotationContextLabel(previewAnnotation) : undefined,
+    reviewComment
+      ? resolve(
+          msg("Review: {label}", {
+            label: reviewCommentContextLabel(reviewComment, resolve),
+            $context: "title seed for a new thread started from a review comment",
+          }),
+        )
+      : undefined,
+    previewAnnotation ? previewAnnotationContextLabel(previewAnnotation, resolve) : undefined,
   ];
 }
 

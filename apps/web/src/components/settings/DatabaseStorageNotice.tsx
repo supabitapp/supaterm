@@ -102,7 +102,10 @@ export function DatabaseStorageNotice({
         ) : (
           <SettingsRow
             key={environmentId}
-            title={`${formatGiB(status.reclaimableBytes)} on ${label}`}
+            title={gt("{amount} on {environment}", {
+              amount: formatGiB(status.reclaimableBytes),
+              environment: label,
+            })}
             description={<code className="select-text break-all">{status.compactCommand}</code>}
             control={
               <div className="flex flex-wrap items-center gap-1.5">
@@ -165,7 +168,7 @@ function ReclaimRow({
   };
   return (
     <SettingsRow
-      title={`${amount} on ${label}`}
+      title={gt("{amount} on {environment}", { amount, environment: label })}
       description={
         status.reclaimFailure === undefined
           ? gt("Restarts Supaterm there. It will be offline for about {minutes} min.", { minutes })

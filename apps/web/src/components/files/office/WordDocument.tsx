@@ -94,7 +94,13 @@ export default function WordDocument(props: {
           if (!step.done) continue;
           if (step.pages.length > 1000) throw new Error(m(msg("Preview limited to 1,000 pages.")));
           setOpened({ pages: step.pages, paint, engine });
-          onDetails(`${step.pages.length} page${step.pages.length === 1 ? "" : "s"}`);
+          onDetails(
+            m(
+              msg("{count, plural, one {{count} page} other {{count} pages}}", {
+                count: step.pages.length,
+              }),
+            ),
+          );
           break;
         }
       })

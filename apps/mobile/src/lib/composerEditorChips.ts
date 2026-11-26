@@ -12,6 +12,8 @@ import {
 import { composerContextEditorTokens } from "./composerContext";
 import { contextChipIconUri } from "./contextChipIconSource";
 import type { MobileThemeVariables } from "./mobileTheme";
+import { msg } from "gt-react-native";
+import { type MessageResolver } from "../i18n/messages";
 
 function basename(path: string): string {
   const separator = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
@@ -24,12 +26,15 @@ function chipLabel(
   token: ComposerEditorToken,
   available: boolean,
   skillLabels: ReadonlyMap<string, string>,
+  resolve: MessageResolver,
 ): string {
   switch (token.type) {
     case "skill":
       return skillLabels.get(token.value) ?? token.value;
     case "context-reference":
-      return available ? token.label : `${token.label} · unavailable`;
+      return available
+        ? token.label
+        : resolve(msg("{label} · unavailable", { label: token.label }));
     case "citation":
       return assistantCitationLabel(token.citation);
     case "mention":
@@ -44,6 +49,7 @@ export function composerEditorChips(input: {
   readonly context: OrchestrationMessageContext | undefined;
   readonly theme: MobileThemeVariables;
   readonly textColor: string;
+  readonly resolve: MessageResolver;
 }) {
   return composerContextEditorTokens(input.text, input.tokens, input.skillLabels).map((token) => {
     const record =
@@ -65,7 +71,7 @@ export function composerEditorChips(input: {
       start: token.start,
       end: token.end,
       accent: contextChipAccent(presentation.accent, input.theme, input.textColor),
-      label: chipLabel(token, record !== undefined, input.skillLabels),
+      label: chipLabel(token, record !== undefined, input.skillLabels, input.resolve),
       detail: token.type === "context-reference" ? composerChipSizeSuffix(record) : "",
       iconUri: contextChipIconUri(icon),
       tintsIcon: icon.kind === "chip",

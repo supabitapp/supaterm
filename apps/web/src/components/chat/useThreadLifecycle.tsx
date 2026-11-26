@@ -600,7 +600,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     const nowMs = Date.parse(`${nowMinute}:00.000Z`);
     // Same rounding as the sidebar's snoozed shelf, so both read the same hour.
     const snoozeWake = activeSnoozedUntil
-      ? snoozeWakeLabel(activeSnoozedUntil, { now: `${nowMinute}:00.000Z` })
+      ? snoozeWakeLabel(activeSnoozedUntil, { now: `${nowMinute}:00.000Z` }, messages)
       : null;
     return activeThreadSnoozed ? (
       limitRecoveryHoldsSnooze ? null : (
@@ -660,7 +660,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       }
       if (markDoneAndAdvance(activeThreadRef)) return;
       void markThreadDone(activeThreadRef).then(
-        toastThreadActionFailure("Failed to mark thread as Done"),
+        toastThreadActionFailure(gt("Failed to mark thread as Done")),
       );
     },
     "thread.pin": ({ event }) => {

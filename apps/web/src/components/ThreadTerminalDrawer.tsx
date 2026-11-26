@@ -1008,7 +1008,11 @@ function TerminalSessionViewport({
             if (result._tag === "Success") return true;
             if (!isAtomCommandInterrupted(result)) {
               const error = squashAtomCommandFailure(result);
-              report(error instanceof Error ? error.message : "Failed to close interrupted paste");
+              report(
+                error instanceof Error
+                  ? error.message
+                  : m(msg("Failed to close interrupted paste")),
+              );
             }
             return false;
           },
@@ -1080,7 +1084,7 @@ function TerminalSessionViewport({
             void localApi.shell.openExternal(text).catch((error: unknown) => {
               writeSystemMessage(
                 latestTerminal,
-                error instanceof Error ? error.message : "Unable to open link",
+                error instanceof Error ? error.message : m(msg("Unable to open link")),
               );
             });
           };
@@ -1111,7 +1115,7 @@ function TerminalSessionViewport({
           const error = squashAtomCommandFailure(result);
           writeSystemMessage(
             latestTerminal,
-            error instanceof Error ? error.message : "Unable to open path",
+            error instanceof Error ? error.message : m(msg("Unable to open path")),
           );
         })();
       }
@@ -1168,8 +1172,10 @@ function TerminalSessionViewport({
         setupTerminal = null;
         if (cancelled) return;
         const message =
-          error instanceof Error ? error.message : "Unable to initialize libghostty-vt";
-        mount.textContent = `${message}. Close and reopen the terminal to retry.`;
+          error instanceof Error ? error.message : m(msg("Unable to initialize libghostty-vt"));
+        mount.textContent = m(
+          msg("{message}. Close and reopen the terminal to retry.", { message }),
+        );
       });
 
     return () => {
@@ -1348,8 +1354,8 @@ function TerminalSidebarGroup({
       <div className="flex flex-col gap-0.5">
         {terminalGroup.terminalIds.map((terminalId) => {
           const isActive = terminalId === activeTerminalId;
-          const terminalLabel = terminalLabelById.get(terminalId) ?? "Terminal";
-          const closeTerminalLabel = `Close ${terminalLabel}`;
+          const terminalLabel = terminalLabelById.get(terminalId) ?? gt("Terminal");
+          const closeTerminalLabel = gt("Close {terminal}", { terminal: terminalLabel });
           return (
             <div
               key={terminalId}
@@ -1586,9 +1592,12 @@ export default function ThreadTerminalDrawer({
       ...(worktreePath !== undefined ? { worktreePath } : {}),
       ...(runtimeEnv ? { runtimeEnv } : {}),
     };
-  const splitLimitNote = hasReachedSplitLimit ? ` (max ${MAX_TERMINALS_PER_GROUP} per group)` : "";
-  const splitTerminalActionLabel = `Split terminal horizontally${splitLimitNote}`;
-  const splitTerminalVerticalActionLabel = `Split terminal vertically${splitLimitNote}`;
+  const splitTerminalActionLabel = hasReachedSplitLimit
+    ? gt("Split terminal horizontally (max {max} per group)", { max: MAX_TERMINALS_PER_GROUP })
+    : gt("Split terminal horizontally");
+  const splitTerminalVerticalActionLabel = hasReachedSplitLimit
+    ? gt("Split terminal vertically (max {max} per group)", { max: MAX_TERMINALS_PER_GROUP })
+    : gt("Split terminal vertically");
   const splitTerminalShortcut = hasReachedSplitLimit ? undefined : splitShortcutLabel;
   const splitTerminalVerticalShortcut = hasReachedSplitLimit
     ? undefined

@@ -4,17 +4,18 @@ import {
   ACP_REGISTRY_SEARCH_QUERY_MAX_LENGTH,
   AuthProvidersManageScope,
 } from "@supaterm/contracts";
-import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
-import {
-  isAtomCommandInterrupted,
-  squashAtomCommandFailure,
-} from "@supaterm/client-runtime/state/runtime";
 import type {
   AcpRegistryPrepareResult,
   AcpRegistrySearchAgent,
   EnvironmentId,
   ProviderInstanceConfig,
 } from "@supaterm/contracts";
+import { ProviderDriverKind } from "@supaterm/contracts";
+import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
 import { ExternalLinkIcon, SearchIcon } from "@supaterm/icons";
 import { type FormEvent, useState } from "react";
 
@@ -28,7 +29,6 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group"
 import { ScrollArea } from "../ui/scroll-area";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { isConfiguredAcpRegistryAgent } from "./AddProviderInstanceDialog.logic";
-import { ProviderDriverKind } from "@supaterm/contracts";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { providerClients } from "./providerDriverMeta";
 import { msg, T, useGT, Var } from "gt-react";
@@ -293,7 +293,7 @@ function AcpRegistryAgentRow({
   readonly onAdd: (agent: AcpRegistrySearchAgent) => void;
 }) {
   const gt = useGT();
-  const progressLabel = agent.distribution === "binary" ? "Downloading" : "Preparing";
+  const progressLabel = agent.distribution === "binary" ? gt("Downloading") : gt("Preparing");
   const aboutUrl = agent.website || agent.repository;
   return (
     <article className="min-w-0 py-2.5">
@@ -338,7 +338,13 @@ function AcpRegistryAgentRow({
             </Tooltip>
           ) : null}
           <Button
-            aria-label={`${alreadyAdded ? "Already added" : isPreparing ? progressLabel : "Add"} ${agent.name}`}
+            aria-label={
+              alreadyAdded
+                ? gt("Already added {name}", { name: agent.name })
+                : isPreparing
+                  ? gt("{progress} {name}", { progress: progressLabel, name: agent.name })
+                  : gt("Add {name}", { name: agent.name, $context: "verb, adds an agent" })
+            }
             disabled={!canAdd || alreadyAdded}
             onClick={() => onAdd(agent)}
             size="xs"

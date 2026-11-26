@@ -3,7 +3,6 @@ import {
   groupInboxThreadsByProject,
   type ThreadGroupingProject,
 } from "@supaterm/client-runtime/state/thread-grouping";
-import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import type { SnoozePresetSetting } from "@supaterm/contracts/settings";
 import {
   canSnooze,
@@ -40,6 +39,7 @@ import {
   sortPinnedThreadsByOrderKey,
   sortDoneThreads,
 } from "@supaterm/client-runtime/state/thread-sort";
+import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import { isListedThreadLineage, type EnvironmentId, type ProjectId } from "@supaterm/contracts";
 import type { MenuAction } from "@react-native-menu/menu";
 import { msg } from "gt-react-native";
@@ -251,32 +251,35 @@ export function resolveThreadListV2WokeAt(
     : null;
 }
 
-export function threadListV2RowAccessibilityLabel(input: {
-  readonly title: string;
-  readonly variant: "card" | "slim";
-  readonly woke: boolean;
-  readonly statusLabel: string | undefined;
-  readonly timeLabel: string;
-  readonly snoozeWakeLabel: string | undefined;
-  readonly providerNameLabel: string | null;
-  readonly hasUnsentDraft: boolean;
-  readonly hasQueuedMessages: boolean;
-  readonly regeneratingTitle: boolean;
-}): string {
+export function threadListV2RowAccessibilityLabel(
+  input: {
+    readonly title: string;
+    readonly variant: "card" | "slim";
+    readonly woke: boolean;
+    readonly statusLabel: string | undefined;
+    readonly timeLabel: string;
+    readonly snoozeWakeLabel: string | undefined;
+    readonly providerNameLabel: string | null;
+    readonly hasUnsentDraft: boolean;
+    readonly hasQueuedMessages: boolean;
+    readonly regeneratingTitle: boolean;
+  },
+  resolve: MessageResolver = m,
+): string {
   // Mirrors the row's meta line: a card shows Woke, else its status, else the time.
   const meta =
     input.variant === "slim"
       ? (input.snoozeWakeLabel ?? input.timeLabel)
       : input.woke
-        ? "Woke"
+        ? resolve(msg("Woke", { $context: "thread came back from snooze" }))
         : (input.statusLabel ?? input.timeLabel);
   return [
     input.title,
     meta,
     input.providerNameLabel,
-    input.hasUnsentDraft ? "unsent draft" : null,
-    input.hasQueuedMessages ? "messages queued to send" : null,
-    input.regeneratingTitle ? "regenerating title" : null,
+    input.hasUnsentDraft ? resolve(msg("unsent draft")) : null,
+    input.hasQueuedMessages ? resolve(msg("messages queued to send")) : null,
+    input.regeneratingTitle ? resolve(msg("regenerating title")) : null,
   ]
     .filter((part) => part !== null)
     .join(", ");
@@ -550,6 +553,7 @@ export function threadListV2ListItemsAreEqual(
 function resolveThreadListV2ItemTimeLabel(
   item: ThreadListV2Item,
   showSnoozeWakeLabel: boolean,
+  resolve: MessageResolver,
 ): string {
   const { thread, variant, snoozed } = item;
   if (showSnoozeWakeLabel) return "";
@@ -561,7 +565,11 @@ function resolveThreadListV2ItemTimeLabel(
   )
     return "";
   const doneTimestamp = variant === "slim" && !snoozed ? resolveDoneThreadTimestamp(thread) : null;
-  return relativeTime(doneTimestamp ?? resolveThreadActivityTimestamp(thread) ?? thread.createdAt);
+  return relativeTime(
+    doneTimestamp ?? resolveThreadActivityTimestamp(thread) ?? thread.createdAt,
+    undefined,
+    resolve,
+  );
 }
 
 interface ThreadListV2ListOptions {
@@ -577,6 +585,7 @@ interface ThreadListV2ListOptions {
   readonly loadedEnvironmentIds?: ReadonlySet<EnvironmentId>;
   readonly queuedThreadKeys?: ReadonlySet<string>;
   readonly shelfPreferencesLoading?: boolean;
+  readonly resolve?: MessageResolver;
 }
 
 type ThreadListV2ShelfListInput = ThreadListV2ListOptions &
@@ -586,10 +595,11 @@ export function buildThreadListV2ListItems(
   input: ThreadListV2ShelfListInput | (ThreadListV2ListOptions & { readonly kind: "search" }),
 ): ThreadListV2ListItem[] {
   const queuedThreadKeys = input.queuedThreadKeys?.size ? input.queuedThreadKeys : undefined;
+  const resolve = input.resolve ?? m;
   const threadItems = input.items.map((item): ThreadListV2ThreadListItem => {
     const snoozeWakeLabelText =
       item.snoozed && item.thread.snoozedUntil != null && input.snoozeLabelNow !== undefined
-        ? snoozeWakeLabel(item.thread.snoozedUntil, { now: input.snoozeLabelNow })
+        ? snoozeWakeLabel(item.thread.snoozedUntil, { now: input.snoozeLabelNow }, resolve)
         : undefined;
     // The minute clock belongs on the item, not the list's extraData, so the
     // recycler's equality can confine the per-minute re-render to rows whose
@@ -606,7 +616,7 @@ export function buildThreadListV2ListItems(
       key: `v2-thread:${item.thread.environmentId}:${item.thread.id}`,
       item,
       snoozeWakeLabelText,
-      timeLabel: resolveThreadListV2ItemTimeLabel(item, snoozeWakeLabelText !== undefined),
+      timeLabel: resolveThreadListV2ItemTimeLabel(item, snoozeWakeLabelText !== undefined, resolve),
       snoozePresetMinute,
       showTrailingDivider: false,
       showProjectIcon: true,

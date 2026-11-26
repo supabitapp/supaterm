@@ -38,19 +38,33 @@ import { PullRequestAvatar } from "./PullRequestPresentation";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import * as Haptics from "expo-haptics";
-import { T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
+import type { MessageResolver } from "../../i18n/messages";
 
-const TRUNCATED_LABELS: Record<ReviewerTruncation, (error: string | null) => string> = {
-  unsearchable: () =>
-    "The provider has more reviewers than it returned. Find additional reviewers on the provider.",
-  searchable: () => "The provider has more reviewers than are listed here. Search to find them.",
-  "search-failed": (error) =>
-    `Only listed reviewers are matched: the provider search failed. ${error ?? ""}`,
-  "search-truncated": () =>
-    "More reviewers match than the provider returned. Keep typing to narrow it down.",
+const TRUNCATED_LABELS: Record<
+  ReviewerTruncation,
+  (error: string | null, resolve: MessageResolver) => string
+> = {
+  unsearchable: (_error, resolve) =>
+    resolve(
+      msg(
+        "The provider has more reviewers than it returned. Find additional reviewers on the provider.",
+      ),
+    ),
+  searchable: (_error, resolve) =>
+    resolve(msg("The provider has more reviewers than are listed here. Search to find them.")),
+  "search-failed": (error, resolve) =>
+    resolve(
+      msg("Only listed reviewers are matched: the provider search failed. {error}", {
+        error: error ?? "",
+      }),
+    ),
+  "search-truncated": (_error, resolve) =>
+    resolve(msg("More reviewers match than the provider returned. Keep typing to narrow it down.")),
 };
 
 export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequestParams>) {
+  const messages = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const contentTopInset = useContentTopInset();
@@ -255,7 +269,15 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
             return (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${requested ? "Remove review request from" : "Request review from"} ${item.login}${item.kind === "team" ? " team" : ""}`}
+                accessibilityLabel={
+                  item.kind === "team"
+                    ? requested
+                      ? gt("Remove review request from {login} team", { login: item.login })
+                      : gt("Request review from {login} team", { login: item.login })
+                    : requested
+                      ? gt("Remove review request from {login}", { login: item.login })
+                      : gt("Request review from {login}", { login: item.login })
+                }
                 accessibilityState={{ disabled: !allowed }}
                 disabled={!allowed}
                 onPress={() => {
@@ -317,7 +339,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
           ListFooterComponent={
             view.truncation ? (
               <Text className="px-4 py-4 text-xs text-foreground-muted">
-                {TRUNCATED_LABELS[view.truncation](view.searchError)}
+                {TRUNCATED_LABELS[view.truncation](view.searchError, messages)}
               </Text>
             ) : undefined
           }

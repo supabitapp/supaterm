@@ -32,14 +32,15 @@ import { usePullRequestFileFilter } from "./usePullRequestFileFilter";
 import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
 import { requestPullRequestFileJump } from "./pullRequestFileJump";
 import { fileDirectory, groupByDirectory } from "./pullRequestFileSections";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, Var, msg, useMessages } from "gt-react-native";
+import type { MessageResolver } from "../../i18n/messages";
 
 const BREAKDOWN_LABELS = {
-  code: "Code",
-  tests: "Tests",
-  mocks: "Mocks",
-  generated: "Generated",
-  docs: "Docs",
+  code: msg("Code", { $context: "kind of changed file" }),
+  tests: msg("Tests", { $context: "kind of changed file" }),
+  mocks: msg("Mocks", { $context: "kind of changed file" }),
+  generated: msg("Generated", { $context: "kind of changed file" }),
+  docs: msg("Docs", { $context: "kind of changed file" }),
 } satisfies Record<keyof NonNullable<PullRequestChangeBreakdown>, string>;
 
 function useChangedFiles(params: PullRequestDiffParams) {
@@ -73,16 +74,35 @@ function loadingRowCount(files: ChangedFiles) {
 function describeFiles(
   parsed: Extract<ReviewParsedDiff, { readonly kind: "files" }>,
   { filter, viewed }: ChangedFiles,
+  resolve: MessageResolver,
 ) {
-  const noun = (count: number) => (count === 1 ? "file" : "files");
+  const count = parsed.fileCount;
   return [
-    `${parsed.fileCount} ${filter.hiddenCount ? "visible" : "changed"} ${noun(parsed.fileCount)}`,
+    filter.hiddenCount
+      ? resolve(
+          msg("{count, plural, one {{count} visible file} other {{count} visible files}}", {
+            count,
+          }),
+        )
+      : resolve(
+          msg("{count, plural, one {{count} changed file} other {{count} changed files}}", {
+            count,
+          }),
+        ),
     viewed.supported
-      ? `${parsed.files.filter((file) => viewed.isViewed(file.path)).length} viewed`
+      ? resolve(
+          msg("{count, plural, one {{count} viewed} other {{count} viewed}}", {
+            count: parsed.files.filter((file) => viewed.isViewed(file.path)).length,
+          }),
+        )
       : null,
     filter.hideTestFiles
-      ? `${filter.hiddenCount} test ${noun(filter.hiddenCount)} hidden`
-      : "Test files included",
+      ? resolve(
+          msg("{count, plural, one {{count} test file hidden} other {{count} test files hidden}}", {
+            count: filter.hiddenCount,
+          }),
+        )
+      : resolve(msg("Test files included")),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -247,13 +267,14 @@ function FilesFooter({ files }: { readonly files: ChangedFiles }) {
 function ChangeBreakdownLine(props: {
   readonly breakdown: NonNullable<PullRequestChangeBreakdown>;
 }) {
+  const m = useMessages();
   const parts = (Object.keys(BREAKDOWN_LABELS) as Array<keyof typeof BREAKDOWN_LABELS>).flatMap(
     (kind) => {
       const { additions, deletions } = props.breakdown[kind];
       return additions === 0 && deletions === 0
         ? []
         : [
-            `${BREAKDOWN_LABELS[kind]} +${additions.toLocaleString()} −${deletions.toLocaleString()}`,
+            `${m(BREAKDOWN_LABELS[kind])} +${additions.toLocaleString()} −${deletions.toLocaleString()}`,
           ];
     },
   );
@@ -269,6 +290,7 @@ function ChangeBreakdownLine(props: {
  * so the section supplies its header, rows, and footer instead of rendering a list of its own.
  */
 export function usePullRequestFilesSection(params: PullRequestParams) {
+  const m = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const files = useChangedFiles(params);
@@ -294,7 +316,10 @@ export function usePullRequestFilesSection(params: PullRequestParams) {
               </PullRequestSectionHeading>
               {pr ? (
                 <Text textRole="caption" className="text-foreground-muted">
-                  {pr.changedFiles.toLocaleString()} {pr.changedFiles === 1 ? "file" : "files"}
+                  {gt("{count, plural, one {{shown} file} other {{shown} files}}", {
+                    count: pr.changedFiles,
+                    shown: pr.changedFiles.toLocaleString(),
+                  })}
                 </Text>
               ) : (
                 <View className="h-2.5 w-28 rounded bg-subtle-strong" />
@@ -322,7 +347,7 @@ export function usePullRequestFilesSection(params: PullRequestParams) {
                 <T>Changed files</T>
               </PullRequestSectionHeading>
               <Text textRole="caption" className="text-foreground-muted">
-                {describeFiles(parsed, files)}
+                {describeFiles(parsed, files, m)}
               </Text>
               {breakdown ? <ChangeBreakdownLine breakdown={breakdown} /> : null}
             </View>
@@ -362,7 +387,8 @@ function DirectoryRow(props: {
   readonly collapsed: boolean;
   readonly onPress: () => void;
 }) {
-  const label = props.directory || "Repository root";
+  const gt = useGT();
+  const label = props.directory || gt("Repository root");
   return (
     <RowPressable
       accessibilityRole="button"
@@ -386,6 +412,7 @@ function DirectoryRow(props: {
 
 /** The `PullRequestFiles` sheet: a changed-file picker presented over a file diff. */
 export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDiffParams>) {
+  const m = useMessages();
   const gt = useGT();
   const params = route.params;
   const navigation = useNavigation();
@@ -472,7 +499,7 @@ export function PullRequestFilesSheet({ route }: StaticScreenProps<PullRequestDi
               {parsed.kind === "files" ? (
                 <View className="flex-row items-center gap-2 py-2">
                   <Text textRole="caption" className="min-w-0 flex-1 text-foreground-muted">
-                    {describeFiles(parsed, files)}
+                    {describeFiles(parsed, files, m)}
                   </Text>
                   <PullRequestDiffStats
                     additions={parsed.additions}

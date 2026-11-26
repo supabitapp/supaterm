@@ -79,7 +79,7 @@ export function childInputNowItem(input: {
     ) : (
       <MessageCircleIcon className="text-info-foreground" />
     ),
-    title: childThreadInputsTitle(childThreadInputs),
+    title: childThreadInputsTitle(childThreadInputs, m),
     waitingLabel: childThreadInputs.every((child) => child.lineage.sideChat === true)
       ? msg("Side chat waiting")
       : msg("Subagent waiting"),
@@ -125,7 +125,7 @@ export function goalNowItem(input: {
         {presentation.canResume && !isWorking ? (
           <>
             <InlineButton
-              onClick={() => void onSendCommand("/goal resume", "Failed to resume goal.")}
+              onClick={() => void onSendCommand("/goal resume", msg("Failed to resume goal."))}
             >
               <T context="verb, resumes the goal">Resume</T>
             </InlineButton>
@@ -134,7 +134,7 @@ export function goalNowItem(input: {
         ) : null}
         <InlineButton
           tone="muted"
-          onClick={() => void onSendCommand("/goal clear", "Failed to clear goal.")}
+          onClick={() => void onSendCommand("/goal clear", msg("Failed to clear goal."))}
         >
           <T context="verb, clears the goal">Clear</T>
         </InlineButton>
@@ -205,7 +205,7 @@ export function backgroundWorkNowItem(
   resolve: MessageResolver = m,
 ): ThreadNowItem | null {
   const { onOpenThread } = input;
-  const presentation = presentPendingBackgroundWork(input.tasks);
+  const presentation = presentPendingBackgroundWork(input.tasks, resolve);
   if (presentation === null) return null;
   const outputTarget = (item: PendingBackgroundWorkItem): BackgroundTaskOutputTarget => {
     const task = input.tasks.find((candidate) => candidate.taskId === item.taskId);

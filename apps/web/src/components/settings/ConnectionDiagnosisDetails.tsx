@@ -19,7 +19,7 @@ import { useNowSecond } from "../../hooks/useNowSecond";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { T, useGT } from "gt-react";
+import { T, useGT, msg, Var, useMessages } from "gt-react";
 
 /**
  * What failed on the way to an environment, or null while it is connected, off,
@@ -59,17 +59,22 @@ export function ConnectionDiagnosisHeadline({
 }
 
 const HOP_MARK = { ok: "✓", failed: "✕", unchecked: "–" } as const;
-const HOP_NOTE = { ok: "", failed: "Failed", unchecked: "Not checked" } as const;
+const HOP_NOTE = {
+  ok: "",
+  failed: msg("Failed", { $context: "connection hop status" }),
+  unchecked: msg("Not checked"),
+} as const;
 
 /** Ticks once per second, and only while a retry is scheduled, so the list around it does not re-render. */
 function RetryCountdown({ retryAt }: { readonly retryAt: number }) {
-  return useDeadlinePassed(retryAt) ? "retrying" : <RetryCountdownTicker retryAt={retryAt} />;
+  const gt = useGT();
+  return useDeadlinePassed(retryAt) ? gt("retrying") : <RetryCountdownTicker retryAt={retryAt} />;
 }
 
 function RetryCountdownTicker({ retryAt }: { readonly retryAt: number }) {
   const gt = useGT();
   const seconds = Math.ceil((retryAt - useNowSecond()) / 1_000);
-  return <>{seconds > 0 ? gt("retrying in {seconds}s", { seconds }) : "retrying"}</>;
+  return <>{seconds > 0 ? gt("retrying in {seconds}s", { seconds }) : gt("retrying")}</>;
 }
 
 /** The collapsed failure: the full headline, then the retry state and a Details toggle. */
@@ -92,7 +97,13 @@ export function ConnectionDiagnosisSummary({
       <p className="flex flex-wrap items-center gap-1 text-muted-foreground">
         {retryAt !== null ? <RetryCountdown retryAt={retryAt} /> : null}
         {retryAt !== null && attempt > 0 ? <span aria-hidden>·</span> : null}
-        {attempt > 0 ? <span>attempt {attempt}</span> : null}
+        {attempt > 0 ? (
+          <span>
+            <T>
+              attempt <Var>{attempt}</Var>
+            </T>
+          </span>
+        ) : null}
         {retryAt !== null || attempt > 0 ? <span aria-hidden>·</span> : null}
         <button
           type="button"
@@ -126,6 +137,7 @@ export function ConnectionDiagnosisPanel({
   readonly onRetry: () => void;
   readonly onAddRoute: (() => void) | null;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const { copyToClipboard } = useCopyToClipboard({
     target: "connection diagnostics",
@@ -153,7 +165,7 @@ export function ConnectionDiagnosisPanel({
               {HOP_MARK[hop.result]}
             </span>
             <span className={cn(hop.result === "ok" && "text-foreground")}>{hop.label}</span>
-            <span>{HOP_NOTE[hop.result]}</span>
+            <span>{m(HOP_NOTE[hop.result])}</span>
           </li>
         ))}
       </ol>

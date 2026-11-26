@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from "../ui/dialog";
 import { ChatGptUsageButton } from "./ChatGptUsageButton";
-import { T } from "gt-react";
+import { T, Var } from "gt-react";
 
 const STORAGE_KEY = "supaterm:chatgpt-sharing-welcome:v1";
 function readAcknowledgedProfiles(): string[] {
@@ -75,7 +75,9 @@ export function ChatGptWelcomeCoordinator() {
             </T>
           </DialogDescription>
           <p className="text-xs text-muted-foreground">
-            {next?.providerName} on {next?.environmentLabel}
+            <T>
+              <Var>{next?.providerName}</Var> on <Var>{next?.environmentLabel}</Var>
+            </T>
           </p>
         </DialogHeader>
         <DialogFooter>

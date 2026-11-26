@@ -69,7 +69,9 @@ function LinkedIssueRow({
     detail !== null && detail.commentCount > 0 ? (
       <span
         role="img"
-        aria-label={`${detail.commentCount} ${detail.commentCount === 1 ? "comment" : "comments"}`}
+        aria-label={gt("{count, plural, one {{count} comment} other {{count} comments}}", {
+          count: detail.commentCount,
+        })}
         className="inline-flex shrink-0 items-center gap-0.5 tabular-nums"
       >
         <MessageSquareIcon aria-hidden className="size-3" />

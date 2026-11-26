@@ -15,6 +15,7 @@ import { DisclosureChevron } from "../ui/disclosure-chevron";
 import { EnvironmentSubagentAvatar, SubagentElapsed, V2LifecycleRow } from "./V2LifecycleRow";
 import { LinkRequestCard } from "./LinkRequestCard";
 import { SecretRequestCard } from "./SecretRequestCard";
+import { useGT, useMessages } from "gt-react";
 
 export function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "event" }> }) {
   const ctx = use(TimelineRowCtx);
@@ -56,6 +57,8 @@ const V2SubagentGroup = memo(function V2SubagentGroup({
 }: {
   row: Extract<TimelineRow, { kind: "event" }>;
 }) {
+  const messages = useMessages();
+  const gt = useGT();
   const ctx = use(TimelineRowCtx);
   const groupId = `subagent-group:${row.id}`;
   const [expanded, setExpanded] = useState(() =>
@@ -79,8 +82,10 @@ const V2SubagentGroup = memo(function V2SubagentGroup({
       completedAt: live?.completedAt ?? item.completedAt,
     };
   });
-  const summary = subagentGroupSummary(agents);
-  const label = `${members.length} ${members.length === 1 ? "subagent" : "subagents"}`;
+  const summary = subagentGroupSummary(agents, messages);
+  const label = gt("{count, plural, one {{count} subagent} other {{count} subagents}}", {
+    count: members.length,
+  });
   const statusSummary = summarizeSubagentStatuses(agents.map(({ status }) => status));
   const toggleExpanded = (open: boolean) => {
     ctx.onToggleWorkEntry(row.id, expanded);

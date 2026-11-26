@@ -8,7 +8,8 @@ import {
 } from "@supaterm/client-runtime/work-log/presentation";
 import { isJavaScriptReplTool } from "@supaterm/shared/toolActivity";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
-import { m } from "~/i18n/messages";
+import { m, type MessageResolver } from "~/i18n/messages";
+import { msg } from "gt-react";
 
 export function toolGroupSummaryIconName(
   kind: Extract<TimelineRow, { kind: "work-toggle" }>["summaryKind"],
@@ -96,6 +97,7 @@ export function buildToolCallExpandedBody(
   workspaceRoot: string | undefined,
   visibleLabel: string,
   viewedImagePath: string | null,
+  resolve: MessageResolver = m,
 ): string | null {
   const blocks: string[] = [];
   const seen = new Set<string>([visibleLabel.trim()]);
@@ -114,7 +116,9 @@ export function buildToolCallExpandedBody(
             "input" in workEntry.toolData
           ? workEntry.toolData.input
           : undefined;
-    if (input !== undefined) addBlock(`Tool input\n${JSON.stringify(input, null, 2)}`);
+    if (input !== undefined) {
+      addBlock(resolve(msg("Tool input\n{input}", { input: JSON.stringify(input, null, 2) })));
+    }
   }
   const command = workEntry.command?.trim();
   const raw = workEntryRawCommand(workEntry);

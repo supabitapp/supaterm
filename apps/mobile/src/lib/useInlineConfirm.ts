@@ -3,10 +3,12 @@ import { createInlineConfirm } from "@supaterm/client-runtime/inline-confirm";
 import * as Haptics from "expo-haptics";
 import { useContext, useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, AppState, type GestureResponderEvent } from "react-native";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 type Touch = GestureResponderEvent["nativeEvent"];
 
-const ARMED_HINT = "Tap again to confirm";
+const ARMED_HINT = msg("Tap again to confirm");
 const touchListeners = new Set<(touch: Touch) => void>();
 
 const schedule = (ms: number, run: () => void) => {
@@ -30,7 +32,7 @@ export function useInlineConfirm<Key extends string>() {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- while armed, announces and buzzes, then disarms on outside touches, navigation blur or app backgrounding
   useEffect(() => {
     if (armed === null) return;
-    AccessibilityInfo.announceForAccessibility(ARMED_HINT);
+    AccessibilityInfo.announceForAccessibility(m(ARMED_HINT));
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const disarm = () => confirm.disarm();
     const onTouch = (touch: Touch) => {
@@ -52,7 +54,7 @@ export function useInlineConfirm<Key extends string>() {
     armed,
     bind: (key: Key, run: () => void) => ({
       ref: confirm.attach(key),
-      accessibilityHint: armed === key ? ARMED_HINT : undefined,
+      accessibilityHint: armed === key ? m(ARMED_HINT) : undefined,
       onTouchStart: (event: GestureResponderEvent) => {
         touched.current = { key, touch: event.nativeEvent };
       },

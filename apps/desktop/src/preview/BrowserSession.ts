@@ -470,16 +470,25 @@ export const make = Effect.gen(function* BrowserSessionMake() {
             defaultId: 1,
             cancelId: 1,
             signal: dismiss.signal,
-            message: `${host} has an untrusted certificate`,
+            message: m(msg("{host} has an untrusted certificate"), { host }),
             detail: [
-              reason,
+              m(reason),
               "",
-              `Issued to: ${promptCertificateName(certificate.subjectName)}`,
-              `Issued by: ${promptCertificateName(certificate.issuerName)}`,
-              `Valid: ${promptCertificateDate(certificate.validStart)} – ${promptCertificateDate(certificate.validExpiry)}`,
-              `Fingerprint: ${approval.fingerprint}`,
+              m(msg("Issued to: {name}"), {
+                name: promptCertificateName(certificate.subjectName),
+              }),
+              m(msg("Issued by: {name}"), { name: promptCertificateName(certificate.issuerName) }),
+              m(msg("Valid: {start} – {end}"), {
+                start: promptCertificateDate(certificate.validStart),
+                end: promptCertificateDate(certificate.validExpiry),
+              }),
+              m(msg("Fingerprint: {fingerprint}"), { fingerprint: approval.fingerprint }),
               "",
-              "Trust it only if you know this certificate belongs to the site. Clearing this browser profile's cookies forgets it.",
+              m(
+                msg(
+                  "Trust it only if you know this certificate belongs to the site. Clearing this browser profile's cookies forgets it.",
+                ),
+              ),
             ].join("\n"),
           },
           // In the reporter's Windows test, a box owned by the host window
@@ -494,8 +503,12 @@ export const make = Effect.gen(function* BrowserSessionMake() {
                     Effect.logWarning("Failed to save a certificate approval.", { cause }).pipe(
                       Effect.andThen(
                         electronDialog.showErrorBox(
-                          `Could not trust the certificate for ${host}`,
-                          "Supaterm could not save this approval, so the page stays blocked. Check that the disk is not full and its data folder is writable, then try again.",
+                          m(msg("Could not trust the certificate for {host}"), { host }),
+                          m(
+                            msg(
+                              "Supaterm could not save this approval, so the page stays blocked. Check that the disk is not full and its data folder is writable, then try again.",
+                            ),
+                          ),
                         ),
                       ),
                       Effect.as(false),

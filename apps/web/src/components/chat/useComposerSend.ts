@@ -516,14 +516,17 @@ export function useComposerSend(input: ComposerSendInput) {
               attachmentId: attachment.id,
             })),
           }),
-          titleSeed: deriveThreadTitleSeed({
-            text: trimmedPrompt,
-            attachments: snapshot.attachments.map((attachment) => ({
-              type: attachment.type,
-              name: attachment.name,
-            })),
-            fallbackLabels: sendTitleFallbackLabels(snapshot),
-          }),
+          titleSeed: deriveThreadTitleSeed(
+            {
+              text: trimmedPrompt,
+              attachments: snapshot.attachments.map((attachment) => ({
+                type: attachment.type,
+                name: attachment.name,
+              })),
+              fallbackLabels: sendTitleFallbackLabels(snapshot),
+            },
+            m,
+          ),
           attachments: snapshot.attachments,
         };
       }
@@ -991,14 +994,17 @@ export function useComposerSend(input: ComposerSendInput) {
     const forkSideChatFirst = isLocalDraftThread ? sideChatDraftParentRef : null;
     const savedDraft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
     const saveTurn = async () => {
-      const title = deriveThreadTitleSeed({
-        text: trimmed,
-        attachments: composerAttachmentsSnapshot.map((attachment) => ({
-          type: attachment.type,
-          name: attachment.name,
-        })),
-        fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
-      });
+      const title = deriveThreadTitleSeed(
+        {
+          text: trimmed,
+          attachments: composerAttachmentsSnapshot.map((attachment) => ({
+            type: attachment.type,
+            name: attachment.name,
+          })),
+          fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
+        },
+        m,
+      );
       const localAttachments = captureOutboxAttachments(environmentId, composerAttachmentsSnapshot);
       const linkPullRequestUrl =
         isLocalDraftThread && forkSideChatFirst === null && multipleModelSelections === null

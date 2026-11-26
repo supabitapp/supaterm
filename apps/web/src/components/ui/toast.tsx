@@ -147,8 +147,9 @@ function handleToastDismissClick(
 }
 
 function CopyErrorButton({ text }: { text: string }) {
+  const gt = useGT();
   const { copyToClipboard, isCopied } = useCopyToClipboard({ target: "error-message" });
-  const label = isCopied ? "Copied error" : "Copy error";
+  const label = isCopied ? gt("Copied error") : gt("Copy error");
 
   const Icon = isCopied ? CheckIcon : CopyIcon;
   return (

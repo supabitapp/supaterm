@@ -49,7 +49,7 @@ import {
   showThemeInspectorHover,
   type ThemeElementInspection,
 } from "./themeInspector";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const THEME_EDITOR_SIMPLE_ROLES: ReadonlyArray<ThemeColorRole> = ["canvas", "accent"];
 
@@ -341,6 +341,7 @@ export function ThemeEditorPanel({
   seedName?: string | undefined;
   restoreTheme: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const isEditing = editingTheme !== null;
   const [name, setName] = useState("");
@@ -1031,7 +1032,7 @@ export function ThemeEditorPanel({
       {families.map((family) => (
         <ThemeColorField
           key={family.id}
-          label={family.label}
+          label={messages(family.label)}
           onChange={updateColor}
           onEditCancel={cancelColorEdit}
           onEditStart={startColorEdit}
@@ -1214,7 +1215,13 @@ export function ThemeEditorPanel({
               {isInspecting
                 ? gt("Select an element · Esc to cancel")
                 : selectedRole
-                  ? `${isAdvanced ? (getThemeEditorColorFamily(selectedRole)?.label ?? getThemeRoleLabel(selectedRole)) : getThemeRoleLabel(selectedRole)} · ${usageCount ?? 0} ${usageCount === 1 ? "use" : "uses"}`
+                  ? gt("{role} · {count, plural, one {{count} use} other {{count} uses}}", {
+                      role: isAdvanced
+                        ? (getThemeEditorColorFamily(selectedRole)?.label ??
+                          getThemeRoleLabel(selectedRole))
+                        : getThemeRoleLabel(selectedRole),
+                      count: usageCount ?? 0,
+                    })
                   : gt("Select a color below")}
             </p>
           )}

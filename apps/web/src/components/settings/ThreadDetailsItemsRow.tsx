@@ -12,7 +12,7 @@ import { Button } from "../ui/button";
 import { Menu, MenuPopup, MenuTrigger } from "../ui/menu";
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
-import { useGT } from "gt-react";
+import { useGT, T, Var } from "gt-react";
 
 export function ThreadDetailsItemsRow() {
   const searchableSetting = useSearchableSetting();
@@ -48,7 +48,9 @@ export function ThreadDetailsItemsRow() {
               />
             }
           >
-            {enabled} of {THREAD_DETAILS_ITEMS.length} on
+            <T>
+              <Var>{enabled}</Var> of <Var>{THREAD_DETAILS_ITEMS.length}</Var> on
+            </T>
             <ChevronDownIcon aria-hidden />
           </MenuTrigger>
           <MenuPopup align="end">

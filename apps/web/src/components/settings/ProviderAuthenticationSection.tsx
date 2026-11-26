@@ -98,8 +98,8 @@ export function ProviderAuthenticationSection({
         : needsExternalSetup
           ? gt("No in-app sign-in advertised. Follow the provider's docs to finish setup.")
           : usesCredentials
-            ? `Connect on ${environmentLabel} to load models.`
-            : `Sign in on ${environmentLabel}.`;
+            ? gt("Connect on {environment} to load models.", { environment: environmentLabel })
+            : gt("Sign in on {environment}.", { environment: environmentLabel });
   const statusMessage = auth?.phase === "failed" ? auth.message : null;
   const disabled = readOnly || pending || query.error !== null || isDiscovering;
   const draftId = `${auth?.flowId ?? ""}:${interaction?.id ?? ""}`;

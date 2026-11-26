@@ -274,11 +274,12 @@ function UnknownWhenVariableWarning({
   identifiers: ReadonlyArray<string>;
   focusable?: boolean;
 }) {
+  const gt = useGT();
   if (identifiers.length === 0) return null;
   const label =
     identifiers.length === 1
-      ? `Unknown condition: ${identifiers[0]}`
-      : `Unknown conditions: ${identifiers.join(", ")}`;
+      ? gt("Unknown condition: {condition}", { condition: identifiers[0] })
+      : gt("Unknown conditions: {conditions}", { conditions: identifiers.join(", ") });
 
   return (
     <WarningTooltipIcon label={label} focusable={focusable} className="size-4.5">
@@ -291,11 +292,14 @@ function UnknownWhenVariableWarning({
 }
 
 function KeybindingConflictWarning({ labels }: { labels: ReadonlyArray<string> }) {
+  const gt = useGT();
   if (labels.length === 0) return null;
   const description =
     labels.length === 1
-      ? `Conflicts with ${labels[0]}.`
-      : `Conflicts with ${labels.slice(0, 3).join(", ")}${labels.length > 3 ? ", and more" : ""}.`;
+      ? gt("Conflicts with {command}.", { command: labels[0] })
+      : labels.length > 3
+        ? gt("Conflicts with {commands}, and more.", { commands: labels.slice(0, 3).join(", ") })
+        : gt("Conflicts with {commands}.", { commands: labels.slice(0, 3).join(", ") });
 
   return (
     <WarningTooltipIcon label={description}>
@@ -1035,10 +1039,13 @@ function KeybindingRowMenu({
 }
 
 function KeybindingSourceBadge({ source }: { source: KeybindingRow["source"] }) {
+  const gt = useGT();
   if (source === "Default") return null;
   return (
     <Badge variant="outline" size="sm">
-      {source}
+      {source === "Project"
+        ? gt("Project", { $context: "keybinding source" })
+        : gt("Custom", { $context: "keybinding source" })}
     </Badge>
   );
 }
@@ -1430,7 +1437,10 @@ function KeybindingsGroups(props: KeybindingsGroupsProps) {
 }
 
 function BrowserKeybindingNotice() {
-  const message = "The browser may claim some shortcuts first. The desktop app receives them all.";
+  const gt = useGT();
+  const message = gt(
+    "The browser may claim some shortcuts first. The desktop app receives them all.",
+  );
   return (
     <Tooltip>
       <TooltipTrigger

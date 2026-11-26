@@ -651,12 +651,28 @@ type BackgroundWorkKind = OrchestrationV2PendingBackgroundTask["kind"];
 
 const BACKGROUND_WORK_KINDS: Record<
   BackgroundWorkKind,
-  { readonly order: number; readonly singular: string; readonly plural: string }
+  { readonly order: number; readonly singular: string; readonly count: string }
 > = {
-  subagent: { order: 0, singular: "subagent", plural: "subagents" },
-  command: { order: 1, singular: "command", plural: "commands" },
-  monitor: { order: 2, singular: "monitor", plural: "monitors" },
-  background_task: { order: 3, singular: "background task", plural: "background tasks" },
+  subagent: {
+    order: 0,
+    singular: msg("subagent"),
+    count: msg("{count, plural, one {{count} subagent} other {{count} subagents}}"),
+  },
+  command: {
+    order: 1,
+    singular: msg("command"),
+    count: msg("{count, plural, one {{count} command} other {{count} commands}}"),
+  },
+  monitor: {
+    order: 2,
+    singular: msg("monitor"),
+    count: msg("{count, plural, one {{count} monitor} other {{count} monitors}}"),
+  },
+  background_task: {
+    order: 3,
+    singular: msg("background task"),
+    count: msg("{count, plural, one {{count} background task} other {{count} background tasks}}"),
+  },
 };
 
 export interface RunStopPresentation {
@@ -723,9 +739,11 @@ export interface PendingBackgroundWorkPresentation {
   readonly waiting: boolean;
 }
 
-function joinWithAnd(parts: ReadonlyArray<string>): string {
+function joinWithAnd(parts: ReadonlyArray<string>, resolve: MFunctionType): string {
   if (parts.length <= 1) return parts.join("");
-  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+  return resolve(
+    msg("{items} and {last}", { items: parts.slice(0, -1).join(", "), last: parts.at(-1)! }),
+  );
 }
 
 /** The PR link behind the background work's one PR watch, if it holds exactly one. */
@@ -760,6 +778,7 @@ export function isBackgroundWorkStopPending(
 
 export function presentPendingBackgroundWork(
   tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>,
+  resolve: MFunctionType = mFallback,
 ): PendingBackgroundWorkPresentation | null {
   if (tasks.length === 0) return null;
   const waiting = backgroundWorkHoldsCompletion(tasks);
@@ -779,7 +798,7 @@ export function presentPendingBackgroundWork(
         kind: task.kind,
         label:
           label === undefined || label.length === 0
-            ? BACKGROUND_WORK_KINDS[task.kind].singular
+            ? resolve(BACKGROUND_WORK_KINDS[task.kind].singular)
             : label,
         childThreadId: task.kind === "subagent" ? task.childThreadId : undefined,
         hasOutput:
@@ -793,22 +812,47 @@ export function presentPendingBackgroundWork(
     );
   const [only] = items;
   if (items.length === 1 && only !== undefined) {
-    const noun = BACKGROUND_WORK_KINDS[only.kind].singular;
+    const noun = resolve(BACKGROUND_WORK_KINDS[only.kind].singular);
     const named = only.label !== noun;
     const title = named
-      ? `${waiting ? "Waiting" : "Running"} · ${only.label}`
-      : waiting
-        ? `Waiting on a ${noun}`
-        : `Running a ${noun}`;
+      ? waiting
+        ? resolve(msg("Waiting · {label}", { label: only.label }))
+        : resolve(msg("Running · {label}", { label: only.label }))
+      : backgroundWorkSingleTitle(only.kind, waiting, resolve);
     return { title, items, waiting };
   }
   const counts = new Map<BackgroundWorkKind, number>();
   for (const item of items) counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
-  const groups = Array.from(counts, ([kind, count]) => {
-    const { singular, plural } = BACKGROUND_WORK_KINDS[kind];
-    return `${count} ${count === 1 ? singular : plural}`;
-  });
-  return { title: `${waiting ? "Waiting on" : "Running"} ${joinWithAnd(groups)}`, items, waiting };
+  const groups = joinWithAnd(
+    Array.from(counts, ([kind, count]) => resolve(BACKGROUND_WORK_KINDS[kind].count, { count })),
+    resolve,
+  );
+  return {
+    title: waiting
+      ? resolve(msg("Waiting on {groups}", { groups }))
+      : resolve(msg("Running {groups}", { groups })),
+    items,
+    waiting,
+  };
+}
+
+function backgroundWorkSingleTitle(
+  kind: BackgroundWorkKind,
+  waiting: boolean,
+  resolve: MFunctionType,
+): string {
+  switch (kind) {
+    case "subagent":
+      return waiting ? resolve(msg("Waiting on a subagent")) : resolve(msg("Running a subagent"));
+    case "command":
+      return waiting ? resolve(msg("Waiting on a command")) : resolve(msg("Running a command"));
+    case "monitor":
+      return waiting ? resolve(msg("Waiting on a monitor")) : resolve(msg("Running a monitor"));
+    case "background_task":
+      return waiting
+        ? resolve(msg("Waiting on a background task"))
+        : resolve(msg("Running a background task"));
+  }
 }
 
 export interface ProviderGoalPresentation {

@@ -15,6 +15,7 @@ import { useEnvironments, type EnvironmentPresentation } from "../../state/envir
 import { useProjects } from "../../state/entities";
 import { useMobileProjectGroupingSettings } from "../../state/project-grouping";
 import { toggleSettingsEnvironment } from "./settings-environment-filter.logic";
+import { m } from "../../i18n/messages";
 
 export type SettingsTarget = EnvironmentPresentation & {
   readonly serverConfig: NonNullable<EnvironmentPresentation["serverConfig"]>;
@@ -45,10 +46,13 @@ function settingsProjectGroups(
   if (!byMode) groupsCache.set(projects, (byMode = new Map()));
   let groups = byMode.get(groupingMode);
   if (!groups) {
-    groups = buildProjectGroups({
-      projects,
-      settings: { sidebarProjectGroupingMode: groupingMode, sidebarProjectGroupingOverrides: {} },
-    });
+    groups = buildProjectGroups(
+      {
+        projects,
+        settings: { sidebarProjectGroupingMode: groupingMode, sidebarProjectGroupingOverrides: {} },
+      },
+      m,
+    );
     byMode.set(groupingMode, groups);
   }
   return groups;

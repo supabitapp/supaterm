@@ -272,8 +272,8 @@ function EnvironmentUnavailablePlaceholder({
       : gt("Provider settings are unavailable");
   const description = isLoading
     ? access.reason === "permissions"
-      ? "Checking what this session is allowed to change."
-      : `Waiting for ${environment.label}'s configuration.`
+      ? gt("Checking what this session is allowed to change.")
+      : gt("Waiting for {label}'s configuration.", { label: environment.label })
     : connectionStatusTitle(environment.connection);
   const error = isLoading ? null : environment.connection.error;
   // No spinner: this state can persist indefinitely for a wedged device, and a

@@ -196,7 +196,7 @@ function SecretCheckButton(props: {
               onClick={() => void run()}
               aria-label={
                 state?.status === "failed"
-                  ? `${props.label} failed: ${state.detail}`
+                  ? gt("{label} failed: {detail}", { label: props.label, detail: state.detail })
                   : state?.status === "resolved"
                     ? `${props.label} resolved`
                     : props.label

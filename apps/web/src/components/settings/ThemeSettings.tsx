@@ -327,7 +327,10 @@ export function ThemeLibrary({
       <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 sm:px-4">
         <label className="w-9 shrink-0 text-sm font-medium" htmlFor={`${pickerId}-${appearance}`}>
           {appearanceLabel}
-          <span className="sr-only"> theme</span>
+          <span className="sr-only">
+            {" "}
+            <T context="follows a light or dark appearance label">theme</T>
+          </span>
         </label>
         <Select
           value={selected?.id ?? DEFAULT_THEME_VALUE}

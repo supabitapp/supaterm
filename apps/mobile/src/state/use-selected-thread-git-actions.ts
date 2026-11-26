@@ -232,7 +232,7 @@ export function useSelectedThreadGitActions(repository?: GitRepositoryTarget) {
         : await vcsActionManager.track(appAtomRegistry, target, { operation, label }, run);
     if (AsyncResult.isFailure(result)) {
       const error = Cause.squash(result.cause);
-      const message = error instanceof Error ? error.message : "Git action failed.";
+      const message = error instanceof Error ? error.message : m(msg("Git action failed."));
       setPendingConnectionError(message);
       reportGitActionResult({
         type: "error",
@@ -252,7 +252,8 @@ export function useSelectedThreadGitActions(repository?: GitRepositoryTarget) {
     });
     if (AsyncResult.isFailure(result)) {
       const error = Cause.squash(result.cause);
-      const message = error instanceof Error ? error.message : "Failed to refresh branches.";
+      const message =
+        error instanceof Error ? error.message : m(msg("Failed to refresh branches."));
       setPendingConnectionError(message);
       reportGitActionResult({
         type: "error",

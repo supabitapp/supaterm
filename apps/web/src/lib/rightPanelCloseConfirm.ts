@@ -5,6 +5,8 @@ import {
   confirmTerminalClose,
   type TerminalCloseTarget,
 } from "./terminalCloseConfirm";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 type BrowserControllersByTabId = Readonly<
   Record<string, Pick<DesktopPreviewOverlay, "controller"> | undefined>
@@ -23,13 +25,25 @@ export function agentControlledBrowserCloseConfirmation(
   if (activeBrowserCount === 0) return null;
   if (activeBrowserCount === 1) {
     return [
-      "Close browser while the agent is using it?",
-      "The agent is actively controlling this browser. Closing it may interrupt the current browser action.",
+      m(msg("Close browser while the agent is using it?")),
+      m(
+        msg(
+          "The agent is actively controlling this browser. Closing it may interrupt the current browser action.",
+        ),
+      ),
     ].join("\n");
   }
   return [
-    `Close ${activeBrowserCount} browsers while the agent is using them?`,
-    "The agent is actively controlling these browsers. Closing them may interrupt the current browser actions.",
+    m(
+      msg("Close {count} browsers while the agent is using them?", {
+        count: activeBrowserCount,
+      }),
+    ),
+    m(
+      msg(
+        "The agent is actively controlling these browsers. Closing them may interrupt the current browser actions.",
+      ),
+    ),
   ].join("\n");
 }
 

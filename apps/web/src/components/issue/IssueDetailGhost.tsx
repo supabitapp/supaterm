@@ -13,10 +13,11 @@ import {
   PullRequestMetaLine,
 } from "../pullRequest/pullRequestPresentation";
 import { IssueStateGlyph, issueTrackerPresentation } from "./issuePresentation";
-import { useGT, T } from "gt-react";
+import { useGT, T, useMessages, Var } from "gt-react";
 
 /** The issue panel while its detail loads, showing what the list row already knows. */
 export function IssueDetailGhost({ seed }: { seed?: IssueListEntry | null }) {
+  const messages = useMessages();
   const gt = useGT();
   const tracker = seed ? issueTrackerPresentation(seed.tracker) : null;
   return (
@@ -52,15 +53,29 @@ export function IssueDetailGhost({ seed }: { seed?: IssueListEntry | null }) {
           <h2 className="pr-7 text-base font-semibold leading-snug">{seed.title}</h2>
           <PullRequestMetaLine className="text-xs text-muted-foreground">
             <PullRequestActorLabel actor={seed.author} />
-            <span>opened {formatRelativeTimeLabel(seed.createdAt)}</span>
-            {seed.closedAt ? <span>closed {formatRelativeTimeLabel(seed.closedAt)}</span> : null}
+            <span>
+              <T>
+                opened <Var>{formatRelativeTimeLabel(seed.createdAt, undefined, messages)}</Var>
+              </T>
+            </span>
+            {seed.closedAt ? (
+              <span>
+                <T>
+                  closed <Var>{formatRelativeTimeLabel(seed.closedAt, undefined, messages)}</Var>
+                </T>
+              </span>
+            ) : null}
           </PullRequestMetaLine>
           {/* Both rows hold the height of the picker button the loaded panel puts in them. */}
           <div className="flex min-h-6 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <span className="shrink-0">
               <T>Labels</T>
             </span>
-            {seed.labels.length === 0 ? <span>none</span> : null}
+            {seed.labels.length === 0 ? (
+              <span>
+                <T context="no labels">none</T>
+              </span>
+            ) : null}
             {seed.labels.map((label) => (
               <PullRequestLabelChip key={label.name} label={label} />
             ))}
@@ -69,7 +84,11 @@ export function IssueDetailGhost({ seed }: { seed?: IssueListEntry | null }) {
             <span className="shrink-0">
               <T>Assignees</T>
             </span>
-            {seed.assignees.length === 0 ? <span>none</span> : null}
+            {seed.assignees.length === 0 ? (
+              <span>
+                <T context="no assignees">none</T>
+              </span>
+            ) : null}
             {seed.assignees.map((actor) => (
               <PullRequestActorLabel key={actor.login} actor={actor} />
             ))}

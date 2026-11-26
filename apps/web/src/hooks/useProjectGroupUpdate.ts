@@ -55,7 +55,13 @@ export function useProjectGroupUpdate() {
     if (unavailable) {
       return failWith(
         failureTitle,
-        `Connect ${unavailable.environmentLabel ?? "the selected environment"} and try again.`,
+        unavailable.environmentLabel == null
+          ? m(msg("Connect the selected environment and try again."))
+          : m(
+              msg("Connect {environment} and try again.", {
+                environment: unavailable.environmentLabel,
+              }),
+            ),
       );
     }
     for (const member of members) {
@@ -75,7 +81,14 @@ export function useProjectGroupUpdate() {
       if (result._tag === "Failure") {
         reportProjectFailure(
           members.length > 1
-            ? `${failureTitle} on ${member.environmentLabel ?? "the current environment"}`
+            ? member.environmentLabel == null
+              ? m(msg("{title} on the current environment", { title: failureTitle }))
+              : m(
+                  msg("{title} on {environment}", {
+                    title: failureTitle,
+                    environment: member.environmentLabel,
+                  }),
+                )
             : failureTitle,
           result,
         );
@@ -138,7 +151,13 @@ export function checkProjectAccess(
   return denied
     ? failWith(
         failureTitle,
-        `This connection cannot change projects in ${denied.environmentLabel ?? "this environment"}.`,
+        denied.environmentLabel == null
+          ? m(msg("This connection cannot change projects in this environment."))
+          : m(
+              msg("This connection cannot change projects in {environment}.", {
+                environment: denied.environmentLabel,
+              }),
+            ),
       )
     : null;
 }

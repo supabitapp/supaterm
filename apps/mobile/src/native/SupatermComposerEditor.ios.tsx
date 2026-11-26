@@ -30,7 +30,7 @@ import {
 } from "./composerEditorRevision";
 import { DEFAULT_COMPOSER_ENTER_BEHAVIOR } from "../lib/composerEnterBehavior";
 import type { ComposerEditorProps, ComposerEditorSelection } from "./SupatermComposerEditor.types";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 const NATIVE_MODULE_NAME = "SupatermComposerEditor";
 const EMPTY_SKILLS: NonNullable<ComposerEditorProps["skills"]> = [];
@@ -145,6 +145,7 @@ export function ComposerEditor({
   readResetGeneration = NO_RESET,
   ...props
 }: ComposerEditorProps) {
+  const messages = useMessages();
   const gt = useGT();
   const nativeRef = useRef<NativeComposerEditorRef>(null);
   const mostRecentEventCountRef = useRef(0);
@@ -183,9 +184,10 @@ export function ComposerEditor({
         context: props.context,
         theme,
         textColor: chipTextColor,
+        resolve: messages,
       }),
     );
-  }, [inlineTokens, props.value, props.context, skillLabels, theme, chipTextColor]);
+  }, [inlineTokens, props.value, props.context, skillLabels, theme, chipTextColor, messages]);
   // Every render resolves against the snapshot history, so a render whose
   // (value, selection) lags the acknowledged native state is stamped behind
   // the native revision and rejected by the editor instead of re-applying a

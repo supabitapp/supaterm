@@ -179,10 +179,13 @@ export function SavedBackendListRow({
       ? (environment.connection.error ?? connectionStatusText(environment.connection))
       : enabled
         ? connectionStatusText(environment.connection)
-        : "Switched off"
+        : gt("Switched off")
   }${
     versionMismatch
-      ? `\nUpdate available: ${versionMismatch.serverVersion} → ${versionMismatch.clientVersion}`
+      ? gt("\nUpdate available: {serverVersion} → {clientVersion}", {
+          serverVersion: versionMismatch.serverVersion,
+          clientVersion: versionMismatch.clientVersion,
+        })
       : ""
   }`;
 
@@ -348,7 +351,7 @@ export function SavedBackendListRow({
                   size="sm"
                   checked={enabled}
                   disabled={isRemoving || blocked}
-                  aria-label={`${enabled ? "Switch off" : "Switch on"} ${environment.label}`}
+                  aria-label={`${enabled ? gt("Switch off") : gt("Switch on")} ${environment.label}`}
                   onCheckedChange={(checked) => onSetEnabled(environmentId, checked)}
                 />
               }
