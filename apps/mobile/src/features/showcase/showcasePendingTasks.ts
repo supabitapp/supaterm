@@ -14,6 +14,7 @@ export const SHOWCASE_PENDING_TASK_DEFINITIONS = [
   {
     projectId: "supaterm",
     id: "offline-state-test",
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- showcase fixture data
     text: "Add a test for the signed-out state",
     branch: "feat/offline-tests",
     minutesAgo: 8,
@@ -21,6 +22,7 @@ export const SHOWCASE_PENDING_TASK_DEFINITIONS = [
   {
     projectId: "tidepool",
     id: "chart-landscape",
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- showcase fixture data
     text: "Check the tide chart in landscape",
     branch: "fix/chart-landscape",
     minutesAgo: 27,
