@@ -26,7 +26,7 @@ import {
   isSettingsSearchScopeAvailable,
   movedSettingsPath,
 } from "../components/settings/settingsSearch";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 function RestoreDeviceDefaultsButton({ onRestored }: { onRestored: () => void }) {
   const { changedSettingLabels, restoreDefaults } = useSettingsRestore(onRestored);
@@ -110,7 +110,9 @@ function SettingsScopeBoundary({ pathname, children }: { pathname: string; child
     return (
       <SettingsPageContainer>
         <p className="text-sm text-muted-foreground">
-          Reconnect {scope.label} to change its settings.
+          <T>
+            Reconnect <Var>{scope.label}</Var> to change its settings.
+          </T>
         </p>
       </SettingsPageContainer>
     );
