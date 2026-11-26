@@ -7,6 +7,7 @@ import {
 } from "./MessagesTimeline.logic";
 import { type TimelineMinimapItem, resolveTimelineMinimapPreview } from "./timelineMinimapItems";
 import { useState, useRef, type MouseEvent } from "react";
+import { createStore, useStore, type StoreApi } from "zustand";
 import { ChevronDownIcon, ChevronUpIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
@@ -31,11 +32,19 @@ function onMouseButtonsReleased(onRelease: () => void): () => void {
   return stop;
 }
 
+interface TimelineMinimapPosition {
+  readonly currentIndex: number | null;
+  readonly atEnd: boolean;
+}
+
+/** Where the timeline is scrolled; only the minimap re-renders when it moves. */
+export const createTimelineMinimapPosition = () =>
+  createStore<TimelineMinimapPosition>(() => ({ currentIndex: null, atEnd: false }));
+
 export function TimelineMinimap({
   hasPersistentGutter,
   hitStripWidth,
-  currentIndex,
-  atEnd,
+  position,
   items,
   stripMap,
   onWheel,
@@ -44,8 +53,7 @@ export function TimelineMinimap({
 }: {
   hasPersistentGutter: boolean;
   hitStripWidth: number;
-  currentIndex: number | null;
-  atEnd: boolean;
+  position: StoreApi<TimelineMinimapPosition>;
   items: ReadonlyArray<TimelineMinimapItem>;
   stripMap: Map<string, HTMLSpanElement>;
   onWheel: (event: WheelEvent) => void;
@@ -53,6 +61,8 @@ export function TimelineMinimap({
   onStep: (item: TimelineMinimapItem) => void;
 }) {
   const gt = useGT();
+  const currentIndex = useStore(position, (state) => state.currentIndex);
+  const atEnd = useStore(position, (state) => state.atEnd);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const wheelTargetRef = (node: HTMLDivElement | null) => {
     if (!node) return;

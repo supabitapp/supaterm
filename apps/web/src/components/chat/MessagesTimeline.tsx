@@ -2,7 +2,7 @@ import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { ToolCallDiffTarget } from "../../diffPanelStore";
 import { AudioPreviewUnmountContext } from "../files/AudioPreview";
-import { TimelineMinimap } from "./TimelineMinimap";
+import { createTimelineMinimapPosition, TimelineMinimap } from "./TimelineMinimap";
 import {
   type WorkGroupViewState,
   type TimelineRowSharedState,
@@ -926,8 +926,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // is not keyed per thread and reports no "new data" event, and the restore
   // must land before paint, after LegendList's own layout effects applied the
   // new data. A citation request that arrives mid-restore takes over.
-  const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
-  const [minimapAtEnd, setMinimapAtEnd] = useState(false);
+  const [minimapPosition] = useState(createTimelineMinimapPosition);
   const refreshMinimap = useStableCallback(() => {
     const state = listRef.current?.getState?.();
     if (restoringThreadPosition || state?.data !== rows) return;
@@ -976,14 +975,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
       visibleEnd: currentRange.end,
       rowIndices: minimapRowIndices,
     });
-    setMinimapCurrentIndex((current) =>
-      current === nextCurrentIndex ? current : nextCurrentIndex,
-    );
-    // The exact bottom, not the follow re-arm zone: Next can still scroll inside that zone.
-    setMinimapAtEnd(
-      viewport !== undefined &&
+    minimapPosition.setState({
+      currentIndex: nextCurrentIndex,
+      // The exact bottom, not the follow re-arm zone: Next can still scroll inside that zone.
+      atEnd:
+        viewport !== undefined &&
         viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1,
-    );
+    });
   });
 
   const minimapRefreshFrameRef = useRef<number | null>(null);
@@ -1644,7 +1642,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       const held = heldTurnRef.current;
       const item = resolveTimelineTurnStep({
         items: minimapItems,
-        currentIndex: minimapCurrentIndex,
+        currentIndex: minimapPosition.getState().currentIndex,
         heldItemId: held?.listIdentityKey === listIdentityKey ? held.itemId : null,
         delta,
       });
@@ -1774,8 +1772,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 items={minimapItems}
                 hasPersistentGutter={minimapHasPersistentGutter}
                 hitStripWidth={minimapHitStripWidth}
-                currentIndex={minimapCurrentIndex}
-                atEnd={minimapAtEnd}
+                position={minimapPosition}
                 stripMap={minimapStripMap}
                 onWheel={forwardMinimapWheel}
                 onSelect={(item) => {
