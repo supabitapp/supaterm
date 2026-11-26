@@ -12,6 +12,8 @@ import type {
 import * as DateTime from "effect/DateTime";
 
 import { presentThreadShell } from "./state/shell.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export interface PendingCreationMessage {
   readonly environmentId: EnvironmentId;
@@ -151,10 +153,13 @@ export function buildPendingThreadShell(input: {
   });
 }
 
-export function pendingThreadCreationLabel(input: {
-  readonly connected: boolean;
-  readonly preparingWorktree: boolean;
-}): string {
-  if (!input.connected) return "Waiting for connection";
-  return input.preparingWorktree ? "Setting up worktree…" : "Starting…";
+export function pendingThreadCreationLabel(
+  input: {
+    readonly connected: boolean;
+    readonly preparingWorktree: boolean;
+  },
+  resolve: MFunctionType = mFallback,
+): string {
+  if (!input.connected) return resolve(msg("Waiting for connection"));
+  return input.preparingWorktree ? resolve(msg("Setting up worktree…")) : resolve(msg("Starting…"));
 }

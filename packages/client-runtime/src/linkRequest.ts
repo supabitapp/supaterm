@@ -17,7 +17,8 @@ import * as Option from "effect/Option";
 
 import type { EnvironmentPresentation } from "./connection/presentation.ts";
 import { connectionRouteKind, connectionRoutes, routeHttpBaseUrl } from "./connection/routes.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type LinkRequestItem = Extract<OrchestrationV2TurnItem, { readonly type: "link_request" }>;
 
@@ -340,6 +341,7 @@ export function linkRequestDisplay(
   item: Pick<LinkRequestItem, "linkStatus" | "url" | "linkedLabel" | "linkedAccess" | "failure">,
   visibility: "local" | "inherited" | "synthetic",
   accessLabel: (access: AuthMcpClientAccess) => string,
+  resolve: MFunctionType = mFallback,
 ): LinkRequestDisplay {
   switch (item.linkStatus) {
     case "pending":
@@ -347,29 +349,38 @@ export function linkRequestDisplay(
         ? { kind: "pending" }
         : {
             kind: "pending-elsewhere",
-            label: msg("Waiting for an answer in the original thread"),
+            label: resolve(msg("Waiting for an answer in the original thread")),
           };
     case "linked": {
       const target =
         item.linkedLabel ?? (item.url === undefined ? undefined : linkDestination(item.url));
       const access = item.linkedAccess === undefined ? undefined : accessLabel(item.linkedAccess);
-      const linked = `Linked ${target ?? "a machine"}`;
       return {
         kind: "answered",
         outcome: "linked",
-        label: access === undefined ? linked : `${linked} · ${access}`,
+        label:
+          access === undefined
+            ? target === undefined
+              ? resolve(msg("Linked a machine"))
+              : resolve(msg("Linked {target}", { target }))
+            : target === undefined
+              ? resolve(msg("Linked a machine · {access}", { access }))
+              : resolve(msg("Linked {target} · {access}", { target, access })),
       };
     }
     case "declined":
-      return { kind: "answered", outcome: "declined", label: msg("Declined") };
+      return { kind: "answered", outcome: "declined", label: resolve(msg("Declined")) };
     case "failed":
       return {
         kind: "answered",
         outcome: "failed",
-        label: `Could not link: ${item.failure ?? "the other environment refused"}`,
+        label:
+          item.failure === undefined
+            ? resolve(msg("Could not link: the other environment refused"))
+            : resolve(msg("Could not link: {failure}", { failure: item.failure })),
       };
     case "cancelled":
-      return { kind: "answered", outcome: "ended", label: msg("Request ended") };
+      return { kind: "answered", outcome: "ended", label: resolve(msg("Request ended")) };
   }
 }
 
