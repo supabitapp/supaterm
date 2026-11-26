@@ -156,7 +156,9 @@ Leave `acpRegistry` out of `allowedDrivers` if users should not add ACP Registry
 
 A headless server that listens on loopback and is reached through the relay needs
 `["local-browser", "remote"]`. A server that listens on a network address needs `remote`, and so
-does the desktop app while **Network access** is on.
+do the desktop app's **Network access** and Tailscale HTTPS. Without `remote`, the desktop app
+keeps its server on this machine with both off, and brings back each user's choice once the policy
+allows it.
 
 Without `remote`, the server refuses relay pairing, turns the relay off, and no device off the
 machine can pair. The server does not start on a network address or with `--tailscale-serve`. At
