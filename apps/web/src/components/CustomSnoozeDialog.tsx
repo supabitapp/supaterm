@@ -168,7 +168,7 @@ function CustomSnoozeDialog() {
                       </Popover>
                     </div>
                     <Label className="flex min-w-0 flex-col items-stretch" htmlFor={`${id}-time`}>
-                      Time
+                      <T context="time of day">Time</T>
                       <Input
                         nativeInput
                         id={`${id}-time`}
@@ -205,7 +205,7 @@ function CustomSnoozeDialog() {
                       </NumberFieldGroup>
                     </NumberField>
                     <Label className="flex min-w-0 flex-col items-stretch" htmlFor={`${id}-unit`}>
-                      Unit
+                      <T context="unit of time">Unit</T>
                       <Select
                         value={unit}
                         items={{ minutes: gt("Minutes"), hours: gt("Hours"), days: gt("Days") }}
@@ -255,7 +255,7 @@ function CustomSnoozeDialog() {
               }}
             >
               <SlidersHorizontalIcon />
-              Edit snooze options
+              <T>Edit snooze options</T>
             </Button>
             <Button type="button" variant="outline" onClick={() => finish(null)}>
               <T>Cancel</T>
