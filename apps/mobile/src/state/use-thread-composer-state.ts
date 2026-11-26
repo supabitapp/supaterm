@@ -160,7 +160,12 @@ export function appendReviewCommentToDraft(input: {
     );
     if (rejectedCount > 0) {
       setPendingConnectionError(
-        `${rejectedCount} comment attachment${rejectedCount === 1 ? " was" : "s were"} not added. Messages can contain at most ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} attachments.`,
+        m(
+          msg(
+            "{count, plural, one {{count} comment attachment was not added. Messages can contain at most {max} attachments.} other {{count} comment attachments were not added. Messages can contain at most {max} attachments.}}",
+            { count: rejectedCount, max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS },
+          ),
+        ),
       );
     }
   }
@@ -463,7 +468,12 @@ export function useThreadComposerState() {
     if (parseSideChatCommand(text)) {
       Dialog.alert(
         m(msg("Queued message not updated")),
-        "A queued message can't move to a side chat. Remove /side or /btw to save it.",
+        m(
+          msg("A queued message can't move to a side chat. Remove {side} or {btw} to save it.", {
+            side: "/side",
+            btw: "/btw",
+          }),
+        ),
       );
       return;
     }
@@ -575,7 +585,7 @@ export function useThreadComposerState() {
       selectedEnvironmentRuntime?.connectionState === "connected" &&
       !readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope)
     ) {
-      setThreadComposerError(threadKey, "This connection cannot control this task.");
+      setThreadComposerError(threadKey, m(msg("This connection cannot control this task.")));
       return null;
     }
     const draft = getComposerDraftSnapshot(threadKey);
@@ -610,7 +620,7 @@ export function useThreadComposerState() {
         if (isVoiceUploadError(error) && error.reason === "audioTooShort") return null;
         setThreadComposerError(
           threadKey,
-          error instanceof Error ? error.message : "The recording couldn't be queued.",
+          error instanceof Error ? error.message : m(msg("The recording couldn't be queued.")),
         );
         return null;
       },
@@ -726,7 +736,7 @@ export function useThreadComposerState() {
         return null;
       if (thread.activeProviderThreadId === null) {
         Dialog.alert(
-          "Start a Codex thread first",
+          m(msg("Start a {provider} thread first", { provider: "Codex" })),
           m(msg("Send a message before you submit feedback.")),
         );
         return null;

@@ -1,6 +1,8 @@
 import { PROVIDER_SEND_TURN_MAX_INPUT_CHARS, type AssistantCitation } from "@supaterm/contracts";
 import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
+import { msg } from "gt-react-native";
 
+import { m } from "../i18n/messages";
 import { currentComposerDraftKey } from "./queued-run-edit";
 import {
   captureComposerDraftInsertion,
@@ -25,8 +27,8 @@ function draftLengthRejection(length: number): AnnotationRejection | null {
   return length <= PROVIDER_SEND_TURN_MAX_INPUT_CHARS
     ? null
     : {
-        title: "Message is too long",
-        message: "Shorten the comment or the quote, or remove text from the draft.",
+        title: m(msg("Message is too long")),
+        message: m(msg("Shorten the comment or the quote, or remove text from the draft.")),
         retryable: true,
       };
 }
@@ -65,8 +67,8 @@ export function replaceDraftQuote(
       : draft.indexOf(token.source);
   if (start === -1) {
     return {
-      title: "Quote is no longer in the draft",
-      message: "The comment was not saved.",
+      title: m(msg("Quote is no longer in the draft")),
+      message: m(msg("The comment was not saved.")),
       retryable: false,
     };
   }
