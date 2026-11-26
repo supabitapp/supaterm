@@ -1,5 +1,6 @@
 import { DraftInput, type DraftInputProps } from "../ui/draft-input";
 import { Input, type InputProps } from "../ui/input";
+import { useGT } from "gt-react";
 
 type SecretInputProps = Omit<InputProps, "type" | "autoComplete" | "defaultValue" | "value"> & {
   /** Pass only the replacement draft as `value`. */
@@ -14,14 +15,15 @@ export function SecretInput({
   onCommit,
   ...props
 }: SecretInputProps) {
+  const gt = useGT();
   const shared = {
     ...props,
     type: "password" as const,
     autoComplete: "off",
     spellCheck: false,
     placeholder: configured
-      ? "Stored secret, enter a new value to replace"
-      : (placeholder ?? "Not set"),
+      ? gt("Stored secret, enter a new value to replace")
+      : (placeholder ?? gt("Not set")),
   };
   if (onCommit) {
     return (

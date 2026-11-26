@@ -35,6 +35,8 @@ import { openDeviceSetupDialog } from "./ChatOverlayHosts";
 import { previewEnvironment } from "../../state/preview";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { ChatShortcutCommands } from "./useChatShortcuts";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 interface RightPanelActionsInput {
   readonly routeKind: "server" | "draft";
@@ -123,7 +125,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: "Unable to open browser",
+            title: m(msg("Unable to open browser")),
             description: error.message,
           }),
         );
@@ -273,8 +275,8 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to copy path",
-          description: "Clipboard API unavailable.",
+          title: m(msg("Failed to copy path")),
+          description: m(msg("Clipboard API unavailable.")),
         }),
       );
       return;
@@ -288,8 +290,8 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to copy path",
-          description: error instanceof Error ? error.message : "An error occurred.",
+          title: m(msg("Failed to copy path")),
+          description: error instanceof Error ? error.message : m(msg("An error occurred.")),
         }),
       );
     });

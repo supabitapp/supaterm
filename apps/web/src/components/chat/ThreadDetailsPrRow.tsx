@@ -96,6 +96,7 @@ import {
   THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
+import { useGT, T } from "gt-react";
 
 // A null checks response is settled; polling cannot find checks.
 const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
@@ -128,6 +129,7 @@ export function ThreadDetailsPrRow({
   onActed?: () => void;
   onStopWatching?: (() => void) | undefined;
 }) {
+  const gt = useGT();
   const serverConfigs = useServerConfigs();
   const supportsPullRequests = serverConfigs.has(environmentId);
   const repository = sourceControlClients.repositorySelector(project?.repositoryIdentity);
@@ -295,8 +297,8 @@ export function ThreadDetailsPrRow({
     });
     toastManager.add({
       type: "success",
-      title: "Added to the composer",
-      description: "The task is in the composer. Read it over, then send.",
+      title: gt("Added to the composer"),
+      description: gt("The task is in the composer. Read it over, then send."),
     });
   };
 
@@ -420,8 +422,8 @@ export function ThreadDetailsPrRow({
   const trailingAction =
     rowAction === "resolve"
       ? {
-          label: "Resolve",
-          pendingLabel: "Preparing...",
+          label: gt("Resolve", { $context: "verb, resolves merge conflicts" }),
+          pendingLabel: gt("Preparing..."),
           pending: handoff === "conflicts",
           destructive: true,
           suffix: null,
@@ -430,8 +432,8 @@ export function ThreadDetailsPrRow({
         }
       : rowAction === "ready"
         ? {
-            label: "Ready",
-            pendingLabel: "Marking...",
+            label: gt("Ready", { $context: "verb, marks a draft pull request ready for review" }),
+            pendingLabel: gt("Marking..."),
             pending: pendingAction === "ready",
             destructive: false,
             suffix: null,
@@ -440,12 +442,14 @@ export function ThreadDetailsPrRow({
           }
         : rowAction === "fix"
           ? {
-              label: "Fix",
-              pendingLabel: "Fix",
+              label: gt("Fix", { $context: "verb, fixes failing checks" }),
+              pendingLabel: gt("Fix", { $context: "verb, fixes failing checks" }),
               pending: handoff === "findings",
               destructive: true,
               suffix:
-                handoff === "findings" ? <Spinner size="xs" aria-label="Preparing fix" /> : null,
+                handoff === "findings" ? (
+                  <Spinner size="xs" aria-label={gt("Preparing fix")} />
+                ) : null,
               tooltip: "Draft a prompt in this thread for a subagent to fix the failing checks",
               controlProps: { onClick: () => draftSubagentHandoff("findings") },
             }
@@ -458,7 +462,7 @@ export function ThreadDetailsPrRow({
                     confirm="Confirm"
                   />
                 ),
-                pendingLabel: "Merging...",
+                pendingLabel: gt("Merging..."),
                 pending: pendingAction === "merge",
                 destructive: false,
                 suffix: null,
@@ -534,8 +538,10 @@ export function ThreadDetailsPrRow({
             <EyeOffIcon aria-hidden className="hidden size-3.5 group-hover/watch:block" />
           </TooltipTrigger>
           <TooltipPopup side="top">
-            Watching: the agent wakes when checks finish, someone comments, or the branch conflicts.
-            Click to stop.
+            <T>
+              Watching: the agent wakes when checks finish, someone comments, or the branch
+              conflicts. Click to stop.
+            </T>
           </TooltipPopup>
         </Tooltip>
       </>

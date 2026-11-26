@@ -5,28 +5,29 @@ import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions
 import { ToolActivityIconView, type WorkEntryIconName } from "./TimelineToolActivityIcon";
 import { TimelineRowCtx } from "./timelineRowContext";
 import { WorkLogRow } from "./WorkLog";
+import { msg, T } from "gt-react";
 
 const APPROVAL_PRESENTATION = {
   command: {
     icon: "terminal",
-    label: "Command approval",
+    label: msg("Command approval"),
     detailLabel: "Command",
   },
   "file-change": {
     icon: "square-pen",
-    label: "File change approval",
-    detailLabel: "File change",
+    label: msg("File change approval"),
+    detailLabel: msg("File change"),
   },
-  "file-read": { icon: "eye", label: "File read approval", detailLabel: "File to read" },
+  "file-read": { icon: "eye", label: msg("File read approval"), detailLabel: msg("File to read") },
   permission: {
     icon: "wrench",
-    label: "App permission approval",
-    detailLabel: "Permission request",
+    label: msg("App permission approval"),
+    detailLabel: msg("Permission request"),
   },
   "mcp-elicitation": {
     icon: "hammer",
-    label: "App access approval",
-    detailLabel: "App access request",
+    label: msg("App access approval"),
+    detailLabel: msg("App access request"),
   },
 } satisfies Record<
   PendingApproval["requestKind"],
@@ -78,7 +79,7 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
             <>
               <span className="inline-flex items-center gap-1 text-warning">
                 <ShieldIcon aria-hidden className="size-3 shrink-0" />
-                Waiting for approval
+                <T>Waiting for approval</T>
               </span>
               {onRespondToApproval ? (
                 <>
@@ -99,7 +100,7 @@ export const TimelinePendingApprovalRow = memo(function TimelinePendingApprovalR
             </>
           ) : (
             <span className="text-warning">
-              Provider process is gone. Interrupt or restart the run to respond.
+              <T>Provider process is gone. Interrupt or restart the run to respond.</T>
             </span>
           )}
         </div>

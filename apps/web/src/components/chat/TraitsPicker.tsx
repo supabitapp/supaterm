@@ -57,6 +57,7 @@ import {
 } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
+import { msg, T } from "gt-react";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
 
@@ -74,7 +75,7 @@ export function readPromptUltrathink(prompt: string): PromptUltrathink {
 const SAVED_OPTION_LABELS: Readonly<Record<string, string>> = {
   agent: "Agent",
   effort: "Effort",
-  reasoningEffort: "Reasoning effort",
+  reasoningEffort: msg("Reasoning effort"),
   variant: "Reasoning",
 };
 
@@ -123,7 +124,7 @@ type TraitsPersistence =
 function DefaultBadge() {
   return (
     <Badge variant="outline" size="sm" className="min-w-0">
-      Default
+      <T context="the default option in a list">Default</T>
     </Badge>
   );
 }

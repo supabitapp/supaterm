@@ -23,6 +23,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useShortcutLabel } from "~/hooks/useShortcutLabel";
 import { PREVIEW_FOCUS_SHORTCUT_OPTIONS } from "~/lib/previewFocus";
+import { msg, T, useGT } from "gt-react";
 
 const COLOR_SCHEME_OPTIONS: ReadonlyArray<{
   value: DesktopPreviewColorScheme;
@@ -107,7 +108,9 @@ const MenuTriggerButton = () => (
     >
       <EllipsisVerticalIcon />
     </TooltipTrigger>
-    <TooltipPopup>More</TooltipPopup>
+    <TooltipPopup>
+      <T context="more actions menu">More</T>
+    </TooltipPopup>
   </Tooltip>
 );
 
@@ -123,6 +126,7 @@ export function PreviewMoreMenu({
   findShortcutLabel,
   move,
 }: Props) {
+  const gt = useGT();
   const confirm = useInlineConfirm<"cookies" | "cache">();
   const cookiesHintId = useId();
   const zoomLabel = `${Math.round(zoomFactor * 100)}%`;
@@ -133,31 +137,33 @@ export function PreviewMoreMenu({
       <MenuPopup align="end" sideOffset={6}>
         {actions.find ? (
           <MenuItem onClick={actions.find} disabled={disabled}>
-            Find on page
+            <T>Find on page</T>
             {findShortcutLabel ? <MenuShortcut>{findShortcutLabel}</MenuShortcut> : null}
           </MenuItem>
         ) : null}
         <MenuItem onClick={actions.hardReload} disabled={disabled}>
-          Hard reload
+          <T>Hard reload</T>
         </MenuItem>
         {actions.openDevTools ? (
           <MenuItem onClick={actions.openDevTools} disabled={disabled}>
-            Open DevTools
+            <T>Open DevTools</T>
           </MenuItem>
         ) : null}
         {actions.toggleNativePictureInPicture ? (
           <MenuItem onClick={actions.toggleNativePictureInPicture} disabled={disabled}>
             {nativePictureInPicture
-              ? "Close separate preview window"
-              : "Open separate preview window"}
+              ? gt("Close separate preview window")
+              : gt("Open separate preview window")}
           </MenuItem>
         ) : null}
         {move ? <MenuItem onClick={move.onMove}>{move.label}</MenuItem> : null}
         <MenuItem onClick={onToggleDeviceToolbar} disabled={disabled}>
-          {deviceToolbarVisible ? "Hide device toolbar" : "Show device toolbar"}
+          {deviceToolbarVisible ? gt("Hide device toolbar") : gt("Show device toolbar")}
         </MenuItem>
         <MenuSub>
-          <MenuSubTrigger disabled={disabled}>Appearance</MenuSubTrigger>
+          <MenuSubTrigger disabled={disabled}>
+            <T>Appearance</T>
+          </MenuSubTrigger>
           <MenuSubPopup>
             <MenuRadioGroup
               value={colorScheme}
@@ -178,10 +184,12 @@ export function PreviewMoreMenu({
           className="justify-between"
           disabled={disabled}
         >
-          <span>Zoom</span>
+          <span>
+            <T>Zoom</T>
+          </span>
           <span className="flex items-center gap-1">
             <ZoomButton
-              label="Zoom out"
+              label={gt("Zoom out")}
               command="preview.zoomOut"
               variant="outline"
               disabled={disabled}
@@ -193,7 +201,7 @@ export function PreviewMoreMenu({
               {zoomLabel}
             </span>
             <ZoomButton
-              label="Zoom in"
+              label={gt("Zoom in")}
               command="preview.zoomIn"
               variant="outline"
               disabled={disabled}
@@ -202,7 +210,7 @@ export function PreviewMoreMenu({
               <PlusIcon />
             </ZoomButton>
             <ZoomButton
-              label="Reset zoom"
+              label={gt("Reset zoom")}
               command="preview.resetZoom"
               variant="ghost"
               disabled={disabled}

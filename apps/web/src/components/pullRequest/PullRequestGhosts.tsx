@@ -40,6 +40,7 @@ import {
   pullRequestChecksStatePresentation,
   resolvePullRequestState,
 } from "./pullRequestPresentation";
+import { msg, T, useGT } from "gt-react";
 
 export function GhostBar({ className }: { className?: string | undefined }) {
   return <span aria-hidden className={cn("block h-3 rounded bg-muted-foreground/15", className)} />;
@@ -54,8 +55,9 @@ const DEFAULT_DETAIL_TABS = [
 ] as const;
 
 export function PullRequestListGhost({ rows = 7, caption }: { rows?: number; caption?: string }) {
+  const gt = useGT();
   return (
-    <div role="status" aria-label={caption ?? "Loading pull requests"} className="space-y-0.5">
+    <div role="status" aria-label={caption ?? gt("Loading pull requests")} className="space-y-0.5">
       {/* Outside the pulse so the explanation stays readable. */}
       {caption ? (
         <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{caption}</p>
@@ -107,6 +109,7 @@ export function PullRequestDetailGhost({
   onCheckoutError?: ((error: Error) => void) | undefined;
   threadRef?: ScopedThreadRef | null | undefined;
 }) {
+  const gt = useGT();
   const openLink = useOpenLink(threadRef);
   const seed = summary
     ? {
@@ -150,7 +153,7 @@ export function PullRequestDetailGhost({
                 variant="ghost-muted"
                 className="-ml-1.5"
                 onClick={onBack}
-                aria-label="Back to this thread's pull requests"
+                aria-label={gt("Back to this thread's pull requests")}
               >
                 <ArrowLeftIcon aria-hidden className="size-3.5" />
               </Button>
@@ -236,8 +239,8 @@ export function PullRequestDetailGhost({
                     key={checkout}
                     value={checkout}
                     target={`${terminology.singular} checkout command`}
-                    copyLabel="Copy checkout command"
-                    copiedLabel="Checkout command copied"
+                    copyLabel={gt("Copy checkout command")}
+                    copiedLabel={gt("Checkout command copied")}
                     className="ml-auto font-mono"
                     tooltipSide="bottom"
                     {...(onCheckoutError ? { onError: onCheckoutError } : {})}
@@ -262,7 +265,7 @@ export function PullRequestDetailGhost({
                     value={seed.headBranch}
                     target="branch name"
                     copyLabel={`Copy ${terminology.singular} branch`}
-                    copiedLabel="Branch name copied"
+                    copiedLabel={gt("Branch name copied")}
                     className="min-w-0 font-mono"
                   />
                 ) : (
@@ -317,11 +320,16 @@ export function PullRequestDetailGhost({
             <div className="grid min-h-7 min-w-0 grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 text-xs sm:min-h-6">
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <UsersIcon aria-hidden className="size-3.5" />
-                Reviewers
+                <T>Reviewers</T>
               </span>
               <span className="flex min-w-0 items-center gap-1.5 text-foreground">
                 <GhostBar className="h-3 w-10" />
-                <Button size="icon-xs" variant="ghost" disabled aria-label="Reviewers loading">
+                <Button
+                  size="icon-xs"
+                  variant="ghost"
+                  disabled
+                  aria-label={gt("Reviewers loading")}
+                >
                   <UserPlusIcon aria-hidden className="size-3.5" />
                 </Button>
               </span>
@@ -329,7 +337,7 @@ export function PullRequestDetailGhost({
             <div className="grid min-h-7 min-w-0 grid-cols-[6rem_minmax(0,1fr)] items-center gap-2 text-xs sm:min-h-6">
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <TagIcon aria-hidden className="size-3.5" />
-                Labels
+                <T>Labels</T>
               </span>
               <span className="flex min-w-0 flex-wrap items-center gap-1 text-foreground">
                 {entry?.labels ? (
@@ -343,7 +351,9 @@ export function PullRequestDetailGhost({
                       />
                     ))
                   ) : (
-                    <span className="text-muted-foreground">None</span>
+                    <span className="text-muted-foreground">
+                      <T context="no labels">None</T>
+                    </span>
                   )
                 ) : (
                   <>
@@ -351,7 +361,7 @@ export function PullRequestDetailGhost({
                     <GhostBar className="h-4.5 w-20" />
                   </>
                 )}
-                <Button size="icon-xs" variant="ghost" disabled aria-label="Labels loading">
+                <Button size="icon-xs" variant="ghost" disabled aria-label={gt("Labels loading")}>
                   <TagIcon aria-hidden className="size-3.5" />
                 </Button>
               </span>
@@ -362,7 +372,9 @@ export function PullRequestDetailGhost({
         <section>
           <div className="sticky top-0 z-10 flex w-full items-center bg-background pr-4">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-              <span>Description</span>
+              <span>
+                <T>Description</T>
+              </span>
               <ChevronRightIcon
                 aria-hidden
                 className="size-3.5 rotate-90 text-muted-foreground/60"
@@ -385,10 +397,11 @@ export function PullRequestDetailGhost({
 }
 
 export function PullRequestPeopleGhost({ rows = 4 }: { rows?: number }) {
+  const gt = useGT();
   return (
     <div
       role="status"
-      aria-label="Loading people"
+      aria-label={gt("Loading people")}
       className="motion-safe:animate-skeleton space-y-1 p-1"
     >
       {Array.from({ length: rows }, (_, index) => (
@@ -402,10 +415,11 @@ export function PullRequestPeopleGhost({ rows = 4 }: { rows?: number }) {
 }
 
 export function PullRequestTimelineGhost({ rows = 6 }: { rows?: number }) {
+  const gt = useGT();
   return (
     <div
       role="status"
-      aria-label="Loading timeline"
+      aria-label={gt("Loading timeline")}
       className="motion-safe:animate-skeleton px-4 py-5"
     >
       <div className="relative ml-2 border-l border-border/70 pl-5">

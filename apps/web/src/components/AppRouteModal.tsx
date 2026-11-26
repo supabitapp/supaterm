@@ -10,6 +10,7 @@ import { useCloseAppModal } from "./sidebar/mainAppLocation";
 import { Button } from "./ui/button";
 import { DialogBackdrop } from "./ui/dialog";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { T, useGT } from "gt-react";
 
 /**
  * Large modal for the Settings and Usage routes. Esc, the close button, or a press on the
@@ -125,19 +126,22 @@ function blurFocusedWithin(container: HTMLElement | null) {
 }
 
 export function AppRouteModalClose() {
+  const gt = useGT();
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <DialogPrimitive.Close
-            aria-label="Close"
+            aria-label={gt("Close")}
             render={<Button size="icon-sm" variant="ghost" />}
           />
         }
       >
         <XIcon />
       </TooltipTrigger>
-      <TooltipPopup side="bottom">Close (Esc)</TooltipPopup>
+      <TooltipPopup side="bottom">
+        <T>Close (Esc)</T>
+      </TooltipPopup>
     </Tooltip>
   );
 }

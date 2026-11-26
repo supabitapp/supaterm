@@ -16,6 +16,8 @@ import {
   usePullRequestActionRunner,
   usePullRequestDefaultMergeMethod,
 } from "./usePullRequestActions";
+import { msg, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 type PullRequestSpeedActionEntry = Pick<
   EnvironmentPullRequestEntry,
@@ -45,6 +47,7 @@ export function PullRequestSpeedActions<Entry extends PullRequestSpeedActionEntr
   sweeping?: boolean;
   onCloseSweepStart?: (entry: Entry, event: PointerEvent) => void;
 }) {
+  const gt = useGT();
   const canWrite = useAtomValue(
     pullRequestEnvironment.runAction.permissionAtom(entry.environmentId),
   );
@@ -68,7 +71,7 @@ export function PullRequestSpeedActions<Entry extends PullRequestSpeedActionEntr
         (method) => detail.mergeCapabilities[method],
       );
       if (allowed.length === 0)
-        throw new Error("No merge method is available for this repository.");
+        throw new Error(m(msg("No merge method is available for this repository.")));
       return resolvePullRequestMergeMethod(
         allowed,
         null,
@@ -114,7 +117,7 @@ export function PullRequestSpeedActions<Entry extends PullRequestSpeedActionEntr
               {action === "merge" && entry.stack
                 ? `Open this ${terminology.singular} to merge its stack`
                 : action === "close" && onCloseSweepStart
-                  ? "Close immediately, or drag across rows to close several"
+                  ? gt("Close immediately, or drag across rows to close several")
                   : `${label} immediately`}
             </TooltipPopup>
           </Tooltip>
@@ -166,6 +169,6 @@ function SpeedModeGroup({
 const ACTIONS = {
   close: { label: "Close", Icon: PullRequestGlyph.closed },
   merge: { label: "Merge", Icon: PullRequestGlyph.merged },
-  ready: { label: "Ready for review", Icon: PullRequestGlyph.pullRequest },
-  reopen: { label: "Reopen", Icon: PullRequestGlyph.reopen },
+  ready: { label: msg("Ready for review"), Icon: PullRequestGlyph.pullRequest },
+  reopen: { label: msg("Reopen"), Icon: PullRequestGlyph.reopen },
 } as const;

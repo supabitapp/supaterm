@@ -32,6 +32,7 @@ import {
   type SettingInheritanceState,
   type SettingOverridingProject,
 } from "./SettingInheritance";
+import { useGT } from "gt-react";
 
 const EMPTY_SETTING_KEYS: readonly (keyof ServerSettings)[] = [];
 
@@ -180,12 +181,17 @@ export function SettingsSearchTarget({
 export const SETTINGS_PICKER_TRIGGER_CLASSNAME = "min-w-0 max-w-none shrink-0";
 
 export function PolicyTooltip({ children }: { readonly children: string }) {
+  const gt = useGT();
   return (
     <Tooltip>
       <TooltipTrigger
         delay={200}
         render={
-          <Button size="icon-micro" variant="ghost-muted" aria-label="Background policy details">
+          <Button
+            size="icon-micro"
+            variant="ghost-muted"
+            aria-label={gt("Background policy details")}
+          >
             <InfoIcon className="size-3.5" />
           </Button>
         }
@@ -330,6 +336,7 @@ export function SettingsRow({
   mixed?: boolean;
   children?: ReactNode;
 }) {
+  const gt = useGT();
   const targetRef = useSettingsSearchTarget<HTMLDivElement>(rowProps.id);
   const primarySettingsAvailable = usePrimarySettingsAvailable();
   const context = useOptionalSettingsScope();
@@ -378,7 +385,7 @@ export function SettingsRow({
       source === "project" || source === "mixed" ? (
         <SettingResetButton
           label={typeof title === "string" ? title : "override"}
-          tooltip="Reset to inherited value"
+          tooltip={gt("Reset to inherited value")}
           onClick={() => (onResetOverride ? onResetOverride() : clearOverrides(scopedKeys))}
         />
       ) : null
@@ -438,16 +445,19 @@ export function SettingsRow({
       }),
     );
   const inheritance: { state: SettingInheritanceState; summary: string } = mixed
-    ? { state: "mixed", summary: "Mixed across selected environments" }
+    ? { state: "mixed", summary: gt("Mixed across selected environments") }
     : source === "project"
-      ? { state: "overridden", summary: "Overridden for this project" }
+      ? { state: "overridden", summary: gt("Overridden for this project") }
       : source === "supaterm.json"
-        ? { state: "inherited", summary: "Inherited from the repository's supaterm.json" }
+        ? { state: "inherited", summary: gt("Inherited from the repository's supaterm.json") }
         : source === "environment" && scopedKeys.length > 0
-          ? { state: "inherited", summary: `Inherited from ${inheritedFrom}` }
+          ? {
+              state: "inherited",
+              summary: gt("Inherited from {environment}", { environment: inheritedFrom }),
+            }
           : customized
-            ? { state: "environment", summary: "Set on the environment" }
-            : { state: "default", summary: "Built-in default" };
+            ? { state: "environment", summary: gt("Set on the environment") }
+            : { state: "default", summary: gt("Built-in default") };
   const renderedInheritance =
     context && serverScoped && settingKeys.length > 0 ? (
       <SettingInheritance
@@ -531,6 +541,7 @@ export function SettingResetButton({
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const gt = useGT();
   if (confirmTooltip !== undefined) {
     return (
       <InlineConfirmButton
@@ -538,7 +549,7 @@ export function SettingResetButton({
         variant="ghost-muted"
         disabled={disabled}
         icon={<UndoIcon className="size-3" />}
-        label={`Reset ${label} to default`}
+        label={gt("Reset {title} to default", { title: label })}
         confirmLabel={`Confirm reset ${label}`}
         tooltip={tooltip}
         confirmTooltip={confirmTooltip}
@@ -553,7 +564,7 @@ export function SettingResetButton({
           <Button
             size="icon-micro"
             variant="ghost-muted"
-            aria-label={`Reset ${label} to default`}
+            aria-label={gt("Reset {title} to default", { title: label })}
             disabled={disabled}
             onClick={(event) => {
               event.stopPropagation();

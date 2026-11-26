@@ -11,6 +11,8 @@ import { announce, cancelAnnouncement } from "../lib/announce";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import * as ThreadUndo from "@supaterm/client-runtime/state/thread-undo";
+import { m } from "../i18n/messages";
+import { msg } from "gt-react";
 
 type UndoOptions = {
   action: "Done" | "Snoozed" | "Unpinned" | "Archived" | "Discarded";
@@ -48,7 +50,7 @@ export function threadUndoNoticeSummary(notice: Pick<UndoNotice, "action" | "cou
 
 export function threadUndoLabel(keybindings: Parameters<typeof shortcutLabelForCommand>[0]) {
   const shortcut = shortcutLabelForCommand(keybindings, "thread.undo");
-  return shortcut ? `${shortcut} to undo` : "Undo";
+  return shortcut ? `${shortcut} to undo` : msg("Undo");
 }
 
 let announcedSummary: string | null = null;
@@ -108,7 +110,7 @@ function refreshNotice() {
               stackedThreadToast({
                 type: "error",
                 title: failureTitle,
-                description: error instanceof Error ? error.message : "An error occurred.",
+                description: error instanceof Error ? error.message : m(msg("An error occurred.")),
               }),
             );
           };

@@ -24,6 +24,7 @@ import {
   THREAD_DETAILS_PANEL_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
+import { T, useGT } from "gt-react";
 
 function phaseElapsed(phase: SubagentWorkflowGroup["phases"][number]) {
   const instants = (key: "startedAt" | "completedAt") =>
@@ -69,6 +70,7 @@ function WorkflowMemberRow({
   driver: ProviderDriverKind | undefined;
   onOpen: (threadId: string) => void;
 }) {
+  const gt = useGT();
   const threadId = member.childThreadId;
   const canOpen = threadId !== null;
   return (
@@ -79,7 +81,7 @@ function WorkflowMemberRow({
           render={
             <ThreadDetailsControl
               part="row"
-              aria-label={`Open ${member.title} chat`}
+              aria-label={gt("Open {title} chat", { title: member.title })}
               disabled={!canOpen}
               onClick={() => canOpen && onOpen(threadId)}
             />
@@ -145,6 +147,7 @@ export function ThreadLineageWorkflowRow({
   readonly stopping: boolean;
   readonly stopDisabled: boolean;
 }) {
+  const gt = useGT();
   const [expanded, setExpanded] = useState(false);
   const [phaseOpen, setPhaseOpen] = useState<ReadonlyMap<number, boolean>>(() => new Map());
   const label = group.workflow.workflowName ?? group.workflow.title;
@@ -169,7 +172,7 @@ export function ThreadLineageWorkflowRow({
                     variant="ghost"
                     part="icon"
                     tone="destructive"
-                    aria-label={`Stop workflow ${label}`}
+                    aria-label={gt("Stop workflow {label}", { label })}
                     disabled={stopDisabled}
                     onClick={onStop}
                   />
@@ -181,7 +184,9 @@ export function ThreadLineageWorkflowRow({
                   <SquareIcon weight="fill" aria-hidden className="size-3" />
                 )}
               </TooltipTrigger>
-              <TooltipPopup side="left">Stop entire workflow</TooltipPopup>
+              <TooltipPopup side="left">
+                <T>Stop entire workflow</T>
+              </TooltipPopup>
             </Tooltip>
           </div>
         ) : null}
@@ -219,7 +224,9 @@ export function ThreadLineageWorkflowRow({
                     accessory={
                       <>
                         {status === "failed" ? (
-                          <SectionHeaderStatus>Failed</SectionHeaderStatus>
+                          <SectionHeaderStatus>
+                            <T context="workflow phase status">Failed</T>
+                          </SectionHeaderStatus>
                         ) : null}
                         <span className="shrink-0 text-2xs font-normal tabular-nums">
                           {phase.settledCount}/{phase.members.length}{" "}
@@ -273,7 +280,7 @@ export function ThreadLineageWorkflowRow({
                   THREAD_DETAILS_PANEL_ROW_HEIGHT_CLASS,
                 )}
               >
-                No agents yet
+                <T>No agents yet</T>
               </li>
             ) : null}
           </ul>

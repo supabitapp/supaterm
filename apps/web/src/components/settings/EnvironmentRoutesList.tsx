@@ -41,6 +41,7 @@ import { environmentSession, usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { T, useGT } from "gt-react";
 
 /**
  * The ways this client reaches one saved machine, preferred first. Drag to
@@ -53,6 +54,7 @@ export function EnvironmentRoutesList({
   readonly environment: EnvironmentPresentation;
   readonly onAddRoute: () => void;
 }) {
+  const gt = useGT();
   const registry = useContext(RegistryContext);
   const saved = connectionRoutes(environment.entry);
   const savedIds = saved.map((route) => connectionRouteId(route.target));
@@ -114,7 +116,11 @@ export function EnvironmentRoutesList({
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={order} strategy={verticalListSortingStrategy}>
-          <ol aria-label={`Routes to ${environment.label}, preferred first`}>
+          <ol
+            aria-label={gt("Routes to {environment}, preferred first", {
+              environment: environment.label,
+            })}
+          >
             {routes.map((route, index) => {
               const unused = !usable.has(connectionRouteId(route.target));
               return (
@@ -136,7 +142,7 @@ export function EnvironmentRoutesList({
       <div className="flex items-center justify-between pt-1">
         <Button size="xs" variant="ghost-muted" onClick={onAddRoute}>
           <PlusIcon className="size-3" />
-          Add route
+          <T>Add route</T>
         </Button>
         <Button
           size="xs"
@@ -175,6 +181,7 @@ function SortableRouteRow({
   readonly removable: boolean;
   readonly onRemove: () => void;
 }) {
+  const gt = useGT();
   const id = connectionRouteId(route.target);
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
@@ -207,7 +214,7 @@ function SortableRouteRow({
         ref={setActivatorNodeRef}
         {...attributes}
         {...listeners}
-        aria-label={`Reorder ${label}, position ${position}`}
+        aria-label={gt("Reorder {route}, position {position}", { route: label, position })}
         className="flex size-6 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground/70 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring active:cursor-grabbing"
       >
         <GripVerticalIcon aria-hidden className="size-3.5" />
@@ -227,7 +234,9 @@ function SortableRouteRow({
             <TooltipPopup side="top">{label}</TooltipPopup>
           </Tooltip>
           {inUse ? (
-            <span className="text-2xs font-normal text-success-foreground">In use</span>
+            <span className="text-2xs font-normal text-success-foreground">
+              <T>In use</T>
+            </span>
           ) : null}
           {transport === "direct" ? (
             <Tooltip>
@@ -243,7 +252,7 @@ function SortableRouteRow({
           ) : null}
           {refused ? (
             <span className="text-2xs font-normal text-destructive-foreground">
-              Sign-in refused
+              <T>Sign-in refused</T>
             </span>
           ) : null}
           {unused ? <span className="text-2xs font-normal">Not used</span> : null}
@@ -261,7 +270,7 @@ function SortableRouteRow({
         ) : null}
         {refused && address !== null ? (
           <p className="text-2xs text-muted-foreground sm:col-span-2">
-            The host refused this device's sign-in. Pair this address again with Add route.
+            <T>The host refused this device's sign-in. Pair this address again with Add route.</T>
           </p>
         ) : null}
       </div>
@@ -281,14 +290,16 @@ function SortableRouteRow({
                     type="button"
                     variant="ghost-muted"
                     size="icon-xs"
-                    aria-label={`Remove ${label} route`}
+                    aria-label={gt("Remove {route} route", { route: label })}
                     onClick={onRemove}
                   />
                 }
               >
                 <XIcon className="size-3" />
               </TooltipTrigger>
-              <TooltipPopup side="top">Remove route</TooltipPopup>
+              <TooltipPopup side="top">
+                <T>Remove route</T>
+              </TooltipPopup>
             </Tooltip>
           </div>
         ) : null}

@@ -101,6 +101,7 @@ import { useEnvironments, useIssuesSupported } from "~/state/environments";
 import { issueEnvironment, useIssueList } from "~/state/issues";
 import { useDebouncedValue } from "~/state/queries";
 import { primaryServerKeybindingsAtom } from "~/state/server";
+import { msg, T, useGT } from "gt-react";
 
 export interface IssuesSearch extends IssueListPreferences {
   readonly selectedEnvironmentId?: EnvironmentId | undefined;
@@ -120,13 +121,13 @@ const STATE_TABS = [
 
 const INVOLVEMENT_TABS = [
   { value: "all", label: "Everyone", Icon: UsersIcon },
-  { value: "assigned", label: "Assigned to me", Icon: UserCheckIcon },
-  { value: "authored", label: "Opened by me", Icon: PenLineIcon },
-  { value: "mentioned", label: "Mentioning me", Icon: AtSignIcon },
+  { value: "assigned", label: msg("Assigned to me"), Icon: UserCheckIcon },
+  { value: "authored", label: msg("Opened by me"), Icon: PenLineIcon },
+  { value: "mentioned", label: msg("Mentioning me"), Icon: AtSignIcon },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<IssueInvolvement>>;
 
 const SORT_OPTIONS = [
-  { value: "updated", label: "Recently updated", Icon: ClockIcon },
+  { value: "updated", label: msg("Recently updated"), Icon: ClockIcon },
   { value: "created", label: "Newest", Icon: SortDescendingIcon },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<IssueListSort>>;
 
@@ -176,6 +177,7 @@ function hostOptionsFor(trackers: ReadonlyArray<IssueTrackerSummary>, chosen: st
 }
 
 export function IssuesPage() {
+  const gt = useGT();
   const navigate = useNavigate({ from: "/issues" });
   const search = useSearch({ from: "/_chat/issues" });
   const { environments } = useEnvironments();
@@ -486,8 +488,8 @@ export function IssuesPage() {
 
   const listBody: ReactNode = !issuesSupported ? (
     <PullRequestsUnavailableState
-      title="Issues unavailable"
-      error="Update this environment's Supaterm server to browse issues."
+      title={gt("Issues unavailable")}
+      error={gt("Update this environment's Supaterm server to browse issues.")}
     />
   ) : noneAnswered && list.isPending ? (
     <PullRequestListGhost />
@@ -503,11 +505,13 @@ export function IssuesPage() {
         <IssueGlyph.issue />
       </EmptyMedia>
       <EmptyHeader>
-        <EmptyTitle>Every project is hidden</EmptyTitle>
+        <EmptyTitle>
+          <T>Every project is hidden</T>
+        </EmptyTitle>
       </EmptyHeader>
       <EmptyContent>
         <Button variant="outline" onClick={() => updateSearch({ hideProjects: undefined })}>
-          Show all projects
+          <T>Show all projects</T>
         </Button>
       </EmptyContent>
     </Empty>
@@ -517,8 +521,12 @@ export function IssuesPage() {
         <IssueGlyph.issue />
       </EmptyMedia>
       <EmptyHeader>
-        <EmptyTitle>No trackers to read</EmptyTitle>
-        <EmptyDescription>Add a project whose remote is on a supported tracker.</EmptyDescription>
+        <EmptyTitle>
+          <T>No trackers to read</T>
+        </EmptyTitle>
+        <EmptyDescription>
+          <T>Add a project whose remote is on a supported tracker.</T>
+        </EmptyDescription>
       </EmptyHeader>
     </Empty>
   ) : (
@@ -527,7 +535,7 @@ export function IssuesPage() {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning-surface px-3 py-2 text-xs">
           <span>{list.error} Showing the issues that loaded.</span>
           <Button size="xs" variant="outline" onClick={list.retry}>
-            Retry
+            <T>Retry</T>
           </Button>
         </div>
       ) : null}
@@ -549,7 +557,7 @@ export function IssuesPage() {
             </h2>
             {!group.tracker.configured ? (
               <p className="px-3 text-sm text-muted-foreground">
-                {group.tracker.detail ?? "This tracker cannot be read right now."}
+                {group.tracker.detail ?? gt("This tracker cannot be read right now.")}
               </p>
             ) : null}
             {group.errors.map((error) => (
@@ -562,7 +570,11 @@ export function IssuesPage() {
             ))}
             {group.tracker.configured && group.rows.length === 0 && group.errors.length === 0 ? (
               <p className="px-3 text-sm text-muted-foreground">
-                {debouncedQuery ? "Nothing matches that." : "No issues under these filters."}
+                {debouncedQuery ? (
+                  <T>Nothing matches that.</T>
+                ) : (
+                  <T>No issues under these filters.</T>
+                )}
               </p>
             ) : null}
             {group.rows.map((row) => {
@@ -603,11 +615,13 @@ export function IssuesPage() {
                     disabled={loadingMore !== null}
                     onClick={() => void loadMore(environmentId, group.tracker.host)}
                   >
-                    {loadingMore === `${environmentId} ${group.tracker.host}`
-                      ? "Loading…"
-                      : moreFailure === null
-                        ? "Load more"
-                        : "Retry"}
+                    {loadingMore === `${environmentId} ${group.tracker.host}` ? (
+                      <T>Loading…</T>
+                    ) : moreFailure === null ? (
+                      <T>Load more</T>
+                    ) : (
+                      <T>Retry</T>
+                    )}
                   </Button>
                 </Fragment>
               );
@@ -628,9 +642,11 @@ export function IssuesPage() {
               reserveNativeControls={!rightPanelState.isOpen}
               className="relative bg-background"
             >
-              <WorkspaceBreadcrumb ariaLabel="Issues breadcrumb">
+              <WorkspaceBreadcrumb ariaLabel={gt("Issues breadcrumb")}>
                 <WorkspaceBreadcrumbItem current>
-                  <h1 className="truncate">Issues</h1>
+                  <h1 className="truncate">
+                    <T context="page title, list of issues">Issues</T>
+                  </h1>
                 </WorkspaceBreadcrumbItem>
               </WorkspaceBreadcrumb>
               <div className="min-w-0 flex-1" />
@@ -654,7 +670,7 @@ export function IssuesPage() {
                     keybindings,
                     "rightPanel.toggle",
                   )}
-                  rightPanelUnavailableLabel="Select an issue first"
+                  rightPanelUnavailableLabel={gt("Select an issue first")}
                   onToggleTerminal={() => undefined}
                   onToggleRightPanel={toggleRightPanel}
                 />
@@ -667,8 +683,8 @@ export function IssuesPage() {
                   <div className="min-w-0 basis-full @lg/issue-list:min-w-48 @lg/issue-list:basis-0 @lg/issue-list:flex-1">
                     <PullRequestSearchInput
                       value={search.q ?? ""}
-                      label="Search issues"
-                      placeholder="Search issues"
+                      label={gt("Search issues")}
+                      placeholder={gt("Search issues")}
                       busy={
                         (search.q ?? "") !== debouncedQuery ||
                         (debouncedQuery.length > 0 && list.isPending)
@@ -678,9 +694,9 @@ export function IssuesPage() {
                     />
                   </div>
                   <PullRequestCompactFilterMenu
-                    label="Sort issues"
+                    label={gt("Sort issues")}
                     triggerIcon={<ArrowDownUpIcon aria-hidden className="size-4" />}
-                    triggerLabel="Sort"
+                    triggerLabel={gt("Sort", { $context: "verb, button that sorts a list" })}
                     outlined
                     value={search.order ?? "updated"}
                     options={SORT_OPTIONS}
@@ -723,7 +739,7 @@ export function IssuesPage() {
                   />
                   {hostOptions.length > 1 ? (
                     <FilterMenu
-                      label="Filter by tracker"
+                      label={gt("Filter by tracker")}
                       value={search.host ?? ""}
                       options={hostOptions}
                       onChange={(host) => updateSearch({ host: host || undefined })}
@@ -732,7 +748,7 @@ export function IssuesPage() {
                   <Button
                     size="icon"
                     variant="outline"
-                    aria-label="Refresh issues"
+                    aria-label={gt("Refresh issues")}
                     onClick={list.refresh}
                     disabled={list.isPending}
                   >

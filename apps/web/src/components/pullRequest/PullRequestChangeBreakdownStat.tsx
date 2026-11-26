@@ -7,6 +7,7 @@ import { useEnvironmentQuery } from "~/state/query";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ChangeBreakdownGrid } from "./ChangeBreakdownGrid";
 import { PullRequestDiffStat } from "./pullRequestPresentation";
+import { T } from "gt-react";
 
 /**
  * The pull request's diff stat, with a hover split into code, tests, mocks, and generated files.
@@ -54,7 +55,9 @@ export function PullRequestChangeBreakdownStat({
           <ChangeBreakdownGrid breakdown={breakdown} total={{ additions, deletions }} />
         </TooltipPopup>
       ) : query.isPending ? (
-        <TooltipPopup side="bottom">Loading breakdown</TooltipPopup>
+        <TooltipPopup side="bottom">
+          <T>Loading breakdown</T>
+        </TooltipPopup>
       ) : null}
     </Tooltip>
   );

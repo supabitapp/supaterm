@@ -1,6 +1,7 @@
 import type { AssetResource, ProjectReadFileError, ScopedThreadRef } from "@supaterm/contracts";
 import { mediaFileReference } from "@supaterm/client-runtime/media-reference";
 import { isHostPath, workspaceRelativeFilePath } from "@supaterm/shared/path";
+import { msg } from "gt-react";
 
 export function resolveFilePreviewPath(path: string | null, cwd: string): string | null {
   if (path === null) return null;
@@ -13,17 +14,17 @@ export const isMarkdownPreviewFile = (path: string): boolean =>
 export function filePreviewReadErrorMessage(error: ProjectReadFileError): string {
   switch (error.failure) {
     case "path_not_file":
-      return "The path is a directory or special file, not a regular file.";
+      return msg("The path is a directory or special file, not a regular file.");
     case "binary_file":
-      return "The file is binary and cannot be displayed as text.";
+      return msg("The file is binary and cannot be displayed as text.");
     case "workspace_path_outside_root":
-      return "The requested path is outside the workspace.";
+      return msg("The requested path is outside the workspace.");
     case "resolved_path_outside_root":
-      return "The path resolves to a location outside the workspace.";
+      return msg("The path resolves to a location outside the workspace.");
     case "operation_failed":
       return error.operation === "realpath-workspace-root"
-        ? "The workspace folder could not be accessed."
-        : "The file could not be accessed or read. It may be missing or inaccessible.";
+        ? msg("The workspace folder could not be accessed.")
+        : msg("The file could not be accessed or read. It may be missing or inaccessible.");
     default:
       return error.message;
   }

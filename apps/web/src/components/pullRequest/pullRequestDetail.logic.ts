@@ -51,12 +51,14 @@ import {
 } from "@supaterm/client-runtime/thread-pull-requests";
 
 import { inferReviewCommentFenceLanguage, type ReviewCommentContext } from "~/reviewCommentContext";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export const PULL_REQUEST_MERGE_METHOD_LABELS: Record<PullRequestMergeMethod, string> = {
-  merge: "Merge",
-  squash: "Squash and merge",
-  rebase: "Rebase and merge",
-  "fast-forward": "Fast-forward merge",
+  merge: msg("Merge"),
+  squash: msg("Squash and merge"),
+  rebase: msg("Rebase and merge"),
+  "fast-forward": msg("Fast-forward merge"),
 };
 
 export function allowsSinglePullRequestMerge(input: {
@@ -328,7 +330,7 @@ export function classifyPullRequestChecks(
 }
 
 export function describePullRequestChecks(checks: ReadonlyArray<PullRequestCheck>): string {
-  if (checks.length === 0) return "No checks reported";
+  if (checks.length === 0) return msg("No checks reported");
   const failed = checks.filter(
     (check) => check.status === "failure" || check.status === "cancelled",
   ).length;
@@ -342,7 +344,9 @@ export function describePullRequestChecks(checks: ReadonlyArray<PullRequestCheck
     parts.push(parts.length > 0 ? `${failed} failed` : `${failed} of ${checks.length} failing`);
   }
   if (parts.length === 0) {
-    return passed === checks.length ? "All checks passed" : `${passed} of ${checks.length} passing`;
+    return passed === checks.length
+      ? msg("All checks passed")
+      : `${passed} of ${checks.length} passing`;
   }
   return parts.join(" · ");
 }
@@ -1629,7 +1633,7 @@ export function checkoutFailureDescription(failure: unknown): string {
     : failure;
   return readableFailure(
     description,
-    "Check that the branch still exists and is not checked out elsewhere, then try again.",
+    m(msg("Check that the branch still exists and is not checked out elsewhere, then try again.")),
   );
 }
 

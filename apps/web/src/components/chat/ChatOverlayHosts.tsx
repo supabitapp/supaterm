@@ -30,6 +30,7 @@ import { findRevertCheckpoint } from "../../session-logic";
 import { filesystemEnvironment } from "../../state/filesystem";
 import { useEnvironmentQuery } from "../../state/query";
 import { registerThreadOverlay } from "./threadOverlayRetention";
+import { T } from "gt-react";
 
 /**
  * Open state for overlays the chat view hosts. It lives in atoms rather than
@@ -195,7 +196,9 @@ export function RevertConfirmHost(props: {
     >
       <AlertDialogPopup>
         <AlertDialogHeader>
-          <AlertDialogTitle>Edit from here?</AlertDialogTitle>
+          <AlertDialogTitle>
+            <T>Edit from here?</T>
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {fileRestore === "repositories"
               ? "Rewind chat to before this message. Your prompt and attachments return to the composer. “Revert repositories too” also undoes your own edits in this thread’s repository worktrees. Files in the project folder itself stay as they are."
@@ -203,7 +206,9 @@ export function RevertConfirmHost(props: {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+          <AlertDialogClose render={<Button variant="outline" />}>
+            <T>Cancel</T>
+          </AlertDialogClose>
           <Button
             variant="destructive-outline"
             disabled={fileRestore === null}
@@ -211,7 +216,9 @@ export function RevertConfirmHost(props: {
           >
             {fileRestore === "repositories" ? "Revert repositories too" : "Revert files too"}
           </Button>
-          <Button onClick={() => confirm(false)}>Revert and keep changes</Button>
+          <Button onClick={() => confirm(false)}>
+            <T>Revert and keep changes</T>
+          </Button>
         </AlertDialogFooter>
       </AlertDialogPopup>
     </AlertDialog>

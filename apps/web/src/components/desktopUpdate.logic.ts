@@ -6,6 +6,7 @@ import type {
 import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 
 import { channelSwitchLabel } from "./sidebar/updateEverything.logic";
+import { msg } from "gt-react";
 
 export type DesktopUpdateButtonAction = "download" | "install" | "none";
 
@@ -80,17 +81,23 @@ export function isDesktopUpdateButtonDisabled(state: DesktopUpdateState | null):
 
 export function getArm64IntelBuildWarningDescription(state: DesktopUpdateState): string {
   if (!shouldShowArm64IntelBuildWarning(state)) {
-    return "This install is using the correct architecture.";
+    return msg("This install is using the correct architecture.");
   }
 
   const action = resolveDesktopUpdateButtonAction(state);
   if (action === "download") {
-    return "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. Download the available update to switch to the native Apple Silicon build.";
+    return msg(
+      "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. Download the available update to switch to the native Apple Silicon build.",
+    );
   }
   if (action === "install") {
-    return "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. Restart to install the downloaded Apple Silicon build.";
+    return msg(
+      "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. Restart to install the downloaded Apple Silicon build.",
+    );
   }
-  return "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. The next app update will replace it with the native Apple Silicon build.";
+  return msg(
+    "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. The next app update will replace it with the native Apple Silicon build.",
+  );
 }
 
 export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string {
@@ -129,14 +136,14 @@ export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string
     if (state.downloadedVersion) {
       return `Update ${state.downloadedVersion} downloaded. Click to restart and install.`;
     }
-    return state.message ?? "Update failed";
+    return state.message ?? msg("Update failed");
   }
   // The updater discards every release of the other track, so "up to date" would be false here.
   const buildChannel = desktopUpdateChannelOf(state.currentVersion);
   if (state.status === "up-to-date" && buildChannel !== state.channel) {
     return `This ${channelSwitchLabel(buildChannel)} build ignores ${channelSwitchLabel(state.channel)} releases. Review the update track in Settings to finish the switch.`;
   }
-  return "Up to date";
+  return msg("Up to date");
 }
 
 export function getDesktopUpdateInstallConfirmationMessage(
@@ -196,5 +203,5 @@ export function getDesktopUpdateDisabledReason(
   state: Pick<DesktopUpdateState, "enabled" | "status" | "message"> | null,
 ): string | null {
   if (!state || (state.enabled && state.status !== "disabled")) return null;
-  return state.message?.trim() || "Automatic updates are not available in this build.";
+  return state.message?.trim() || msg("Automatic updates are not available in this build.");
 }

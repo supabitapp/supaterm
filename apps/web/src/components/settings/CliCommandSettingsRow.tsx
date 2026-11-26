@@ -10,11 +10,13 @@ import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { SettingsRow } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import { msg, T } from "gt-react";
+import { m } from "../../i18n/messages";
 
 const FAILURE_TITLES = {
-  install: "Could not install supaterm",
-  uninstall: "Could not remove supaterm",
-  addToPath: "Could not add supaterm to PATH",
+  install: msg("Could not install supaterm"),
+  uninstall: msg("Could not remove supaterm"),
+  addToPath: msg("Could not add supaterm to PATH"),
 } as const;
 
 /** The desktop `supaterm` command's state, and its actions with a toast on failure. */
@@ -33,7 +35,7 @@ export function useDesktopCliCommand() {
           stackedThreadToast({
             type: "error",
             title: FAILURE_TITLES[action],
-            description: error instanceof Error ? error.message : "Something went wrong.",
+            description: error instanceof Error ? error.message : m(msg("Something went wrong.")),
           }),
         );
       })
@@ -70,7 +72,7 @@ export function CliCommandSettingsRow() {
         <div className="flex gap-2">
           {state.pathSetup && !state.pathSetup.added ? (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => run("addToPath")}>
-              Add to PATH
+              <T>Add to PATH</T>
             </Button>
           ) : null}
           <Button

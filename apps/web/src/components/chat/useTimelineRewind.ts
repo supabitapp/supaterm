@@ -26,6 +26,8 @@ import { rewindToMessage } from "./chatViewSend";
 import { makeThreadErrorSetter } from "../ChatView.logic";
 import type { ChatShortcutCommands } from "./useChatShortcuts";
 import { resolveThreadForkSource } from "@supaterm/client-runtime/state/thread-workflows";
+import { m } from "~/i18n/messages";
+import { msg } from "gt-react";
 
 interface TimelineRewindInput {
   readonly environmentId: EnvironmentId;
@@ -105,19 +107,30 @@ export function useTimelineRewind(input: TimelineRewindInput) {
     if (!supportsConversationRollback) {
       setThreadError(
         activeThread.id,
-        "This provider does not support reverting conversation history. Start a new thread instead.",
+        m(
+          msg(
+            "This provider does not support reverting conversation history. Start a new thread instead.",
+          ),
+        ),
       );
       return;
     }
     if (activeEnvironmentUnavailable && activeEnvironmentUnavailableLabel) {
       setThreadError(
         activeThread.id,
-        `Reconnect ${activeEnvironmentUnavailableLabel} before reverting checkpoints.`,
+        m(
+          msg("Reconnect {environment} before reverting checkpoints.", {
+            environment: activeEnvironmentUnavailableLabel,
+          }),
+        ),
       );
       return;
     }
     if (phase === "running") {
-      setThreadError(activeThread.id, "Interrupt the current turn before reverting checkpoints.");
+      setThreadError(
+        activeThread.id,
+        m(msg("Interrupt the current turn before reverting checkpoints.")),
+      );
       return;
     }
     if (restoreFiles === undefined && !sideChat) {
@@ -182,7 +195,7 @@ export function useTimelineRewind(input: TimelineRewindInput) {
       if (!activeThread) return;
       setThreadError(
         activeThread.id,
-        error instanceof Error ? error.message : "Failed to fork this response.",
+        error instanceof Error ? error.message : m(msg("Failed to fork this response.")),
       );
     }
   };

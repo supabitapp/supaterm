@@ -30,6 +30,7 @@ import {
 } from "../ui/dialog";
 import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
+import { useGT, T } from "gt-react";
 
 const APPROVAL_CODE_LABEL = "App sign-in";
 
@@ -41,6 +42,7 @@ export function UseInAnotherAppDialog({
 }: {
   readonly environment: EnvironmentPresentation;
 }) {
+  const gt = useGT();
   const environmentId = environment.environmentId;
   const createPairingCredential = useAtomCommand(authEnvironment.createPairingCredential, {
     reportFailure: false,
@@ -74,7 +76,9 @@ export function UseInAnotherAppDialog({
       setError(
         failure instanceof Error
           ? failure.message
-          : `Could not get a code from ${environment.label}. Try again.`,
+          : gt("Could not get a code from {environment}. Try again.", {
+              environment: environment.label,
+            }),
       );
     }
   };
@@ -102,7 +106,7 @@ export function UseInAnotherAppDialog({
       />
       <DialogPopup className="max-w-md" showCloseButton={!pending}>
         <DialogHeader>
-          <DialogTitle>Use Supaterm in another app (MCP)</DialogTitle>
+          <DialogTitle>{gt("Use Supaterm in another app (MCP)")}</DialogTitle>
           <DialogDescription>
             Add the URL to the app, then enter the code on the sign-in page it opens. The code
             approves one sign-in at the level you pick.
@@ -112,7 +116,7 @@ export function UseInAnotherAppDialog({
           {mcpUrl ? <CopyRow label="URL" value={mcpUrl} /> : null}
           <div className="space-y-2">
             <span id="mcp-approval-access-label" className="block text-sm font-medium">
-              What can the app do?
+              {gt("What can the app do?")}
             </span>
             <RadioGroup
               aria-labelledby="mcp-approval-access-label"
@@ -140,7 +144,7 @@ export function UseInAnotherAppDialog({
             disabled={pending}
             onClick={() => setOpen(false)}
           >
-            Done
+            <T>Done</T>
           </Button>
           <Button
             size="comfortable"
@@ -149,7 +153,7 @@ export function UseInAnotherAppDialog({
             onClick={() => void mint()}
           >
             {pending ? <Spinner /> : null}
-            {pending ? "Getting code…" : code ? "New code" : "Get code"}
+            {pending ? gt("Getting code…") : code ? gt("New code") : gt("Get code")}
           </Button>
         </DialogFooter>
       </DialogPopup>
@@ -193,12 +197,18 @@ function ApprovalCode({
   readonly code: MintedCode;
   readonly access: AuthMcpClientAccess;
 }) {
+  const gt = useGT();
   const now = useNowSecond();
   const left = Math.max(0, Math.floor((code.expiresAt - now) / 1000));
-  if (left === 0) return <p className="text-xs text-muted-foreground">The code expired.</p>;
+  if (left === 0)
+    return (
+      <p className="text-xs text-muted-foreground">
+        <T>The code expired.</T>
+      </p>
+    );
   return (
     <div className="space-y-1.5">
-      <CopyRow label="Code" value={code.credential} />
+      <CopyRow label={gt("Code", { $context: "approval code" })} value={code.credential} />
       <p className="text-xs text-muted-foreground">
         Approves {accessConfig[access].label} · one use · expires {Math.floor(left / 60)}:
         {String(left % 60).padStart(2, "0")}
@@ -208,6 +218,7 @@ function ApprovalCode({
 }
 
 function CopyRow({ label, value }: { readonly label: string; readonly value: string }) {
+  const gt = useGT();
   const { copyToClipboard, isCopied } = useCopyToClipboard({ timeout: 1500, target: label });
   const Icon = isCopied ? CheckIcon : CopyIcon;
   return (
@@ -217,7 +228,7 @@ function CopyRow({ label, value }: { readonly label: string; readonly value: str
       <Button
         size="icon-xs"
         variant="ghost"
-        aria-label={`Copy ${label}`}
+        aria-label={gt("Copy {label}", { label })}
         onClick={() => copyToClipboard(value, undefined)}
       >
         <Icon className="size-3.5" />

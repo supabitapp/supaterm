@@ -37,14 +37,16 @@ import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { NewProjectScriptInput } from "../projectScriptEditor";
 import { toastManager } from "../ui/toast";
+import { msg } from "gt-react";
+import { m } from "../../i18n/messages";
 
 function reportScriptFailure(result: AtomCommandResult<unknown, unknown>) {
   if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
     const error = squashAtomCommandFailure(result);
     toastManager.add({
       type: "error",
-      title: "Failed to save project actions",
-      description: error instanceof Error ? error.message : "An error occurred.",
+      title: m(msg("Failed to save project actions")),
+      description: error instanceof Error ? error.message : m(msg("An error occurred.")),
     });
   }
   return mapAtomCommandResult(result, () => undefined);
@@ -78,7 +80,7 @@ export function useProjectScriptSettings(
   ): Promise<AtomCommandResult<void, unknown>> {
     if (savingRef.current || targets.length === 0) {
       const message = "No available machine, or another action change is saving.";
-      toastManager.add({ type: "error", title: "Actions not saved", description: message });
+      toastManager.add({ type: "error", title: m(msg("Actions not saved")), description: message });
       return AsyncResult.failure(Cause.fail(new Error(message)));
     }
     if (
@@ -91,7 +93,7 @@ export function useProjectScriptSettings(
           Cause.fail(
             new EnvironmentAuthorizationError({
               requiredScope: AuthSettingsWriteScope,
-              message: "This connection cannot change environment settings.",
+              message: m(msg("This connection cannot change environment settings.")),
             }),
           ),
         ),

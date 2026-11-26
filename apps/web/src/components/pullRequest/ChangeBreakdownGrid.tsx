@@ -1,5 +1,6 @@
 import { formatDiffCount } from "@supaterm/client-runtime/diff-count";
 import type { PullRequestChangeBreakdown } from "@supaterm/contracts";
+import { msg, useGT } from "gt-react";
 
 const KIND_LABELS = {
   code: "Code",
@@ -18,6 +19,7 @@ export function ChangeBreakdownGrid({
   breakdown: NonNullable<PullRequestChangeBreakdown>;
   total?: DiffTotals;
 }) {
+  const gt = useGT();
   return (
     <div className="grid grid-cols-[auto_auto_auto] justify-start gap-x-4 gap-y-1 py-0.5 font-mono tabular-nums">
       {(Object.keys(KIND_LABELS) as Array<keyof typeof KIND_LABELS>).map((kind) => {
@@ -34,7 +36,11 @@ export function ChangeBreakdownGrid({
       {total ? (
         <>
           <div className="col-span-3 border-t border-border" />
-          <BreakdownRow label="Total" additions={total.additions} deletions={total.deletions} />
+          <BreakdownRow
+            label={gt("Total", { $context: "sum of changed lines" })}
+            additions={total.additions}
+            deletions={total.deletions}
+          />
         </>
       ) : null}
     </div>

@@ -9,6 +9,7 @@ import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { showPullRequestLinkContextMenu } from "./pullRequestLinkContextMenu";
+import { T, useGT } from "gt-react";
 
 interface CrumbsPullRequest {
   readonly url: string;
@@ -33,6 +34,7 @@ const ROW_CLASS_NAME =
   "col-start-1 row-start-1 flex min-w-0 items-center gap-1 text-sm text-muted-foreground transition-[opacity,transform] ease-out motion-reduce:transform-none motion-reduce:transition-none sm:text-xs";
 
 function BackButton({ onBack, focusable }: { onBack: () => void; focusable: boolean }) {
+  const gt = useGT();
   return (
     <Tooltip>
       <TooltipTrigger
@@ -43,13 +45,15 @@ function BackButton({ onBack, focusable }: { onBack: () => void; focusable: bool
             {...(focusable ? {} : { tabIndex: -1 })}
             onClick={onBack}
             className="-ml-1.5"
-            aria-label="Back to this thread's pull requests"
+            aria-label={gt("Back to this thread's pull requests")}
           >
             <ArrowLeftIcon aria-hidden className="size-3.5" />
           </Button>
         }
       />
-      <TooltipPopup side="top">Back to pull requests</TooltipPopup>
+      <TooltipPopup side="top">
+        <T>Back to pull requests</T>
+      </TooltipPopup>
     </Tooltip>
   );
 }
@@ -117,6 +121,7 @@ export function PullRequestDetailCrumbs({
   openOnHostText: string;
   onBack: (() => void) | undefined;
 }) {
+  const gt = useGT();
   const openLink = useOpenLink(threadRef);
   const ready = detail !== null && toneClassName !== null;
   return (
@@ -160,7 +165,9 @@ export function PullRequestDetailCrumbs({
                 }
               />
               <TooltipPopup side="top">
-                {repositoryUrl ? `Open ${detail.repository} repository` : detail.repository}
+                {repositoryUrl
+                  ? gt("Open {repository} repository", { repository: detail.repository })
+                  : detail.repository}
               </TooltipPopup>
             </Tooltip>
             <NumberLink

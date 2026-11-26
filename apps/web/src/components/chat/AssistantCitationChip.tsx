@@ -35,6 +35,7 @@ import { observeAssistantCitationCommentSource } from "./AssistantCitationSource
 import { composerFloatingLayerProps } from "./composerEventScope";
 import { observeResize } from "~/lib/observeResize";
 import { textDirection } from "~/textDirection";
+import { useGT } from "gt-react";
 
 function useCitationSourceLinkProps(citation: AssistantCitation) {
   const navigate = useNavigate();
@@ -70,6 +71,7 @@ export function ResponseReplyQuote({
   record: ResponseContextRecord;
   copyMarkdown: string;
 }) {
+  const gt = useGT();
   const { citation } = record;
   const linkProps = useCitationSourceLinkProps(citation);
   const title = record.subagents?.map((subagent) => subagent.title).join(", ");
@@ -81,7 +83,7 @@ export function ResponseReplyQuote({
       // The response is findable in its own message; here it is clamped and mostly hidden.
       data-thread-find-ignore
       className="mb-1.5 flex w-fit max-w-full min-w-0 flex-col border-s-2 border-muted-foreground/40 ps-2 text-xs/5 text-muted-foreground no-underline transition-colors duration-150 hover:border-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-      aria-label={`Go to the response this replies to: ${record.label}`}
+      aria-label={gt("Go to the response this replies to: {label}", { label: record.label })}
     >
       {title ? (
         <span className="truncate font-medium text-foreground/80" dir="auto">
@@ -113,6 +115,7 @@ export function AssistantCitationChip({
     onRestoreFocus?: () => void;
   };
 }) {
+  const gt = useGT();
   const sourceLinkProps = useCitationSourceLinkProps(citation);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const commentPopupRef = useRef<HTMLDivElement>(null);
@@ -176,7 +179,7 @@ export function AssistantCitationChip({
     <Link
       {...sourceLinkProps}
       className="inline-flex h-full min-w-0 items-center gap-[0.33em] rounded-sm text-inherit no-underline focus-visible:outline-2 focus-visible:outline-foreground"
-      aria-label={`View cited assistant text: ${label}`}
+      aria-label={gt("View cited assistant text: {label}", { label })}
     >
       <QuoteIcon aria-hidden="true" />
       <ContextChipLabel className="max-w-[16em]" dir={textDirection(label)}>
@@ -250,7 +253,9 @@ export function AssistantCitationChip({
           }}
         >
           <PopoverTrigger
-            aria-label={citation.comment ? "Edit citation comment" : "Add comment to citation"}
+            aria-label={
+              citation.comment ? gt("Edit citation comment") : gt("Add comment to citation")
+            }
             data-citation-comment-trigger="true"
             render={<ContextChipAction />}
           >
@@ -287,7 +292,7 @@ export function AssistantCitationChip({
                   : undefined
               }
               ref={commentPopupRef}
-              aria-label="Edit citation comment"
+              aria-label={gt("Edit citation comment")}
               width="md"
               padding="compact"
               onPointerDown={(event) => event.stopPropagation()}

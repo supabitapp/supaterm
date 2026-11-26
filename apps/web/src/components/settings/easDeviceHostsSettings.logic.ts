@@ -3,13 +3,14 @@ import {
   type EasDeviceHostConfig as EasDeviceHostConfigType,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
+import { msg } from "gt-react";
 
 export const parseEasDeviceHostDraft = Schema.decodeUnknownOption(EasDeviceHostConfig);
 
 export const newEasDeviceHost = (id: string): EasDeviceHostConfigType => ({
   kind: "eas",
   id,
-  label: "Expo Simulators",
+  label: msg("Expo Simulators"),
   accessToken: "",
   maxSessionMinutes: 30,
   idleMinutes: 10,

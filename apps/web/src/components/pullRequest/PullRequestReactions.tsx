@@ -23,6 +23,8 @@ import {
   pullRequestReactionTooltip,
   pullRequestReactionsSignature,
 } from "@supaterm/client-runtime/pull-request-reactions";
+import { msg, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const PILL_CLASS =
   "inline-flex h-6 shrink-0 items-center gap-1 rounded-full border px-2 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
@@ -42,6 +44,7 @@ export function ReactionBar({
   readonly onReact: (content: PullRequestReactionContent, reacted: boolean) => Promise<boolean>;
   readonly className?: string | undefined;
 }) {
+  const gt = useGT();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pending, setPending] = useState<{
     readonly signature: string;
@@ -62,7 +65,7 @@ export function ReactionBar({
       next.delete(content);
       return { signature: current.signature, values: next };
     });
-    toastManager.add({ type: "error", title: "The reaction could not be saved" });
+    toastManager.add({ type: "error", title: m(msg("The reaction could not be saved")) });
   };
 
   if (shown.length === 0 && !canReact) return null;
@@ -102,7 +105,7 @@ export function ReactionBar({
             render={
               <button
                 type="button"
-                aria-label="Add a reaction"
+                aria-label={gt("Add a reaction")}
                 className={cn(
                   PILL_CLASS,
                   "border-border/70 px-1.5 text-muted-foreground hover:border-primary/60 hover:text-foreground",

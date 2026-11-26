@@ -1,4 +1,5 @@
 import { stripDisplayedPlanMarkdown, proposedPlanTitle } from "@supaterm/shared/proposedPlanText";
+import { msg } from "gt-react";
 
 export function buildCollapsedProposedPlanPreviewMarkdown(
   planMarkdown: string,
@@ -32,7 +33,7 @@ export function buildCollapsedProposedPlanPreviewMarkdown(
   }
 
   if (previewLines.length === 0) {
-    return proposedPlanTitle(planMarkdown) ?? "Plan preview unavailable.";
+    return proposedPlanTitle(planMarkdown) ?? msg("Plan preview unavailable.");
   }
 
   if (hasMoreContent) {

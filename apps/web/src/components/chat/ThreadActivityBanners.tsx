@@ -1,5 +1,4 @@
 import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
-import { m } from "~/i18n/messages";
 import type {
   EnvironmentId,
   OrchestrationV2PendingBackgroundTask,
@@ -47,6 +46,8 @@ import {
 } from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import type { ThreadNowItem } from "./ThreadNow";
+import { T, msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export function extensionStatusBannerItem(
   statuses: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]>,
@@ -80,8 +81,8 @@ export function childInputNowItem(input: {
     ),
     title: childThreadInputsTitle(childThreadInputs),
     waitingLabel: childThreadInputs.every((child) => child.lineage.sideChat === true)
-      ? "Side chat waiting"
-      : "Subagent waiting",
+      ? msg("Side chat waiting")
+      : msg("Subagent waiting"),
     description: childThreadInputs.map((child, index) => (
       <Fragment key={child.id}>
         {index > 0 ? " " : null}
@@ -95,7 +96,7 @@ export function childInputNowItem(input: {
     )),
     actions: (
       <InlineButton onClick={() => onOpenThread(first.id, first.environmentId)}>
-        {first.hasPendingApprovals ? "Open approval" : "Open question"}
+        {first.hasPendingApprovals ? <T>Open approval</T> : <T>Open question</T>}
       </InlineButton>
     ),
   };
@@ -126,7 +127,7 @@ export function goalNowItem(input: {
             <InlineButton
               onClick={() => void onSendCommand("/goal resume", "Failed to resume goal.")}
             >
-              Resume
+              <T context="verb, resumes the goal">Resume</T>
             </InlineButton>
             <span aria-hidden>·</span>
           </>
@@ -135,7 +136,7 @@ export function goalNowItem(input: {
           tone="muted"
           onClick={() => void onSendCommand("/goal clear", "Failed to clear goal.")}
         >
-          Clear
+          <T context="verb, clears the goal">Clear</T>
         </InlineButton>
       </>
     ),
@@ -174,7 +175,7 @@ export function runStopNowItem(input: {
         />
         {unresponsive && input.canForceStop ? (
           <InlineButton disabled={input.forceStopping} onClick={input.onForceStop}>
-            {input.forceStopping ? "Force stopping..." : "Force stop"}
+            {input.forceStopping ? <T>Force stopping...</T> : <T>Force stop</T>}
           </InlineButton>
         ) : null}
       </>
@@ -381,7 +382,7 @@ export function branchMismatchBannerItem(input: {
         onConfirm={input.onRestore}
       />
     ),
-    dismissLabel: "Dismiss branch change notice",
+    dismissLabel: msg("Dismiss branch change notice"),
     onDismiss: input.onDismiss,
   };
 }

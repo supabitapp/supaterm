@@ -18,6 +18,8 @@ import { toastManager } from "../ui/toast";
 import { PullRequestCandidatePicker } from "./PullRequestCandidatePicker";
 import { readableFailure } from "./pullRequestDetail.logic";
 import { pullRequestLabelColor } from "./pullRequestList.logic";
+import { msg, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 function matches(candidate: PullRequestLabelCandidate, query: string): boolean {
   if (query.length === 0) return true;
@@ -37,6 +39,7 @@ export function PullRequestLabelPicker({
   reference: PullRequestRef;
   allowed: boolean;
 }) {
+  const gt = useGT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState(emptySelection<PullRequestLabelCandidate>);
@@ -65,11 +68,11 @@ export function PullRequestLabelPicker({
     toastManager.add({
       type: "error",
       title: applied
-        ? `Could not put ${names.join(", ")} on`
-        : `Could not take ${names.join(", ")} off`,
+        ? m(msg("Could not put {names} on", { names: names.join(", ") }))
+        : m(msg("Could not take {names} off", { names: names.join(", ") })),
       description: readableFailure(
         squashAtomCommandFailure(result),
-        "The host refused it. Check that you have triage access on this repository.",
+        m(msg("The host refused it. Check that you have triage access on this repository.")),
       ),
     });
   };
@@ -90,22 +93,24 @@ export function PullRequestLabelPicker({
   return (
     <PullRequestCandidatePicker
       icon={<TagIcon className="size-3.5" />}
-      label="Change labels"
+      label={gt("Change labels")}
       allowed={allowed}
-      disabledReason="Changing labels needs triage access on this repository"
+      disabledReason={gt("Changing labels needs triage access on this repository")}
       open={open}
       onOpenChange={onOpenChange}
       query={query}
       onQueryChange={setQuery}
-      searchLabel="Search labels"
+      searchLabel={gt("Search labels")}
       isPending={candidatesQuery.isPending && candidatesQuery.data === null}
       error={candidatesQuery.data === null ? candidatesQuery.error : null}
       candidates={candidates}
-      emptyLabel="This repository has no labels."
-      noMatchLabel="No label matches that."
-      errorLabel="The labels could not be read."
+      emptyLabel={gt("This repository has no labels.")}
+      noMatchLabel={gt("No label matches that.")}
+      errorLabel={gt("The labels could not be read.")}
       truncated={candidatesQuery.data?.truncated === true}
-      truncatedLabel="This repository has more labels than are listed here. Apply the rest on the host."
+      truncatedLabel={gt(
+        "This repository has more labels than are listed here. Apply the rest on the host.",
+      )}
       candidateKey={(candidate) => candidate.name}
       onSelect={(candidate) =>
         setDraft((current) =>
@@ -129,7 +134,10 @@ export function PullRequestLabelPicker({
               ) : null}
             </span>
             {isSelected(draft, candidate.name, candidate.isApplied) ? (
-              <CheckIcon aria-label="Applied" className="size-3.5 shrink-0" />
+              <CheckIcon
+                aria-label={gt("Applied", { $context: "label is applied" })}
+                className="size-3.5 shrink-0"
+              />
             ) : null}
           </>
         );

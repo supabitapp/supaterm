@@ -77,6 +77,7 @@ import { MiddleTruncate } from "./ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { BranchPicker, BranchPickerRefItem } from "./BranchPicker";
 import { stackedThreadToast, toastManager } from "./ui/toast";
+import { msg, useGT } from "gt-react";
 
 export interface BranchToolbarBranchSelectorHandle {
   open: () => void;
@@ -100,7 +101,7 @@ interface BranchToolbarBranchSelectorProps {
   onComposerFocusRequest?: () => void;
 }
 
-const WORKTREE_CHANGE_BLOCKED_MESSAGE = "Stop the current turn to switch worktrees.";
+const WORKTREE_CHANGE_BLOCKED_MESSAGE = msg("Stop the current turn to switch worktrees.");
 
 // Picker checkouts by environment and checkout: null while in flight, then the branch it landed
 // on. Shared because a draft thread mounts two selectors on one checkout, and the switch's own
@@ -125,6 +126,7 @@ export function BranchToolbarBranchSelector({
   onCheckoutPullRequestRequest,
   onComposerFocusRequest,
 }: BranchToolbarBranchSelectorProps) {
+  const gt = useGT();
   const composerFloatingLayerProps = useComposerMenuProps();
   const branchShortcut = useShortcutLabel(displayMode === "toolbar" ? "composer.branch" : null);
   const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
@@ -389,9 +391,9 @@ export function BranchToolbarBranchSelector({
   const [isBranchActionPending, startBranchActionTransition] = useTransition();
   const totalBranchCount = branchRefState.data?.totalCount ?? 0;
   const branchStatusText = isInitialBranchesLoadPending
-    ? "Loading refs..."
+    ? gt("Loading refs...")
     : isFetchingNextPage
-      ? "Loading more refs..."
+      ? gt("Loading more refs...")
       : hasNextPage
         ? `Showing ${refs.length.toLocaleString()} of ${totalBranchCount.toLocaleString()} refs`
         : null;
@@ -401,7 +403,7 @@ export function BranchToolbarBranchSelector({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to copy branch name",
+          title: gt("Failed to copy branch name"),
           description: toBranchActionErrorMessage(error),
         }),
       );
@@ -415,7 +417,7 @@ export function BranchToolbarBranchSelector({
     event.preventDefault();
     event.stopPropagation();
     const items: ContextMenuItem<"copy-branch-name">[] = [
-      { id: "copy-branch-name", label: "Copy branch name", icon: "copy" },
+      { id: "copy-branch-name", label: gt("Copy branch name"), icon: "copy" },
     ];
     void api.contextMenu
       .show(items, { x: event.clientX, y: event.clientY }, contextMenuSourceOf(event))
@@ -432,8 +434,8 @@ export function BranchToolbarBranchSelector({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Action unavailable",
-          description: "This connection cannot change the thread's branch.",
+          title: gt("Action unavailable"),
+          description: gt("This connection cannot change the thread's branch."),
         }),
       );
       return;
@@ -565,7 +567,7 @@ export function BranchToolbarBranchSelector({
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: "Failed to switch ref.",
+            title: gt("Failed to switch ref."),
             description: toBranchActionErrorMessage(squashAtomCommandFailure(checkoutResult)),
           }),
         );
@@ -615,7 +617,7 @@ export function BranchToolbarBranchSelector({
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: "Failed to create and switch ref.",
+            title: gt("Failed to create and switch ref."),
             description: toBranchActionErrorMessage(squashAtomCommandFailure(createBranchResult)),
           }),
         );
@@ -877,7 +879,7 @@ export function BranchToolbarBranchSelector({
                   className="min-w-0 max-w-full active:scale-100"
                   disabled={isInitialBranchesLoadPending || isBranchActionPending}
                   // NVDA browse mode re-reads a combobox when its attributes change, not when its text does.
-                  aria-label={`Branch: ${triggerLabel}`}
+                  aria-label={gt("Branch: {branch}", { branch: triggerLabel })}
                 />
               }
             >

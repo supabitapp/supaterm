@@ -23,6 +23,7 @@ import type {
 import { isStalePullRequestReply } from "@supaterm/client-runtime/pull-request-reply";
 import { toSortableTimestamp } from "@supaterm/client-runtime/state/thread-sort";
 import type { PullRequestListSort } from "./pullRequestListPreferences";
+import { msg } from "gt-react";
 
 export interface EnvironmentPullRequestEntry extends PullRequestListEntry {
   readonly environmentId: EnvironmentId;
@@ -62,9 +63,9 @@ const pullRequestViewerKey = (entry: ScopedEntry): string =>
   `${entry.environmentId ?? ""} ${entry.host}`;
 
 const GROUP_LABELS: Record<PullRequestGroupKey, string> = {
-  reviewRequested: "Review requested",
-  authored: "Authored",
-  others: "Others",
+  reviewRequested: msg("Review requested"),
+  authored: msg("Authored"),
+  others: msg("Others"),
 };
 
 function normalize(value: string | null | undefined): string | null {

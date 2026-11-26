@@ -1,5 +1,7 @@
 import type { DesktopBridge, DesktopUpdateChannel, DesktopUpdateState } from "@supaterm/contracts";
 import { acceptsTrackSwitchRelease } from "@supaterm/shared/cliRelease";
+import { m } from "../../i18n/messages";
+import { msg } from "gt-react";
 
 type TrackSwitchBridge = Pick<DesktopBridge, "setUpdateChannel">;
 
@@ -28,7 +30,7 @@ export async function prepareLocalTrackSwitch(
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "The update track did not change.",
+      message: error instanceof Error ? error.message : m(msg("The update track did not change.")),
     };
   }
   if (!input.reinstall) return { ok: true, local: null };
@@ -44,8 +46,14 @@ export async function prepareLocalTrackSwitch(
     ok: false,
     message:
       found !== null
-        ? `This app found ${found}, which is older than ${input.version}. Try again in a few minutes.`
-        : (local.message ?? `This app found no build of ${input.version} to install.`),
+        ? m(
+            msg(
+              "This app found {found}, which is older than {version}. Try again in a few minutes.",
+              { found, version: input.version },
+            ),
+          )
+        : (local.message ??
+          m(msg("This app found no build of {version} to install.", { version: input.version }))),
   };
 }
 

@@ -15,6 +15,8 @@ import type { ConnectionTarget } from "@supaterm/client-runtime/connection";
 import { loopbackTunnelUsable } from "../browser/browserTargetResolver";
 import { environmentAtomList } from "./environmentAtomList";
 import { environmentSession } from "./session";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
 const EMPTY_FORWARDS: ReadonlyArray<DesktopPortForward> = [];
 
@@ -75,7 +77,7 @@ class PortForwardLocalityError extends Schema.TaggedError<PortForwardLocalityErr
   { environmentId: Schema.String, cause: Schema.Defect() },
 ) {
   override get message(): string {
-    return "Could not tell whether this environment runs on this computer.";
+    return m(msg("Could not tell whether this environment runs on this computer."));
   }
 }
 
@@ -141,7 +143,7 @@ export const findPortForward = (
 
 export function forwardPort(environmentId: EnvironmentId, remotePort: number) {
   const bridge = previewBridge();
-  if (!bridge) return Promise.reject(new Error("Port forwarding needs the desktop app."));
+  if (!bridge) return Promise.reject(new Error(m(msg("Port forwarding needs the desktop app."))));
   return bridge.forwardPort(environmentId, remotePort).catch((error: unknown) => {
     // Electron flattens main-process errors into "Error invoking remote method '…': Tag: text".
     const raw = error instanceof Error ? error.message : String(error);
@@ -149,7 +151,7 @@ export function forwardPort(environmentId: EnvironmentId, remotePort: number) {
       raw.includes("LoopbackTunnelSameMachineError")
         ? `This environment runs on this computer, so localhost:${remotePort} already reaches it.`
         : raw.includes("LoopbackTunnelUnavailableError")
-          ? "This environment can't be reached right now. Try again once it reconnects."
+          ? m(msg("This environment can't be reached right now. Try again once it reconnects."))
           : raw.replace(/^Error invoking remote method '[^']*':\s*(\w+Error:\s*)?/u, ""),
       { cause: error },
     );

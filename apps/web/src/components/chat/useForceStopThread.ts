@@ -10,6 +10,8 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { toastManager } from "../ui/toast";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 /** Force stop for an agent that no longer answers Stop; shared by every place that offers it. */
 export function useForceStopThread(environmentId: EnvironmentId) {
@@ -35,7 +37,7 @@ export function useForceStopThread(environmentId: EnvironmentId) {
       const error = squashAtomCommandFailure(result);
       toastManager.add({
         type: "error",
-        title: "Could not force stop the agent",
+        title: m(msg("Could not force stop the agent")),
         description: error instanceof Error ? error.message : undefined,
       });
       return;
@@ -44,13 +46,13 @@ export function useForceStopThread(environmentId: EnvironmentId) {
     if (result.value.outcome === "releasing") {
       toastManager.add({
         type: "info",
-        title: "Turn stopped; the agent is still shutting down",
+        title: m(msg("Turn stopped; the agent is still shutting down")),
       });
     }
     if (result.value.outcome === "shared") {
       toastManager.add({
         type: "info",
-        title: "Turn stopped; the agent process kept running",
+        title: m(msg("Turn stopped; the agent process kept running")),
         description: `It is shared with ${others === 0 ? "other" : others} working ${others === 1 ? "thread" : "threads"}. Stop those to free it.`,
       });
     }

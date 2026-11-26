@@ -69,6 +69,7 @@ import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { searchableSetting } from "./settingsSearch";
+import { T, useGT } from "gt-react";
 
 // Console log labels for the atom commands.
 export const UNLINK_COMMAND_LABEL = "unlink environment";
@@ -166,6 +167,7 @@ export function LinkedEnvironmentsList({
 }: {
   readonly environmentId: EnvironmentId;
 }) {
+  const gt = useGT();
   const links = useEnvironmentQuery(peerLinkEnvironment.list({ environmentId, input: {} }));
   const identities = useEnvironmentIdentities();
   // Links made outside this client bump nothing the shared list reads, so showing the panel
@@ -182,9 +184,11 @@ export function LinkedEnvironmentsList({
     },
   );
   if (links.error) {
-    return <SettingsRow title="Could not load linked environments" description={links.error} />;
+    return (
+      <SettingsRow title={gt("Could not load linked environments")} description={links.error} />
+    );
   }
-  if (!links.data) return <SettingsRow title="Loading linked environments…" role="status" />;
+  if (!links.data) return <SettingsRow title={gt("Loading linked environments…")} role="status" />;
   if (links.data.links.length === 0) return null;
   const labels = linkLabels({ links: links.data.links, environments: identities });
   return links.data.links.map((link) => (
@@ -207,6 +211,7 @@ function LinkedEnvironmentRow({
   /** What this client calls the linked environment. */
   readonly label: string;
 }) {
+  const gt = useGT();
   const nowMinute = useNowMinute();
   const health = peerLinkHealth(link, DateTime.makeUnsafe(nowMinute));
   const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: UNLINK_COMMAND_LABEL });
@@ -225,7 +230,7 @@ function LinkedEnvironmentRow({
       if (result.value.removed && result.value.endedThere !== true) {
         toastManager.add({
           type: "warning",
-          title: `${label} did not answer`,
+          title: gt("{label} did not answer", { label }),
           description: `Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
         });
       }
@@ -270,7 +275,7 @@ function LinkedEnvironmentRow({
               disabled={busy}
               onClick={() => void forget()}
             >
-              {busy ? "Forgetting…" : "Forget"}
+              {busy ? gt("Forgetting…") : gt("Forget")}
             </Button>
           </div>
         ) : null}
@@ -287,6 +292,7 @@ function LinkEnvironmentAction({
   /** The machine the link starts from, when the section lists more than one. */
   readonly environmentLabel: string | null;
 }) {
+  const gt = useGT();
   const [open, setOpen] = useState(false);
   const machines = useLinkableMachines(environmentId, open);
   // Null until the user picks; with no other machines known, only an address is left.
@@ -334,7 +340,7 @@ function LinkEnvironmentAction({
   // Settles to the code to link with, or null after reporting why there is none.
   const finish = (result: KnownMachineLinkResult) => {
     if (result._tag === "Linked") {
-      toastManager.add({ type: "success", title: `Linked ${result.label}` });
+      toastManager.add({ type: "success", title: gt("Linked {label}", { label: result.label }) });
       handleOpenChange(false);
     } else if (result._tag === "MintFailed" && targetId !== null) {
       setMintFailed((failed) => new Set(failed).add(targetId));
@@ -394,7 +400,9 @@ function LinkEnvironmentAction({
             variant="default"
             {...(environmentLabel === null
               ? {}
-              : { "aria-label": `Link ${environmentLabel} to another machine` })}
+              : {
+                  "aria-label": gt("Link {label} to another machine", { label: environmentLabel }),
+                })}
           >
             <PlusIcon className="size-3" />
             Link
@@ -409,8 +417,10 @@ function LinkEnvironmentAction({
               : `Link ${environmentLabel} to an environment`}
           </DialogTitle>
           <DialogDescription>
-            Agents here can then launch, message and wait on threads there. It appears under
-            Authorized clients in that environment's Sharing & access, where it can be revoked.
+            <T>
+              Agents here can then launch, message and wait on threads there. It appears under
+              Authorized clients in that environment's Sharing & access, where it can be revoked.
+            </T>
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
@@ -433,12 +443,14 @@ function LinkEnvironmentAction({
             ) : null}
             {machine?.linked ? (
               <p className="text-xs text-muted-foreground">
-                Already linked. Linking again renews it with the access you pick.
+                <T>Already linked. Linking again renews it with the access you pick.</T>
               </p>
             ) : null}
             {needsAddress ? (
               <label className="block space-y-1.5">
-                <span className="block text-xs font-medium text-foreground">Address</span>
+                <span className="block text-xs font-medium text-foreground">
+                  <T>Address</T>
+                </span>
                 <Input
                   value={address}
                   onChange={(event) => {
@@ -463,14 +475,16 @@ function LinkEnvironmentAction({
             {needsAddress && address.trim() ? <LinkAddressWarning address={address} /> : null}
             {selected === null || canMint ? null : (
               <label className="block space-y-1.5">
-                <span className="block text-xs font-medium text-foreground">Pairing code</span>
+                <span className="block text-xs font-medium text-foreground">
+                  <T>Pairing code</T>
+                </span>
                 <Input
                   value={pairingCode}
                   onChange={(event) => setPairingCode(event.target.value)}
                   placeholder={
                     machine === null
-                      ? "From Sharing & access there, or supaterm pair"
-                      : "Paste the code"
+                      ? gt("From Sharing & access there, or supaterm pair")
+                      : gt("Paste the code")
                   }
                   disabled={busy}
                   autoComplete="one-time-code"
@@ -490,10 +504,10 @@ function LinkEnvironmentAction({
         </DialogPanel>
         <DialogFooter variant="bare">
           <DialogClose disabled={busy} render={<Button variant="outline" type="button" />}>
-            Cancel
+            <T>Cancel</T>
           </DialogClose>
           <Button form={formId} type="submit" disabled={busy || !ready}>
-            {busy ? "Linking…" : "Link"}
+            {busy ? gt("Linking…") : gt("Link", { $context: "verb, links an environment" })}
           </Button>
         </DialogFooter>
       </DialogPopup>

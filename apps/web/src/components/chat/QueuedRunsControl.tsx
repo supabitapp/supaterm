@@ -47,6 +47,8 @@ import type { TimestampFormat } from "@supaterm/contracts/settings";
 import { TimelineRowTimestamp } from "./TimelineRowParts";
 import { FoldedMessageHeader, useScheduledTaskTitle } from "./TimelineUserMessageRow";
 import { buildExpandedImagePreview, type ExpandedImagePreview } from "./ExpandedImagePreview";
+import { T, useGT, msg } from "gt-react";
+import { m } from "../../i18n/messages";
 
 export interface EditQueuedRunRequest {
   readonly runId: RunId;
@@ -96,6 +98,7 @@ export function QueuedRunsControl({
   readonly onOpenThread: (threadId: ThreadId, environmentId?: EnvironmentId) => void;
   readonly onImageExpand: (preview: ExpandedImagePreview) => void;
 }) {
+  const gt = useGT();
   const projection = useQuietThreadProjection(
     scopeThreadRef(props.environmentId, props.threadId),
   )?.projection;
@@ -168,8 +171,8 @@ export function QueuedRunsControl({
       const error = squashAtomCommandFailure(result);
       toastManager.add({
         type: "error",
-        title: "Could not send queued message",
-        description: error instanceof Error ? error.message : "An error occurred.",
+        title: m(msg("Could not send queued message")),
+        description: error instanceof Error ? error.message : m(msg("An error occurred.")),
       });
     }
   };
@@ -237,7 +240,10 @@ export function QueuedRunsControl({
           return (
             <li
               key={item.runId}
-              aria-label={`Queued message ${position + 1} of ${items.length}, not sent`}
+              aria-label={gt("Queued message {position} of {total}, not sent", {
+                position: position + 1,
+                total: items.length,
+              })}
               aria-posinset={position + 1}
               aria-setsize={items.length}
               aria-current={isEditing ? "true" : undefined}
@@ -264,31 +270,33 @@ export function QueuedRunsControl({
                           onClick={() => void sendQueuedMessage(item.runId)}
                         >
                           <ArrowUpIcon />
-                          Send now
+                          <T>Send now</T>
                         </Button>
                       </TooltipTrigger>
                       <TooltipPopup shortcut={position === 0 ? props.steerShortcutLabel : null}>
                         {workflow?.canSendNow
-                          ? "Start a turn with this message"
+                          ? gt("Start a turn with this message")
                           : workflow?.promoteSkipsCompaction
-                            ? "Skip compaction and send this message"
+                            ? gt("Skip compaction and send this message")
                             : movesCommandFirst
-                              ? "Move this command to the front of the queue"
-                              : "Send into the current turn"}
+                              ? gt("Move this command to the front of the queue")
+                              : gt("Send into the current turn")}
                       </TooltipPopup>
                     </Tooltip>
                   </>
                 ) : null}
                 {isEditing ? (
                   <>
-                    <span className="px-1 text-foreground">Editing in the composer</span>
+                    <span className="px-1 text-foreground">
+                      <T>Editing in the composer</T>
+                    </span>
                     <Button
                       size="xs"
                       variant="ghost"
-                      aria-label="Cancel editing queued message"
+                      aria-label={gt("Cancel editing queued message")}
                       onClick={props.onCancelEdit}
                     >
-                      Cancel
+                      <T>Cancel</T>
                     </Button>
                   </>
                 ) : (
@@ -299,7 +307,7 @@ export function QueuedRunsControl({
                         <Button
                           size="icon-xs"
                           variant="ghost-muted"
-                          aria-label="Edit queued message"
+                          aria-label={gt("Edit queued message")}
                           disabled={busyRunId !== null || props.editBlockedReason !== null}
                           onClick={() =>
                             props.onEditQueuedRun({
@@ -320,7 +328,7 @@ export function QueuedRunsControl({
                             : null
                         }
                       >
-                        {props.editBlockedReason ?? "Edit in the composer"}
+                        {props.editBlockedReason ?? gt("Edit in the composer")}
                       </TooltipPopup>
                     </Tooltip>
                     <InlineConfirmButton
@@ -328,7 +336,7 @@ export function QueuedRunsControl({
                       variant="ghost-muted"
                       disabled={busyRunId !== null}
                       icon={<XIcon className="size-3.5" />}
-                      label="Remove queued message"
+                      label={gt("Remove queued message")}
                       confirmLabel="Confirm remove"
                       tooltip="Remove from queue"
                       confirmTooltip="Click again to remove from the queue and discard the message"
@@ -351,7 +359,7 @@ export function QueuedRunsControl({
             onPointerDown={(event) => event.preventDefault()}
             onClick={() => setShowAll((value) => !value)}
           >
-            {showAll ? "Show fewer" : `Show all ${items.length} queued`}
+            {showAll ? gt("Show fewer") : `Show all ${items.length} queued`}
             <ChevronDownIcon
               aria-hidden
               className={cn(
@@ -380,6 +388,7 @@ function QueuedMessage(props: {
   readonly children: ReactNode;
   readonly onImageExpand: (preview: ExpandedImagePreview) => void;
 }) {
+  const gt = useGT();
   const presentation = props.message ? resolveUserMessagePresentation(props.message) : null;
   const attribution = presentation?.attribution ?? null;
   const scheduledTaskId = presentation?.scheduledTaskId;
@@ -399,13 +408,15 @@ function QueuedMessage(props: {
     attribution === "automation"
       ? {
           icon: CalendarClockIcon,
-          label: "Automation",
+          label: gt("Automation"),
           summary: taskTitle ?? props.previewText.split(/\r?\n/, 1)[0] ?? "",
         }
       : attribution === "agent"
         ? {
             icon: MessagesSquareIcon,
-            label: senderTitle || "Agent",
+            label:
+              senderTitle ||
+              gt("Agent", { $context: "fallback name of the agent that sent a message" }),
             summary: props.previewText.split(/\r?\n/).find((line) => line.trim()) ?? "",
           }
         : null;
@@ -414,7 +425,9 @@ function QueuedMessage(props: {
   return (
     <>
       {attribution === "supaterm" ? (
-        <p className="me-1 text-2xs text-muted-foreground/70">Sent by Supaterm</p>
+        <p className="me-1 text-2xs text-muted-foreground/70">
+          <T>Sent by Supaterm</T>
+        </p>
       ) : null}
       {/* Dashed and unfilled: a turn that has not been sent yet. */}
       <div
@@ -449,7 +462,7 @@ function QueuedMessage(props: {
                   <button
                     key={thumbnail.id}
                     type="button"
-                    aria-label={`Preview ${thumbnail.name}`}
+                    aria-label={gt("Preview {name}", { name: thumbnail.name })}
                     disabled={!thumbnail.previewUrl}
                     className="size-8 overflow-hidden rounded-md border border-border/70 bg-background enabled:cursor-zoom-in"
                     onPointerDown={(event) => event.preventDefault()}
@@ -489,7 +502,7 @@ function QueuedMessage(props: {
                 tone="muted"
                 onClick={() => props.onOpenThread(senderRef.threadId, senderRef.environmentId)}
               >
-                Open thread
+                <T>Open thread</T>
               </InlineButton>
             ) : null}
             {scheduledTaskId ? (
@@ -502,7 +515,7 @@ function QueuedMessage(props: {
                   />
                 }
               >
-                Open automation
+                <T>Open automation</T>
               </InlineButton>
             ) : null}
             <TimelineRowTimestamp

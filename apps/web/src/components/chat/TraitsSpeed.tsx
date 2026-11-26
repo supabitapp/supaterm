@@ -4,6 +4,7 @@ import { ZapFilledIcon } from "@supaterm/icons";
 import { UltrafastIcon } from "../Icons";
 import { cn } from "~/lib/utils";
 import { ComposerControlIcon, type ComposerControlSize } from "./ComposerControl";
+import { T } from "gt-react";
 
 export function getTraitsSpeedDisplay(
   descriptor: ProviderOptionDescriptor,
@@ -62,7 +63,7 @@ export function TraitsSpeedIcon({
         )}
       />
       <span className="sr-only">
-        {speedIcon === "ultrafast" ? "Ultrafast mode on" : "Fast mode on"}
+        {speedIcon === "ultrafast" ? <T>Ultrafast mode on</T> : <T>Fast mode on</T>}
       </span>
     </>
   );

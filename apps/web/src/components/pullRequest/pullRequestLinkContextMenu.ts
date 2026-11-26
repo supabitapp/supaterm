@@ -8,6 +8,8 @@ import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { readLocalApi } from "~/localApi";
 
 import { toastManager } from "../ui/toast";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export type PullRequestLinkContextMenuAction = "copy-link" | "open-external" | "show-linked";
 
@@ -28,7 +30,7 @@ function pullRequestLinkContextMenuItems({
   const items: ContextMenuItem<PullRequestLinkContextMenuAction>[] = [
     {
       id: "copy-link",
-      label: number === undefined ? "Copy link" : `Copy link to #${number}`,
+      label: number === undefined ? m(msg("Copy link")) : `Copy link to #${number}`,
       icon: "copy",
     },
     { id: "open-external", label: openOnHostLabel(host, number) },
@@ -78,7 +80,10 @@ export async function showPullRequestLinkContextMenu({
   } catch {
     toastManager.add({
       type: "error",
-      title: action === "copy-link" ? "Could not copy the link" : "Could not open the link",
+      title:
+        action === "copy-link"
+          ? m(msg("Could not copy the link"))
+          : m(msg("Could not open the link")),
     });
   }
 }

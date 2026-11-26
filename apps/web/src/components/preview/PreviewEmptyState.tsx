@@ -9,6 +9,7 @@ import { DiscoveryList } from "../ui/discovery-list";
 import { PreviewLocalServerCard } from "./PreviewLocalServerCard";
 import { PreviewRecentUrlCard } from "./PreviewRecentUrlCard";
 import { useDiscoveredLocalServers } from "./useDiscoveredLocalServers";
+import { T } from "gt-react";
 
 interface Props {
   threadRef: ScopedThreadRef;
@@ -39,10 +40,14 @@ export function PreviewEmptyState({
         <EmptyMedia variant="icon">
           <GlobeIcon className="size-4.5 text-muted-foreground" />
         </EmptyMedia>
-        <EmptyTitle>No preview yet</EmptyTitle>
+        <EmptyTitle>
+          <T>No preview yet</T>
+        </EmptyTitle>
         <EmptyDescription>
-          Type a URL above, or run a dev script. Local servers this thread starts will show up here
-          automatically.
+          <T>
+            Type a URL above, or run a dev script. Local servers this thread starts will show up
+            here automatically.
+          </T>
         </EmptyDescription>
       </Empty>
     );
@@ -55,7 +60,9 @@ export function PreviewEmptyState({
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <HistoryIcon className="size-4 shrink-0" />
-              <h2 className="font-medium">Recently used</h2>
+              <h2 className="font-medium">
+                <T>Recently used</T>
+              </h2>
             </div>
             <DiscoveryList>
               {recents.map((entry) => (
@@ -74,7 +81,9 @@ export function PreviewEmptyState({
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <RadioTowerIcon className="size-4 shrink-0" />
-              <h2 className="font-medium">Local servers</h2>
+              <h2 className="font-medium">
+                <T>Local servers</T>
+              </h2>
             </div>
             <DiscoveryList>
               {servers.map((server) => (
@@ -87,7 +96,7 @@ export function PreviewEmptyState({
               ))}
             </DiscoveryList>
             <p className="px-1 text-xs text-muted-foreground">
-              Select a live local server to open it in this browser tab.
+              <T>Select a live local server to open it in this browser tab.</T>
             </p>
           </div>
         ) : null}

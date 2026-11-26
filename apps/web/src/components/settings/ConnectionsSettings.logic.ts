@@ -63,6 +63,7 @@ import {
   getDesktopUpdateDownloadedVersion,
   resolveDesktopUpdateButtonAction,
 } from "../desktopUpdate.logic";
+import { msg } from "gt-react";
 
 /**
  * Operating terminals without being able to list them leaves a client
@@ -157,11 +158,11 @@ export function isWslSettingsRowVisible(input: {
  * recheck keeps a downloaded update's label. `state` is null outside the desktop app.
  */
 export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null): string {
-  if (!state) return "Up to date";
+  if (!state) return msg("Up to date");
   if (state.status === "downloading") {
     return state.availableVersion
       ? `Downloading update ${state.availableVersion}`
-      : "Downloading update";
+      : msg("Downloading update");
   }
   const action = resolveDesktopUpdateButtonAction(state);
   if (
@@ -170,14 +171,14 @@ export function resolveLocalVersionStatusLabel(state: DesktopUpdateState | null)
     (state.status === "checking" && state.downloadedVersion !== null)
   ) {
     const version = getDesktopUpdateDownloadedVersion(state);
-    return version ? `Update ${version} downloaded` : "Update downloaded";
+    return version ? `Update ${version} downloaded` : msg("Update downloaded");
   }
   if (action === "download") {
     return state.availableVersion
       ? `Update ${state.availableVersion} available`
-      : "Update available";
+      : msg("Update available");
   }
-  return "Up to date";
+  return msg("Up to date");
 }
 
 export type QrEndpointOption = {
@@ -455,17 +456,17 @@ export function isHostedAppPairingUrl(value: string): boolean {
 
 export function endpointShareHint(endpoint: AdvertisedEndpoint, url: string): string {
   if (isHostedAppPairingUrl(url)) {
-    return "Opens the hosted app, no install needed";
+    return msg("Opens the hosted app, no install needed");
   }
   switch (endpoint.reachability) {
     case "lan":
-      return "Devices on the same network";
+      return msg("Devices on the same network");
     case "private-network":
-      return "Devices on your private network";
+      return msg("Devices on your private network");
     case "public":
-      return "Reachable from anywhere";
+      return msg("Reachable from anywhere");
     case "loopback":
-      return "Clients on this machine";
+      return msg("Clients on this machine");
   }
 }
 

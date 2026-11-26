@@ -11,6 +11,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
+import { msg } from "gt-react";
 
 export type ProviderUpdateCandidate = ServerProvider & {
   readonly versionAdvisory: NonNullable<ServerProvider["versionAdvisory"]> & {
@@ -101,8 +102,8 @@ export function getProviderRestartNotice(
 
 function getProviderUpdatedDescription(providerCount: number): string {
   return providerCount === 1
-    ? "New sessions will use the updated provider."
-    : "New sessions will use the updated providers.";
+    ? msg("New sessions will use the updated provider.")
+    : msg("New sessions will use the updated providers.");
 }
 
 function getProviderFailedUpdateTitle(
@@ -264,7 +265,7 @@ export function getProviderUpdateRunToastView(runs: ReadonlyArray<ProviderUpdate
   if (failureLines.length === 0) {
     return {
       type: "success",
-      title: settled.length === 1 ? "Provider updated" : `${settled.length} providers updated`,
+      title: settled.length === 1 ? msg("Provider updated") : `${settled.length} providers updated`,
       description: successMessages.join("\n") || getProviderUpdatedDescription(settled.length),
     };
   }
@@ -274,8 +275,8 @@ export function getProviderUpdateRunToastView(runs: ReadonlyArray<ProviderUpdate
       failureLines.length < settled.length
         ? `${failureLines.length} of ${settled.length} provider updates failed`
         : settled.length === 1
-          ? "Provider update failed"
-          : "Provider updates failed",
+          ? msg("Provider update failed")
+          : msg("Provider updates failed"),
     description: [...failureLines, ...successMessages].join("\n"),
   };
 }

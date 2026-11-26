@@ -34,6 +34,8 @@ import type { ProviderInstanceEntry } from "../../providerInstances";
 import { getComposerPromptInjectionState, getComposerProviderState } from "./composerProviderState";
 import { readPreparedConnection } from "../../state/session";
 import { recallComposerMessage } from "./composerPromptHistory";
+import { msg } from "gt-react";
+import { m } from "../../i18n/messages";
 
 // Kept per route so a send in flight, and the multiple-model selections, survive
 // ChatView remounting while the user navigates.
@@ -86,10 +88,10 @@ export async function rewindToMessage(input: {
   const { message, environmentId, draftTarget } = input;
   try {
     if (input.composerHasPendingAttachments) {
-      throw new Error("Wait for attachments to finish preparing before rewinding.");
+      throw new Error(m(msg("Wait for attachments to finish preparing before rewinding.")));
     }
     const connection = readPreparedConnection(environmentId);
-    if (!connection) throw new Error("The environment is not connected.");
+    if (!connection) throw new Error(m(msg("The environment is not connected.")));
     const files = await prepareRevertedMessageAttachments({
       message,
       environmentId,
@@ -102,7 +104,9 @@ export async function rewindToMessage(input: {
       (draft?.images.length ?? 0) + (draft?.files.length ?? 0) + files.length >
       PROVIDER_SEND_TURN_MAX_ATTACHMENTS
     ) {
-      throw new Error("Make room for this message's attachments in the composer before rewinding.");
+      throw new Error(
+        m(msg("Make room for this message's attachments in the composer before rewinding.")),
+      );
     }
     const commandId = CommandId.make(randomUUID());
     const unrestored = await waitForRevertedMessage(
@@ -128,7 +132,7 @@ export async function rewindToMessage(input: {
     if (unrestored.length > 0) {
       toastManager.add({
         type: "warning",
-        title: "Some repositories were not rewound",
+        title: m(msg("Some repositories were not rewound")),
         description: `${unrestored.join(", ")} had no snapshot from before these turns, so ${unrestored.length === 1 ? "it keeps" : "they keep"} the changes. Check the uncommitted changes there.`,
       });
     }
@@ -165,7 +169,9 @@ export async function rewindToMessage(input: {
     store.addFiles(draftTarget, restoredFiles, { allowDuplicates: true });
     return { error: null, prompt: nextPrompt };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Failed to revert thread state." };
+    return {
+      error: error instanceof Error ? error.message : m(msg("Failed to revert thread state.")),
+    };
   }
 }
 
@@ -191,7 +197,7 @@ export function resolveMultipleModelTargets(input: {
       (entry) => entry.instanceId === selection.instanceId,
     );
     if (!provider?.enabled || !provider.isAvailable || provider.status !== "ready") {
-      return { error: `Provider for ${selection.model} is unavailable.` };
+      return { error: m(msg("Provider for {model} is unavailable.", { model: selection.model })) };
     }
     const providerBlockReason = getAntigravitySendBlockReason(provider.snapshot, selection.model);
     if (providerBlockReason) return { error: providerBlockReason };

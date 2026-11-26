@@ -21,6 +21,7 @@ import {
 } from "@supaterm/client-runtime/source-control-clients";
 import { redactedPlaceholder } from "./RedactedSensitiveText";
 import { useEnvironmentScope } from "../../state/session";
+import { T, useGT } from "gt-react";
 
 /** Sentinel select value for "follow the CLI's active login"; logins never contain spaces. */
 const ACTIVE_ACCOUNT = "active cli account";
@@ -30,6 +31,7 @@ function RedactedLogin(props: {
   readonly revealed: boolean;
   readonly label?: string;
 }) {
+  const gt = useGT();
   return props.revealed ? (
     <span className="min-w-0 truncate font-mono text-2xs">{props.account}</span>
   ) : (
@@ -37,7 +39,7 @@ function RedactedLogin(props: {
       <span className="select-none blur-xs" aria-hidden>
         {redactedPlaceholder(props.account)}
       </span>
-      <span className="sr-only">{props.label ?? "Hidden account"}</span>
+      <span className="sr-only">{props.label ?? gt("Hidden account")}</span>
     </span>
   );
 }
@@ -55,6 +57,7 @@ export function SourceControlAccountSettings({
   readonly auth: SourceControlProviderAuth;
   readonly onSaved: () => void;
 }) {
+  const gt = useGT();
   const { hosts, tokens } = useEnvironmentSettings(environmentId, (settings) =>
     readHostCredentialSettings(settings, definition.kind),
   );
@@ -112,7 +115,11 @@ export function SourceControlAccountSettings({
           size="icon-xs"
           variant="ghost-muted"
           onClick={() => setRevealed((current) => !current)}
-          aria-label={revealed ? `Hide ${label} accounts` : `Reveal ${label} accounts`}
+          aria-label={
+            revealed
+              ? gt("Hide {label} accounts", { label })
+              : gt("Reveal {label} accounts", { label })
+          }
           aria-pressed={revealed}
         >
           {revealed ? <EyeOffIcon /> : <EyeIcon />}
@@ -131,7 +138,9 @@ export function SourceControlAccountSettings({
                 <span className="text-xs font-medium text-foreground">{group.host}</span>
                 {group.selectable.length === 1 && group.selectable[0] !== undefined ? (
                   <p className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                    <span>Signed in as</span>
+                    <span>
+                      <T>Signed in as</T>
+                    </span>
                     <RedactedLogin revealed={revealed} account={group.selectable[0]} />
                   </p>
                 ) : null}
@@ -139,13 +148,15 @@ export function SourceControlAccountSettings({
               <Switch
                 checked={enabled}
                 disabled={saving || !canWriteSettings}
-                aria-label={`Use ${label} on ${group.host}`}
+                aria-label={gt("Use {label} on {host}", { label, host: group.host })}
                 onCheckedChange={(checked) => void save(group.host, { enabled: checked })}
               />
             </div>
             {group.selectable.length > 1 ? (
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-muted-foreground">Account</span>
+                <span className="text-xs text-muted-foreground">
+                  <T>Account</T>
+                </span>
                 <div className="w-64 max-w-full">
                   <Select
                     value={pinned}
@@ -157,7 +168,10 @@ export function SourceControlAccountSettings({
                       });
                     }}
                   >
-                    <SelectTrigger size="sm" aria-label={`${label} account for ${group.host}`}>
+                    <SelectTrigger
+                      size="sm"
+                      aria-label={gt("{label} account for {host}", { label, host: group.host })}
+                    >
                       <SelectValue>
                         {(value: string) =>
                           value === ACTIVE_ACCOUNT ? (
@@ -196,7 +210,7 @@ export function SourceControlAccountSettings({
                           <RedactedLogin
                             revealed={revealed}
                             account={account}
-                            label={`Account ${index + 1}`}
+                            label={gt("Account {number}", { number: index + 1 })}
                           />
                         </SelectItem>
                       ))}
@@ -216,7 +230,7 @@ export function SourceControlAccountSettings({
                   disabled={saving || !canWriteSettings}
                   onClick={() => void save(group.host, { account: null })}
                 >
-                  Use active login
+                  <T>Use active login</T>
                 </Button>
               </div>
             ) : null}

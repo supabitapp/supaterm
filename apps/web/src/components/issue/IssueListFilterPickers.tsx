@@ -33,6 +33,7 @@ import {
   type PullRequestFilterOption,
 } from "../pullRequest/PullRequestListFilters";
 import { pullRequestLabelColor } from "../pullRequest/pullRequestList.logic";
+import { T, useGT } from "gt-react";
 
 const VISIBLE_CHOICES = 30;
 const matches = (needle: string, ...fields: ReadonlyArray<string | null | undefined>) =>
@@ -55,6 +56,7 @@ export function IssueFiltersMenu(props: {
   hiddenProjects: ReadonlySet<string>;
   onHiddenProjects: (hidden: ReadonlyArray<readonly [EnvironmentId, ProjectId]>) => void;
 }) {
+  const gt = useGT();
   const [open, setOpen] = useState(false);
   const count = [
     props.state !== "open",
@@ -69,7 +71,9 @@ export function IssueFiltersMenu(props: {
     <Menu onOpenChange={setOpen}>
       <MenuTrigger render={<Button variant="outline" />}>
         <ListFilterIcon className="size-4" />
-        <span>Filters</span>
+        <span>
+          <T>Filters</T>
+        </span>
         {count > 0 ? (
           <span className="rounded-full bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
             {count}
@@ -78,13 +82,13 @@ export function IssueFiltersMenu(props: {
       </MenuTrigger>
       <MenuPopup align="end" side="bottom">
         <PullRequestFilterRadioSubmenu
-          label="State"
+          label={gt("State", { $context: "issue state filter" })}
           value={props.state}
           options={props.stateOptions}
           onChange={props.onState}
         />
         <PullRequestFilterRadioSubmenu
-          label="Involvement"
+          label={gt("Involvement")}
           value={props.involvement}
           options={props.involvementOptions}
           onChange={props.onInvolvement}
@@ -93,10 +97,10 @@ export function IssueFiltersMenu(props: {
           <MenuSub>
             <MenuSubTrigger>
               <FolderGitIcon aria-hidden className="size-3.5" />
-              <span className="flex-1">Projects</span>
+              <span className="flex-1">{gt("Projects")}</span>
               <span className="min-w-0 max-w-32 truncate text-xs text-muted-foreground">
                 {props.hiddenProjects.size === 0
-                  ? "All projects"
+                  ? gt("All projects")
                   : `${props.hiddenProjects.size} hidden`}
               </span>
             </MenuSubTrigger>
@@ -113,10 +117,12 @@ export function IssueFiltersMenu(props: {
         <MenuSub>
           <MenuSubTrigger>
             <TagIcon aria-hidden className="size-3.5" />
-            <span className="flex-1">Labels</span>
+            <span className="flex-1">
+              <T>Labels</T>
+            </span>
             <span className="min-w-0 max-w-32 truncate text-xs text-muted-foreground">
               {props.labels.length === 0
-                ? "Any"
+                ? gt("Any", { $context: "no label filter" })
                 : props.labels.length === 1
                   ? props.labels[0]
                   : `${props.labels.length} labels`}
@@ -129,9 +135,11 @@ export function IssueFiltersMenu(props: {
         <MenuSub>
           <MenuSubTrigger>
             <UserIcon aria-hidden className="size-3.5" />
-            <span className="flex-1">Assignee</span>
+            <span className="flex-1">
+              <T>Assignee</T>
+            </span>
             <span className="min-w-0 max-w-32 truncate text-xs text-muted-foreground">
-              {props.assignee ?? "Anyone"}
+              {props.assignee ?? gt("Anyone", { $context: "no assignee filter" })}
             </span>
           </MenuSubTrigger>
           <MenuSubPopup>
@@ -148,6 +156,7 @@ function ProjectChoices(props: {
   hidden: ReadonlySet<string>;
   onChange: (hidden: ReadonlyArray<readonly [EnvironmentId, ProjectId]>) => void;
 }) {
+  const gt = useGT();
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const visible = props.projects.filter((project) => matches(needle, project.title));
@@ -161,8 +170,8 @@ function ProjectChoices(props: {
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
-          placeholder="Search projects"
-          aria-label="Search projects"
+          placeholder={gt("Search projects")}
+          aria-label={gt("Search projects")}
         />
       ) : null}
       <MenuCheckboxItem
@@ -175,11 +184,11 @@ function ProjectChoices(props: {
       >
         <span className="flex min-w-0 items-center gap-2">
           <LayersIcon aria-hidden className="size-3.5" />
-          <span className="min-w-0 flex-1 truncate">Show all</span>
+          <span className="min-w-0 flex-1 truncate">{gt("Show all")}</span>
         </span>
       </MenuCheckboxItem>
       <MenuSeparator />
-      {visible.length === 0 ? <MenuItem disabled>No matching projects.</MenuItem> : null}
+      {visible.length === 0 ? <MenuItem disabled>{gt("No matching projects.")}</MenuItem> : null}
       {visible.map((project) => {
         const key = pullRequestProjectKey(project);
         return (
@@ -209,6 +218,7 @@ function LabelChoices(props: {
   value: ReadonlyArray<string>;
   onChange: (value: ReadonlyArray<string>) => void;
 }) {
+  const gt = useGT();
   const [query, setQuery] = useState("");
   const known = useIssueFilterCandidates(props.scopes);
   const needle = query.trim().toLowerCase();
@@ -227,12 +237,12 @@ function LabelChoices(props: {
         busy={known.isPending}
         value={query}
         onChange={(event) => setQuery(event.currentTarget.value)}
-        placeholder="Search labels"
-        aria-label="Search labels"
+        placeholder={gt("Search labels")}
+        aria-label={gt("Search labels")}
       />
       {visible.length === 0 && !known.isPending ? (
         <MenuItem disabled>
-          {known.error === null ? "No labels found" : "The labels could not be read"}
+          {known.error === null ? <T>No labels found</T> : <T>The labels could not be read</T>}
         </MenuItem>
       ) : null}
       {visible.map((label) => {
@@ -261,7 +271,9 @@ function LabelChoices(props: {
         );
       })}
       {known.truncated ? (
-        <MenuItem disabled>More labels exist than are listed here.</MenuItem>
+        <MenuItem disabled>
+          <T>More labels exist than are listed here.</T>
+        </MenuItem>
       ) : null}
     </>
   );
@@ -272,6 +284,7 @@ function AssigneeChoices(props: {
   value: string | undefined;
   onChange: (value: string | undefined) => void;
 }) {
+  const gt = useGT();
   const [query, setQuery] = useState("");
   const known = useIssueFilterCandidates(props.scopes);
   const needle = query.trim().toLowerCase();
@@ -289,8 +302,8 @@ function AssigneeChoices(props: {
         busy={known.isPending}
         value={query}
         onChange={(event) => setQuery(event.currentTarget.value)}
-        placeholder="Search people"
-        aria-label="Search people"
+        placeholder={gt("Search people")}
+        aria-label={gt("Search people")}
       />
       <MenuRadioGroup
         value={props.value ?? ""}
@@ -312,10 +325,14 @@ function AssigneeChoices(props: {
         ))}
       </MenuRadioGroup>
       {visible.length === 0 && !known.isPending && known.error !== null ? (
-        <MenuItem disabled>The people could not be read</MenuItem>
+        <MenuItem disabled>
+          <T>The people could not be read</T>
+        </MenuItem>
       ) : null}
       {known.truncated ? (
-        <MenuItem disabled>More people exist than are listed here.</MenuItem>
+        <MenuItem disabled>
+          <T>More people exist than are listed here.</T>
+        </MenuItem>
       ) : null}
     </>
   );

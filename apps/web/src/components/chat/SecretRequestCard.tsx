@@ -45,6 +45,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { WorkLogRow } from "./WorkLog";
+import { T, useGT } from "gt-react";
 
 export function SecretRequestCard(props: {
   readonly environmentId: EnvironmentId;
@@ -292,7 +293,7 @@ function PendingSecretRequestForm(props: {
           disabled={locked}
           onClick={() => void send({ type: "decline" })}
         >
-          Decline
+          <T>Decline</T>
         </Button>
       </div>
     </form>
@@ -309,6 +310,7 @@ function SecretRequestField(props: {
   readonly showLabel: boolean;
   readonly onChange: (value: string) => void;
 }) {
+  const gt = useGT();
   const { input } = props;
   const [revealed, setRevealed] = useState(false);
   return (
@@ -343,7 +345,7 @@ function SecretRequestField(props: {
               type="button"
               size="icon-xs"
               variant="ghost"
-              aria-label={`Show ${input.label}`}
+              aria-label={gt("Show {label}", { label: input.label })}
               aria-pressed={revealed}
               disabled={props.disabled}
               // Keep focus, and the caret, in the input.

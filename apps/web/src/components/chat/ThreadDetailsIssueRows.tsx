@@ -21,6 +21,7 @@ import {
 import { PullRequestActorLabel } from "../pullRequest/pullRequestPresentation";
 import { ThreadDetailsControl, ThreadDetailsMoreButton } from "./ThreadDetailsControl";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { useGT } from "gt-react";
 
 function LinkedIssueRow({
   link,
@@ -35,6 +36,7 @@ function LinkedIssueRow({
   mountScope: "thread-details" | "linked-items" | "sidebar-tooltip";
   onOpen: (() => void) | undefined;
 }) {
+  const gt = useGT();
   const configs = useServerConfigs();
   const detail = useLinkedIssueDetail(threadRef.environmentId, link, mountScope);
   const trackerPresentation = issueTrackerPresentation(link.tracker);
@@ -45,7 +47,7 @@ function LinkedIssueRow({
     href: link.url,
     target: "_blank",
     rel: "noopener noreferrer",
-    "aria-label": `Issue ${link.displayKey}: ${title}`,
+    "aria-label": gt("Issue {key}: {title}", { key: link.displayKey, title }),
     onClick: (event: MouseEvent<HTMLElement>) => {
       event.stopPropagation();
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;

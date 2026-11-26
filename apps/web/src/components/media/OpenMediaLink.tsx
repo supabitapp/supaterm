@@ -3,6 +3,7 @@ import { DownloadIcon, ExternalLinkIcon } from "@supaterm/icons";
 import { resolveExternalWebLinkHost } from "../chat/externalLinkContextMenu";
 import { Button } from "../ui/button";
 import { resolveProtocolRelativeMediaUrl } from "./mediaContent";
+import { useGT } from "gt-react";
 
 export function OpenMediaLink(props: {
   readonly originalUrl?: string | undefined;
@@ -10,6 +11,7 @@ export function OpenMediaLink(props: {
   readonly fileName?: string | undefined;
   readonly className?: string | undefined;
 }) {
+  const gt = useGT();
   const originalUrl =
     resolveExternalWebLinkHost(props.originalUrl) !== null ? props.originalUrl : undefined;
   const source = originalUrl ?? props.src;
@@ -38,7 +40,7 @@ export function OpenMediaLink(props: {
       }
     >
       {isBlob ? <DownloadIcon /> : <ExternalLinkIcon />}
-      {originalUrl ? "Open original" : isBlob ? "Download video" : "Open in browser"}
+      {originalUrl ? gt("Open original") : isBlob ? gt("Download video") : gt("Open in browser")}
     </Button>
   );
 }

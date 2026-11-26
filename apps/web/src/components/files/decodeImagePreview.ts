@@ -1,4 +1,6 @@
 import { readBinaryPreview } from "./readBinaryPreview";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export async function decodeImagePreview(src: string, heif: boolean, signal: AbortSignal) {
   const worker = new Worker(new URL("./imageDecode.worker.ts", import.meta.url), {
@@ -8,10 +10,10 @@ export async function decodeImagePreview(src: string, heif: boolean, signal: Abo
   try {
     return await new Promise<Blob>((resolve, reject) => {
       const fail = (message: string) => reject(new Error(message));
-      const abort = () => fail("Image decoding cancelled.");
+      const abort = () => fail(m(msg("Image decoding cancelled.")));
       signal.addEventListener("abort", abort, { signal: controller.signal });
       if (signal.aborted) return abort();
-      const timer = setTimeout(() => fail("This image took too long to decode."), 30_000);
+      const timer = setTimeout(() => fail(m(msg("This image took too long to decode."))), 30_000);
       controller.signal.addEventListener("abort", () => clearTimeout(timer), { once: true });
       worker.addEventListener("error", () => fail("Could not load the image decoder."));
       worker.addEventListener("message", (event: MessageEvent<{ blob?: Blob; error?: string }>) => {

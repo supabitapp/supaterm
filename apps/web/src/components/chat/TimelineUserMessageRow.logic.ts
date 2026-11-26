@@ -1,9 +1,10 @@
 import type { ChatFileAttachment, ChatImageAttachment } from "../../types";
 import type { KnownComposerContextRecord, ComposerContextRecord } from "@supaterm/contracts";
 import { asKnownContextRecord } from "~/lib/composerContextRecords";
+import { msg } from "gt-react";
 
 export function userMessageFileLabel(file: Pick<ChatFileAttachment, "name" | "source">) {
-  return file.source?._tag === "pasted-text" ? "Pasted text" : file.name;
+  return file.source?._tag === "pasted-text" ? msg("Pasted text") : file.name;
 }
 
 export function resolvePreviewAnnotationImage(input: {

@@ -1,5 +1,4 @@
 import { parseThreadLinkPrompt } from "@supaterm/shared/promptLinksCopy";
-import { m } from "../../i18n/messages";
 import type { ScopedThreadRef } from "@supaterm/contracts";
 import { withoutPromptLinkParams } from "@supaterm/shared/promptLinks";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -8,6 +7,8 @@ import { useEffect } from "react";
 import { isThreadRoutePathname } from "../../threadRoutes";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { placeLinkedPrompt } from "./linkedPrompt";
+import { msg } from "gt-react";
+import { m } from "../../i18n/messages";
 
 const handledLinkKeys = new Set<string>();
 
@@ -33,7 +34,7 @@ export function ThreadLinkPrompt({ threadRef }: { readonly threadRef: ScopedThre
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: "Could not open the linked prompt",
+            title: m(msg("Could not open the linked prompt")),
             description: parsed.error,
           }),
         );

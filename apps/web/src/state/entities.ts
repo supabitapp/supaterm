@@ -42,6 +42,8 @@ import {
 } from "./shell";
 import { environmentThreadDetails, environmentThreadShells, sidebarThreadShells } from "./threads";
 import { waitForAtomValue } from "./waitForAtomValue";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
 const EMPTY_THREAD_REFS: ReadonlyArray<ScopedThreadRef> = Object.freeze([]);
 const EMPTY_VISIBLE_TURN_ITEMS: ReadonlyArray<OrchestrationV2ProjectedTurnItem> = Object.freeze([]);
@@ -393,7 +395,7 @@ export function waitForProject(
     let unsubscribe: (() => void) | null = null;
     const timeout = setTimeout(() => {
       unsubscribe?.();
-      reject(new Error("The project did not appear in the desktop app."));
+      reject(new Error(m(msg("The project did not appear in the desktop app."))));
     }, timeoutMs);
     const finish = (project: EnvironmentProject | null) => {
       if (project === null) return;

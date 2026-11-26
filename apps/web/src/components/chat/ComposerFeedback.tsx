@@ -8,6 +8,8 @@ import { writeTextToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+import { m } from "../../i18n/messages";
+import { msg } from "gt-react";
 
 export function feedbackBannerItem(
   submission: CodexFeedbackSubmission,
@@ -31,18 +33,19 @@ export function feedbackBannerItem(
               (error: unknown) => {
                 toastManager.add({
                   type: "error",
-                  title: "Could not copy thread ID",
-                  description: error instanceof Error ? error.message : "An error occurred.",
+                  title: m(msg("Could not copy thread ID")),
+                  description:
+                    error instanceof Error ? error.message : m(msg("An error occurred.")),
                 });
               },
             );
           }}
         >
-          Copy ID
+          {msg("Copy ID")}
         </Button>
       ) : undefined,
     ...(submission.status !== "uploading"
-      ? { dismissLabel: "Dismiss feedback notice", onDismiss }
+      ? { dismissLabel: msg("Dismiss feedback notice"), onDismiss }
       : {}),
   };
 }

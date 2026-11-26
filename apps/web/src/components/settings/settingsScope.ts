@@ -5,6 +5,7 @@ import type {
   SidebarProjectSnapshot,
 } from "../../sidebarProjectGrouping";
 import type { EnvironmentPresentation } from "../../state/environments";
+import { msg } from "gt-react";
 
 export interface SettingsScopeSearch {
   project?: string | undefined;
@@ -66,7 +67,7 @@ export function resolveSettingsScope(
   ): ResolvedSettingsScope => ({
     kind: "unavailable",
     reason,
-    label: "Unavailable selection",
+    label: msg("Unavailable selection"),
     message,
     members: [],
     environmentIds: [],
@@ -143,7 +144,7 @@ export function resolveSettingsScope(
   }
   return {
     kind: "all",
-    label: "All environments",
+    label: msg("All environments"),
     members: [],
     environmentIds: environments.map((candidate) => candidate.environmentId),
   };

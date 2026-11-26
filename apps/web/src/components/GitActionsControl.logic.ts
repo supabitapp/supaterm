@@ -15,6 +15,8 @@ import {
   type GitActionIconName,
   type GitDialogAction,
 } from "@supaterm/client-runtime/state/vcs";
+import { m } from "../i18n/messages";
+import { msg } from "gt-react";
 
 export {
   requiresDefaultBranchConfirmation,
@@ -189,8 +191,8 @@ export function getMenuActionDisabledReason({
   hasPrimaryRemote: boolean;
 }): string | null {
   if (!item.disabled) return null;
-  if (isBusy) return "Git action in progress.";
-  if (!gitStatus) return "Git status is unavailable.";
+  if (isBusy) return msg("Git action in progress.");
+  if (!gitStatus) return msg("Git status is unavailable.");
 
   const hasBranch = gitStatus.refName !== null;
   const hasChanges = gitStatus.hasWorkingTreeChanges;
@@ -200,25 +202,25 @@ export function getMenuActionDisabledReason({
 
   if (item.id === "commit") {
     if (!hasChanges) {
-      return "Worktree is clean. Make changes before committing.";
+      return msg("Worktree is clean. Make changes before committing.");
     }
-    return "Commit is currently unavailable.";
+    return msg("Commit is currently unavailable.");
   }
 
   if (item.id === "push") {
     if (!hasBranch) {
-      return "Detached HEAD: check out a branch before pushing.";
+      return msg("Detached HEAD: check out a branch before pushing.");
     }
     if (isBehind) {
-      return "Branch is behind upstream. Pull/rebase before pushing.";
+      return msg("Branch is behind upstream. Pull/rebase before pushing.");
     }
     if (!gitStatus.hasUpstream && !hasPrimaryRemote) {
-      return 'Add an "origin" remote before pushing.';
+      return msg('Add an "origin" remote before pushing.');
     }
     if (!isAhead) {
-      return "No local commits to push.";
+      return msg("No local commits to push.");
     }
-    return "Push is currently unavailable.";
+    return msg("Push is currently unavailable.");
   }
 
   if (!hasBranch) {
@@ -256,7 +258,12 @@ export function resolveQuickAction(
   hasPrimaryRemote = true,
 ): GitQuickAction {
   if (isBusy) {
-    return { label: "Commit", disabled: true, kind: "show_hint", hint: "Git action in progress." };
+    return {
+      label: "Commit",
+      disabled: true,
+      kind: "show_hint",
+      hint: msg("Git action in progress."),
+    };
   }
 
   if (!gitStatus) {
@@ -264,7 +271,7 @@ export function resolveQuickAction(
       label: "Commit",
       disabled: true,
       kind: "show_hint",
-      hint: "Git status is unavailable.",
+      hint: msg("Git status is unavailable."),
     };
   }
 
@@ -304,7 +311,7 @@ export function resolveQuickAction(
   if (!gitStatus.hasUpstream) {
     if (!hasPrimaryRemote) {
       return {
-        label: "Publish repository",
+        label: msg("Publish repository"),
         disabled: false,
         kind: "open_publish",
       };
@@ -315,14 +322,14 @@ export function resolveQuickAction(
           label: "Commit",
           disabled: true,
           kind: "show_hint",
-          hint: "Branch is up to date. No action needed.",
+          hint: msg("Branch is up to date. No action needed."),
         };
       }
       return {
         label: "Push",
         disabled: true,
         kind: "show_hint",
-        hint: "No local commits to push.",
+        hint: msg("No local commits to push."),
       };
     }
     if (hasOpenPr || isDefaultRef) {
@@ -343,16 +350,16 @@ export function resolveQuickAction(
 
   if (isDiverged) {
     return {
-      label: "Sync ref",
+      label: msg("Sync ref"),
       disabled: true,
       kind: "show_hint",
-      hint: "Branch has diverged from upstream. Rebase/merge first.",
+      hint: msg("Branch has diverged from upstream. Rebase/merge first."),
     };
   }
 
   if (isBehind) {
     return {
-      label: "Pull",
+      label: msg("Pull"),
       disabled: false,
       kind: "run_pull",
     };
@@ -380,7 +387,7 @@ export function resolveQuickAction(
       label: "Commit",
       disabled: true,
       kind: "show_hint",
-      hint: "Branch is up to date. No action needed.",
+      hint: msg("Branch is up to date. No action needed."),
     };
   }
 
@@ -397,7 +404,7 @@ export function resolveQuickAction(
     label: "Commit",
     disabled: true,
     kind: "show_hint",
-    hint: "Branch is up to date. No action needed.",
+    hint: msg("Branch is up to date. No action needed."),
   };
 }
 
@@ -432,7 +439,7 @@ export function resolveDefaultBranchActionDialogCopy(input: {
       };
     }
     return {
-      title: "Push to default ref?",
+      title: msg("Push to default ref?"),
       description: `This action will push local commits${suffix}`,
       continueLabel: `Push to ${branchLabel}`,
     };

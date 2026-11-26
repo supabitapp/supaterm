@@ -1,4 +1,5 @@
 import type { PullRequestRef, PullRequestStack, ThreadPullRequestLink } from "@supaterm/contracts";
+import { msg } from "gt-react";
 
 /** Saved membership supports navigation, never action head SHAs. */
 export function savedPullRequestStack(
@@ -65,9 +66,9 @@ export function pullRequestStackView(
       data === null
         ? null
         : query.error
-          ? "Stack data may be stale. We couldn’t refresh it."
+          ? msg("Stack data may be stale. We couldn’t refresh it.")
           : !query.isSuccess || query.isPending
-            ? "Refreshing stack… Showing saved data."
+            ? msg("Refreshing stack… Showing saved data.")
             : null,
   };
 }

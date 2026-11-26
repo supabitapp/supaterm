@@ -48,13 +48,15 @@ import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
 import { canTurnThreadIntoProject, useThreadActions } from "./useThreadActions";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
 function failureToast(title: string, error: unknown) {
   toastManager.add(
     stackedThreadToast({
       type: "error",
       title,
-      description: error instanceof Error ? error.message : "An error occurred.",
+      description: error instanceof Error ? error.message : m(msg("An error occurred.")),
     }),
   );
 }
@@ -100,14 +102,14 @@ export function useThreadActionMenu(input: {
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const { copyToClipboard: copyPathToClipboard } = useCopyToClipboard<{ path: string }>({
-    onError: (error) => failureToast("Failed to copy path", error),
+    onError: (error) => failureToast(m(msg("Failed to copy path")), error),
   });
   const { copyToClipboard: copyBranchToClipboard } = useCopyToClipboard<{ branch: string }>({
     target: "branch name",
     onError: (error) => failureToast("Failed to copy branch", error),
   });
   const { copyToClipboard: copyThreadIdToClipboard } = useCopyToClipboard<{ threadId: ThreadId }>({
-    onError: (error) => failureToast("Failed to copy thread ID", error),
+    onError: (error) => failureToast(m(msg("Failed to copy thread ID")), error),
   });
 
   const runAction = async (
@@ -191,16 +193,18 @@ export function useThreadActionMenu(input: {
         await reportFailure("Failed to mark thread as Done", () => markThreadDone(threadRef));
         return;
       case "reopen":
-        await reportFailure("Failed to reopen thread", () => reopenThread(threadRef));
+        await reportFailure(m(msg("Failed to reopen thread")), () => reopenThread(threadRef));
         return;
       case "unsnooze":
-        await reportFailure("Failed to wake thread", () => unsnoozeThread(threadRef));
+        await reportFailure(m(msg("Failed to wake thread")), () => unsnoozeThread(threadRef));
         return;
       case "pin":
-        await reportFailure("Failed to pin thread", () => pinThread(threadRef));
+        await reportFailure(m(msg("Failed to pin thread")), () => pinThread(threadRef));
         return;
       case "unpin": {
-        await reportFailure("Failed to unpin thread", () => confirmAndUnpinThread(threadRef));
+        await reportFailure(m(msg("Failed to unpin thread")), () =>
+          confirmAndUnpinThread(threadRef),
+        );
         return;
       }
       case "auto-mark-done:enabled":
@@ -231,7 +235,7 @@ export function useThreadActionMenu(input: {
         if (result._tag === "Success") {
           toastManager.add({
             type: "success",
-            title: "Project created",
+            title: m(msg("Project created")),
             description: thread.title,
           });
         } else if (!isAtomCommandInterrupted(result)) {
@@ -245,8 +249,8 @@ export function useThreadActionMenu(input: {
           toastManager.add(
             stackedThreadToast({
               type: "error",
-              title: "Path unavailable",
-              description: "This thread does not have a workspace path to copy.",
+              title: m(msg("Path unavailable")),
+              description: m(msg("This thread does not have a workspace path to copy.")),
             }),
           );
           return;
@@ -268,7 +272,7 @@ export function useThreadActionMenu(input: {
       case "archive": {
         if (confirmThreadArchive) {
           const confirmed = await settlePromise(() =>
-            api.dialogs.confirm(`Archive thread "${thread.title}"?`),
+            api.dialogs.confirm(m(msg('Archive thread "{title}"?', { title: thread.title }))),
           );
           if (confirmed._tag === "Failure" || !confirmed.value) return;
         }
@@ -348,7 +352,10 @@ export function useThreadActionMenu(input: {
       if (!api) return;
       const thread = readThreadShell(threadRef);
       if (!thread) {
-        failureToast("Thread actions unavailable", new Error("This thread has not loaded yet."));
+        failureToast(
+          m(msg("Thread actions unavailable")),
+          new Error(m(msg("This thread has not loaded yet."))),
+        );
         return;
       }
       const actions = threadActions(thread);

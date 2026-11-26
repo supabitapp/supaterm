@@ -1,4 +1,5 @@
 import type { EnvironmentThreadStatus } from "@supaterm/client-runtime/state/threads";
+import { msg } from "gt-react";
 
 export type ThreadSyncPhase = "loading" | "syncing" | "failed";
 
@@ -27,10 +28,10 @@ export function resolveThreadSyncPhase(input: {
 export function threadSyncLabel(phase: ThreadSyncPhase): string {
   switch (phase) {
     case "loading":
-      return "Loading messages...";
+      return msg("Loading messages...");
     case "syncing":
-      return "Syncing messages...";
+      return msg("Syncing messages...");
     case "failed":
-      return "Could not sync messages";
+      return msg("Could not sync messages");
   }
 }

@@ -11,6 +11,7 @@ import type { Ref } from "react";
 
 import { DIFF_SURFACE_THEME_UNSAFE_CSS } from "~/lib/diffRendering";
 import { DiffWorkerPoolProvider } from "../DiffWorkerPoolProvider";
+import { useGT } from "gt-react";
 
 export const DIFF_VIEW_UNSAFE_CSS = `${DIFF_SURFACE_THEME_UNSAFE_CSS}
 /* A 1fr track's automatic minimum grows with the currently mounted lines. In split
@@ -233,12 +234,13 @@ export function StyledDiffCodeView<LAnnotation = undefined>({
   unsafeCSSExtra,
   ...props
 }: StyledDiffCodeViewProps<LAnnotation>) {
+  const gt = useGT();
   // The change bars are colour alone; this names each changed line for screen readers.
   const lineKindCss = `[data-indicators="bars"] [data-line][data-line-type="change-deletion"]::before {
-  content: "" / ${JSON.stringify("Removed")};
+  content: "" / ${JSON.stringify(gt("Removed", { $context: "diff line, read by screen readers" }))};
 }
 [data-indicators="bars"] [data-line][data-line-type="change-addition"]::before {
-  content: "" / ${JSON.stringify("Added")};
+  content: "" / ${JSON.stringify(gt("Added", { $context: "diff line, read by screen readers" }))};
 }`;
   return (
     <DiffWorkerPoolProvider>

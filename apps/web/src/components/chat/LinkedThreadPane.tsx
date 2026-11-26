@@ -22,6 +22,7 @@ import {
 } from "./ReadOnlyComposerBar";
 import { ReadOnlyThreadTimeline } from "./ReadOnlyThreadTimeline";
 import { toastManager } from "../ui/toast";
+import { T, useGT } from "gt-react";
 
 /**
  * Stands where a composer would: the thread takes no messages from here. `action` is the one way
@@ -46,7 +47,9 @@ function LinkedThreadComposer(props: {
             <ReadOnlyComposerBar actions={props.action}>
               <ReadOnlyComposerLead>
                 <EyeIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 truncate font-medium text-foreground">Read-only</span>
+                <span className="min-w-0 truncate font-medium text-foreground">
+                  <T>Read-only</T>
+                </span>
               </ReadOnlyComposerLead>
               <ReadOnlyComposerStatus role="status">
                 {`On ${label} via ${via}${props.working ? " · Working" : ""}`}
@@ -73,6 +76,7 @@ export function LinkedThreadPane(props: {
   /** Whether the tab is showing; the stream runs only while it is. */
   readonly visible: boolean;
 }) {
+  const gt = useGT();
   const { surface, panelRef } = props;
   const via = useEnvironment(surface.viaEnvironmentId)?.label ?? "this environment";
   const { view, error, retry } = useLinkedThreadView(panelRef, surface, props.visible);
@@ -87,8 +91,8 @@ export function LinkedThreadPane(props: {
     if (outcome.type === "connected") {
       toastManager.add({
         type: "success",
-        title: `Connected to ${label}`,
-        description: "This device is paired with it and can use its threads.",
+        title: gt("Connected to {label}", { label }),
+        description: gt("This device is paired with it and can use its threads."),
       });
     }
   };
@@ -103,8 +107,9 @@ export function LinkedThreadPane(props: {
         <PlugIcon />
         <AlertTitle>{connectState.label} is not reachable from this device</AlertTitle>
         <AlertDescription>
-          Join a network it is on, such as its Tailscale network, and try again. You can keep
-          reading here.
+          {gt(
+            "Join a network it is on, such as its Tailscale network, and try again. You can keep reading here.",
+          )}
         </AlertDescription>
       </Alert>
     ) : connectState.phase === "manual" ? (
@@ -112,7 +117,7 @@ export function LinkedThreadPane(props: {
         <PlugIcon />
         <AlertTitle>{connectState.prefill.label} needs a pairing code</AlertTitle>
         <AlertDescription>
-          Create one on it, then add it to this device as an environment.
+          {gt("Create one on it, then add it to this device as an environment.")}
         </AlertDescription>
         <AlertAction>
           <Button
@@ -120,7 +125,7 @@ export function LinkedThreadPane(props: {
             variant="ghost"
             onClick={() => connection.addWithCode(connectState.prefill)}
           >
-            Enter code
+            <T>Enter code</T>
           </Button>
         </AlertAction>
       </Alert>
@@ -128,14 +133,16 @@ export function LinkedThreadPane(props: {
   const connectAction = (
     <Button size="sm" variant="outline" disabled={connecting} onClick={() => void connect()}>
       <PlugIcon aria-hidden />
-      <span className="@max-[320px]/composer-surface:sr-only">Connect to interact</span>
+      <span className="@max-[320px]/composer-surface:sr-only">
+        <T>Connect to interact</T>
+      </span>
     </Button>
   );
   const failure = error === null ? null : linkedThreadFailure(error, { via, label });
   const retryAction = failure?.retryable ? (
     <AlertAction>
       <Button size="sm" variant="outline" onClick={retry}>
-        Try again
+        <T>Try again</T>
       </Button>
     </AlertAction>
   ) : null;
@@ -153,7 +160,7 @@ export function LinkedThreadPane(props: {
           historyCursor: view.thread.historyCursor,
           hasMoreHistory: true,
           loading: view.history.loading,
-          error: view.history.failed ? "Could not load earlier turns. Try again." : null,
+          error: view.history.failed ? gt("Could not load earlier turns. Try again.") : null,
           onLoadEarlier: view.loadEarlier,
         };
   return (

@@ -12,6 +12,8 @@ import { sanitizeNewRefName } from "@supaterm/shared/git";
 import { workspaceRelativeFilePath } from "@supaterm/shared/path";
 import { toSortableTimestamp } from "@supaterm/client-runtime/state/thread-sort";
 import { deriveCanInterruptRunningThread } from "../session-logic";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 export { deriveLocalBranchNameFromRemoteRef, sanitizeNewRefName } from "@supaterm/shared/git";
 
 const isGitCommandError = Schema.is(GitCommandError);
@@ -22,7 +24,7 @@ export function toBranchActionErrorMessage(error: unknown): string {
   if (isGitCommandError(error)) {
     return error.reason === undefined ? error.detail : `${error.detail} (${error.reason})`;
   }
-  return error instanceof Error ? error.message : "An error occurred.";
+  return error instanceof Error ? error.message : m(msg("An error occurred."));
 }
 
 export interface EnvironmentOption {
@@ -57,7 +59,7 @@ export function resolveEnvironmentOptionLabel(input: {
       if (!label) return false;
       return !GENERIC_LOCAL_ENVIRONMENT_LABELS.has(label.toLowerCase());
     });
-    return preferredLocalLabel ?? "This device";
+    return preferredLocalLabel ?? msg("This device");
   }
 
   return runtimeLabel ?? savedLabel ?? input.environmentId;
@@ -108,25 +110,25 @@ export function resolveContextStripLabelsCompact(input: {
 }
 
 export function resolveEnvModeLabel(mode: EnvMode): string {
-  return mode === "worktree" ? "New worktree" : "Current checkout";
+  return mode === "worktree" ? msg("New worktree") : msg("Current checkout");
 }
 
 export const WORKTREE_SUBMODULES_LABELS: Record<WorktreeSubmodules, string> = {
-  recursive: "Recursive",
-  "top-level": "Top level only",
-  none: "Skip",
+  recursive: msg("Recursive"),
+  "top-level": msg("Top level only"),
+  none: msg("Skip"),
 };
 
 export function resolveCurrentWorkspaceLabel(activeWorktreePath: string | null): string {
-  return activeWorktreePath ? "Current worktree" : resolveEnvModeLabel("local");
+  return activeWorktreePath ? msg("Current worktree") : resolveEnvModeLabel("local");
 }
 
 export function resolveLockedWorkspaceLabel(
   activeWorktreePath: string | null,
   effectiveEnvMode: EnvMode,
 ): string {
-  if (activeWorktreePath) return resolveWorkspaceDisplayName(activeWorktreePath) ?? "Worktree";
-  return effectiveEnvMode === "worktree" ? resolveEnvModeLabel("worktree") : "Local checkout";
+  if (activeWorktreePath) return resolveWorkspaceDisplayName(activeWorktreePath) ?? msg("Worktree");
+  return effectiveEnvMode === "worktree" ? resolveEnvModeLabel("worktree") : msg("Local checkout");
 }
 
 export interface PreviousWorktreeSeed {
@@ -168,7 +170,7 @@ export function resolvePreviousWorktreeSeed(input: {
 }
 
 export function resolvePreviousWorktreeLabel(seed: PreviousWorktreeSeed): string {
-  return seed.branch ? `Previous worktree (${seed.branch})` : "Previous worktree";
+  return seed.branch ? `Previous worktree (${seed.branch})` : msg("Previous worktree");
 }
 
 export function resolveEffectiveEnvMode(input: {
@@ -276,7 +278,9 @@ export function resolveBranchTriggerLabel(input: {
     startFromOrigin,
   } = input;
   if (!resolvedActiveBranch) {
-    return effectiveEnvMode === "worktree" && !activeWorktreePath ? "Default branch" : "Select ref";
+    return effectiveEnvMode === "worktree" && !activeWorktreePath
+      ? "Default branch"
+      : msg("Select ref");
   }
   if (effectiveEnvMode === "worktree" && !activeWorktreePath) {
     // Only the server can determine a local branch's configured remote.

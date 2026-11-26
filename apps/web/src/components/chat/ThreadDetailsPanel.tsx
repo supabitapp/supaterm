@@ -50,6 +50,7 @@ import { SlidersHorizontalIcon } from "@supaterm/icons";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { THREAD_DETAILS_PANEL_ICON_CLASS } from "./threadDetailsPanelStyles";
 import { Menu, MenuPopup } from "../ui/menu";
+import { useGT, T } from "gt-react";
 
 interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,
@@ -105,6 +106,7 @@ interface ThreadDetailsPanelProps extends Pick<
 }
 
 export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
+  const gt = useGT();
   const settingsVisibility = useClientSettings(resolveThreadDetailsVisibility);
   const visible = props.sideChat
     ? withoutParentCheckoutItems(settingsVisibility)
@@ -224,7 +226,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
               {show.environment || show.openIn || show.scripts ? (
                 <ThreadDetailsSection
                   headingId="thread-details-workspace-heading"
-                  title="Workspace"
+                  title={gt("Workspace")}
                   separated={false}
                   showHeading={false}
                 >
@@ -274,7 +276,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
               {show.branch || show.pullRequests || show.git || show.repositories ? (
                 <ThreadDetailsSection
                   headingId="thread-details-version-control-heading"
-                  title="Version Control"
+                  title={gt("Version Control")}
                   showHeading={false}
                   separated={density === "full"}
                 >
@@ -370,7 +372,9 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                   }}
                 >
                   <SlidersHorizontalIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
-                  <span className="ml-0.5">Choose what to show</span>
+                  <span className="ml-0.5">
+                    <T>Choose what to show</T>
+                  </span>
                 </ThreadDetailsControl>
               </div>
             </div>

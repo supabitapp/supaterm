@@ -1,6 +1,8 @@
 import type { DeviceHubAccess } from "@supaterm/client-runtime/state/deviceHubAccess";
 import { withDeviceHubQuery } from "@supaterm/client-runtime/state/deviceHubAccess";
 import * as Schema from "effect/Schema";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export type AndroidFoldPosture = "closed" | "opened";
 
@@ -20,7 +22,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const parseFold = (payload: unknown): AndroidFoldState => {
   if (!isRecord(payload) || payload.ok !== true || !isRecord(payload.fold)) {
-    throw new Error("Unexpected Android fold response.");
+    throw new Error(m(msg("Unexpected Android fold response.")));
   }
   const { supported, posture, hingeAngle } = payload.fold;
   if (
@@ -33,7 +35,7 @@ const parseFold = (payload: unknown): AndroidFoldState => {
       posture !== "tent") ||
     (hingeAngle !== null && (typeof hingeAngle !== "number" || !Number.isFinite(hingeAngle)))
   ) {
-    throw new Error("Unexpected Android fold response.");
+    throw new Error(m(msg("Unexpected Android fold response.")));
   }
   return { supported, posture, hingeAngle };
 };

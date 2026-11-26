@@ -78,6 +78,8 @@ import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import { environmentThreadDetails } from "../../state/threads";
 import { openSideChatBeside } from "../../chatPanes/actions";
+import { msg, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
 const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
@@ -133,6 +135,7 @@ interface ThreadLifecycleInput {
  * banners, opening related threads, and standalone slash commands.
  */
 export function useThreadLifecycle(input: ThreadLifecycleInput) {
+  const gt = useGT();
   const {
     environmentId,
     routeThreadKey,
@@ -233,8 +236,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to reopen thread",
-          description: error instanceof Error ? error.message : "An error occurred.",
+          title: m(msg("Failed to reopen thread")),
+          description: error instanceof Error ? error.message : m(msg("An error occurred.")),
         }),
       );
     }
@@ -278,8 +281,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Failed to wake thread",
-          description: error instanceof Error ? error.message : "An error occurred.",
+          title: m(msg("Failed to wake thread")),
+          description: error instanceof Error ? error.message : m(msg("An error occurred.")),
         }),
       );
     }
@@ -347,7 +350,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: "Failed to switch checkout",
+            title: m(msg("Failed to switch checkout")),
             description: chatActionErrorMessage(squashAtomCommandFailure(checkoutResult)),
           }),
         );
@@ -371,7 +374,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           toastManager.add(
             stackedThreadToast({
               type: "error",
-              title: "Checkout switched, but the thread could not be updated",
+              title: m(msg("Checkout switched, but the thread could not be updated")),
               description: chatActionErrorMessage(squashAtomCommandFailure(updateResult)),
             }),
           );
@@ -436,7 +439,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         const error = squashAtomCommandFailure(result);
         setThreadError(
           activeThread.id,
-          error instanceof Error ? error.message : "Failed to stop background work.",
+          error instanceof Error ? error.message : m(msg("Failed to stop background work.")),
         );
       }
     }
@@ -473,7 +476,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     }
     const shell = readThreadShell(threadRef);
     if (shell === null ? !shellOmitsChildren && isEnvironmentLive() : shell.deletedAt != null) {
-      toastManager.add({ type: "info", title: "This thread is no longer available" });
+      toastManager.add({ type: "info", title: m(msg("This thread is no longer available")) });
       return;
     }
     // A side chat and its parent sit side by side; where there is no room, one replaces the other.
@@ -599,8 +602,12 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       limitRecoveryHoldsSnooze ? null : (
         <ThreadStatusLine
           icon={<ClockSnoozeIcon />}
-          label={snoozeWake && snoozeWake !== "now" ? `Snoozed, ${snoozeWake} left` : "Snoozed"}
-          actionLabel={isUnsnoozing ? "Waking..." : "Wake now"}
+          label={
+            snoozeWake && snoozeWake !== "now"
+              ? gt("Snoozed, {remaining} left", { remaining: snoozeWake })
+              : gt("Snoozed", { $context: "thread status" })
+          }
+          actionLabel={isUnsnoozing ? gt("Waking...") : gt("Wake now")}
           actionDisabled={!canOperateThread || isUnsnoozing}
           onAction={() => void handleUnsnoozeActiveThreadStable()}
         />
@@ -608,16 +615,20 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     ) : activeThreadDone ? (
       <ThreadStatusLine
         icon={<CircleCheckIcon />}
-        label={activeDoneAt ? `Done ${formatRelativeTimeLabel(activeDoneAt, nowMs)}` : "Done"}
-        actionLabel={isReopening ? "Reopening..." : "Reopen"}
+        label={
+          activeDoneAt
+            ? gt("Done {time}", { time: formatRelativeTimeLabel(activeDoneAt, nowMs) })
+            : gt("Done", { $context: "thread status" })
+        }
+        actionLabel={isReopening ? "Reopening..." : gt("Reopen")}
         actionDisabled={!canOperateThread || isReopening}
         onAction={() => void handleReopenActiveThreadStable()}
       />
     ) : activeThreadWokeVisible ? (
       <ThreadStatusLine
         icon={<ClockSnoozeIcon />}
-        label="Woke from snooze"
-        actionLabel="Dismiss"
+        label={gt("Woke from snooze")}
+        actionLabel={gt("Dismiss")}
         onAction={acknowledgeActiveThreadWokeStable}
       />
     ) : null;
@@ -631,7 +642,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         stackedThreadToast({
           type: "error",
           title,
-          description: error instanceof Error ? error.message : "An error occurred.",
+          description: error instanceof Error ? error.message : m(msg("An error occurred.")),
         }),
       );
     };
@@ -657,7 +668,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         activeThreadPinned ? confirmAndUnpinThread(activeThreadRef) : pinThread(activeThreadRef)
       ).then(
         toastThreadActionFailure(
-          activeThreadPinned ? "Failed to unpin thread" : "Failed to pin thread",
+          activeThreadPinned ? m(msg("Failed to unpin thread")) : m(msg("Failed to pin thread")),
         ),
       );
     },

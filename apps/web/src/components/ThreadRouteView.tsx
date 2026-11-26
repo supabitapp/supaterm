@@ -34,6 +34,7 @@ import {
   resolveThreadRouteRenderState,
   type ThreadRouteTarget,
 } from "../threadRoutes";
+import { T } from "gt-react";
 
 /**
  * Keeps the family of an open thread the shell leaves out (an older Done thread) in the shell
@@ -243,14 +244,16 @@ function UnreachableEnvironmentState() {
   return (
     <Empty className="flex-1">
       <EmptyHeader>
-        <EmptyTitle>Thread unavailable</EmptyTitle>
+        <EmptyTitle>
+          <T>Thread unavailable</T>
+        </EmptyTitle>
         <EmptyDescription>
-          This thread is on an environment this app is not connected to.
+          <T>This thread is on an environment this app is not connected to.</T>
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
         <Button render={<Link to="/settings/connections" />} size="sm">
-          Open Environments
+          <T>Open Environments</T>
         </Button>
       </EmptyContent>
     </Empty>

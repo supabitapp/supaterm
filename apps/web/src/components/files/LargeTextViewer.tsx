@@ -5,6 +5,8 @@ import { useClientSettings } from "~/hooks/useSettings";
 import { FileSurfaceFailure, FileSurfaceLoading, FileSurfaceNotice } from "./fileSurfaceChrome";
 import { PREVIEW_PAGE_ROWS, type TextPreviewResult } from "./largeTextProtocol";
 import VirtualTablePreview from "./VirtualTablePreview";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const FIRST_SCREEN_BYTES = 16 * 1024;
 
@@ -157,9 +159,9 @@ export default function LargeTextViewer(props: {
         }
       });
       engine.addEventListener("error", () => {
-        copyPending.current?.reject(new Error("The text viewer stopped."));
+        copyPending.current?.reject(new Error(m(msg("The text viewer stopped."))));
         copyPending.current = null;
-        setError("Could not load the text viewer. Close the file and try again.");
+        setError(m(msg("Could not load the text viewer. Close the file and try again.")));
       });
       engine.postMessage(
         {
@@ -218,7 +220,7 @@ export default function LargeTextViewer(props: {
     } else startWorker();
     return () => {
       controller.abort();
-      copyPending.current?.reject(new Error("Preview closed."));
+      copyPending.current?.reject(new Error(m(msg("Preview closed."))));
       copyPending.current = null;
       worker.current?.terminate();
       worker.current = null;
@@ -230,11 +232,11 @@ export default function LargeTextViewer(props: {
     () => () =>
       new Promise<string>((resolve, reject) => {
         if (!worker.current) {
-          reject(new Error("The file is unavailable."));
+          reject(new Error(m(msg("The file is unavailable."))));
           return;
         }
         if (copyPending.current) {
-          reject(new Error("Another copy is in progress."));
+          reject(new Error(m(msg("Another copy is in progress."))));
           return;
         }
         copyPending.current = { resolve, reject };
@@ -271,7 +273,7 @@ export default function LargeTextViewer(props: {
       ) : null}
       {meta.columns === 1024 ? (
         <FileSurfaceNotice>
-          Showing the first 1,024 columns. Source and Save retain every column.
+          <T>Showing the first 1,024 columns. Source and Save retain every column.</T>
         </FileSurfaceNotice>
       ) : null}
       {meta.count > 0 ? (
@@ -293,7 +295,7 @@ export default function LargeTextViewer(props: {
         />
       ) : (
         <div className="flex flex-1 items-center justify-center p-6 text-xs text-muted-foreground">
-          This file is empty.
+          <T>This file is empty.</T>
         </div>
       )}
     </div>

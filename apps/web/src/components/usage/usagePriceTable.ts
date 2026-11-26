@@ -5,6 +5,7 @@ import {
   type UsagePriceForm,
 } from "./usagePriceForm";
 import type { UsagePriceChange, UsagePriceTarget } from "./usagePriceTargets";
+import { msg } from "gt-react";
 
 export type UsagePriceField = (typeof USAGE_PRICE_FIELDS)[number]["key"];
 
@@ -37,10 +38,10 @@ function modelAlias(target: UsagePriceTarget, model: string) {
 
 export function usageAliasCell(targets: readonly UsagePriceTarget[], model: string) {
   if (targets.some((target) => target.aliases === null))
-    return { value: "", placeholder: "Unavailable" };
+    return { value: "", placeholder: msg("Unavailable") };
   const values = targets.map((target) => modelAlias(target, model) ?? "");
-  if (values.some((value) => value !== values[0])) return { value: "", placeholder: "Mixed" };
-  return { value: values[0] ?? "", placeholder: "None" };
+  if (values.some((value) => value !== values[0])) return { value: "", placeholder: msg("Mixed") };
+  return { value: values[0] ?? "", placeholder: msg("None") };
 }
 
 export function usagePriceCell(
@@ -53,11 +54,11 @@ export function usagePriceCell(
     modelPrice(target, model) ? usagePriceForm(model, modelPrice(target, model))[field] : null,
   );
   if (targets.some((target) => target.prices === null))
-    return { value: "", placeholder: "Unavailable" };
-  if (values.some((value) => value !== values[0])) return { value: "", placeholder: "Mixed" };
+    return { value: "", placeholder: msg("Unavailable") };
+  if (values.some((value) => value !== values[0])) return { value: "", placeholder: msg("Mixed") };
   return {
     value: values[0] ?? "",
-    placeholder: values[0] === null ? "Automatic" : optional ? "Input rate" : "0.00",
+    placeholder: values[0] === null ? msg("Automatic") : optional ? msg("Input rate") : "0.00",
   };
 }
 

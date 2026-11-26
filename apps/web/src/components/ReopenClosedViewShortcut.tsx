@@ -45,6 +45,7 @@ import { newestClosedPaneAt, useChatPaneStore } from "../chatPanes/store";
 import { isChatPaneWorkspaceMounted } from "../chatPanes/actions";
 import { focusedPane } from "../chatPanes/layout";
 import { workspaceSize } from "../chatPanes/paneDrop";
+import { useGT } from "gt-react";
 
 declare module "@tanstack/react-router" {
   interface HistoryState {
@@ -76,6 +77,7 @@ const isGlobalIssues = (ref: ScopedThreadRef) =>
   scopedThreadKey(ref) === scopedThreadKey(ISSUES_PANEL_REF);
 
 export function ReopenClosedViewShortcut() {
+  const gt = useGT();
   const navigate = useNavigate();
   const router = useRouter();
   const params = useParams({ strict: false });
@@ -221,7 +223,7 @@ export function ReopenClosedViewShortcut() {
       .catch((error: unknown) => {
         toastManager.add({
           type: "error",
-          title: "Could not reopen view",
+          title: gt("Could not reopen view"),
           description: error instanceof Error ? error.message : String(error),
         });
       });

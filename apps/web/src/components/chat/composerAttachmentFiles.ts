@@ -13,6 +13,7 @@ import { isHeicImageFile } from "../../lib/imageCompression";
 import { isVideoAttachment, videoMimeType } from "../../types";
 import { isSvgAttachment } from "@supaterm/shared/image";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/mediaPreview";
+import { msg } from "gt-react";
 
 type ComposerAttachmentFileKind = "image" | "file" | "unsupported-image";
 
@@ -212,11 +213,11 @@ export function fileAttachmentCapabilityBlockReason(
     return null;
   }
   if (!input.attachmentUploadsCapabilityKnown) {
-    return "Waiting for the server before file attachments can send";
+    return msg("Waiting for the server before file attachments can send");
   }
   const maxFileAttachmentBytes = fileAttachmentStagingLimit(input);
   if (maxFileAttachmentBytes === null) {
-    return "This server does not accept file attachments right now. Remove the files to send.";
+    return msg("This server does not accept file attachments right now. Remove the files to send.");
   }
   const oversizedFile = input.files.find((file) => file.sizeBytes > maxFileAttachmentBytes);
   if (oversizedFile) {

@@ -30,6 +30,7 @@ import { resolveRestingComposerControlsNaturalWidth } from "./composerFooterLayo
 import { EASE_DRAWER } from "~/lib/motion";
 import { cn } from "~/lib/utils";
 import { observeResize } from "~/lib/observeResize";
+import { useMessages, msg } from "gt-react";
 
 export interface BranchToolbarHandle {
   openBranchPicker: () => void;
@@ -286,6 +287,7 @@ export const BranchToolbar = memo(function BranchToolbar({
   contextStripPlacement = "bottom",
   usageMeter,
 }: BranchToolbarProps) {
+  const m = useMessages();
   const branchSelectorRef = useRef<BranchToolbarBranchSelectorHandle>(null);
   const threadRef = scopeThreadRef(environmentId, threadId);
   const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
@@ -457,8 +459,12 @@ export const BranchToolbar = memo(function BranchToolbar({
             data-composer-context-control
           >
             {plainProjectBaseBranch === ""
-              ? "Each repository starts from its own default branch"
-              : `Repositories start from ${plainProjectBaseBranch} where they have it`}
+              ? m(msg("Each repository starts from its own default branch"))
+              : m(
+                  msg("Repositories start from {branch} where they have it", {
+                    branch: plainProjectBaseBranch,
+                  }),
+                )}
           </span>
         ) : null
       ) : (

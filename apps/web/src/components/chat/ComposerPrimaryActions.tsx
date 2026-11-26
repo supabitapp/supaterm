@@ -32,6 +32,7 @@ import {
   type ComposerPrimaryActionInput,
   type ComposerStopState,
 } from "./composerPrimaryAction.logic";
+import { msg, useGT } from "gt-react";
 
 interface ComposerPrimaryActionsProps extends Omit<
   ComposerPrimaryActionInput,
@@ -57,15 +58,15 @@ const formatPendingPrimaryActionLabel = (input: {
   questionIndex: number;
 }) => {
   if (input.isResponding) {
-    return "Submitting...";
+    return msg("Submitting...");
   }
   if (input.compact) {
     return input.isLastQuestion ? "Submit" : "Next";
   }
   if (!input.isLastQuestion) {
-    return "Next question";
+    return msg("Next question");
   }
-  return input.questionIndex > 0 ? "Submit answers" : "Submit answer";
+  return input.questionIndex > 0 ? msg("Submit answers") : msg("Submit answer");
 };
 
 // The composer's labeled primary action shares the send button's
@@ -232,6 +233,7 @@ export function ComposerStopButton(props: {
   readonly preserveComposerFocusOnPointerDown: boolean;
   readonly onStop: () => void;
 }) {
+  const gt = useGT();
   const { canOperateThread, stopping } = props;
   return (
     <Tooltip>
@@ -251,7 +253,7 @@ export function ComposerStopButton(props: {
               if (!canOperateThread || stopping) return;
               props.onStop();
             }}
-            aria-label={stopping ? "Stopping" : "Stop generation"}
+            aria-label={stopping ? gt("Stopping") : gt("Stop generation")}
           />
         }
       >
@@ -260,7 +262,9 @@ export function ComposerStopButton(props: {
         </svg>
       </TooltipTrigger>
       <TooltipPopup shortcut={shortcutLabelForCommand(props.keybindings, "thread.stop")}>
-        {stopping ? "Stopping…" : "Interrupt"}
+        {stopping
+          ? gt("Stopping…")
+          : gt("Interrupt", { $context: "verb, stops the running agent" })}
       </TooltipPopup>
     </Tooltip>
   );

@@ -1,4 +1,6 @@
 import { type TimestampFormat } from "@supaterm/contracts/settings";
+import { m } from "./i18n/messages";
+import { msg } from "gt-react";
 
 function getTimestampFormatOptions(
   timestampFormat: TimestampFormat,
@@ -360,10 +362,10 @@ export function formatExpiresInLabel(isoDate: string, nowMs: number = Date.now()
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
   const diffMs = date.getTime() - nowMs;
-  if (diffMs <= 0) return "Expired";
+  if (diffMs <= 0) return msg("Expired");
 
   const totalSeconds = Math.floor(diffMs / 1000);
-  if (totalSeconds < 5) return "Expires in a moment";
+  if (totalSeconds < 5) return msg("Expires in a moment");
   if (totalSeconds < 60) return `Expires in ${totalSeconds}s`;
 
   if (totalSeconds < 3600) {

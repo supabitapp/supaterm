@@ -50,6 +50,7 @@ import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUp
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { sourceControlIcon } from "~/sourceControlPresentation";
 import { observeResize } from "~/lib/observeResize";
+import { T, useGT } from "gt-react";
 
 const GitHubIcon = sourceControlIcon(sourceControlClients.get("github"));
 
@@ -58,6 +59,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 }: {
   isElectron: boolean;
 }) {
+  const gt = useGT();
   return (
     <div
       className={cn(
@@ -67,7 +69,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
     >
       {/* From md up, the window-corner toggle sits where the in-flow trigger would be. */}
       <div className="relative top-[calc(var(--workspace-controls-top)-env(safe-area-inset-top))] ml-[calc(var(--workspace-controls-left)+1px-env(safe-area-inset-left))] flex min-w-0 flex-1 items-center md:ml-[calc(var(--workspace-controls-left)+1px+var(--workspace-titlebar-control-size))]">
-        <SidebarTrigger className="md:hidden" aria-label="Toggle main sidebar" />
+        <SidebarTrigger className="md:hidden" aria-label={gt("Toggle main sidebar")} />
         <SidebarSearchButton />
         {isElectron ? (
           <div className="ml-auto hidden md:flex">
@@ -110,15 +112,16 @@ export function SidebarHeaderWidthProbe({
 }
 
 export function MainSidebarToggle({ className }: { className?: string }) {
+  const gt = useGT();
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const shortcut = useShortcutLabel("sidebar.toggle", { context: { usagePageOpen } });
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<SidebarTrigger className={className} aria-label="Toggle main sidebar" />}
+        render={<SidebarTrigger className={className} aria-label={gt("Toggle main sidebar")} />}
       />
       <TooltipPopup side="bottom" shortcut={shortcut}>
-        Toggle main sidebar
+        {gt("Toggle main sidebar")}
       </TooltipPopup>
     </Tooltip>
   );
@@ -267,6 +270,7 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
 const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigate = useNavigate();
   const navigateToMainApp = useNavigateToMainApp();
+  const gt = useGT();
   const { isMobile, setOpenMobile } = useSidebar();
   const isOnUtilityPage = useLocation({
     select: (location) => isSidebarUtilityPage(location.pathname),
@@ -314,7 +318,9 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
         <SidebarMenuItem className="min-w-0 flex-1">
           <SidebarMenuButton onClick={handleBackClick}>
             <ArrowLeftIcon />
-            <span>Back</span>
+            <span>
+              <T>Back</T>
+            </span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       ) : null}
@@ -322,27 +328,27 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
         <>
           <SidebarUtilityItem
             icon={<SettingsIcon />}
-            label="Settings"
+            label={gt("Settings")}
             shortcut={settingsShortcut}
             onClick={handleSettingsClick}
           />
           {pullRequestsSupported ? (
             <SidebarUtilityItem
               icon={<PullRequestGlyph.pullRequest />}
-              label="Pull requests"
+              label={gt("Pull requests")}
               onClick={handlePullRequestsClick}
             />
           ) : null}
           {issuesSupported ? (
             <SidebarUtilityItem
               icon={<IssueGlyph.issue />}
-              label="Issues"
+              label={gt("Issues", { $context: "sidebar link to the list of issues" })}
               onClick={handleIssuesClick}
             />
           ) : null}
           <SidebarUtilityItem
             icon={<ChartColumnIcon />}
-            label="Usage"
+            label={gt("Usage")}
             shortcut={usageShortcut}
             onClick={handleUsageClick}
           />

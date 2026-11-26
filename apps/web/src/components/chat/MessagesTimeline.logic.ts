@@ -78,6 +78,7 @@ import {
   type WorkGroupDisclosures,
   workGroupIsExpanded,
 } from "./workGroupDisclosure";
+import { msg } from "gt-react";
 
 export function timelineEntryRunId(entry: TimelineEntry): RunId | null {
   if (entry.kind === "message") {
@@ -101,14 +102,15 @@ function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
 }
 
 function singleToolCallLabel(entry: WorkLogEntry): string {
-  if (entry.itemType === "reasoning") return entry.detail?.trim().replace(/\s+/g, " ") || "Thought";
+  if (entry.itemType === "reasoning")
+    return entry.detail?.trim().replace(/\s+/g, " ") || msg("Thought");
   const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed");
   if (toolPresentation) return toolPresentation.displayName;
   const item = entry.structuredPayload;
   const title =
     item?.type === "dynamic_tool" ? dynamicToolTitle(item.toolName, item.input, item.title) : null;
   if (title) return title;
-  if (entry.itemType === "web_search") return entry.toolTitle ?? "Web search";
+  if (entry.itemType === "web_search") return entry.toolTitle ?? msg("Web search");
   return workEntryDisplayLabel(entry, undefined);
 }
 
@@ -198,7 +200,7 @@ export function workEntryDisplay(
     );
   }
   if (action === "read" && !entry.viewedImagePath) {
-    return { text: "Read file" };
+    return { text: msg("Read file") };
   }
   const heading = normalizeCompactToolLabel(entry.toolTitle || entry.label);
   return { text: `${heading.charAt(0).toUpperCase()}${heading.slice(1)}` };
@@ -266,7 +268,7 @@ export function liveWorkEntryLabel(
   if (entry.itemType === "reasoning") {
     return (
       entry.detail?.trim().replace(/\s+/g, " ") ||
-      (status === "inProgress" ? "Thinking" : "Thought")
+      (status === "inProgress" ? msg("Thinking") : msg("Thought"))
     );
   }
   const toolPresentation = resolveWorkEntryToolPresentation({
@@ -1320,7 +1322,7 @@ function deriveTurnFolds(input: {
         createdAt: steer.createdAt,
         hiddenEntryIds: segmentHiddenIds(entries),
         entryIds: new Set(entries.map((entry) => entry.id)),
-        label: segmentMs !== null ? `Continued for ${formatDuration(segmentMs)}` : "Continued",
+        label: segmentMs !== null ? `Continued for ${formatDuration(segmentMs)}` : msg("Continued"),
       });
     }
   }
@@ -2014,7 +2016,7 @@ export function deriveMessagesTimelineRows(input: {
         createdAt: supersededFold.createdAt,
         runId: supersededFold.runId,
         attemptId: supersededFold.attemptId,
-        label: "Superseded attempt",
+        label: msg("Superseded attempt"),
         expanded: input.expandedAttemptIds?.has(supersededFold.attemptId) ?? false,
       });
     }
@@ -2283,7 +2285,7 @@ export function deriveMessagesTimelineRows(input: {
           kind: "context-compaction",
           id: `compaction:${compactionRunId}`,
           createdAt: timelineEntry.createdAt,
-          label: pending ? "Compacting context" : "Context compaction",
+          label: pending ? msg("Compacting context") : msg("Context compaction"),
           tokenCounts: null,
           active: pending,
         });

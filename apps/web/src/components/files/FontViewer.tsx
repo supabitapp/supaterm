@@ -3,16 +3,18 @@ import { useEffect, useState } from "react";
 import { useTheme } from "~/hooks/useTheme";
 
 import { FileSurfaceLoading } from "./fileSurfaceChrome";
+import { msg, T } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const MAX_FONT_BYTES = 10 * 1024 * 1024;
 
 async function readFont(src: string, signal: AbortSignal) {
   const response = await fetch(src, { signal });
-  if (!response.ok) throw new Error("The font could not be loaded.");
+  if (!response.ok) throw new Error(m(msg("The font could not be loaded.")));
   if (Number(response.headers.get("content-length")) > MAX_FONT_BYTES)
-    throw new Error("Font previews are limited to 10 MB.");
+    throw new Error(m(msg("Font previews are limited to 10 MB.")));
   const reader = response.body?.getReader();
-  if (!reader) throw new Error("The font is unavailable.");
+  if (!reader) throw new Error(m(msg("The font is unavailable.")));
   const chunks: Uint8Array<ArrayBuffer>[] = [];
   let length = 0;
   try {
@@ -20,7 +22,7 @@ async function readFont(src: string, signal: AbortSignal) {
       const { done, value } = await reader.read();
       if (done) break;
       length += value.length;
-      if (length > MAX_FONT_BYTES) throw new Error("Font previews are limited to 10 MB.");
+      if (length > MAX_FONT_BYTES) throw new Error(m(msg("Font previews are limited to 10 MB.")));
       chunks.push(value);
     }
   } finally {
@@ -31,9 +33,11 @@ async function readFont(src: string, signal: AbortSignal) {
   return await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.addEventListener("load", () => resolve(String(reader.result)), { once: true });
-    reader.addEventListener("error", () => reject(new Error("The font could not be decoded.")), {
-      once: true,
-    });
+    reader.addEventListener(
+      "error",
+      () => reject(new Error(m(msg("The font could not be decoded.")))),
+      { once: true },
+    );
     reader.readAsDataURL(blob);
   });
 }
@@ -46,7 +50,7 @@ export default function FontViewer(props: { readonly src: string; readonly name:
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => {
-      setError("The font took too long to load.");
+      setError(m(msg("The font took too long to load.")));
       controller.abort();
     }, 30_000);
     void readFont(props.src, controller.signal)
@@ -55,7 +59,9 @@ export default function FontViewer(props: { readonly src: string; readonly name:
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted)
-          setError(cause instanceof Error ? cause.message : "The font is damaged or unsupported.");
+          setError(
+            cause instanceof Error ? cause.message : m(msg("The font is damaged or unsupported.")),
+          );
       })
       .finally(() => clearTimeout(timeout));
     return () => {
@@ -69,7 +75,9 @@ export default function FontViewer(props: { readonly src: string; readonly name:
         role="alert"
         className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center"
       >
-        <p className="text-sm font-medium">No preview for this file</p>
+        <p className="text-sm font-medium">
+          <T>No preview for this file</T>
+        </p>
         <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
           {error} Save it to open in another app.
         </p>

@@ -49,6 +49,7 @@ import {
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useComposerMenuState } from "./useComposerMenuState";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
+import { T, useGT } from "gt-react";
 
 type OpenInOption = EditorIconOption & { label: string };
 
@@ -91,6 +92,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   displayMode?: "toolbar" | "panel";
   fileManagerAction?: FileManagerAction;
 }) {
+  const gt = useGT();
   const isPanel = displayMode === "panel";
   const ActionGroup = isPanel ? "div" : Group;
   const panelAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -173,7 +175,7 @@ export const OpenInPicker = memo(function OpenInPicker({
         <>
           {options.length === 0 && (
             <MenuItem density={presentation === "menu" ? "touch" : "default"} disabled>
-              No installed editors found
+              <T>No installed editors found</T>
             </MenuItem>
           )}
           {options.map(({ label, Icon, value, kind }) => (
@@ -228,7 +230,9 @@ export const OpenInPicker = memo(function OpenInPicker({
         <MenuSub>
           <MenuSubTrigger density="touch" disabled={isHostEditorDenied}>
             <ExternalLinkIcon className="size-4" />
-            <MenuItemLabel>Open in…</MenuItemLabel>
+            <MenuItemLabel>
+              <T>Open in…</T>
+            </MenuItemLabel>
           </MenuSubTrigger>
           <MenuSubPopup>{editorItems}</MenuSubPopup>
         </MenuSub>
@@ -238,7 +242,7 @@ export const OpenInPicker = memo(function OpenInPicker({
 
   return (
     <ActionGroup
-      aria-label="Open in editor"
+      aria-label={gt("Open in editor")}
       role="group"
       {...(isPanel
         ? { className: THREAD_DETAILS_PANEL_SPLIT_GROUP_CLASS, ref: panelAnchorRef }
@@ -248,7 +252,7 @@ export const OpenInPicker = memo(function OpenInPicker({
         <TooltipTrigger
           render={
             <ThreadDetailsControl
-              aria-label={compact ? "Open file in preferred editor" : primaryLabel}
+              aria-label={compact ? gt("Open file in preferred editor") : primaryLabel}
               // Tooltip replaces the button data-slot, so toolbar theming needs a separate hook.
               data-toolbar-control=""
               size={isPanel ? "sm" : "xs"}
@@ -268,7 +272,7 @@ export const OpenInPicker = memo(function OpenInPicker({
                 if (!preferredEditor) return;
                 const label = editorLabelForPlatform(preferredEditor, navigator.platform);
                 void openInEditor(preferredEditor).then((opened) => {
-                  if (opened) announce(`Opened in ${label}`);
+                  if (opened) announce(gt("Opened in {editor}", { editor: label }));
                 });
               }}
             />
@@ -313,7 +317,7 @@ export const OpenInPicker = memo(function OpenInPicker({
                 disabled={isHostEditorDenied}
                 render={
                   <ThreadDetailsControl
-                    aria-label="Choose editor"
+                    aria-label={gt("Choose editor")}
                     data-toolbar-control=""
                     size={isPanel ? "sm" : "icon-xs"}
                     variant={isPanel ? "ghost" : "outline"}
@@ -329,7 +333,9 @@ export const OpenInPicker = memo(function OpenInPicker({
               className={isPanel ? THREAD_DETAILS_PANEL_CHEVRON_CLASS : "size-4"}
             />
           </TooltipTrigger>
-          <TooltipPopup side="top">Choose editor</TooltipPopup>
+          <TooltipPopup side="top">
+            <T>Choose editor</T>
+          </TooltipPopup>
         </Tooltip>
         <MenuPopup
           align="end"

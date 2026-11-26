@@ -19,6 +19,8 @@ import type { makeThreadErrorSetter } from "../ChatView.logic";
 import { draftSendState } from "./chatViewSend";
 import type { useTimelineFollow } from "./useTimelineFollow";
 import type { useUsageLimitsPanel } from "./useUsageLimitsPanel";
+import { m } from "~/i18n/messages";
+import { msg } from "gt-react";
 
 interface ComposerResumeInput {
   readonly environmentId: EnvironmentId;
@@ -146,7 +148,7 @@ export function useComposerResume(input: ComposerResumeInput) {
         const error = squashAtomCommandFailure(result);
         setThreadError(
           threadId,
-          error instanceof Error ? error.message : "Could not resume thread.",
+          error instanceof Error ? error.message : m(msg("Could not resume thread.")),
         );
       }
     } else {

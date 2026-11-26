@@ -1,5 +1,4 @@
 import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabelsCopy";
-import { useMessages } from "gt-react";
 import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -434,6 +433,7 @@ import { ChatPaneHeaderControls } from "./chatPanes/ChatPaneHeaderControls";
 const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PROVIDER_MODELS: ServerProvider["models"] = [];
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
+import { useMessages, useGT } from "gt-react";
 
 const EMPTY_FEEDBACK_SUBMISSIONS: ReadonlyArray<CodexFeedbackSubmission> = [];
 const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
@@ -474,6 +474,7 @@ const DismissedFallbackWindowSchema = Schema.NullOr(Schema.String);
 const ignoreComposerFocus = () => {};
 
 export default function ChatView(props: ChatViewProps) {
+  const gt = useGT();
   const messages = useMessages();
   const {
     environmentId,
@@ -767,8 +768,10 @@ export default function ChatView(props: ChatViewProps) {
     if (!inserted) {
       toastManager.add({
         type: "warning",
-        title: "The composer is not ready",
-        description: "Try citing the selection after the connection or pending input is resolved.",
+        title: gt("The composer is not ready"),
+        description: gt(
+          "Try citing the selection after the connection or pending input is resolved.",
+        ),
       });
     }
     return inserted;
@@ -781,8 +784,8 @@ export default function ChatView(props: ChatViewProps) {
     if (!accepted) {
       toastManager.add({
         type: "warning",
-        title: "The composer is not ready",
-        description: "Try replying after the connection or pending input is resolved.",
+        title: gt("The composer is not ready"),
+        description: gt("Try replying after the connection or pending input is resolved."),
       });
     }
     return accepted;
@@ -1031,12 +1034,12 @@ export default function ChatView(props: ChatViewProps) {
     parentSubagentThreadRef !== null
       ? {
           threadId: parentSubagentThreadRef.threadId,
-          title: parentSubagentThread?.title ?? "Parent thread",
+          title: parentSubagentThread?.title ?? gt("Parent thread"),
         }
       : sideChatParentRef !== null
         ? {
             threadId: sideChatParentRef.threadId,
-            title: sideChatParent?.title ?? "Parent thread",
+            title: sideChatParent?.title ?? gt("Parent thread"),
             sideChat: true,
           }
         : delegatedFrom !== null && delegatedFromRef !== null
@@ -1646,7 +1649,7 @@ export default function ChatView(props: ChatViewProps) {
   const downloadFileAttachment = async (attachment: ChatFileAttachment) => {
     const connection = readPreparedConnection(environmentId);
     if (!connection) {
-      toastManager.add({ type: "error", title: "The environment is not connected." });
+      toastManager.add({ type: "error", title: gt("The environment is not connected.") });
       return;
     }
 
@@ -1665,7 +1668,7 @@ export default function ChatView(props: ChatViewProps) {
       toastManager.add({
         type: "error",
         title: "Could not download " + attachment.name,
-        description: error instanceof Error ? error.message : "The attachment is unavailable.",
+        description: error instanceof Error ? error.message : gt("The attachment is unavailable."),
       });
     }
   };
@@ -2015,7 +2018,7 @@ export default function ChatView(props: ChatViewProps) {
       const error = squashAtomCommandFailure(result);
       setThreadError(
         activeThread.id,
-        error instanceof Error ? error.message : "Failed to interrupt the current turn.",
+        error instanceof Error ? error.message : gt("Failed to interrupt the current turn."),
       );
     }
   };
@@ -2031,8 +2034,8 @@ export default function ChatView(props: ChatViewProps) {
     if (prompt !== null && !composer.insertTextAtEnd(prompt, { ensureLeadingBoundary: true })) {
       toastManager.add({
         type: "error",
-        title: "Unable to add to chat",
-        description: "The composer is busy; try again once it is ready.",
+        title: gt("Unable to add to chat"),
+        description: gt("The composer is busy; try again once it is ready."),
       });
       return;
     }
@@ -2042,7 +2045,7 @@ export default function ChatView(props: ChatViewProps) {
 
   const sendAppMessage = async (text: string) => {
     if (!isServerThread || activeThreadId === null) {
-      throw new Error("Messages from apps need a started thread.");
+      throw new Error(gt("Messages from apps need a started thread."));
     }
     await enqueueThreadOutboxTurns([
       {
@@ -3151,7 +3154,7 @@ export default function ChatView(props: ChatViewProps) {
 
   const onCompactContext = () => {
     if (compactDisabled) return;
-    void sendStandaloneCommand("/compact", "Failed to compact context.");
+    void sendStandaloneCommand("/compact", gt("Failed to compact context."));
   };
 
   const { onResume, isResuming } = useComposerResume({
@@ -3997,19 +4000,19 @@ export default function ChatView(props: ChatViewProps) {
                                   isRevertingCheckpoint={isRevertingCheckpoint}
                                   sendDisabledReason={
                                     !canQueueMessage
-                                      ? "This connection cannot change threads."
+                                      ? gt("This connection cannot change threads.")
                                       : queuedRunEdit.outbox.isEditing
                                         ? null
                                         : isEnvironmentChanging
-                                          ? "Preparing machine"
+                                          ? gt("Preparing machine")
                                           : isRevertingCheckpoint
-                                            ? "Rewinding conversation"
+                                            ? gt("Rewinding conversation")
                                             : feedbackUploading
-                                              ? "Sending feedback"
+                                              ? gt("Sending feedback")
                                               : threadDetailLoading && !activeEnvironmentUnavailable
-                                                ? "Messages loading"
+                                                ? gt("Messages loading")
                                                 : worktreeSetupBlocksSend
-                                                  ? "Preparing worktree"
+                                                  ? gt("Preparing worktree")
                                                   : projectCloneSendBlockReason
                                   }
                                   isPreparingWorktree={

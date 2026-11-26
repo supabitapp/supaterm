@@ -20,6 +20,7 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { toastManager } from "../ui/toast";
+import { T, useGT } from "gt-react";
 
 type SignIn =
   | { readonly phase: "starting" }
@@ -47,6 +48,7 @@ export function McpSignInAction({
   /** When the environment raised the notice, in epoch milliseconds. */
   readonly noticeAt: number;
 }) {
+  const gt = useGT();
   const formId = useId();
   const allowed = useAtomValue(threadEnvironment.mcpSignInStart.permissionAtom(environmentId));
   const signedIn = useAtomValue(
@@ -68,7 +70,7 @@ export function McpSignInAction({
   };
   const done = () => {
     close();
-    toastManager.add({ type: "success", title: `Signed in to ${server}` });
+    toastManager.add({ type: "success", title: gt("Signed in to {server}", { server }) });
   };
   const begin = async () => {
     const current = ++attempt.current;
@@ -104,17 +106,19 @@ export function McpSignInAction({
   return (
     <>
       {signedIn ? (
-        <span className="shrink-0 text-sm text-success-foreground">Signed in</span>
+        <span className="shrink-0 text-sm text-success-foreground">
+          <T>Signed in</T>
+        </span>
       ) : (
         <InlineButton
-          aria-label={`Sign in to ${server}`}
+          aria-label={gt("Sign in to {server}", { server })}
           onClick={(event) => {
             event.stopPropagation();
             void begin();
           }}
           onKeyDown={stopRowToggle}
         >
-          Sign in
+          <T>Sign in</T>
         </InlineButton>
       )}
       <Dialog
@@ -125,15 +129,19 @@ export function McpSignInAction({
       >
         <DialogPopup className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{`Sign in to ${server}`}</DialogTitle>
+            <DialogTitle>{gt("Sign in to {server}", { server })}</DialogTitle>
             <DialogDescription>
-              Approve access in your browser. It then opens a page that may not load: copy that
-              page's address and paste it here.
+              <T>
+                Approve access in your browser. It then opens a page that may not load: copy that
+                page's address and paste it here.
+              </T>
             </DialogDescription>
           </DialogHeader>
           <DialogPanel>
             {signIn?.phase === "starting" ? (
-              <p className="text-sm text-muted-foreground">Starting the sign-in…</p>
+              <p className="text-sm text-muted-foreground">
+                <T>Starting the sign-in…</T>
+              </p>
             ) : null}
             {url !== null ? (
               <form
@@ -151,15 +159,15 @@ export function McpSignInAction({
                     onClick={() => void ensureLocalApi().shell.openExternal(url)}
                   >
                     <ExternalLinkIcon aria-hidden />
-                    Open sign-in page
+                    <T>Open sign-in page</T>
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => copyToClipboard(url)}>
                     {isCopied ? <CheckIcon aria-hidden /> : <CopyIcon aria-hidden />}
-                    Copy link
+                    <T>Copy link</T>
                   </Button>
                 </div>
                 <label className="grid gap-1.5 text-sm">
-                  Address of the page your browser opened
+                  <T>Address of the page your browser opened</T>
                   <Input
                     // Browsers can hide `http://`, which the environment adds back.
                     inputMode="url"
@@ -181,10 +189,12 @@ export function McpSignInAction({
           </DialogPanel>
           <DialogFooter variant="bare">
             <Button variant="outline" onClick={close}>
-              Cancel
+              <T>Cancel</T>
             </Button>
             {url === null && signIn?.phase === "failed" ? (
-              <Button onClick={() => void begin()}>Try again</Button>
+              <Button onClick={() => void begin()}>
+                <T>Try again</T>
+              </Button>
             ) : (
               <Button
                 type="submit"
@@ -193,7 +203,7 @@ export function McpSignInAction({
                   url === null || signIn?.phase === "finishing" || callbackUrl.trim().length === 0
                 }
               >
-                Finish sign-in
+                <T>Finish sign-in</T>
               </Button>
             )}
           </DialogFooter>

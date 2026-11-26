@@ -1,5 +1,6 @@
 import type { ContextMenuItem } from "@supaterm/contracts";
 import type { SnoozePreset } from "@supaterm/client-runtime/state/thread-snooze";
+import { msg } from "gt-react";
 
 export type ThreadActionMenuId =
   | "find"
@@ -57,11 +58,11 @@ export function buildDraftActionMenuItems(options: {
       ],
     },
     ...(options.hasProject
-      ? [{ id: "project-settings" as const, label: "Project settings", icon: "settings" }]
+      ? [{ id: "project-settings" as const, label: msg("Project settings"), icon: "settings" }]
       : []),
     {
       id: "discard",
-      label: "Discard draft",
+      label: msg("Discard draft"),
       icon: "trash",
       destructive: true,
       separatorBefore: true,
@@ -122,7 +123,7 @@ export function buildThreadActionMenuItems(
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
     ...(state.canFind
-      ? [{ id: "find" as const, label: "Find in thread", icon: "text-search" }]
+      ? [{ id: "find" as const, label: msg("Find in thread"), icon: "text-search" }]
       : []),
     ...(state.canOpenBeside
       ? [{ id: "open-beside" as const, label: "Open to the side", icon: "columns-2" }]
@@ -137,13 +138,13 @@ export function buildThreadActionMenuItems(
         ]
       : []),
     state.isPinned
-      ? { id: "unpin" as const, label: "Unpin thread", icon: "pin-off" }
-      : { id: "pin" as const, label: "Pin thread", icon: "pin" },
+      ? { id: "unpin" as const, label: msg("Unpin thread"), icon: "pin-off" }
+      : { id: "pin" as const, label: msg("Pin thread"), icon: "pin" },
     state.isDone
-      ? { id: "reopen" as const, label: "Reopen thread", icon: "circle-check" }
+      ? { id: "reopen" as const, label: msg("Reopen thread"), icon: "circle-check" }
       : { id: "mark-done" as const, label: "Mark thread as Done", icon: "circle-check" },
     state.isSnoozed
-      ? { id: "unsnooze" as const, label: "Wake thread", icon: "clock" }
+      ? { id: "unsnooze" as const, label: msg("Wake thread"), icon: "clock" }
       : {
           id: "snooze" as const,
           label: "Snooze",
@@ -157,27 +158,27 @@ export function buildThreadActionMenuItems(
             })),
             {
               id: "snooze:custom" as const,
-              label: "Custom…",
+              label: msg("Custom…"),
               separatorBefore: state.snoozePresets.length > 0,
             },
           ],
         },
-    { id: "rename", label: "Rename thread", icon: "pencil", separatorBefore: true },
+    { id: "rename", label: msg("Rename thread"), icon: "pencil", separatorBefore: true },
     {
       id: "regenerate-title",
-      label: state.isRegeneratingTitle ? "Regenerating…" : "Regenerate title",
+      label: state.isRegeneratingTitle ? msg("Regenerating…") : msg("Regenerate title"),
       icon: "refresh-cw",
       disabled: state.isRegeneratingTitle,
     },
     ...(state.hasCompletedRun && !state.isRunning
-      ? [{ id: "mark-unread" as const, label: "Mark unread", icon: "mail-open" }]
+      ? [{ id: "mark-unread" as const, label: msg("Mark unread"), icon: "mail-open" }]
       : []),
     ...(state.projectFilter
       ? [
           {
             id: "filter-by-project" as const,
             label: state.projectFilter.isActive
-              ? "Show all projects"
+              ? msg("Show all projects")
               : `Filter by ${state.projectFilter.label}`,
             icon: "folder-tree",
           },
@@ -187,7 +188,7 @@ export function buildThreadActionMenuItems(
       ? [
           {
             id: "turn-into-project" as const,
-            label: "Turn into project",
+            label: msg("Turn into project"),
             icon: "folder-plus",
             disabled: state.isRunning,
           },
@@ -204,7 +205,7 @@ export function buildThreadActionMenuItems(
       children: [
         {
           id: "auto-mark-done:enabled",
-          label: "Follow settings",
+          label: msg("Follow settings"),
           checked: state.autoMarkDoneEnabled,
         },
         { id: "auto-mark-done:disabled", label: "Never", checked: !state.autoMarkDoneEnabled },
@@ -221,10 +222,10 @@ export function buildThreadActionMenuItems(
           ? [{ id: "copy-branch" as const, label: "Branch", icon: "git-branch" }]
           : []),
         { id: "copy-thread", label: "Thread", icon: "message-square" },
-        { id: "copy-thread-id", label: "Thread ID", icon: "hash" },
+        { id: "copy-thread-id", label: msg("Thread ID"), icon: "hash" },
       ],
     },
-    { id: "project-settings", label: "Project settings", icon: "settings" },
+    { id: "project-settings", label: msg("Project settings"), icon: "settings" },
     ...(state.projectPinned == null
       ? []
       : [
@@ -236,7 +237,7 @@ export function buildThreadActionMenuItems(
     // sits beside Delete without borrowing its destructive styling.
     {
       id: "archive",
-      label: "Archive thread",
+      label: msg("Archive thread"),
       icon: "archive",
       disabled: state.isRunning,
       separatorBefore: true,

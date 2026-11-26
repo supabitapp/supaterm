@@ -32,11 +32,13 @@ import { crossesReleaseTrack } from "@supaterm/shared/cliRelease";
 import { Button } from "./ui/button";
 import { toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { msg, T, useGT } from "gt-react";
+import { m } from "../i18n/messages";
 
 const UPDATE_STAGE_LABELS: Record<ServerUpdateStage, string> = {
-  downloading: "Downloading…",
-  installing: "Downloading…",
-  resuming: "Restarting…",
+  downloading: msg("Downloading…"),
+  installing: msg("Downloading…"),
+  resuming: msg("Restarting…"),
 };
 const pendingUpdateEnvironmentIds = new Set<EnvironmentId>();
 
@@ -68,7 +70,7 @@ function CrossTrackNote() {
 }
 
 function updateFailureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Server update failed.";
+  return error instanceof Error ? error.message : m(msg("Server update failed."));
 }
 
 export interface ServerUpdateTarget {
@@ -126,7 +128,7 @@ export function useServerUpdate() {
       if (!quiet) {
         toastManager.add({
           type: "error",
-          title: `${serverLabel} update failed`,
+          title: m(msg("{serverLabel} update failed", { serverLabel })),
           description: message,
         });
       }
@@ -140,8 +142,16 @@ export function useServerUpdate() {
           "upToDate" in result.value && result.value.upToDate
             ? `Desktop app is current on its release feed at ${result.value.targetVersion}.`
             : selfUpdate === "desktop-managed"
-              ? `Desktop app relaunched on ${result.value.targetVersion}.`
-              : `Reconnected on supaterm@${result.value.targetVersion}.`,
+              ? m(
+                  msg("Desktop app relaunched on {version}.", {
+                    version: result.value.targetVersion,
+                  }),
+                )
+              : m(
+                  msg("Reconnected on supaterm@{version}.", {
+                    version: result.value.targetVersion,
+                  }),
+                ),
       });
     }
     return { status: "updated" };
@@ -248,6 +258,7 @@ export function ServerUpdateAction({
   className,
   appearance = "button",
 }: ServerUpdateTarget & UpdateButtonProps) {
+  const gt = useGT();
   const isDesktopAppUpdate = selfUpdate === "desktop-managed";
   const serverVersion = useServerConfigs().get(environmentId)?.environment.serverVersion;
   const sessionStateAtom = environmentSession.sessionStateAtom(environmentId);
@@ -260,16 +271,22 @@ export function ServerUpdateAction({
     onCopy: ({ command }) => {
       toastManager.add({
         type: "success",
-        title: updatesInstall ? "Update command copied" : "Relaunch command copied",
+        title: updatesInstall ? gt("Update command copied") : gt("Relaunch command copied"),
         description: updatesInstall
-          ? `Run \`${command}\` on ${serverLabel}, then restart supaterm with your usual options.`
-          : `Stop supaterm on ${serverLabel}, then relaunch with \`${command}\` using the same subcommand and options. This does not update an installed supaterm command.`,
+          ? gt("Run `{command}` on {serverLabel}, then restart supaterm with your usual options.", {
+              command,
+              serverLabel,
+            })
+          : gt(
+              "Stop supaterm on {serverLabel}, then relaunch with `{command}` using the same subcommand and options. This does not update an installed supaterm command.",
+              { serverLabel, command },
+            ),
       });
     },
     onError: (error) => {
       toastManager.add({
         type: "error",
-        title: "Could not copy update command",
+        title: gt("Could not copy update command"),
         description: error.message,
       });
     },
@@ -305,7 +322,7 @@ export function ServerUpdateAction({
   if (selfUpdate === "desktop-managed" && !desktopAppUpdate) {
     return (
       <span className="text-muted-foreground text-xs">
-        Update the desktop app on that machine to update this server.
+        <T>Update the desktop app on that machine to update this server.</T>
       </span>
     );
   }
@@ -390,7 +407,7 @@ export function OutdatedServerUpdateAction({
       if (isAtomCommandInterrupted(result)) return;
       toastManager.add({
         type: "error",
-        title: `${serverLabel} update failed`,
+        title: m(msg("{serverLabel} update failed", { serverLabel })),
         description: updateFailureMessage(squashAtomCommandFailure(result)),
       });
       return;
@@ -401,7 +418,7 @@ export function OutdatedServerUpdateAction({
       description:
         "upToDate" in result.value && result.value.upToDate
           ? `Already current on its release feed at ${result.value.targetVersion}.`
-          : `Reconnected on supaterm@${result.value.targetVersion}.`,
+          : m(msg("Reconnected on supaterm@{version}.", { version: result.value.targetVersion })),
     });
   };
   if (fromVersion !== undefined && crossesReleaseTrack(fromVersion, targetVersion)) {

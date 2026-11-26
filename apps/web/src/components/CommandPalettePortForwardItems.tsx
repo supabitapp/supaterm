@@ -30,6 +30,7 @@ import {
   type CommandPaletteSubmenuItem,
 } from "./CommandPalette.logic";
 import { toastManager } from "./ui/toast";
+import { useGT } from "gt-react";
 
 /** Prefix of this submenu's group values; the palette rebuilds them live while it is open. */
 export const PORT_FORWARD_GROUP_PREFIX = "port-forwards:";
@@ -49,6 +50,7 @@ export function useCommandPalettePortForwardItem(input: {
   } | null;
   readonly query: string;
 }): CommandPaletteSubmenuItem | null {
+  const gt = useGT();
   const forwards = usePortForwards();
   const { environments } = useEnvironments();
   const connected = environments.filter(
@@ -82,8 +84,10 @@ export function useCommandPalettePortForwardItem(input: {
     const forward = await forwardPort(environmentId, remotePort);
     toastManager.add({
       type: "success",
-      title: `Forwarded port ${remotePort}`,
-      description: `Apps on this machine reach it at localhost:${forward.localPort}.`,
+      title: gt("Forwarded port {port}", { port: remotePort }),
+      description: gt("Apps on this machine reach it at localhost:{port}.", {
+        port: forward.localPort,
+      }),
     });
   };
 
@@ -94,7 +98,7 @@ export function useCommandPalettePortForwardItem(input: {
       kind: "submenu",
       value: `port-forward:${forward.environmentId}:${forward.remotePort}`,
       title: address,
-      description: `Port ${forward.remotePort} on ${environment}`,
+      description: gt("Port {port} on {environment}", { port: forward.remotePort, environment }),
       searchTerms: [address, String(forward.remotePort), environment, "forwarded port"],
       icon: <CableIcon className={ITEM_ICON_CLASS} />,
       addonIcon: <CableIcon className={ADDON_ICON_CLASS} />,
@@ -106,7 +110,7 @@ export function useCommandPalettePortForwardItem(input: {
             {
               kind: "action",
               value: "port-forward:open",
-              title: "Open in browser",
+              title: gt("Open in browser"),
               searchTerms: ["open", "browser"],
               icon: <ExternalLinkIcon className={ITEM_ICON_CLASS} />,
               run: async () => {
@@ -116,7 +120,7 @@ export function useCommandPalettePortForwardItem(input: {
             {
               kind: "action",
               value: "port-forward:copy",
-              title: "Copy address",
+              title: gt("Copy address"),
               searchTerms: ["copy", "address", "url"],
               icon: <CopyIcon className={ITEM_ICON_CLASS} />,
               run: async () => {
@@ -126,7 +130,7 @@ export function useCommandPalettePortForwardItem(input: {
             {
               kind: "action",
               value: "port-forward:stop",
-              title: "Stop forwarding",
+              title: gt("Stop forwarding"),
               searchTerms: ["stop", "remove", "close"],
               icon: <SquareIcon className={ITEM_ICON_CLASS} />,
               run: () => stopPortForward(forward.environmentId, forward.remotePort),
@@ -145,7 +149,7 @@ export function useCommandPalettePortForwardItem(input: {
     startItems.push({
       kind: "action",
       value: `port-forward:start:${environmentId}:${server.port}`,
-      title: `Forward localhost:${server.port}`,
+      title: gt("Forward localhost:{port}", { port: server.port }),
       description: [labelOf(environmentId), server.processName].filter(Boolean).join(" · "),
       searchTerms: [String(server.port), server.processName ?? "", "forward"],
       icon: <CableIcon className={ITEM_ICON_CLASS} />,
@@ -163,7 +167,10 @@ export function useCommandPalettePortForwardItem(input: {
       startItems.push({
         kind: "action",
         value: `port-forward:start:${environment.environmentId}:${typedPort}`,
-        title: `Forward port ${typedPort} from ${environment.label}`,
+        title: gt("Forward port {port} from {environment}", {
+          port: typedPort,
+          environment: environment.label,
+        }),
         searchTerms: [String(typedPort), "forward"],
         icon: <CableIcon className={ITEM_ICON_CLASS} />,
         run: () => start(environment.environmentId, typedPort),
@@ -175,7 +182,7 @@ export function useCommandPalettePortForwardItem(input: {
   if (forwards.length > 0) {
     groups.push({
       value: `${PORT_FORWARD_GROUP_PREFIX}forwarded`,
-      label: "Forwarded",
+      label: gt("Forwarded"),
       items: forwards.map(forwardedItem),
     });
   }
@@ -183,7 +190,7 @@ export function useCommandPalettePortForwardItem(input: {
     startItems.push({
       kind: "action",
       value: "port-forward:hint",
-      title: "Type a port number to forward it",
+      title: gt("Type a port number to forward it"),
       searchTerms: [],
       icon: <CableIcon className={ITEM_ICON_CLASS} />,
       disabled: true,
@@ -193,14 +200,14 @@ export function useCommandPalettePortForwardItem(input: {
   // Always present, so the open submenu keeps a group to be recognized by.
   groups.push({
     value: `${PORT_FORWARD_GROUP_PREFIX}start`,
-    label: startItems.length > 0 ? "Forward a port" : "",
+    label: startItems.length > 0 ? gt("Forward a port") : "",
     items: startItems,
   });
 
   return {
     kind: "submenu",
     value: "action:port-forwards",
-    title: "Forwarded ports",
+    title: gt("Forwarded ports"),
     searchTerms: ["forward port", "port forwarding", "forwarded ports", "ports", "tunnel"],
     icon: <CableIcon className={ITEM_ICON_CLASS} />,
     addonIcon: <CableIcon className={ADDON_ICON_CLASS} />,

@@ -3,6 +3,7 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { usePreparingComposerImages } from "./preparingComposerImages";
+import { msg } from "gt-react";
 
 const HELD_COMPOSER_SEND_BANNER_ID = "held-composer-send";
 
@@ -27,7 +28,7 @@ export function heldComposerSendBannerItem(input: {
     variant: "info",
     icon: <Spinner size="xs" aria-hidden="true" />,
     title: <HeldComposerSendStatus draftTarget={input.draftTarget} />,
-    description: "Edit or press Esc to cancel",
+    description: msg("Edit or press Esc to cancel"),
     actions: (
       <Button
         size="xs"
@@ -35,7 +36,7 @@ export function heldComposerSendBannerItem(input: {
         onPointerDown={(event) => event.preventDefault()}
         onClick={input.onCancel}
       >
-        Cancel
+        {msg("Cancel")}
       </Button>
     ),
   };

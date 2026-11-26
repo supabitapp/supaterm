@@ -4,6 +4,7 @@ import { ExpandedImageDialog } from "~/components/chat/ExpandedImageDialog";
 import { observeResize } from "~/lib/observeResize";
 import { AttachmentImage } from "../media/AttachmentImage";
 import { FileSurfaceAction, FileSurfaceFailure } from "./fileSurfaceChrome";
+import { useGT } from "gt-react";
 
 export default function PreviewImageContent(props: {
   readonly src: string;
@@ -11,6 +12,7 @@ export default function PreviewImageContent(props: {
   readonly mimeType?: string;
   readonly onError?: () => void;
 }) {
+  const gt = useGT();
   const [failed, setFailed] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [natural, setNatural] = useState({ width: 0, height: 0 });
@@ -42,18 +44,18 @@ export default function PreviewImageContent(props: {
     : 1;
   const scale = zoom ?? fit;
   const changeZoom = (factor: number) => setZoom(Math.max(0.05, Math.min(8, scale * factor)));
-  if (failed) return <FileSurfaceFailure message="Unable to load image." />;
+  if (failed) return <FileSurfaceFailure message={gt("Unable to load image.")} />;
   return (
     <>
       <div className="flex min-h-10 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 px-3 py-1 text-xs text-muted-foreground">
         <span className="tabular-nums">
           {natural.width
             ? `${natural.width.toLocaleString()} × ${natural.height.toLocaleString()}`
-            : "Loading image…"}
+            : gt("Loading image…")}
         </span>
         <div className="flex items-center gap-1">
           <FileSurfaceAction
-            label="Zoom out"
+            label={gt("Zoom out")}
             disabled={!natural.width || scale <= 0.05}
             onPress={() => changeZoom(1 / 1.25)}
           >
@@ -61,21 +63,21 @@ export default function PreviewImageContent(props: {
           </FileSurfaceAction>
           <span className="min-w-10 text-center tabular-nums">{Math.round(scale * 100)}%</span>
           <FileSurfaceAction
-            label="Zoom in"
+            label={gt("Zoom in")}
             disabled={!natural.width || scale >= 8}
             onPress={() => changeZoom(1.25)}
           >
             <PlusIcon className="size-3.5" />
           </FileSurfaceAction>
           <FileSurfaceAction
-            label="Fit image"
+            label={gt("Fit image")}
             pressed={zoom === null}
             onPress={() => setZoom(null)}
           >
             <ShrinkIcon className="size-3.5" />
           </FileSurfaceAction>
           <FileSurfaceAction
-            label="Actual image size"
+            label={gt("Actual image size")}
             pressed={zoom === 1}
             onPress={() => setZoom(1)}
           >
@@ -93,7 +95,7 @@ export default function PreviewImageContent(props: {
         >
           <button
             type="button"
-            aria-label={`Zoom ${props.name}`}
+            aria-label={gt("Zoom {name}", { name: props.name })}
             className="shrink-0 cursor-zoom-in"
             onClick={() => setExpanded(true)}
           >

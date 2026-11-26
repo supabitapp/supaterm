@@ -34,6 +34,7 @@ import { Skeleton } from "../ui/skeleton";
 import { SecretInput } from "./SecretInput";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import { T, useGT } from "gt-react";
 
 type TrackerIcon = ElementType<{ className?: string }>;
 
@@ -48,6 +49,7 @@ const TRACKER_ICONS: Partial<Record<string, TrackerIcon>> = {
  * host's. Generic over the trackers the server reports; nothing here names Linear but its icon.
  */
 export function IssueTrackerSettings({ environmentId }: { readonly environmentId: EnvironmentId }) {
+  const gt = useGT();
   const query = useEnvironmentQuery(
     issueTrackerEnvironment.connections({ environmentId, input: {} }),
   );
@@ -57,7 +59,7 @@ export function IssueTrackerSettings({ environmentId }: { readonly environmentId
   const accounts = query.data?.accounts ?? [];
   if (query.data === null && query.isPending) {
     return (
-      <SettingsSection id={searchableSetting("issue-trackers").id} title="Issue trackers">
+      <SettingsSection id={searchableSetting("issue-trackers").id} title={gt("Issue trackers")}>
         <div className="grid gap-3 px-4 py-3">
           <Skeleton className="h-4 w-40" />
           <Skeleton className="h-8 w-full" />
@@ -67,13 +69,13 @@ export function IssueTrackerSettings({ environmentId }: { readonly environmentId
   }
   if (query.data === null && query.error !== null) {
     return (
-      <SettingsSection id={searchableSetting("issue-trackers").id} title="Issue trackers">
+      <SettingsSection id={searchableSetting("issue-trackers").id} title={gt("Issue trackers")}>
         <SettingsRow
-          title="Could not load issue trackers"
+          title={gt("Could not load issue trackers")}
           description={query.error}
           control={
             <Button size="xs" variant="outline" onClick={query.refresh}>
-              Retry
+              <T>Retry</T>
             </Button>
           }
         />
@@ -82,7 +84,7 @@ export function IssueTrackerSettings({ environmentId }: { readonly environmentId
   }
   if (trackers.length === 0) return null;
   return (
-    <SettingsSection id={searchableSetting("issue-trackers").id} title="Issue trackers">
+    <SettingsSection id={searchableSetting("issue-trackers").id} title={gt("Issue trackers")}>
       {trackers.flatMap((tracker) => {
         const added = accounts.filter((account) => account.tracker === tracker.tracker);
         // Another account is added from the first one's row, which stays while any is connected.
@@ -119,6 +121,7 @@ function TrackerRow({
   readonly refreshFailed: boolean;
   readonly canAddAccount: boolean;
 }) {
+  const gt = useGT();
   const Icon = TRACKER_ICONS[tracker.tracker];
   const canEdit = useAtomValue(issueTrackerEnvironment.connect.permissionAtom(environmentId));
   const connect = useAtomCommand(issueTrackerEnvironment.connect, {
@@ -140,7 +143,7 @@ function TrackerRow({
     setBusy(false);
     if (result._tag === "Success") return true;
     const error = squashAtomCommandFailure(result);
-    setFailure(error instanceof Error ? error.message : "The request failed.");
+    setFailure(error instanceof Error ? error.message : gt("The request failed."));
     return false;
   };
 
@@ -171,7 +174,7 @@ function TrackerRow({
             ) : null}
             {tracker.connected && tracker.account === null ? (
               <Badge variant="destructive" size="sm">
-                Credential rejected
+                <T>Credential rejected</T>
               </Badge>
             ) : null}
           </div>
@@ -182,7 +185,7 @@ function TrackerRow({
           variant="ghost-muted"
           onClick={() => setIsExpanded((open) => !open)}
           aria-expanded={isExpanded}
-          aria-label={`Toggle ${tracker.displayName} details`}
+          aria-label={gt("Toggle {tracker} details", { tracker: tracker.displayName })}
         >
           <ChevronDownIcon
             className={cn("size-3.5 transition-transform", isExpanded && "rotate-180")}
@@ -199,7 +202,7 @@ function TrackerRow({
                 title={<label htmlFor={inputId}>{tracker.credential.label}</label>}
                 description={
                   <>
-                    Stored on the server.
+                    <T>Stored on the server.</T>
                     {tracker.credential.helpUrl ? (
                       <>
                         {" "}
@@ -212,7 +215,7 @@ function TrackerRow({
                             />
                           }
                         >
-                          Create one
+                          <T>Create one</T>
                           <ExternalLinkIcon aria-hidden className="size-3" />
                         </InlineButton>
                       </>
@@ -238,7 +241,7 @@ function TrackerRow({
                         size="icon-sm"
                         variant="ghost-destructive"
                         onClick={() => void submit(null)}
-                        aria-label={`Disconnect ${tracker.displayName}`}
+                        aria-label={gt("Disconnect {tracker}", { tracker: tracker.displayName })}
                       >
                         <XIcon className="size-3.5" />
                       </Button>
@@ -280,6 +283,7 @@ function ProjectBindings({
   readonly refreshing: boolean;
   readonly refreshFailed: boolean;
 }) {
+  const gt = useGT();
   const projects = useProjects().filter((project) => project.environmentId === environmentId);
   const bind = useAtomCommand(issueTrackerEnvironment.bindProject, {
     label: `bind project to ${tracker.displayName}`,
@@ -313,7 +317,7 @@ function ProjectBindings({
   return (
     <>
       <SettingsRow
-        title="Projects"
+        title={gt("Projects")}
         description={`Pick one or more ${tracker.displayName} ${tracker.scopeNoun}s for each project. Their issues list beside the repository's own, and agents file new issues in the first one unless asked for another.`}
       />
       {projects.map((project) => {
@@ -338,7 +342,7 @@ function ProjectBindings({
                 >
                   <SelectValue>
                     {value.length === 0
-                      ? "Not bound"
+                      ? gt("Not bound")
                       : value
                           .map(
                             (key) => tracker.scopes.find((scope) => scope.key === key)?.name ?? key,
@@ -379,17 +383,20 @@ function AddAccountRow({
   readonly tracker: IssueTrackerConnection;
   readonly onAdd: (token: string) => Promise<boolean>;
 }) {
+  const gt = useGT();
   const [adding, setAdding] = useState(false);
   const inputId = `issue-tracker-${tracker.tracker}-add-account`;
   if (!adding) {
     return (
       <SettingsRow
-        title="Another account"
-        description={`Connect a second ${tracker.displayName} workspace or user.`}
+        title={gt("Another account")}
+        description={gt("Connect a second {tracker} workspace or user.", {
+          tracker: tracker.displayName,
+        })}
         control={
           <Button type="button" size="xs" variant="outline" onClick={() => setAdding(true)}>
             <PlusIcon className="size-3.5" />
-            Add account
+            <T>Add account</T>
           </Button>
         }
       />
@@ -398,7 +405,7 @@ function AddAccountRow({
   return (
     <SettingsRow
       title={<label htmlFor={inputId}>{tracker.credential.label}</label>}
-      description={`For the new ${tracker.displayName} account.`}
+      description={gt("For the new {tracker} account.", { tracker: tracker.displayName })}
       control={
         <SecretInput
           id={inputId}

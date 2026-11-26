@@ -4,10 +4,12 @@ import {
 } from "@supaterm/shared/composerContextClipboard";
 
 import { readMediaPng } from "../media/mediaContent";
+import { msg } from "gt-react";
+import { m } from "../../i18n/messages";
 
 export async function copySnapshot(src: string, text: string, fragment: string): Promise<void> {
   if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-    throw new Error("Snapshot copying requires a secure browser connection.");
+    throw new Error(m(msg("Snapshot copying requires a secure browser connection.")));
   }
   const formats = {
     "image/png": readMediaPng(src),

@@ -3,6 +3,8 @@ import { splitFilePathPosition } from "@supaterm/shared/fileLinks";
 
 import type { MarkdownFileLinkMeta } from "../../markdown-links";
 import type { RemoteOpenMode } from "../../remoteOpen";
+import { msg } from "gt-react";
+import { m } from "../../i18n/messages";
 
 export function canUseMarkdownFileShellActions(
   environmentId: EnvironmentId | null,
@@ -31,15 +33,20 @@ export function markdownFileCopyMenuItems({
   workspaceRelativePath,
 }: Pick<MarkdownFileLinkMeta, "targetPath" | "workspaceRelativePath">) {
   const items = [
-    { id: "copy-full", label: "Copy full path", value: targetPath, title: "Full path" },
+    {
+      id: "copy-full",
+      label: m(msg("Copy full path")),
+      value: targetPath,
+      title: m(msg("Full path")),
+    },
   ];
   if (workspaceRelativePath !== null) {
     const position = targetPath.slice(splitFilePathPosition(targetPath).path.length);
     items.unshift({
       id: "copy-relative",
-      label: "Copy relative path",
+      label: m(msg("Copy relative path")),
       value: `${workspaceRelativePath}${position}`,
-      title: "Relative path",
+      title: m(msg("Relative path")),
     });
   }
   return items;

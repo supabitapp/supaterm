@@ -1,5 +1,4 @@
 import { limitsNotice } from "@supaterm/shared/usageLimitsCopy";
-import { useMessages } from "gt-react";
 import type { EnvironmentId, UsageLimitsReport } from "@supaterm/contracts";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
 import { GaugeIcon } from "@supaterm/icons";
@@ -12,6 +11,7 @@ import { RedactedSensitiveText } from "../settings/RedactedSensitiveText";
 import { LimitWindows, ResetCredits } from "../usage/UsageLimits";
 import { ComposerBanner } from "./ComposerBanner";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+import { T, useGT, useMessages, msg } from "gt-react";
 
 function accountLabel(account: UsageLimitsReport["accounts"][number]): string {
   const driver = providerClients.get(account.driver)?.label ?? String(account.driver);
@@ -24,6 +24,7 @@ function accountLabel(account: UsageLimitsReport["accounts"][number]): string {
 }
 
 function AccountSummary({ account }: { readonly account: UsageLimitsReport["accounts"][number] }) {
+  const gt = useGT();
   const label = accountLabel(account);
   return (
     <>
@@ -31,9 +32,9 @@ function AccountSummary({ account }: { readonly account: UsageLimitsReport["acco
         <RedactedSensitiveText
           key={label}
           value={label}
-          ariaLabel="Toggle account label visibility"
-          revealTooltip="Click to reveal account"
-          hideTooltip="Click to hide account"
+          ariaLabel={gt("Toggle account label visibility")}
+          revealTooltip={gt("Click to reveal account")}
+          hideTooltip={gt("Click to hide account")}
           className="max-w-full truncate align-bottom font-sans text-xs leading-normal"
         />
       ) : (
@@ -61,9 +62,9 @@ export function usageLimitsBannerItem(
     id,
     variant: "info",
     icon: <GaugeIcon />,
-    title: "Usage limits",
+    title: msg("Usage limits"),
     description: summary,
-    dismissLabel: "Dismiss usage limits",
+    dismissLabel: msg("Dismiss usage limits"),
     onDismiss,
     children: <UsageLimitsBannerBody report={report} environmentId={environmentId} />,
   };
@@ -97,7 +98,7 @@ export function modelFallbackBannerItem({
         Use {defaultModelName}
       </Button>
     ),
-    dismissLabel: "Dismiss fallback model notice",
+    dismissLabel: msg("Dismiss fallback model notice"),
     onDismiss,
   };
 }
@@ -142,7 +143,7 @@ function UsageLimitsBannerBody({
                   className="self-start"
                   onClick={() => void ensureLocalApi().shell.openExternal(externalUsage.url)}
                 >
-                  Manage usage
+                  <T>Manage usage</T>
                 </Button>
               ) : null}
               {account.limits.resetCredits ? (

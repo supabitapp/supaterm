@@ -25,6 +25,8 @@ import { Button } from "../ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { msg, T, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 /**
  * The threads an issue is linked to, and the control that links it to one more: the thread it is
@@ -41,6 +43,7 @@ export function IssueThreadLinks({
   issue: Pick<IssueDetail, "url" | "displayKey" | "title">;
   threadRef: ScopedThreadRef | null;
 }) {
+  const gt = useGT();
   const thread = useThreadShell(threadRef?.environmentId === environmentId ? threadRef : null);
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const listsThreads =
@@ -85,8 +88,11 @@ export function IssueThreadLinks({
     if (result._tag === "Failure") {
       toastManager.add({
         type: "error",
-        title: remove ? "Could not unlink the issue" : "Could not link the issue",
-        description: readableFailure(squashAtomCommandFailure(result), "The server refused it."),
+        title: remove ? m(msg("Could not unlink the issue")) : m(msg("Could not link the issue")),
+        description: readableFailure(
+          squashAtomCommandFailure(result),
+          m(msg("The server refused it.")),
+        ),
       });
       return;
     }
@@ -135,7 +141,7 @@ export function IssueThreadLinks({
               <Button
                 size="icon-xs"
                 variant="ghost"
-                aria-label={linkedHere ? "Unlink from thread" : "Link to thread"}
+                aria-label={linkedHere ? gt("Unlink from thread") : gt("Link to thread")}
                 aria-pressed={thread === null ? undefined : linkedHere}
                 disabled={pending}
                 onClick={() => {
@@ -152,18 +158,22 @@ export function IssueThreadLinks({
             )}
           </TooltipTrigger>
           <TooltipPopup>
-            {linkedHere
-              ? "Unlink from this thread"
-              : thread === null
-                ? "Link to thread"
-                : "Link to this thread"}
+            {linkedHere ? (
+              <T>Unlink from this thread</T>
+            ) : thread === null ? (
+              gt("Link to thread")
+            ) : (
+              <T>Link to this thread</T>
+            )}
           </TooltipPopup>
         </Tooltip>
       ) : null}
       {pickerOpen ? (
         <Dialog open onOpenChange={setPickerOpen}>
           <DialogPopup className="max-w-md" showCloseButton={false}>
-            <DialogTitle className="sr-only">Link issue to a thread</DialogTitle>
+            <DialogTitle className="sr-only">
+              <T>Link issue to a thread</T>
+            </DialogTitle>
             <ThreadLinkPicker
               environmentId={environmentId}
               pending={pending}

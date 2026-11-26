@@ -10,6 +10,7 @@ import { DeviceControlsRail } from "./DeviceControlsRail";
 import { DeviceStreamView } from "./DeviceStreamView";
 import { DeviceToolsPanel } from "./DeviceToolsPanel";
 import { useDeviceControls } from "./useDeviceControls";
+import { useGT } from "gt-react";
 
 const isDeviceScreenshotError = Schema.is(DeviceScreenshotError);
 
@@ -26,6 +27,7 @@ export function DeviceWorkspace(props: {
   onClose: () => void;
   onPowerOff: () => void;
 }) {
+  const gt = useGT();
   const [toolsOpen, setToolsOpen] = useState(false);
   const [axOverlay, setAxOverlay] = useState(false);
   const [screenshotPending, setScreenshotPending] = useState(false);
@@ -65,7 +67,7 @@ export function DeviceWorkspace(props: {
         if (isDeviceScreenshotError(cause) && cause.status === 401)
           refreshDeviceHubAccess(props.environmentId);
         setScreenshotError(
-          cause instanceof Error ? cause.message : "Screenshot capture failed. Try again.",
+          cause instanceof Error ? cause.message : gt("Screenshot capture failed. Try again."),
         );
       })
       .finally(() => {

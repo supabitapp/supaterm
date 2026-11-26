@@ -24,6 +24,8 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../termina
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { type CommandHandlers, registerCommands } from "./dispatcher";
+import { m } from "~/i18n/messages";
+import { msg } from "gt-react";
 
 const CHAT_ROUTE_ID = "/_chat";
 
@@ -125,8 +127,8 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
         toastManager.add(
           stackedThreadToast({
             type: "info",
-            title: "Preview is desktop-only",
-            description: "Open Supaterm in the desktop app to use the in-app preview.",
+            title: m(msg("Preview is desktop-only")),
+            description: m(msg("Open Supaterm in the desktop app to use the in-app preview.")),
           }),
         );
         return;

@@ -29,6 +29,7 @@ import type { HtmlRenderSelectionReport } from "./HtmlRenderFrame";
 import { usePresence } from "~/hooks/usePresence";
 import { EASE_DRAWER, EASE_IN, prefersReducedMotion } from "~/lib/motion";
 import { cn } from "~/lib/utils";
+import { useGT } from "gt-react";
 
 export interface AssistantSelectionToolbarHandle {
   /** An HTML render's page reported its text selection, cleared it, or asked for the action. */
@@ -82,6 +83,7 @@ export function AssistantSelectionToolbar({
     sourceAnchor: AssistantCitationSourceAnchor | undefined,
   ) => boolean;
 }) {
+  const gt = useGT();
   const [selection, setSelection] = useState<{
     citation: AssistantCitation;
     position: SelectionActionPoint;
@@ -394,7 +396,7 @@ export function AssistantSelectionToolbar({
       }}
     >
       <QuoteIcon aria-hidden="true" className="size-3.5" />
-      {tooLong ? "Shorten selection" : "Add annotation"}
+      {tooLong ? gt("Shorten selection") : "Add annotation"}
     </Button>,
     document.body,
   );

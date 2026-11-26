@@ -42,6 +42,8 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { THREAD_DETAILS_PANEL_ICON_CLASS } from "./threadDetailsPanelStyles";
+import { T, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const SERVER_PAGE_COUNT = 4;
 
@@ -58,6 +60,7 @@ export function ThreadServersPanel(props: ThreadServersPanelProps) {
 }
 
 function ThreadServersList(props: ThreadServersPanelProps) {
+  const gt = useGT();
   const servers = useThreadDiscoveredPorts(props);
   const canOpen = useEnvironmentScope(props.environmentId, AuthPreviewOperateScope);
   const canStop = useAtomValue(
@@ -107,7 +110,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
         ? await forwardPort(props.environmentId, server.port).then(
             (forward) => forwardedUrl(forward, server.url),
             (error: unknown) => {
-              reportFailure(`Could not forward port ${server.port}`, error);
+              reportFailure(gt("Could not forward port {port}", { port: server.port }), error);
               return null;
             },
           )
@@ -121,7 +124,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
         isLoopbackHost(new URL(url).hostname)
       ) {
         reportFailure(
-          "Unable to open in browser",
+          gt("Unable to open in browser"),
           new Error(
             `localhost:${server.port} runs on another machine, and port forwarding isn't available for it right now.`,
           ),
@@ -130,12 +133,12 @@ function ThreadServersList(props: ThreadServersPanelProps) {
       }
       await readLocalApi()
         ?.shell.openExternal(url)
-        .catch((error: unknown) => reportFailure("Unable to open in browser", error));
+        .catch((error: unknown) => reportFailure(gt("Unable to open in browser"), error));
       return;
     }
     const result = await openDiscoveredPort({ threadRef, port: server, openPreview });
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      reportFailure("Unable to open preview", squashAtomCommandFailure(result));
+      reportFailure(gt("Unable to open preview"), squashAtomCommandFailure(result));
     }
   };
 
@@ -148,7 +151,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
     });
     setStoppingKey(null);
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      reportFailure("Could not stop server", squashAtomCommandFailure(result));
+      reportFailure(gt("Could not stop server"), squashAtomCommandFailure(result));
     }
   };
 
@@ -159,12 +162,17 @@ function ThreadServersList(props: ThreadServersPanelProps) {
       forwarded
         ? stopPortForward(props.environmentId, server.port)
         : forwardPort(props.environmentId, server.port)
-    ).catch((error: unknown) => reportFailure(`Could not forward port ${server.port}`, error));
+    ).catch((error: unknown) =>
+      reportFailure(gt("Could not forward port {port}", { port: server.port }), error),
+    );
     setForwardingPort(null);
   };
 
   return (
-    <ThreadDetailsSection headingId="thread-details-servers-heading" title="Servers">
+    <ThreadDetailsSection
+      headingId="thread-details-servers-heading"
+      title={gt("Servers", { $context: "thread details section: running dev servers" })}
+    >
       <ul className="m-0 list-none p-0">
         {servers.slice(0, visibleCount).map((server, index) => {
           const key = serverKey(server);
@@ -240,8 +248,10 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                             aria-pressed={forward !== undefined}
                             aria-label={
                               forward
-                                ? `Stop forwarding localhost:${server.port}`
-                                : `Forward localhost:${server.port} to this machine`
+                                ? gt("Stop forwarding localhost:{port}", { port: server.port })
+                                : gt("Forward localhost:{port} to this machine", {
+                                    port: server.port,
+                                  })
                             }
                             disabled={forwardingPort !== null}
                             onClick={() => void toggleForward(server, forward !== undefined)}
@@ -273,7 +283,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                             variant="ghost"
                             part="icon"
                             tone="destructive"
-                            aria-label={`Stop localhost:${server.port}`}
+                            aria-label={gt("Stop localhost:{port}", { port: server.port })}
                             disabled={stoppingKey !== null}
                             onClick={() => void stop(server)}
                           />
@@ -285,7 +295,9 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                           <SquareIcon weight="fill" aria-hidden className="size-3" />
                         )}
                       </TooltipTrigger>
-                      <TooltipPopup side="left">Stop server</TooltipPopup>
+                      <TooltipPopup side="left">
+                        <T>Stop server</T>
+                      </TooltipPopup>
                     </Tooltip>
                   ) : null}
                 </div>

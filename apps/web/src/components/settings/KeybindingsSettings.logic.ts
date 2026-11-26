@@ -18,6 +18,7 @@ import {
 import { formatShortcutLabel, shortcutForContext, shortcutKeyFromEvent } from "../../keybindings";
 import { isMacPlatform } from "../../lib/utils";
 import { METRIC_OPTIONS, WINDOW_OPTIONS } from "../usage/usageShortcuts";
+import { msg } from "gt-react";
 
 // Rank every usage command; mixing rank and alphabetical comparisons makes order input-dependent.
 const usageCommandOrder = new Map<KeybindingCommand, number>(
@@ -112,11 +113,11 @@ export function whenAstToExpression(node: KeybindingWhenNode | undefined): strin
 }
 
 export function whenNodeRemoveLabel(node: KeybindingWhenNode, depth: number): string {
-  if (depth === 0) return "Clear all conditions";
+  if (depth === 0) return msg("Clear all conditions");
   if (node.type === "identifier" || (node.type === "not" && node.node.type === "identifier")) {
-    return "Remove condition";
+    return msg("Remove condition");
   }
-  return "Remove group and its conditions";
+  return msg("Remove group and its conditions");
 }
 
 function wrapWhenExpression(node: KeybindingWhenNode): string {
@@ -240,20 +241,20 @@ export interface KeybindingGroup {
 const KEYBINDING_GROUPS = [
   {
     id: "navigation",
-    title: "Navigation",
+    title: msg("Navigation"),
     prefixes: ["sidebar", "rightPanel", "commandPalette", "filePicker", "projectSearch", "editor"],
   },
-  { id: "threads", title: "Threads", prefixes: ["thread", "chat", "pullRequest"] },
+  { id: "threads", title: msg("Threads"), prefixes: ["thread", "chat", "pullRequest"] },
   { id: "panes", title: "Chat panes", prefixes: ["pane"] },
   {
     id: "composer",
-    title: "Composer",
+    title: msg("Composer"),
     prefixes: ["composer", "modelPicker", "projectPicker", "hostPicker", "branchPicker"],
   },
-  { id: "terminal", title: "Terminal", prefixes: ["terminal"] },
+  { id: "terminal", title: msg("Terminal"), prefixes: ["terminal"] },
   { id: "preview", title: "Preview & diff", prefixes: ["preview", "diff"] },
-  { id: "appearance", title: "Appearance", prefixes: ["theme", "appearance", "themeEditor"] },
-  { id: "scripts", title: "Project scripts", prefixes: ["script"] },
+  { id: "appearance", title: msg("Appearance"), prefixes: ["theme", "appearance", "themeEditor"] },
+  { id: "scripts", title: msg("Project scripts"), prefixes: ["script"] },
 ] as const;
 const OTHER_KEYBINDING_GROUP = { id: "other", title: "Other" } as const;
 
@@ -429,14 +430,14 @@ export function buildKeybindingCommandOptions(
 }
 
 export function commandLabel(command: KeybindingCommand): string {
-  if (command === "workspace.focusNext") return "Focus Next Workspace Area";
-  if (command === "workspace.focusPrevious") return "Focus Previous Workspace Area";
-  if (command === "composer.sendAlternate") return "Composer: Opposite Queue or Steer Action";
-  if (command === "composer.sendBackground") return "Composer: Start in Background";
-  if (command === "composer.sendAndNewThread") return "Composer: Send and Start New Thread";
-  if (command === "thread.steerQueuedMessage") return "Queue: Send First Queued Message";
-  if (command === "thread.editQueuedMessage") return "Queue: Edit Last Queued Message";
-  if (command === "thread.copyReference") return "Pull Request: Copy Link or Thread";
+  if (command === "workspace.focusNext") return msg("Focus Next Workspace Area");
+  if (command === "workspace.focusPrevious") return msg("Focus Previous Workspace Area");
+  if (command === "composer.sendAlternate") return msg("Composer: Opposite Queue or Steer Action");
+  if (command === "composer.sendBackground") return msg("Composer: Start in Background");
+  if (command === "composer.sendAndNewThread") return msg("Composer: Send and Start New Thread");
+  if (command === "thread.steerQueuedMessage") return msg("Queue: Send First Queued Message");
+  if (command === "thread.editQueuedMessage") return msg("Queue: Edit Last Queued Message");
+  if (command === "thread.copyReference") return msg("Pull Request: Copy Link or Thread");
   const usageMetric = METRIC_OPTIONS.find((option) => option.command === command);
   if (usageMetric) return `Usage: ${usageMetric.label}`;
   const usagePeriod = WINDOW_OPTIONS.find((option) => option.command === command);
@@ -444,8 +445,8 @@ export function commandLabel(command: KeybindingCommand): string {
   if (command === "view.reopenClosed") return "Reopen Closed Tab or Pane";
   if (command.startsWith("pane.focus."))
     return `Pane: Focus Pane ${command.slice("pane.focus.".length)}`;
-  if (command === "preview.focusUrl") return "Preview: Focus URL";
-  if (command === "preview.find") return "Preview: Find on Page";
+  if (command === "preview.focusUrl") return msg("Preview: Focus URL");
+  if (command === "preview.find") return msg("Preview: Find on Page");
   const raw = String(command);
   if (raw.startsWith("script.") && raw.endsWith(".run")) {
     return `Run Script: ${titleCaseCommandSegment(raw.slice("script.".length, -".run".length))}`;

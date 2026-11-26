@@ -18,6 +18,7 @@ import {
   useScopedSettingsMixed,
   useUpdateScopedSettings,
 } from "./useScopedSettings";
+import { useGT } from "gt-react";
 
 const MODES = {
   static: "Static prefix",
@@ -39,6 +40,7 @@ const DEFAULT_CHOICE = branchNamingChoiceOf(
 );
 
 export function BranchNamingSettings() {
+  const gt = useGT();
   const settings = useScopedSettings();
   const { targets } = useSettingsScope();
   const scopeKey = targets.map((target) => `${target.environmentId}:${target.projectId}`).join(",");
@@ -77,7 +79,7 @@ export function BranchNamingSettings() {
               }
             }}
           >
-            <SelectTrigger size="sm" aria-label="Worktree branch naming">
+            <SelectTrigger size="sm" aria-label={gt("Worktree branch naming")}>
               <SelectValue>
                 {(value: BranchNamingChoice | null) => (value === null ? "Mixed" : MODES[value])}
               </SelectValue>
@@ -96,7 +98,7 @@ export function BranchNamingSettings() {
         <SettingsRow
           serverScoped
           settingKeys={["branchNamePrefix"]}
-          title="Branch prefix"
+          title={gt("Branch prefix")}
           description="supaterm/ gives supaterm/add-search. Leave empty for no prefix."
           resetAction={
             prefixMixed ||
@@ -112,13 +114,17 @@ export function BranchNamingSettings() {
           control={
             <Input
               key={`${scopeKey}:${prefixMixed}:${settings.branchNamePrefix}`}
-              aria-label="Branch prefix"
+              aria-label={gt("Branch prefix")}
               autoCapitalize="none"
               spellCheck={false}
               onChange={() => {
                 prefixEdited.current = true;
               }}
-              placeholder={prefixMixed ? "Mixed" : "No prefix"}
+              placeholder={
+                prefixMixed
+                  ? gt("Mixed", { $context: "values differ across targets" })
+                  : gt("No prefix")
+              }
               defaultValue={prefixMixed ? "" : settings.branchNamePrefix}
               onBlur={(event) => {
                 const value = event.target.value.trim();
@@ -134,7 +140,7 @@ export function BranchNamingSettings() {
         <SettingsRow
           serverScoped
           settingKeys={["branchNameInstructions"]}
-          title="Branch naming instructions"
+          title={gt("Branch naming instructions")}
           description="Appended to the naming prompt. The model returns the full branch name."
           resetAction={
             instructionsMixed || settings.branchNameInstructions !== "" ? (
@@ -148,7 +154,7 @@ export function BranchNamingSettings() {
           <div className="mt-3 max-w-2xl pb-3.5">
             <Textarea
               key={`${scopeKey}:${instructionsMixed}:${settings.branchNameInstructions}`}
-              aria-label="Branch naming instructions"
+              aria-label={gt("Branch naming instructions")}
               onChange={() => {
                 instructionsEdited.current = true;
               }}
@@ -156,8 +162,8 @@ export function BranchNamingSettings() {
               defaultValue={instructionsMixed ? "" : settings.branchNameInstructions}
               placeholder={
                 instructionsMixed
-                  ? "Mixed. Enter instructions to apply to all selected targets."
-                  : "Use julius/ followed by the issue ID and a short description."
+                  ? gt("Mixed. Enter instructions to apply to all selected targets.")
+                  : gt("Use julius/ followed by the issue ID and a short description.")
               }
               onBlur={(event) => {
                 const value = event.target.value.trim();

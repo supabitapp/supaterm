@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { DeviceToolVersions as ToolVersions } from "@supaterm/contracts";
 import { InlineButton } from "~/components/ui/button";
 import { Popover, PopoverPopup, PopoverTitle, PopoverTrigger } from "~/components/ui/popover";
+import { msg, T, useGT } from "gt-react";
 
 export function DeviceToolVersions({
   tools,
@@ -16,6 +17,7 @@ export function DeviceToolVersions({
   owner?: string | undefined;
   error?: string | undefined;
 }) {
+  const gt = useGT();
   const selected = kind ? tools?.[kind] : undefined;
   const version =
     selected?.runningVersion ??
@@ -39,20 +41,20 @@ export function DeviceToolVersions({
           ? version
             ? `v${version}`
             : selected
-              ? "Not installed"
-              : "Version unknown"
+              ? gt("Not installed")
+              : gt("Version unknown")
           : error
-            ? "Versions unavailable"
-            : "Versions"}
+            ? gt("Versions unavailable")
+            : gt("Versions")}
       </PopoverTrigger>
       <PopoverPopup align="end" width="md">
-        <PopoverTitle>{kind ? label : "Device tools"}</PopoverTitle>
+        <PopoverTitle>{kind ? label : gt("Device tools")}</PopoverTitle>
         {tools ? (
           <div className="mt-4 divide-y divide-border/50">
             {(
               [
-                ["Device hub", tools.hub],
-                ["Agent device", tools.agent],
+                [msg("Device hub"), tools.hub],
+                [msg("Agent device"), tools.agent],
               ] as const
             ).flatMap(([name, tool]) =>
               !kind || name === label
@@ -60,15 +62,22 @@ export function DeviceToolVersions({
                     <div key={name} className="space-y-2 py-3 first:pt-0 last:pb-0">
                       {!kind ? <p className="text-xs font-medium">{name}</p> : null}
                       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-xs">
-                        <dt className="text-muted-foreground">Running</dt>
+                        <dt className="text-muted-foreground">
+                          <T context="running tool version">Running</T>
+                        </dt>
                         <dd className="text-right font-mono">
-                          {tool.runningVersion ?? "Not running"}
+                          {tool.runningVersion ?? gt("Not running")}
                         </dd>
-                        <dt className="text-muted-foreground">Required</dt>
+                        <dt className="text-muted-foreground">
+                          <T context="required tool version">Required</T>
+                        </dt>
                         <dd className="text-right font-mono">{tool.requiredVersion}</dd>
-                        <dt className="text-muted-foreground">Installed</dt>
+                        <dt className="text-muted-foreground">
+                          <T context="installed tool versions">Installed</T>
+                        </dt>
                         <dd className="text-right font-mono break-words">
-                          {tool.installedVersions.join(", ") || "None"}
+                          {tool.installedVersions.join(", ") ||
+                            gt("None", { $context: "no versions" })}
                         </dd>
                       </dl>
                     </div>,
@@ -77,7 +86,9 @@ export function DeviceToolVersions({
             )}
           </div>
         ) : (
-          <p className="mt-3 text-xs text-muted-foreground">Versions have not been checked.</p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            <T>Versions have not been checked.</T>
+          </p>
         )}
         <p className="mt-4 border-t border-border/50 pt-3 text-xs text-muted-foreground">
           {owner ? `Managed by ${owner}. ` : ""}Tools update automatically on this host when needed.

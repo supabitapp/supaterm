@@ -154,6 +154,7 @@ import {
   setProjectFileQueryData,
   useProjectFileQuery,
 } from "./projectFilesQueryState";
+import { T, useGT, msg } from "gt-react";
 
 const NO_FILE_REVISION_ATOM = Atom.make(null);
 
@@ -231,7 +232,7 @@ function WorkspaceImagePreview(props: {
     return (
       <MediaActions source={actionsSource}>
         <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-xs leading-relaxed text-destructive">
-          Unable to load workspace image.
+          <T>Unable to load workspace image.</T>
         </div>
       </MediaActions>
     );
@@ -341,7 +342,7 @@ export function WorkspaceBrowserPreview(props: {
   if (assetUrl._tag === "Failure") {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-xs leading-relaxed text-destructive">
-        Unable to load file preview.
+        <T>Unable to load file preview.</T>
       </div>
     );
   }
@@ -380,19 +381,20 @@ function WorkspacePdfSaveAction(props: {
   readonly resource: AssetResource;
   readonly name: string;
 }) {
+  const gt = useGT();
   const [saving, setSaving] = useState(false);
   const refreshAssetUrl = useAssetUrlRefresh(props.environmentId, props.resource);
   return (
     <FileSurfaceAction
-      label={saving ? "Preparing file…" : "Save file"}
+      label={saving ? gt("Preparing file…") : gt("Save file")}
       disabled={saving}
       onPress={() => {
         setSaving(true);
         void (async () => {
           const url = await refreshAssetUrl();
-          if (!url) throw new Error("Reconnect to the environment and try again.");
+          if (!url) throw new Error(gt("Reconnect to the environment and try again."));
           const response = await fetch(url);
-          if (!response.ok) throw new Error("The file could not be loaded. Try again.");
+          if (!response.ok) throw new Error(gt("The file could not be loaded. Try again."));
           // Blob downloads keep desktop's custom app scheme from navigating to an external browser.
           const downloadUrl = URL.createObjectURL(await response.blob());
           setTimeout(() => URL.revokeObjectURL(downloadUrl), 30_000);
@@ -404,8 +406,8 @@ function WorkspacePdfSaveAction(props: {
           .catch((cause: unknown) =>
             toastManager.add({
               type: "error",
-              title: "Could not save file",
-              description: cause instanceof Error ? cause.message : "Please try again.",
+              title: gt("Could not save file"),
+              description: cause instanceof Error ? cause.message : gt("Please try again."),
             }),
           )
           .finally(() => setSaving(false));
@@ -484,6 +486,7 @@ function WorkspaceAudioPreview(props: {
   readonly name: string;
   readonly workspaceMutationId: string | null;
 }) {
+  const gt = useGT();
   const resource = workspaceAssetResource({
     kind: "media-file",
     threadRef: props.threadRef,
@@ -508,7 +511,7 @@ function WorkspaceAudioPreview(props: {
   if (assetUrl._tag === "Failure" || (url !== null && failedUrl === url)) {
     return (
       <FileSurfaceFailure
-        message="Unable to load audio."
+        message={gt("Unable to load audio.")}
         onRetry={() => {
           setFailedUrl(null);
           void refreshAssetUrl().catch(() => undefined);
@@ -538,6 +541,7 @@ function WorkspaceBinaryFilePreview(props: {
   readonly workspaceMutationId: string | null;
   readonly refreshRevision: number;
 }) {
+  const gt = useGT();
   const resource =
     props.document && props.draftCwd !== null
       ? { _tag: "draft-workspace-file" as const, cwd: props.draftCwd, path: props.absolutePath }
@@ -577,7 +581,7 @@ function WorkspaceBinaryFilePreview(props: {
       sizeBytes={0}
       {...(props.document ? {} : { kind: "unsupported" as const })}
       asset={{ environmentId: props.environmentId, resource }}
-      origin="File"
+      origin={gt("File", { $context: "label for a file opened from the workspace" })}
     />
   );
 }
@@ -1244,10 +1248,12 @@ function renderedToggleLabel(
   mode: "markdown" | "mermaid" | "html" | "table",
   rendered: boolean,
 ): string {
-  if (mode === "mermaid") return rendered ? "Show Mermaid source" : "Show rendered diagram";
-  if (mode === "markdown") return rendered ? "Show markdown source" : "Show rendered markdown";
-  if (mode === "table") return rendered ? "Show source" : "Show table";
-  return rendered ? "Show HTML source" : "Show rendered page";
+  if (mode === "mermaid")
+    return rendered ? msg("Show Mermaid source") : msg("Show rendered diagram");
+  if (mode === "markdown")
+    return rendered ? msg("Show markdown source") : msg("Show rendered markdown");
+  if (mode === "table") return rendered ? msg("Show source") : msg("Show table");
+  return rendered ? msg("Show HTML source") : msg("Show rendered page");
 }
 
 function initialExplorerOpen(): boolean {
@@ -1279,6 +1285,7 @@ export default function FilePreviewPanel({
   selectedFilePending,
   workspaceMutationId,
 }: FilePreviewPanelProps) {
+  const gt = useGT();
   const relativePath =
     attachment === undefined ? resolveFilePreviewPath(requestedPath, cwd) : requestedPath;
 
@@ -1447,7 +1454,7 @@ export default function FilePreviewPanel({
     onError: (error) =>
       toastManager.add({
         type: "error",
-        title: "Could not copy file",
+        title: gt("Could not copy file"),
         description: error.message,
       }),
   });
@@ -1580,8 +1587,8 @@ export default function FilePreviewPanel({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Unable to open file in browser",
-          description: error instanceof Error ? error.message : "An error occurred.",
+          title: gt("Unable to open file in browser"),
+          description: error instanceof Error ? error.message : gt("An error occurred."),
         }),
       );
     })();
@@ -1592,13 +1599,13 @@ export default function FilePreviewPanel({
       return (
         <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
           <Spinner className="size-4" />
-          Checking file access...
+          <T>Checking file access...</T>
         </div>
       );
     }
     return (
       <div className="p-4 text-sm text-muted-foreground">
-        {fileAccess.error ?? "This connection cannot read host files."}
+        {fileAccess.error ?? gt("This connection cannot read host files.")}
       </div>
     );
   }
@@ -1663,7 +1670,7 @@ export default function FilePreviewPanel({
           ) : null}
           {showsRawText ? (
             <FileSurfaceAction
-              label={wordWrap ? "Disable word wrap" : "Enable word wrap"}
+              label={wordWrap ? gt("Disable word wrap") : gt("Enable word wrap")}
               pressed={wordWrap}
               onPress={() => setWordWrapOverride(!wordWrap)}
             >
@@ -1672,7 +1679,7 @@ export default function FilePreviewPanel({
           ) : null}
           {copyableContents !== null ? (
             <FileSurfaceAction
-              label={isCopied ? "Copied" : "Copy contents"}
+              label={isCopied ? gt("Copied") : gt("Copy contents")}
               onPress={() => copyToClipboard(copyableContents, undefined)}
             >
               {isCopied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
@@ -1689,13 +1696,16 @@ export default function FilePreviewPanel({
             />
           ) : null}
           {canOpenInBrowser ? (
-            <FileSurfaceAction label="Open file in preview browser" onPress={handleOpenInBrowser}>
+            <FileSurfaceAction
+              label={gt("Open file in preview browser")}
+              onPress={handleOpenInBrowser}
+            >
               <EarthIcon className="size-3.5" />
             </FileSurfaceAction>
           ) : null}
           {!isHostFile && previewPath !== null ? (
             <FileSurfaceAction
-              label={explorerOpen ? "Hide file explorer" : "Show file explorer"}
+              label={explorerOpen ? gt("Hide file explorer") : gt("Show file explorer")}
               pressed={explorerOpen}
               onPress={toggleExplorer}
             >
@@ -1706,7 +1716,7 @@ export default function FilePreviewPanel({
       ) : null}
       {relativePath && !attachment && !isHostFile && !canWriteFiles && !fileAccess.isPending ? (
         <div className="shrink-0 border-b px-3 py-1.5 text-2xs text-muted-foreground">
-          Read-only connection. Unsaved edits are kept until write access returns.
+          <T>Read-only connection. Unsaved edits are kept until write access returns.</T>
         </div>
       ) : null}
       {previewPath &&
@@ -1733,7 +1743,7 @@ export default function FilePreviewPanel({
                 tabIndex={-1}
                 data-workspace-focus-default
                 data-file-content-focus
-                aria-label="File contents"
+                aria-label={gt("File contents")}
                 className="sr-only"
                 onFocus={() => queueMicrotask(focusEditorFromContent)}
               />
@@ -1979,6 +1989,7 @@ function LargeFileActions(props: {
   name: string;
   copyContents: RefObject<(() => Promise<string>) | null>;
 }) {
+  const gt = useGT();
   const { copyToClipboard, isCopied } = useCopyToClipboard({ target: props.name });
   const [saving, setSaving] = useState(false);
   const refreshAssetUrl = useAssetUrlRefresh(
@@ -1988,14 +1999,14 @@ function LargeFileActions(props: {
   const showError = (cause: unknown) => {
     toastManager.add({
       type: "error",
-      title: "Could not read file",
-      description: cause instanceof Error ? cause.message : "Try again.",
+      title: gt("Could not read file"),
+      description: cause instanceof Error ? cause.message : gt("Try again."),
     });
   };
   return (
     <>
       <FileSurfaceAction
-        label={isCopied ? "Copied" : "Copy contents"}
+        label={isCopied ? gt("Copied") : gt("Copy contents")}
         onPress={() => {
           const copy = props.copyContents.current;
           if (!copy) return;
@@ -2007,15 +2018,15 @@ function LargeFileActions(props: {
         {isCopied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
       </FileSurfaceAction>
       <FileSurfaceAction
-        label={saving ? "Preparing file…" : "Save file"}
+        label={saving ? gt("Preparing file…") : gt("Save file")}
         disabled={saving}
         onPress={() => {
           setSaving(true);
           void (async () => {
             const url = await refreshAssetUrl();
-            if (!url) throw new Error("Reconnect to the environment and try again.");
+            if (!url) throw new Error(gt("Reconnect to the environment and try again."));
             const response = await fetch(url);
-            if (!response.ok) throw new Error("The file could not be loaded. Try again.");
+            if (!response.ok) throw new Error(gt("The file could not be loaded. Try again."));
             const downloadUrl = URL.createObjectURL(await response.blob());
             setTimeout(() => URL.revokeObjectURL(downloadUrl), 30_000);
             const anchor = document.createElement("a");
@@ -2053,13 +2064,14 @@ export function WorkspaceLargeTextPreview(props: {
   revealRequestId: number;
   wordWrap: boolean;
 }) {
+  const gt = useGT();
   const resource = largeFileResource(props.threadRef, props.absolutePath, props.draftCwd);
   const [revision, setRevision] = useState(0);
   const showError = (cause: unknown) => {
     toastManager.add({
       type: "error",
-      title: "Could not read file",
-      description: cause instanceof Error ? cause.message : "Try again.",
+      title: gt("Could not read file"),
+      description: cause instanceof Error ? cause.message : gt("Try again."),
     });
   };
   // Each workspace mutation re-mints the URL, so an edited file loads its new bytes.
@@ -2082,7 +2094,7 @@ export function WorkspaceLargeTextPreview(props: {
   if (assetUrl._tag === "Failure")
     return (
       <FileSurfaceFailure
-        message="Unable to load file preview."
+        message={gt("Unable to load file preview.")}
         onRetry={() => {
           setRevision((value) => value + 1);
           void refreshAssetUrl().catch(showError);

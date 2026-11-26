@@ -26,6 +26,8 @@ import {
   pullRequestChecksStatePresentation,
   summarizePullRequestChecks,
 } from "./pullRequestPresentation";
+import { T, useGT, msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 // Fetch only on open to avoid per-row requests.
 function LazyChecksBody({
@@ -37,6 +39,7 @@ function LazyChecksBody({
   reference: PullRequestRef;
   threadRef: ScopedThreadRef | null;
 }) {
+  const gt = useGT();
   const detailQuery = useEnvironmentQuery(
     pullRequestEnvironment.detail({ environmentId, input: reference }),
   );
@@ -46,7 +49,7 @@ function LazyChecksBody({
   if (detailQuery.data === null) {
     return (
       <p className="text-muted-foreground text-xs">
-        {detailQuery.isPending ? "Loading checks…" : "No checks reported"}
+        {detailQuery.isPending ? gt("Loading checks…") : gt("No checks reported")}
       </p>
     );
   }
@@ -64,7 +67,11 @@ function ChecksBody({
   const { attention, running, completed } = groupPullRequestChecks(checks);
   const orderedChecks = [...attention, ...running, ...completed];
   if (checks.length === 0) {
-    return <p className="text-muted-foreground text-xs">No checks reported</p>;
+    return (
+      <p className="text-muted-foreground text-xs">
+        <T>No checks reported</T>
+      </p>
+    );
   }
   return (
     <ScrollArea className="max-h-60">
@@ -94,7 +101,7 @@ function ChecksBody({
                             console.error(error);
                             toastManager.add({
                               type: "error",
-                              title: "Unable to open check details",
+                              title: m(msg("Unable to open check details")),
                             });
                           });
                         }}
@@ -145,6 +152,7 @@ export function PullRequestChecksPopover({
   className?: string;
   render?: React.ReactElement;
 }) {
+  const gt = useGT();
   const presentation = pullRequestChecksStatePresentation(checksState);
   const summary = checks === undefined || stale ? null : summarizePullRequestChecks(checks);
   return (
@@ -156,8 +164,8 @@ export function PullRequestChecksPopover({
         closeDelay={150}
         aria-label={
           variant === "button"
-            ? `Open checks: ${summary ?? presentation.label}`
-            : `Checks: ${presentation.label}`
+            ? gt("Open checks: {summary}", { summary: summary ?? presentation.label })
+            : gt("Checks: {summary}", { summary: presentation.label })
         }
         render={
           variant === "button" ? (
@@ -185,7 +193,7 @@ export function PullRequestChecksPopover({
         )}
         {stale ? (
           <p className="text-muted-foreground text-xs">
-            Check details are out of date. Refresh the pull request to update them.
+            <T>Check details are out of date. Refresh the pull request to update them.</T>
           </p>
         ) : checks !== undefined ? (
           <ChecksBody checks={checks} threadRef={threadRef} />

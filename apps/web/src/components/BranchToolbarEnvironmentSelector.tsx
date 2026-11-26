@@ -27,6 +27,7 @@ import {
   useComboboxFilter,
 } from "./ui/combobox";
 import { Kbd } from "./ui/kbd";
+import { useGT } from "gt-react";
 
 interface BranchToolbarEnvironmentSelectorProps {
   autoEnvironmentLabel?: string | undefined;
@@ -54,6 +55,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
   displayMode = "toolbar",
   onAddToMachine,
 }: BranchToolbarEnvironmentSelectorProps) {
+  const gt = useGT();
   const composerFloatingLayerProps = useComposerMenuProps();
   const hostShortcut = useShortcutLabel(displayMode === "toolbar" ? "composer.host" : null);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -67,13 +69,13 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
 
   const environmentItems = [
     ...(onAutoEnvironment
-      ? [{ value: AUTO_VALUE, label: autoEnvironmentLabel ?? "Auto balance" }]
+      ? [{ value: AUTO_VALUE, label: autoEnvironmentLabel ?? gt("Auto balance") }]
       : []),
     ...availableEnvironments.map((env) => ({
       value: environmentValue(env.environmentId),
       label: env.label,
     })),
-    ...(onAddToMachine ? [{ value: ADD_MACHINE_VALUE, label: "Add to another machine" }] : []),
+    ...(onAddToMachine ? [{ value: ADD_MACHINE_VALUE, label: gt("Add to another machine") }] : []),
   ];
   const filteredEnvironmentItems = environmentItems.filter((item) =>
     hostFilter.contains(item.label, query),
@@ -126,7 +128,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
     return (
       <Tooltip>
         <TooltipTrigger render={lockedRow} />
-        <TooltipPopup>{activeEnvironment?.label ?? "Run on"}</TooltipPopup>
+        <TooltipPopup>{activeEnvironment?.label ?? gt("Run on")}</TooltipPopup>
       </Tooltip>
     );
   }
@@ -158,7 +160,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
             <ThreadDetailsComboboxControl
               panel={displayMode === "panel"}
               className="min-w-0 max-w-full"
-              aria-label="Run on"
+              aria-label={gt("Run on")}
               data-composer-shortcut="composer.host"
               data-composer-context-control
             />

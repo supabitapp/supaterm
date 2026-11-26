@@ -15,6 +15,7 @@ import { Kbd, KbdGroup } from "./ui/kbd";
 import { MiddleTruncate } from "./ui/middle-truncate";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { T, useGT } from "gt-react";
 
 export function remoteProjectSourceIcon(
   source: AddProjectRemoteSource,
@@ -82,6 +83,7 @@ export function NewProjectPublishHostPicker(props: {
   readonly value: SourceControlProviderKind;
   readonly onValueChange: (kind: SourceControlProviderKind) => void;
 }) {
+  const gt = useGT();
   const [open, setOpen] = useState(false);
   return (
     <span
@@ -103,7 +105,7 @@ export function NewProjectPublishHostPicker(props: {
           if (kind !== null) props.onValueChange(kind);
         }}
       >
-        <SelectTrigger size="xs" variant="ghost" aria-label="Host for the new repository">
+        <SelectTrigger size="xs" variant="ghost" aria-label={gt("Host for the new repository")}>
           <SelectValue>
             {(kind: SourceControlProviderKind) => sourceControlClients.get(kind).label}
           </SelectValue>
@@ -129,6 +131,7 @@ export function NewProjectSummary(props: {
   readonly projectsRoot: string | null;
   readonly environmentLabel: string | null;
 }) {
+  const gt = useGT();
   const named = props.name.length > 0;
   return (
     <div className="p-2 pb-0">
@@ -138,7 +141,7 @@ export function NewProjectSummary(props: {
         </CommandPaletteTitleIcon>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-foreground text-sm">
-            {named ? props.name : "New project"}
+            {named ? props.name : gt("New project")}
           </span>
           <span className="flex min-w-0 gap-1 text-muted-foreground/85 text-xs">
             <span className="shrink-0">{named ? "Creates" : "Goes in"}</span>
@@ -160,7 +163,9 @@ export function RemoteRepositorySummary(props: {
 }) {
   return (
     <div className="shrink-0 p-2 pb-0">
-      <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">Repository</div>
+      <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
+        <T>Repository</T>
+      </div>
       <div className="flex min-h-8 items-center gap-2 rounded-sm px-2 py-1.5">
         <CommandPaletteTitleIcon>
           {remoteProjectSourceIcon(props.source, ITEM_ICON_CLASS)}

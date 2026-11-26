@@ -8,6 +8,7 @@ import { FileSurfaceLoading } from "./fileSurfaceChrome";
 import { useFullFileMarkdown, useFullFileText } from "./fullFileText";
 import { FULL_TEXT_MAX_BYTES } from "./largeTextProtocol";
 import SourceFilePreview from "./ReadOnlySourcePreview";
+import { useGT } from "gt-react";
 
 const LargeTextViewer = lazy(() => import("./LargeTextViewer"));
 
@@ -93,12 +94,13 @@ function CopyText(props: {
   readonly copyContents: RefObject<(() => Promise<string>) | null>;
   readonly text: string | null;
 }) {
+  const gt = useGT();
   const { text } = props;
   useImperativeHandle(
     props.copyContents,
     () => () =>
       text === null
-        ? Promise.reject(new Error("The file is still loading. Try again in a moment."))
+        ? Promise.reject(new Error(gt("The file is still loading. Try again in a moment.")))
         : Promise.resolve(text),
     [text],
   );

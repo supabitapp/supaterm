@@ -5,6 +5,7 @@ import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import { cn } from "~/lib/utils";
 
 import { MiddleTruncate } from "./ui/middle-truncate";
+import { T } from "gt-react";
 
 export type ThreadCommandSubtitleVariant =
   | "favicon-workspace-harness"
@@ -103,7 +104,9 @@ export function ThreadCommandSubtitle(props: {
       {props.isCurrent ? (
         <>
           {projectLabel || branchLabel || showHarness ? <CommandPaletteMetaDot /> : null}
-          <span className="shrink-0">Current thread</span>
+          <span className="shrink-0">
+            <T>Current thread</T>
+          </span>
         </>
       ) : null}
     </span>

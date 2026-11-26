@@ -8,6 +8,7 @@ import {
   type PullRequestListPreferencePatch,
   type PullRequestListPreferences,
 } from "./pullRequestListPreferences";
+import { msg } from "gt-react";
 
 export function pullRequestViewMatches(
   view: SavedView<typeof PullRequestListPreferencesSchema.Type>,
@@ -31,9 +32,9 @@ export const PULL_REQUEST_SAVED_VIEWS = {
   empty: [],
   noun: "pull request",
   shortNoun: "PR",
-  placeholder: "PRs Requesting My Review",
+  placeholder: msg("PRs Requesting My Review"),
   suggestedName: (preferences) =>
-    preferences.involvement === "reviewing" ? "PRs Requesting My Review" : "",
+    preferences.involvement === "reviewing" ? msg("PRs Requesting My Review") : "",
   normalize: pullRequestListPreferences,
   matches: pullRequestViewMatches,
 } as const satisfies SavedViewsKind<

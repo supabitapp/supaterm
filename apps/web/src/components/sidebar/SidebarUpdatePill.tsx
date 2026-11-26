@@ -40,6 +40,8 @@ import {
   useUpdateEverythingRun,
 } from "./updateEverythingRun";
 import { type ReportLocalUpdateError, useUpdateEverything } from "./useUpdateEverything";
+import { msg, T, useGT } from "gt-react";
+import { m } from "../../i18n/messages";
 
 type SidebarUpdatePopoverChangeDetails = Parameters<
   NonNullable<ComponentProps<typeof Popover>["onOpenChange"]>
@@ -104,7 +106,9 @@ function SidebarUpdateArchitectureWarningContent() {
   return (
     <Alert variant="warning">
       <TriangleAlertIcon />
-      <AlertTitle>Intel build on Apple Silicon</AlertTitle>
+      <AlertTitle>
+        <T>Intel build on Apple Silicon</T>
+      </AlertTitle>
       <AlertDescription>{description}</AlertDescription>
     </Alert>
   );
@@ -129,11 +133,11 @@ export async function downloadLocalUpdate(
     const actionError = shouldToastDesktopUpdateActionResult(result)
       ? getDesktopUpdateActionError(result)
       : null;
-    if (actionError) reportError("Could not download update", actionError);
+    if (actionError) reportError(m(msg("Could not download update")), actionError);
     return result.completed;
   } catch (error) {
     reportError(
-      "Could not start update download",
+      m(msg("Could not start update download")),
       error instanceof Error ? error.message : "An unexpected error occurred.",
     );
     return false;
@@ -150,7 +154,7 @@ export async function installLocalUpdate(
     return true;
   } catch (error) {
     reportError(
-      "Could not install update",
+      m(msg("Could not install update")),
       error instanceof Error ? error.message : "An unexpected error occurred.",
     );
     return false;
@@ -162,6 +166,7 @@ export function SidebarUpdatePill() {
 }
 
 function SidebarUpdateControl() {
+  const gt = useGT();
   const liveState = useDesktopUpdateState();
   // Update checks stay hidden: hold the last state that wasn't a check in progress.
   const [state, setState] = useState(liveState);
@@ -246,8 +251,8 @@ function SidebarUpdateControl() {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Could not confirm update",
-          description: error instanceof Error ? error.message : "Update confirmation failed.",
+          title: gt("Could not confirm update"),
+          description: error instanceof Error ? error.message : gt("Update confirmation failed."),
         }),
       );
       return;
@@ -286,7 +291,7 @@ function SidebarUpdateControl() {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: "Could not update everything",
+          title: gt("Could not update everything"),
           description: error instanceof Error ? error.message : "An unexpected error occurred.",
         }),
       );
@@ -435,7 +440,7 @@ function SidebarUpdateControl() {
         {showReleaseNotesPopover && state ? (
           <PopoverPopup
             align="center"
-            aria-label="Update release notes"
+            aria-label={gt("Update release notes")}
             initialFocus={false}
             onKeyDownCapture={(event) => {
               if (

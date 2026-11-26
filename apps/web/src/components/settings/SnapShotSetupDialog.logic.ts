@@ -1,4 +1,5 @@
 import type { DesktopSnapShotState } from "@supaterm/contracts";
+import { msg } from "gt-react";
 
 export type CaptureSetupStep = "access" | "shortcut";
 
@@ -58,13 +59,14 @@ export function captureSetupCheckMessage(state: DesktopSnapShotState): string {
     (backend === "kde" && state.kdeHelper?.status === "error") ||
     (backend === "hyprland" && state.hyprlandHelper?.status === "error")
   )
-    return "Still unable to check access. See Advanced for help.";
-  if (captureSetupBackend(state) === "picker") return "Ready. You'll choose a window each time.";
+    return msg("Still unable to check access. See Advanced for help.");
+  if (captureSetupBackend(state) === "picker")
+    return msg("Ready. You'll choose a window each time.");
   if (gnome && state.gnomeExtension?.status === "restart-required")
-    return "Still waiting for you to sign out and back in.";
+    return msg("Still waiting for you to sign out and back in.");
   return captureSetupAccessReady(state)
-    ? "Ready. Continue to choose your shortcut."
-    : "Not ready yet. Finish the step above.";
+    ? msg("Ready. Continue to choose your shortcut.")
+    : msg("Not ready yet. Finish the step above.");
 }
 
 export function captureSetupShortcutReady(state: DesktopSnapShotState, unsaved: boolean): boolean {

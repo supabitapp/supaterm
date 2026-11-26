@@ -12,6 +12,7 @@ import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
 import { textDirection } from "~/textDirection";
 
 import { isCommentSubmitShortcut } from "./commentSubmitShortcut";
+import { T, useGT } from "gt-react";
 
 interface DiffCommentSecondaryAction {
   readonly label: string;
@@ -55,6 +56,7 @@ export function DiffCommentAnnotation({
   voiceEnvironmentId,
   completionScope = null,
 }: DiffCommentAnnotationProps) {
+  const gt = useGT();
   const [localDraftText, setLocalDraftText] = useState("");
   const displayedText = kind === "draft" && !onTextChange ? localDraftText : text;
   const trimmedText = displayedText.trim();
@@ -96,7 +98,7 @@ export function DiffCommentAnnotation({
             <Button
               variant="ghost-muted"
               size="icon-xs"
-              aria-label="Delete comment"
+              aria-label={gt("Delete comment")}
               onClick={onDelete}
             >
               <TrashIcon className="size-3" />
@@ -123,7 +125,7 @@ export function DiffCommentAnnotation({
         value={displayedText}
         dir={textDirection(displayedText)}
         placeholder={placeholder}
-        aria-label={`Comment on lines ${rangeLabel}`}
+        aria-label={gt("Comment on lines {rangeLabel}", { rangeLabel })}
         onValueChange={changeText}
         onFocus={(event) => {
           const end = event.currentTarget.value.length;
@@ -156,9 +158,11 @@ export function DiffCommentAnnotation({
             onBusyChange={setVoiceBusy}
           />
         ) : null}
-        <span className="mr-auto text-3xs text-muted-foreground/70">⌘/Ctrl Enter to send</span>
+        <span className="mr-auto text-3xs text-muted-foreground/70">
+          <T>⌘/Ctrl Enter to send</T>
+        </span>
         <Button variant="ghost-muted" size="xs" onClick={onCancel}>
-          Cancel
+          <T>Cancel</T>
         </Button>
         {secondaryAction ? (
           <Button

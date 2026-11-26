@@ -13,14 +13,16 @@ import {
   PullRequestMetaLine,
 } from "../pullRequest/pullRequestPresentation";
 import { IssueStateGlyph, issueTrackerPresentation } from "./issuePresentation";
+import { useGT, T } from "gt-react";
 
 /** The issue panel while its detail loads, showing what the list row already knows. */
 export function IssueDetailGhost({ seed }: { seed?: IssueListEntry | null }) {
+  const gt = useGT();
   const tracker = seed ? issueTrackerPresentation(seed.tracker) : null;
   return (
     <div
       role="status"
-      aria-label="Loading issue"
+      aria-label={gt("Loading issue")}
       className={cn(
         "scrollbar-gutter-both flex h-full min-h-0 flex-col gap-4 overflow-hidden px-4 pt-3 pb-4",
         !seed && "motion-safe:animate-skeleton",
@@ -40,7 +42,7 @@ export function IssueDetailGhost({ seed }: { seed?: IssueListEntry | null }) {
             <Button
               size="icon-xs"
               variant="ghost"
-              aria-label={`Open on ${tracker.providerName}`}
+              aria-label={gt("Open on {provider}", { provider: tracker.providerName })}
               render={<a href={seed.url} target="_blank" rel="noopener noreferrer" />}
             >
               <ExternalLinkIcon aria-hidden className="size-3.5" />
@@ -55,14 +57,18 @@ export function IssueDetailGhost({ seed }: { seed?: IssueListEntry | null }) {
           </PullRequestMetaLine>
           {/* Both rows hold the height of the picker button the loaded panel puts in them. */}
           <div className="flex min-h-6 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="shrink-0">Labels</span>
+            <span className="shrink-0">
+              <T>Labels</T>
+            </span>
             {seed.labels.length === 0 ? <span>none</span> : null}
             {seed.labels.map((label) => (
               <PullRequestLabelChip key={label.name} label={label} />
             ))}
           </div>
           <div className="flex min-h-6 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="shrink-0">Assignees</span>
+            <span className="shrink-0">
+              <T>Assignees</T>
+            </span>
             {seed.assignees.length === 0 ? <span>none</span> : null}
             {seed.assignees.map((actor) => (
               <PullRequestActorLabel key={actor.login} actor={actor} />

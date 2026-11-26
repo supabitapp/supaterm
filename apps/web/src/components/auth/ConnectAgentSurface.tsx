@@ -25,14 +25,15 @@ import { Input } from "../ui/input";
 import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
+import { msg, T, useGT } from "gt-react";
 
 export const accessConfig: Record<
   AuthMcpClientAccess,
   { readonly label: string; readonly description: string; readonly icon: IconComponent }
 > = {
   "read-only": {
-    label: "Read only",
-    description: "Read projects and threads. Cannot start, message or change anything.",
+    label: msg("Read only"),
+    description: msg("Read projects and threads. Cannot start, message or change anything."),
     icon: EyeIcon,
   },
   ...runtimeModeConfig,
@@ -47,7 +48,7 @@ type Loaded =
   | { readonly status: "invalid"; readonly message: string }
   | { readonly status: "ready"; readonly details: AuthMcpApprovalDetails };
 
-const UNREACHABLE = "Could not reach this environment. Try again.";
+const UNREACHABLE = msg("Could not reach this environment. Try again.");
 const isApprovalError = Schema.is(AuthMcpApprovalError);
 
 type Answer<A> =
@@ -85,6 +86,7 @@ function readAuthorizationRequest(): AuthMcpAuthorizationRequest {
 }
 
 export function ConnectAgentSurface() {
+  const gt = useGT();
   const [authorization] = useState(readAuthorizationRequest);
   const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
   const [access, setAccess] = useState<AuthMcpClientAccess>("read-only");
@@ -131,15 +133,17 @@ export function ConnectAgentSurface() {
       return;
     }
     setPending(null);
-    setErrorMessage(answer.kind === "error" ? answer.message : "The sign-in could not continue.");
+    setErrorMessage(
+      answer.kind === "error" ? answer.message : gt("The sign-in could not continue."),
+    );
   };
 
   if (loaded.status === "loading") {
     return (
       <StandalonePage>
         <ConnectAgentHeading
-          title="Checking the sign-in request"
-          description="One moment while this environment verifies the agent's request."
+          title={gt("Checking the sign-in request")}
+          description={gt("One moment while this environment verifies the agent's request.")}
         />
         <Spinner className="mt-6" size="lg" tone="muted" />
       </StandalonePage>
@@ -149,9 +153,12 @@ export function ConnectAgentSurface() {
   if (loaded.status === "invalid") {
     return (
       <StandalonePage>
-        <ConnectAgentHeading title="This sign-in cannot continue" description={loaded.message} />
+        <ConnectAgentHeading
+          title={gt("This sign-in cannot continue")}
+          description={loaded.message}
+        />
         <p className="mt-4 text-sm text-muted-foreground">
-          Close this page and start the sign-in again from your agent.
+          <T>Close this page and start the sign-in again from your agent.</T>
         </p>
       </StandalonePage>
     );
@@ -166,7 +173,7 @@ export function ConnectAgentSurface() {
   return (
     <StandalonePage>
       <ConnectAgentHeading
-        title={`Connect ${details.clientName}`}
+        title={gt("Connect {app}", { app: details.clientName })}
         description={
           <>
             This agent wants to use the threads in every project on{" "}
@@ -198,7 +205,7 @@ export function ConnectAgentSurface() {
       >
         <div className="space-y-2">
           <label className="text-sm font-medium" htmlFor="connect-agent-pairing-code">
-            Sign-in code
+            <T>Sign-in code</T>
           </label>
           <Input
             id="connect-agent-pairing-code"
@@ -208,7 +215,7 @@ export function ConnectAgentSurface() {
             disabled={pending !== null}
             nativeInput
             onChange={(event) => setPairingCode(event.currentTarget.value)}
-            placeholder="Paste a code"
+            placeholder={gt("Paste a code")}
             spellCheck={false}
             value={pairingCode}
           />
@@ -220,13 +227,15 @@ export function ConnectAgentSurface() {
 
         {codeAccess ? (
           <p className="text-sm">
-            <span className="text-muted-foreground">Access</span>{" "}
+            <span className="text-muted-foreground">
+              <T context="access level">Access</T>
+            </span>{" "}
             <span className="font-medium">{accessConfig[codeAccess].label}</span>
           </p>
         ) : (
           <div className="space-y-2">
             <span id="connect-agent-access-label" className="text-sm font-medium">
-              What it may do
+              <T>What it may do</T>
             </span>
             <RadioGroup
               aria-labelledby="connect-agent-access-label"
@@ -238,8 +247,10 @@ export function ConnectAgentSurface() {
               ))}
             </RadioGroup>
             <p className="text-xs text-muted-foreground">
-              Beyond read only, it can start, message and stop threads, and none of them can run
-              with more than the mode you pick.
+              <T>
+                Beyond read only, it can start, message and stop threads, and none of them can run
+                with more than the mode you pick.
+              </T>
             </p>
           </div>
         )}
@@ -253,9 +264,9 @@ export function ConnectAgentSurface() {
         <div className="flex flex-wrap gap-2">
           <Button disabled={!canApprove} type="submit">
             {pending === "approve"
-              ? "Approving…"
+              ? gt("Approving…")
               : codeAccess
-                ? `Approve ${accessConfig[codeAccess].label}`
+                ? gt("Approve {level}", { level: accessConfig[codeAccess].label })
                 : "Approve"}
           </Button>
           <Button
@@ -264,7 +275,7 @@ export function ConnectAgentSurface() {
             type="button"
             variant="outline"
           >
-            {pending === "deny" ? "Denying…" : "Deny"}
+            {pending === "deny" ? gt("Denying…") : gt("Deny")}
           </Button>
         </div>
       </form>

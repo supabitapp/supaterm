@@ -36,6 +36,7 @@ import {
   selectRow,
   setRowsSelected,
 } from "./ArchivedThreadsPanel.logic";
+import { useGT, msg } from "gt-react";
 
 function toastFailure(title: string, failure: AsyncResult.Failure<unknown, unknown>) {
   if (isAtomCommandInterrupted(failure)) return;
@@ -97,6 +98,7 @@ function ArchivedThreadChunk(props: {
 }
 
 export function ArchivedThreadsPanel() {
+  const gt = useGT();
   const { scope, groups: projectGroups, environments } = useSettingsScope();
   const { unarchiveThreads, deleteThread } = useThreadActions();
   const confirmThreadDelete = useClientSettings((settings) => settings.confirmThreadDelete);
@@ -368,7 +370,7 @@ export function ArchivedThreadsPanel() {
                   </Button>
                 }
               />
-              <TooltipPopup side="top">Unarchive</TooltipPopup>
+              <TooltipPopup side="top">{msg("Unarchive")}</TooltipPopup>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger
@@ -412,16 +414,16 @@ export function ArchivedThreadsPanel() {
                   <ArchiveIcon className="size-3.5 text-muted-foreground" />
                 )}
                 {isLoadingArchive
-                  ? "Loading archived threads"
+                  ? gt("Loading archived threads")
                   : archiveError
-                    ? "Could not load archived threads"
-                    : "No archived threads"}
+                    ? gt("Could not load archived threads")
+                    : gt("No archived threads")}
               </span>
             }
             description={
               isLoadingArchive
-                ? "Checking connected environments."
-                : (archiveError ?? "Archived threads will appear here.")
+                ? gt("Checking connected environments.")
+                : (archiveError ?? gt("Archived threads will appear here."))
             }
           />
         </SettingsSection>

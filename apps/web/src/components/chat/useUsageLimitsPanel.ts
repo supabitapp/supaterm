@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { toastManager } from "../ui/toast";
 import { usageLimitsBannerItem } from "./ComposerUsageLimits";
+import { m } from "~/i18n/messages";
+import { msg } from "gt-react";
 
 /**
  * Only the open moment is stored, so rows read live provider data. Anything that spends quota
@@ -56,7 +58,10 @@ export function useUsageLimitsPanel(input: {
       return true;
     }
     setPanel(null);
-    toastManager.add({ type: "info", title: "Usage limits are unavailable for this provider" });
+    toastManager.add({
+      type: "info",
+      title: m(msg("Usage limits are unavailable for this provider")),
+    });
     return false;
   });
   // Responses can resolve after navigating away; only the originating thread's panel clears.

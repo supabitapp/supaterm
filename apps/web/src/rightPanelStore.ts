@@ -14,6 +14,8 @@ import { resolveStorage } from "./lib/storage";
 import { linkedThreadSurface, type LinkedThreadSurface } from "./linkedThreadSurface";
 import type { ThreadPanelPresentation } from "./rightPanelLayout";
 import type { ChatFileAttachment, TerminalSplitLayout, ThreadTerminalGroup } from "./types";
+import { m } from "./i18n/messages";
+import { msg } from "gt-react";
 
 const RIGHT_PANEL_KINDS = [
   "diff",
@@ -669,7 +671,13 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             ...current,
             surfaces: current.surfaces.map((surface) =>
               surface.id === surfaceId && surface.kind === "device"
-                ? { ...surface, title: title.trim() || surface.target?.name || "Device" }
+                ? {
+                    ...surface,
+                    title:
+                      title.trim() ||
+                      surface.target?.name ||
+                      m(msg("Device", { $context: "a simulator or emulator" })),
+                  }
                 : surface,
             ),
           })),

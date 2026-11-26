@@ -14,6 +14,8 @@ import {
   type WordSpan,
   type WordLink,
 } from "./word-protocol";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 type Opened = {
   pages: readonly WordPageSize[];
@@ -89,7 +91,7 @@ export default function WordDocument(props: {
         while (!controller.signal.aborted) {
           const step = await engine.call("layout", undefined, { signal: controller.signal });
           if (!step.done) continue;
-          if (step.pages.length > 1000) throw new Error("Preview limited to 1,000 pages.");
+          if (step.pages.length > 1000) throw new Error(m(msg("Preview limited to 1,000 pages.")));
           setOpened({ pages: step.pages, paint, engine });
           onDetails(`${step.pages.length} page${step.pages.length === 1 ? "" : "s"}`);
           break;

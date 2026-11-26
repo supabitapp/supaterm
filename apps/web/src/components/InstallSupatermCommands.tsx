@@ -1,6 +1,7 @@
 import { cn } from "~/lib/utils";
 
 import { CommandBlock } from "./CommandBlock";
+import { T } from "gt-react";
 
 /**
  * Setup steps for another computer: install `supaterm`, then run `command`. Both installers are shown
@@ -19,7 +20,9 @@ export function InstallSupatermCommands({
       <CommandBlock command="curl -fsSL https://supaterm.com/install.sh | sh" />
       <p className="text-xs text-muted-foreground">Windows (PowerShell)</p>
       <CommandBlock command="irm https://supaterm.com/install.ps1 | iex" />
-      <p className="text-xs text-muted-foreground">Then</p>
+      <p className="text-xs text-muted-foreground">
+        <T>Then</T>
+      </p>
       <CommandBlock command={command} />
       <p className="text-xs text-muted-foreground">
         Skip the install if you already have <code className="font-mono">supaterm</code>. If{" "}

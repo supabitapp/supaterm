@@ -1,4 +1,6 @@
 import type { ResourceTelemetryProcess, ResourceTelemetrySourceStatus } from "@supaterm/contracts";
+import { m } from "../../i18n/messages";
+import { msg } from "gt-react";
 
 export function processIdentityKey(process: Pick<ResourceTelemetryProcess, "identity">): string {
   return `${process.identity.pid}:${process.identity.startTimeMs}`;
@@ -73,7 +75,7 @@ export function formatCpuTime(seconds: number): string {
 
 export function formatSamplingStatus(intervalMs: number): string {
   // The server reports 0 while the native monitor is idle and samples only on request.
-  if (intervalMs <= 0) return "Sampling on demand";
+  if (intervalMs <= 0) return msg("Sampling on demand");
   if (intervalMs < 1_000) return `Sampling every ${Math.round(intervalMs)} ms`;
   const seconds = intervalMs / 1_000;
   return `Sampling every ${seconds.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${

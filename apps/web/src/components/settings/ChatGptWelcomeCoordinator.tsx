@@ -13,6 +13,7 @@ import {
   DialogFooter,
 } from "../ui/dialog";
 import { ChatGptUsageButton } from "./ChatGptUsageButton";
+import { T } from "gt-react";
 
 const STORAGE_KEY = "supaterm:chatgpt-sharing-welcome:v1";
 function readAcknowledgedProfiles(): string[] {
@@ -64,10 +65,14 @@ export function ChatGptWelcomeCoordinator() {
       <DialogPopup>
         <DialogHeader>
           <OpenAI className="mb-2 size-8" aria-hidden="true" />
-          <DialogTitle>Your ChatGPT plan is connected</DialogTitle>
+          <DialogTitle>
+            <T>Your ChatGPT plan is connected</T>
+          </DialogTitle>
           <DialogDescription>
-            Eligible usage in Supaterm uses your ChatGPT plan. Manage your shared usage and any
-            credit settings in ChatGPT.
+            <T>
+              Eligible usage in Supaterm uses your ChatGPT plan. Manage your shared usage and any
+              credit settings in ChatGPT.
+            </T>
           </DialogDescription>
           <p className="text-xs text-muted-foreground">
             {next?.providerName} on {next?.environmentLabel}
@@ -75,7 +80,9 @@ export function ChatGptWelcomeCoordinator() {
         </DialogHeader>
         <DialogFooter>
           <ChatGptUsageButton />
-          <Button onClick={dismiss}>Continue</Button>
+          <Button onClick={dismiss}>
+            <T>Continue</T>
+          </Button>
         </DialogFooter>
       </DialogPopup>
     </Dialog>

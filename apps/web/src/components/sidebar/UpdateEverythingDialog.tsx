@@ -19,6 +19,7 @@ import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collaps
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { ScrollArea } from "../ui/scroll-area";
 import type { RestartingMachine, UpdateEverythingRow } from "./updateEverything.logic";
+import { msg, T } from "gt-react";
 
 const runningThreadCountAtom = Atom.family((environmentIds: string) =>
   Atom.make((get) =>
@@ -84,9 +85,9 @@ export function UpdateEverythingDialog({
 }
 
 const APP_LABELS = {
-  "this-app": "This app",
-  server: "Server",
-  "desktop-app": "Desktop app",
+  "this-app": msg("This app"),
+  server: msg("Server"),
+  "desktop-app": msg("Desktop app"),
 } as const;
 
 function UpdateEverythingDialogContent({
@@ -162,9 +163,13 @@ function UpdateEverythingDialogContent({
               role="row"
               className="col-span-full grid grid-cols-subgrid border-b pb-1.5 text-muted-foreground text-xs"
             >
-              <span role="columnheader">Machine</span>
+              <span role="columnheader">
+                <T>Machine</T>
+              </span>
               <span role="columnheader">Supaterm</span>
-              <span role="columnheader">Providers</span>
+              <span role="columnheader">
+                <T>Providers</T>
+              </span>
               <span role="columnheader" />
             </div>
             {updating.map((row) => (
@@ -180,10 +185,14 @@ function UpdateEverythingDialogContent({
                 <span role="cell">
                   {row.app !== null ? APP_LABELS[row.app] : null}
                   {row.app === null && row.skipped !== null ? (
-                    <span className="text-muted-foreground">Skipped</span>
+                    <span className="text-muted-foreground">
+                      <T>Skipped</T>
+                    </span>
                   ) : null}
                   {row.app === "this-app" ? (
-                    <span className="block text-muted-foreground text-xs">restarts last</span>
+                    <span className="block text-muted-foreground text-xs">
+                      <T>restarts last</T>
+                    </span>
                   ) : null}
                 </span>
                 <span role="cell">
@@ -239,7 +248,7 @@ function UpdateEverythingDialogContent({
           </p>
         ) : null}
         <AlertDialogClose ref={cancelRef} render={<Button variant="outline" disabled={busy} />}>
-          Cancel
+          <T>Cancel</T>
         </AlertDialogClose>
         <Button disabled={disabledReason !== null || busy} onClick={onConfirm}>
           {confirmLabel}

@@ -1,6 +1,7 @@
+import { msg } from "gt-react";
 export const CODE_BLOCK_LANGUAGES = [
-  { id: "", label: "Plain text" },
-  { id: "asm", label: "Assembly" },
+  { id: "", label: msg("Plain text") },
+  { id: "asm", label: msg("Assembly") },
   { id: "bash", label: "Bash" },
   { id: "c", label: "C" },
   { id: "cpp", label: "C++" },

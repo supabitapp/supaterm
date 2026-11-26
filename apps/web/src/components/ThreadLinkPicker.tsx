@@ -7,6 +7,7 @@ import { useThreadSearch } from "~/state/queries";
 
 import { threadLinkMatcher } from "./ThreadLinkPicker.logic";
 import { Command, CommandInput, CommandItem, CommandList } from "./ui/command";
+import { T, useGT } from "gt-react";
 
 type ThreadShell = ReturnType<typeof useThreadShells>[number];
 
@@ -22,6 +23,7 @@ export function ThreadLinkPicker({
   isLinked: (thread: ThreadShell) => boolean;
   onSelect: (threadId: ThreadId) => void;
 }) {
+  const gt = useGT();
   const threads = useThreadShells();
   const projects = useProjects();
   const [query, setQuery] = useState("");
@@ -42,12 +44,12 @@ export function ThreadLinkPicker({
     )
     .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (
-    <Command mode="none" value={query} onValueChange={setQuery} aria-label="Choose a thread">
-      <CommandInput placeholder="Search threads or projects..." disabled={pending} />
+    <Command mode="none" value={query} onValueChange={setQuery} aria-label={gt("Choose a thread")}>
+      <CommandInput placeholder={gt("Search threads or projects...")} disabled={pending} />
       <CommandList className="max-h-80 overflow-y-auto">
         {candidates.length === 0 ? (
           <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            No active threads found.
+            <T>No active threads found.</T>
           </div>
         ) : (
           candidates.map((thread) => {
@@ -61,7 +63,7 @@ export function ThreadLinkPicker({
               >
                 <MessageSquareIcon aria-hidden className="size-4 shrink-0" />
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate">{thread.title || "Untitled thread"}</span>
+                  <span className="truncate">{thread.title || gt("Untitled thread")}</span>
                   <span className="truncate text-xs text-muted-foreground">
                     {projectNames.get(thread.projectId)}
                   </span>
@@ -69,7 +71,9 @@ export function ThreadLinkPicker({
                 {linked ? (
                   <>
                     <CheckIcon aria-hidden className="size-3.5" />
-                    <span className="text-xs text-muted-foreground">Linked</span>
+                    <span className="text-xs text-muted-foreground">
+                      <T context="thread is linked">Linked</T>
+                    </span>
                   </>
                 ) : null}
               </CommandItem>

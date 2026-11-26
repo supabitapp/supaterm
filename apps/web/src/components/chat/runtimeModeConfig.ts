@@ -6,6 +6,7 @@ import {
   PenLineIcon,
   ShieldCheckIcon,
 } from "@supaterm/icons";
+import { msg } from "gt-react";
 
 export const runtimeModeConfig: Record<
   RuntimeMode,
@@ -13,22 +14,22 @@ export const runtimeModeConfig: Record<
 > = {
   "approval-required": {
     label: "Supervised",
-    description: "Ask before commands and file changes.",
+    description: msg("Ask before commands and file changes."),
     icon: LockIcon,
   },
   "auto-accept-edits": {
-    label: "Auto-accept edits",
-    description: "Auto-approve edits, ask before other actions.",
+    label: msg("Auto-accept edits"),
+    description: msg("Auto-approve edits, ask before other actions."),
     icon: PenLineIcon,
   },
   auto: {
     label: "Auto",
-    description: "Supported providers approve routine actions; others still ask.",
+    description: msg("Supported providers approve routine actions; others still ask."),
     icon: ShieldCheckIcon,
   },
   "full-access": {
-    label: "Full access",
-    description: "Allow commands and edits without prompts.",
+    label: msg("Full access"),
+    description: msg("Allow commands and edits without prompts."),
     icon: LockOpenIcon,
   },
 };

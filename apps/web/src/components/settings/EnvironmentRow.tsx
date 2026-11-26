@@ -14,6 +14,7 @@ import type { EnvironmentPresentation } from "~/state/environments";
 import { usePreparedConnection } from "~/state/session";
 import { isDesktopLocalConnectionTarget } from "~/connection/desktopLocal";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
+import { msg } from "gt-react";
 
 export function formatDesktopSshTarget(target: DesktopSshEnvironmentTarget): string {
   const authority = target.username ? `${target.username}@${target.hostname}` : target.hostname;
@@ -29,7 +30,7 @@ export function environmentTransportLabel(
   activeTarget: ConnectionTarget | null = null,
 ): string {
   const { entry } = environment;
-  if (entry.target._tag === "PrimaryConnectionTarget") return "This machine";
+  if (entry.target._tag === "PrimaryConnectionTarget") return msg("This machine");
   const routes = connectionRoutes(entry);
   if (routes.length > 1 && activeTarget !== null) {
     const activeId = connectionRouteId(activeTarget);
@@ -45,7 +46,7 @@ export function environmentTransportLabel(
     return `SSH ${formatDesktopSshTarget(entry.profile.value.target)}`;
   }
   return environment.displayUrl === null
-    ? "Remote link"
+    ? msg("Remote link")
     : connectionAddressLabel(environment.displayUrl);
 }
 

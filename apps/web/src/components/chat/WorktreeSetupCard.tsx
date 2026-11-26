@@ -1,6 +1,5 @@
 import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
 import { worktreeSetupStageLabel } from "@supaterm/client-runtime/contract-labels";
-import { useMessages } from "gt-react";
 import { type WorktreeSetupSnapshot, type WorktreeSetupStage } from "@supaterm/contracts";
 import {
   CheckIcon,
@@ -25,6 +24,7 @@ import { useNowSecond } from "~/hooks/useNowSecond";
 import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { WorkLogRow } from "./WorkLog";
 import { useTimelineDisclosure } from "./timelineDisclosure";
+import { T, useGT, useMessages, msg } from "gt-react";
 
 interface WorktreeSetupCardProps {
   snapshot: WorktreeSetupSnapshot;
@@ -115,15 +115,15 @@ function ShimmerOverlay({ children }: { children: ReactNode }) {
 function headerLabel(snapshot: WorktreeSetupSnapshot): string {
   switch (snapshot.phase) {
     case "running":
-      return "Setting up worktree…";
+      return msg("Setting up worktree…");
     case "done":
       return snapshot.stages.some((stage) => stage.status === "failed")
-        ? "Worktree ready, setup script failed"
-        : "Worktree ready";
+        ? msg("Worktree ready, setup script failed")
+        : msg("Worktree ready");
     case "failed":
-      return "Worktree setup failed";
+      return msg("Worktree setup failed");
     case "cancelled":
-      return "Worktree setup cancelled";
+      return msg("Worktree setup cancelled");
   }
 }
 
@@ -172,6 +172,7 @@ function StageRow({
   setupEndedAt: string | null;
   scriptName: string | null;
 }) {
+  const gt = useGT();
   const m = useMessages();
   const label =
     stage.id === "setup-script" && scriptName ? scriptName : worktreeSetupStageLabel(stage.id, m);
@@ -180,7 +181,7 @@ function StageRow({
     stage.status === "pending"
       ? null
       : stage.status === "skipped"
-        ? (stage.detail ?? "skipped")
+        ? (stage.detail ?? gt("skipped", { $context: "worktree setup stage status" }))
         : stage.id === "checkout" && running && stage.percent !== null
           ? `${stage.percent}%`
           : stage.detail;
@@ -256,7 +257,9 @@ function SetupDetails({ snapshot }: { snapshot: WorktreeSetupSnapshot }) {
     <dl className="ml-8 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 pt-1 pb-1.5 text-xs text-muted-foreground">
       {snapshot.branch ? (
         <>
-          <dt className="text-foreground/80">Branch</dt>
+          <dt className="text-foreground/80">
+            <T>Branch</T>
+          </dt>
           <dd className="min-w-0 font-mono">
             <MiddleTruncate value={snapshot.branch} className="flex" />
           </dd>
@@ -264,7 +267,9 @@ function SetupDetails({ snapshot }: { snapshot: WorktreeSetupSnapshot }) {
       ) : null}
       {snapshot.baseRef ? (
         <>
-          <dt className="text-foreground/80">Base</dt>
+          <dt className="text-foreground/80">
+            <T context="git base branch">Base</T>
+          </dt>
           <dd className="min-w-0 font-mono">
             <MiddleTruncate value={snapshot.baseRef} className="flex" />
           </dd>
@@ -272,7 +277,9 @@ function SetupDetails({ snapshot }: { snapshot: WorktreeSetupSnapshot }) {
       ) : null}
       {snapshot.worktreePath ? (
         <>
-          <dt className="text-foreground/80">Path</dt>
+          <dt className="text-foreground/80">
+            <T>Path</T>
+          </dt>
           <dd className="min-w-0 font-mono">
             <MiddleTruncate value={snapshot.worktreePath} className="flex" />
           </dd>
@@ -280,7 +287,9 @@ function SetupDetails({ snapshot }: { snapshot: WorktreeSetupSnapshot }) {
       ) : null}
       {snapshot.setupScript ? (
         <>
-          <dt className="text-foreground/80">Setup</dt>
+          <dt className="text-foreground/80">
+            <T context="setup script">Setup</T>
+          </dt>
           <dd className="truncate font-mono">{snapshot.setupScript.command}</dd>
         </>
       ) : null}
@@ -324,6 +333,7 @@ export function WorktreeSetupCard({
 }: WorktreeSetupCardProps & {
   embedded?: boolean;
 }) {
+  const gt = useGT();
   const running = snapshot.phase === "running";
   const [detailsOpen, toggleDetails] = useTimelineDisclosure();
   const setupStage = snapshot.stages.find((stage) => stage.id === "setup-script");
@@ -337,7 +347,7 @@ export function WorktreeSetupCard({
 
   const Icon = detailsOpen ? ChevronDownIcon : ChevronRightIcon;
   return (
-    <section aria-label="Worktree setup" data-worktree-setup-phase={snapshot.phase}>
+    <section aria-label={gt("Worktree setup")} data-worktree-setup-phase={snapshot.phase}>
       {showHeader ? <SetupHeaderRow snapshot={snapshot} /> : null}
       {collapsed ? (
         <CollapsedSummaryRow snapshot={snapshot} />
@@ -383,19 +393,19 @@ export function WorktreeSetupCard({
         {showTerminal ? (
           <Button type="button" size="xs" variant="ghost-muted" onClick={onOpenTerminal}>
             <TerminalIcon aria-hidden />
-            Open terminal
+            <T>Open terminal</T>
           </Button>
         ) : null}
         {onWorkLocally ? (
           <Button type="button" size="xs" variant="ghost-muted" onClick={onWorkLocally}>
             <LaptopIcon aria-hidden />
-            Work locally
+            <T>Work locally</T>
           </Button>
         ) : null}
         {onCancel && running ? (
           <Button type="button" size="xs" variant="ghost-muted" onClick={onCancel}>
             <XIcon aria-hidden />
-            Cancel
+            <T>Cancel</T>
           </Button>
         ) : null}
       </div>

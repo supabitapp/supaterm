@@ -11,6 +11,7 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { serverEnvironment } from "../state/server";
 import { formatShortTimestamp } from "../timestampFormat";
 import { toastManager } from "./ui/toast";
+import { msg } from "gt-react";
 
 export { snoozeWakeLabel, type SnoozePreset };
 
@@ -39,8 +40,8 @@ export function pickSnoozePreset(
   if (!picked) {
     toastManager.add({
       type: "warning",
-      title: "Could not snooze thread",
-      description: "That snooze time has passed. Choose another time.",
+      title: msg("Could not snooze thread"),
+      description: msg("That snooze time has passed. Choose another time."),
     });
   }
   return picked;

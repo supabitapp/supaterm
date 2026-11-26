@@ -15,6 +15,7 @@ import {
 import type { PullRequestFilterOption } from "./PullRequestListFilters";
 import type { PullRequestListSort } from "./pullRequestListPreferences";
 import { PullRequestGlyph } from "./pullRequestIcons";
+import { msg } from "gt-react";
 
 export const INVOLVEMENT_TABS = [
   { value: "all", label: "All", Icon: LayersIcon },
@@ -30,11 +31,11 @@ export const STATE_TABS = [
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<PullRequestListState>>;
 
 export const SORT_OPTIONS = [
-  { value: "ready", label: "Merge readiness", Icon: ListChecksIcon },
-  { value: "blocked", label: "Blocked on me", Icon: UserLockIcon },
-  { value: "updated", label: "Recently updated", Icon: ClockIcon },
-  { value: "newest", label: "Newest shown", Icon: SortDescendingIcon },
-  { value: "oldest", label: "Oldest shown", Icon: SortAscendingIcon },
-  { value: "largest", label: "Largest shown", Icon: ExpandIcon },
-  { value: "smallest", label: "Smallest shown", Icon: ShrinkIcon },
+  { value: "ready", label: msg("Merge readiness"), Icon: ListChecksIcon },
+  { value: "blocked", label: msg("Blocked on me"), Icon: UserLockIcon },
+  { value: "updated", label: msg("Recently updated"), Icon: ClockIcon },
+  { value: "newest", label: msg("Newest shown"), Icon: SortDescendingIcon },
+  { value: "oldest", label: msg("Oldest shown"), Icon: SortAscendingIcon },
+  { value: "largest", label: msg("Largest shown"), Icon: ExpandIcon },
+  { value: "smallest", label: msg("Smallest shown"), Icon: ShrinkIcon },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<PullRequestListSort>>;

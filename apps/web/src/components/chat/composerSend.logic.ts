@@ -2,6 +2,7 @@ import type { EnvironmentId, ThreadContextRecord } from "@supaterm/contracts";
 import { collectInlineContextIds } from "../../lib/composerContextReferences";
 import type { ReferenceContextRecord } from "../../lib/composerContextRecords";
 import type { ComposerThreadDraftState } from "../../composerDraftStore";
+import { msg } from "gt-react";
 
 /** Compare immutable user content without copying image bytes or upload metadata. */
 export function composerDraftContentChanged(
@@ -45,8 +46,10 @@ export function loadBalancingSendWarning(input: {
 }) {
   if (input.pending) {
     return {
-      title: "Checking machine resources",
-      description: "Resource checks are still running. You can choose a machine in the composer.",
+      title: msg("Checking machine resources"),
+      description: msg(
+        "Resource checks are still running. You can choose a machine in the composer.",
+      ),
     };
   }
   const noMachineReadsEveryThread =
@@ -55,10 +58,14 @@ export function loadBalancingSendWarning(input: {
       input.threadContexts.every((record) => record.environmentId === environmentId),
     );
   return {
-    title: "Choose a machine to continue",
+    title: msg("Choose a machine to continue"),
     description: noMachineReadsEveryThread
-      ? "No machine can read every attached thread. Choose a machine in the composer or remove the threads."
-      : "No eligible machine has available resources. Choose a machine in the composer to override.",
+      ? msg(
+          "No machine can read every attached thread. Choose a machine in the composer or remove the threads.",
+        )
+      : msg(
+          "No eligible machine has available resources. Choose a machine in the composer to override.",
+        ),
   };
 }
 
@@ -94,14 +101,14 @@ export function approvalRedirectNotice(input: {
 }): string | null {
   if (input.draftChanged) {
     return input.declined
-      ? "Approval declined. Your message changed, so it wasn't sent."
-      : "Your message changed, so it wasn't sent.";
+      ? msg("Approval declined. Your message changed, so it wasn't sent.")
+      : msg("Your message changed, so it wasn't sent.");
   }
   if (input.approvalResponding) {
-    return "An approval is already being answered, so your message wasn't sent.";
+    return msg("An approval is already being answered, so your message wasn't sent.");
   }
   if (input.declined && input.approvalArrived) {
-    return "Another approval arrived, so your message wasn't sent.";
+    return msg("Another approval arrived, so your message wasn't sent.");
   }
   return null;
 }

@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@supaterm/contracts";
+import { msg } from "gt-react";
 
 export type ReadyAttachmentUpload = {
   readonly status: "ready";
@@ -46,7 +47,7 @@ export function attachmentUploadBlockReason(input: {
       : "Retry or remove the failed attachments";
   }
   if (pending > 0) {
-    return pending === 1 ? "Attachment still uploading" : "Attachments still uploading";
+    return pending === 1 ? msg("Attachment still uploading") : msg("Attachments still uploading");
   }
   return null;
 }

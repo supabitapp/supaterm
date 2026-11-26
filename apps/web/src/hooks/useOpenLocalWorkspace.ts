@@ -17,6 +17,8 @@ import { useAtomCommand } from "../state/use-atom-command";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { reportProjectFailure } from "./useProjectGroupUpdate";
 import { useNewThreadHandler } from "./useHandleNewThread";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
 /**
  * Opens a folder on this computer as a project in this computer's environment: an
@@ -70,7 +72,9 @@ export function useOpenLocalWorkspace() {
         });
         if (result._tag === "Failure") {
           const error = squashAtomCommandFailure(result);
-          throw error instanceof Error ? error : new Error("Supaterm could not add the project.");
+          throw error instanceof Error
+            ? error
+            : new Error(m(msg("Supaterm could not add the project.")));
         }
         return projectId;
       },
@@ -88,7 +92,7 @@ export function useOpenLocalWorkspace() {
           void updateProject({
             environmentId: projectRef.environmentId,
             input: { projectId: projectRef.projectId, archived: false },
-          }).then((result) => reportProjectFailure("Failed to unarchive project", result));
+          }).then((result) => reportProjectFailure(m(msg("Failed to unarchive project")), result));
         }
         return openThread(projectRef);
       },

@@ -45,6 +45,8 @@ import {
   THREAD_DETAILS_PANEL_CHEVRON_CLASS,
   THREAD_DETAILS_PANEL_ICON_CLASS,
 } from "./threadDetailsPanelStyles";
+import { T, useGT, msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 interface ThreadRepositorySectionsProps {
   environmentId: EnvironmentId;
@@ -78,6 +80,7 @@ const RepositorySection = memo(function RepositorySection(props: {
   onToggle: (key: string) => void;
   onRemove: (key: string) => void;
 }) {
+  const gt = useGT();
   // Local status only: a remote read for every listed repository would fetch on a timer. The
   // expanded section's actions hold the full subscription, and its remote updates land here too.
   const status = useEnvironmentQuery(
@@ -91,7 +94,11 @@ const RepositorySection = memo(function RepositorySection(props: {
   const bodyId = `thread-repository-${props.sectionKey}`;
 
   return (
-    <div role="group" aria-label={`Repository ${props.name}`} className="flex flex-col">
+    <div
+      role="group"
+      aria-label={gt("Repository {name}", { name: props.name })}
+      className="flex flex-col"
+    >
       <ThreadDetailsControl
         size="sm"
         variant="ghost"
@@ -107,8 +114,8 @@ const RepositorySection = memo(function RepositorySection(props: {
             {summary === null
               ? (status.error ?? "")
               : !summary.isRepository
-                ? "Not a Git repository"
-                : (summary.branch ?? "Detached HEAD")}
+                ? gt("Not a Git repository")
+                : (summary.branch ?? gt("Detached HEAD"))}
           </span>
           {summary?.isRepository ? (
             <span className="ml-auto flex shrink-0 items-baseline gap-2 ps-2 font-mono tabular-nums">
@@ -149,7 +156,9 @@ const RepositorySection = memo(function RepositorySection(props: {
               onClick={() => props.onRemove(props.sectionKey)}
             >
               <PinOffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
-              <span className="min-w-0 truncate">Remove from this thread</span>
+              <span className="min-w-0 truncate">
+                <T>Remove from this thread</T>
+              </span>
             </ThreadDetailsControl>
           ) : null}
         </div>
@@ -167,6 +176,7 @@ function OtherRepositoryItems(props: {
   sections: RepositorySections;
   onPick: (repository: { repositoryPath: string; name: string }) => void;
 }) {
+  const gt = useGT();
   const folders = useEnvironmentQuery(
     filesystemEnvironment.listFolders({
       environmentId: props.environmentId,
@@ -176,7 +186,7 @@ function OtherRepositoryItems(props: {
   if (folders.data === null) {
     return (
       <MenuItem disabled>
-        <MenuItemLabel>{folders.error ?? "Loading repositories..."}</MenuItemLabel>
+        <MenuItemLabel>{folders.error ?? gt("Loading repositories...")}</MenuItemLabel>
       </MenuItem>
     );
   }
@@ -194,7 +204,9 @@ function OtherRepositoryItems(props: {
   if (repositories.length === 0) {
     return (
       <MenuItem disabled>
-        <MenuItemLabel>No other repositories</MenuItemLabel>
+        <MenuItemLabel>
+          <T>No other repositories</T>
+        </MenuItemLabel>
       </MenuItem>
     );
   }
@@ -211,6 +223,7 @@ function OtherRepositoryItems(props: {
  * the worktrees in its task folder. Folded sections are not rendered, so they hold no subscription.
  */
 export function ThreadRepositorySections(props: ThreadRepositorySectionsProps) {
+  const gt = useGT();
   const threadRef: ScopedThreadRef = {
     environmentId: props.environmentId,
     threadId: props.threadId,
@@ -255,7 +268,7 @@ export function ThreadRepositorySections(props: ThreadRepositorySectionsProps) {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: `Could not add ${repository.name}`,
+          title: m(msg("Could not add {name}", { name: repository.name })),
           description: error instanceof Error ? error.message : String(error),
         }),
       );
@@ -291,8 +304,8 @@ export function ThreadRepositorySections(props: ThreadRepositorySectionsProps) {
       {sections.visible.length === 0 && props.explainsEmpty && props.reachesTracked ? (
         <p className="px-2.5 py-1.5 text-xs text-muted-foreground">
           {taskFolder === null
-            ? "Repositories appear here once this thread changes them."
-            : "This thread has no repository worktrees yet."}
+            ? gt("Repositories appear here once this thread changes them.")
+            : gt("This thread has no repository worktrees yet.")}
         </p>
       ) : null}
       {sections.visible.map(renderSection)}
@@ -307,7 +320,9 @@ export function ThreadRepositorySections(props: ThreadRepositorySectionsProps) {
           onClick={() => setShowAll((current) => !current)}
         >
           <span className={"ms-6.5 min-w-0 truncate"}>
-            {showAll ? "Show fewer" : `Show ${sections.hidden.length} more`}
+            {showAll
+              ? gt("Show fewer")
+              : gt("Show {count} more", { count: sections.hidden.length })}
           </span>
         </ThreadDetailsControl>
       ) : null}
@@ -322,8 +337,8 @@ export function ThreadRepositorySections(props: ThreadRepositorySectionsProps) {
             <PlusIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
             <span className="min-w-0 truncate">
               {addingName === null
-                ? "Other repositories..."
-                : `Adding a worktree of ${addingName}...`}
+                ? gt("Other repositories...")
+                : gt("Adding a worktree of {name}...", { name: addingName })}
             </span>
           </MenuTrigger>
           <MenuPopup align="start">

@@ -18,6 +18,7 @@ import {
   usePullRequestReviewStore,
 } from "./pullRequestReviewStore";
 import { pullRequestCompletionScope } from "./PullRequestMarkdownTextarea";
+import { useGT, T } from "gt-react";
 
 export function PullRequestComposer({
   environmentId,
@@ -44,6 +45,7 @@ export function PullRequestComposer({
   onReviewSubmitted: () => void;
   openReviewRequest?: number | undefined;
 }) {
+  const gt = useGT();
   const term = sourceControlClients.get(detail.provider).changeRequest.singular;
   const [open, setOpen] = useState(false);
   const [reviewPending, setReviewPending] = useState(false);
@@ -113,7 +115,7 @@ export function PullRequestComposer({
         <div className="mb-3 flex items-center justify-between gap-2">
           {canComment && verdicts.length > 0 ? (
             <ToggleGroup
-              aria-label="Composer mode"
+              aria-label={gt("Composer mode")}
               variant="segmented"
               value={[mode]}
               onValueChange={(next) => {
@@ -121,9 +123,13 @@ export function PullRequestComposer({
                 if (value === "comment" || value === "review") setRequestedMode(value);
               }}
             >
-              <Toggle value="comment">Comment</Toggle>
+              <Toggle value="comment">
+                <T context="noun, composer mode">Comment</T>
+              </Toggle>
               <Toggle value="review">
-                {pendingComments.length > 0 ? `Review (${pendingComments.length})` : "Review"}
+                {pendingComments.length > 0
+                  ? gt("Review ({count})", { count: pendingComments.length })
+                  : gt("Review", { $context: "noun, composer mode" })}
               </Toggle>
             </ToggleGroup>
           ) : (
@@ -138,16 +144,16 @@ export function PullRequestComposer({
                 variant="ghost"
                 disabled={reviewPending}
                 icon={<TrashIcon className="size-3.5" />}
-                label="Discard pending line comments"
+                label={gt("Discard pending line comments")}
                 confirmLabel="Confirm discard"
-                tooltip="Discard pending line comments"
+                tooltip={gt("Discard pending line comments")}
                 confirmTooltip={`Click again to discard ${pendingComments.length} pending line ${pendingComments.length === 1 ? "comment" : "comments"}`}
                 onConfirm={() => clearComments(reviewKey)}
               />
             ) : null}
             <PopoverClose
               render={<Button size="icon-xs" variant="ghost" />}
-              aria-label="Close composer"
+              aria-label={gt("Close composer")}
             >
               <XIcon className="size-3.5" />
             </PopoverClose>

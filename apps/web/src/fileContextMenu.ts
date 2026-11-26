@@ -28,6 +28,7 @@ import { useAtomCommand } from "./state/use-atom-command";
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { toastManager } from "./components/ui/toast";
 import { useAtomValue } from "@effect/atom-react";
+import { msg } from "gt-react";
 
 export type FileContextMenuAction =
   | "reveal-in-folder"
@@ -89,7 +90,7 @@ function buildFileContextMenuItems(input: {
   if (editorIds.length > 0) {
     items.push({
       id: "open-with",
-      label: "Open with",
+      label: msg("Open with"),
       children: editorIds.map((editorId) => {
         const iconImage = input.editorIcons.get(editorId);
         return {
@@ -179,9 +180,9 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
       type: "error",
       title:
         action === "open"
-          ? "Could not open file"
+          ? msg("Could not open file")
           : reveal
-            ? "Unable to reveal file"
+            ? msg("Unable to reveal file")
             : editorFailureTitle(editor),
       description: absolutePath,
     });

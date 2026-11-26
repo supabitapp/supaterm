@@ -75,6 +75,7 @@ import { providerModelKey, sortProviderModelItems } from "../../modelOrdering";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { hasRuntimeModelCatalog } from "../../providerModels";
 import { isImeComposing } from "~/lib/imeComposition";
+import { T, useGT } from "gt-react";
 
 type ModelPickerItem = {
   slug: string;
@@ -221,6 +222,7 @@ function ModelPickerProviderNotices({
   onRequestClose: (() => void) | undefined;
   onOpenProviderSetup: ((instanceId: ProviderInstanceId) => void) | undefined;
 }) {
+  const gt = useGT();
   const navigate = useNavigate();
   return (
     <>
@@ -238,7 +240,9 @@ function ModelPickerProviderNotices({
                   onOpenProviderSetup?.(entry.instanceId);
                 }}
               >
-                {setupEntries.length > 1 ? `Set up ${entry.displayName}` : "Open provider setup"}
+                {setupEntries.length > 1
+                  ? gt("Set up {provider}", { provider: entry.displayName })
+                  : gt("Open provider setup")}
               </InlineButton>
             </div>
           ))}
@@ -261,7 +265,7 @@ function ModelPickerProviderNotices({
                   void navigate({ to: "/settings/providers" });
                 }}
               >
-                Provider settings
+                <T>Provider settings</T>
               </InlineButton>
             </>
           ) : null}
@@ -365,6 +369,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   /** The owning popup moves focus here when it opens (its `initialFocus`). */
   searchInputRef: RefObject<HTMLInputElement | null>;
 }) {
+  const gt = useGT();
   const {
     searchInputRef,
     keybindings: providedKeybindings,
@@ -913,7 +918,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
       setSearchQuery("");
       handleSelectInstance(next);
       announce(
-        next === "favorites" ? "Favorites" : (entryByInstanceId.get(next)?.displayName ?? next),
+        next === "favorites" ? gt("Favorites") : (entryByInstanceId.get(next)?.displayName ?? next),
         "model-picker",
       );
       return;
@@ -938,7 +943,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     const name = flatModels.find(
       (item) => item.slug === selectedSlug && item.instanceId === model.instanceId,
     )?.name;
-    announce(`Model: ${name ?? selectedSlug}`, "model-picker");
+    announce(gt("Model: {name}", { name: name ?? selectedSlug }), "model-picker");
   };
 
   return (
@@ -1028,7 +1033,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
           >
             <ComboboxSearchInput
               ref={searchInputRef}
-              placeholder="Search models..."
+              placeholder={gt("Search models...")}
               value={searchQuery}
               onChange={(e) => {
                 if (!isSearching) setSearchHeight(pickerContentRef.current?.offsetHeight ?? 0);
@@ -1143,7 +1148,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                           </div>
                           {unavailable ? (
                             <Badge variant="outline" size="sm">
-                              Unavailable
+                              {gt("Unavailable", { $context: "backend cannot be used right now" })}
                             </Badge>
                           ) : null}
                         </div>
@@ -1204,10 +1209,10 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
               updateRequiredNotices={updateRequiredNotices}
               emptyLabel={
                 selectedInstanceId === "favorites" && !isSearching
-                  ? "No favorites yet"
+                  ? gt("No favorites yet")
                   : workspaceModelsScanning
-                    ? "Searching project models..."
-                    : "No models found"
+                    ? gt("Searching project models...")
+                    : gt("No models found")
               }
               onRequestClose={onRequestClose}
               onOpenProviderSetup={onOpenProviderSetup}

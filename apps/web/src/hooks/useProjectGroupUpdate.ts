@@ -15,6 +15,8 @@ import { readEnvironment } from "../state/environments";
 import { projectEnvironment } from "../state/projects";
 import { readEnvironmentScope, useEnvironmentsWithScope } from "../state/session";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
 export type ProjectGroupUpdate = Partial<{
   title: string;
@@ -115,7 +117,7 @@ export function useProjectPin() {
     void updateProjectGroup(
       group.memberProjects,
       { pinned },
-      pinned ? "Failed to pin project" : "Failed to unpin project",
+      pinned ? m(msg("Failed to pin project")) : m(msg("Failed to unpin project")),
     );
   };
   return {
@@ -148,7 +150,7 @@ export function reportProjectFailure(title: string, result: AtomCommandResult<un
     stackedThreadToast({
       type: "error",
       title,
-      description: error instanceof Error ? error.message : "An error occurred.",
+      description: error instanceof Error ? error.message : m(msg("An error occurred.")),
     }),
   );
 }

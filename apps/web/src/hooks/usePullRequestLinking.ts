@@ -14,6 +14,8 @@ import { Atom } from "effect/reactivity";
 import { environmentServerConfigsAtom } from "~/state/server";
 import { threadEnvironment } from "~/state/threads";
 import { useAtomCommand } from "~/state/use-atom-command";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 // A boolean, so provider status pushes and snapshots that keep the environment's
 // config present don't re-render every link renderer.
@@ -60,7 +62,7 @@ export function usePullRequestLinking(environmentId: EnvironmentId | null | unde
           input: { threadId: threadRef.threadId, ...key },
         }));
     if (result._tag === "Failure") {
-      if (isAtomCommandInterrupted(result)) throw new Error("Link update interrupted.");
+      if (isAtomCommandInterrupted(result)) throw new Error(m(msg("Link update interrupted.")));
       throw squashAtomCommandFailure(result);
     }
   };

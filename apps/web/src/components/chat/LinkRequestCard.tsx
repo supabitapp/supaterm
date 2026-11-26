@@ -41,6 +41,7 @@ import { Input } from "../ui/input";
 import { Radio, RadioGroup } from "../ui/radio-group";
 import { WizardFooter, WizardHeader, WizardPanel, WizardPopup, WizardSteps } from "../ui/wizard";
 import { WorkLogRow } from "./WorkLog";
+import { T, useGT } from "gt-react";
 
 /** Whether the agent left the machine for the user to pick. */
 const picksMachine = (item: LinkRequestItem) =>
@@ -86,6 +87,7 @@ function PendingLinkRequest(props: {
   readonly environmentId: EnvironmentId;
   readonly item: LinkRequestItem;
 }) {
+  const gt = useGT();
   const { item } = props;
   const [open, setOpen] = useState(false);
   const [declining, setDeclining] = useState(false);
@@ -136,15 +138,15 @@ function PendingLinkRequest(props: {
             disabled={declining}
             onClick={() => void decline()}
           >
-            Decline
+            <T>Decline</T>
           </Button>
           <Button type="button" size="xs" disabled={declining} onClick={() => setOpen(true)}>
-            {picksMachine(item) ? "Choose machine…" : "Review link…"}
+            {picksMachine(item) ? gt("Choose machine…") : gt("Review link…")}
           </Button>
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Only a session that manages access here can answer this.
+          <T>Only a session that manages access here can answer this.</T>
         </p>
       )}
       <LinkRequestDialog
@@ -166,6 +168,7 @@ function LinkRequestDialog(props: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
+  const gt = useGT();
   const { item } = props;
   const formId = useId();
   const pickMachine = picksMachine(item);
@@ -293,7 +296,7 @@ function LinkRequestDialog(props: {
     >
       <WizardPopup>
         <WizardHeader
-          title={pickMachine ? "Link a machine" : `Link ${targetName}`}
+          title={pickMachine ? gt("Link a machine") : gt("Link {targetName}", { targetName })}
           description="Agents here can then launch, message and wait on threads there. Revoke it in that machine's Sharing & access."
         >
           {steps.length > 1 && !useExisting ? (
@@ -336,7 +339,9 @@ function LinkRequestDialog(props: {
                 ) : null}
                 {asksAddress ? (
                   <label className="block space-y-1.5">
-                    <span className="block text-xs font-medium text-foreground">Address</span>
+                    <span className="block text-xs font-medium text-foreground">
+                      <T>Address</T>
+                    </span>
                     <Input
                       value={address}
                       onChange={(event) => setAddress(event.target.value)}
@@ -365,12 +370,12 @@ function LinkRequestDialog(props: {
                     {canMint ? null : (
                       <label className="block space-y-1.5">
                         <span className="block text-xs font-medium text-foreground">
-                          Pairing code
+                          <T>Pairing code</T>
                         </span>
                         <Input
                           value={pairingCode}
                           onChange={(event) => setPairingCode(event.target.value)}
-                          placeholder="Paste the code"
+                          placeholder={gt("Paste the code")}
                           disabled={busy}
                           autoComplete="one-time-code"
                           nativeInput
@@ -411,11 +416,11 @@ function LinkRequestDialog(props: {
                 setError(null);
               }}
             >
-              Back
+              <T>Back</T>
             </Button>
           ) : (
             <Button variant="outline" type="button" disabled={busy} onClick={close}>
-              Cancel
+              <T>Cancel</T>
             </Button>
           )}
           <Button
@@ -423,7 +428,13 @@ function LinkRequestDialog(props: {
             type="submit"
             disabled={busy || (finishesHere ? !ready : !machineReady)}
           >
-            {busy ? "Linking…" : useExisting ? "Use this link" : finishesHere ? "Link" : "Continue"}
+            {busy
+              ? gt("Linking…")
+              : useExisting
+                ? gt("Use this link")
+                : finishesHere
+                  ? gt("Link", { $context: "verb, button that links two machines" })
+                  : gt("Continue")}
           </Button>
         </WizardFooter>
       </WizardPopup>
@@ -438,11 +449,12 @@ function MachinePicker(props: {
   readonly disabled: boolean;
   readonly onChange: (value: string) => void;
 }) {
+  const gt = useGT();
   const labelId = useId();
   return (
     <div className="space-y-2">
       <span id={labelId} className="block text-xs font-medium">
-        Machine
+        {gt("Machine", { $context: "label for a list of machines to choose from" })}
       </span>
       <RadioGroup
         aria-labelledby={labelId}
@@ -466,7 +478,9 @@ function MachinePicker(props: {
         ))}
         <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-sm">
           <Radio value={ANOTHER_ADDRESS} />
-          <span className="min-w-0 flex-1 font-medium">Another address…</span>
+          <span className="min-w-0 flex-1 font-medium">
+            <T>Another address…</T>
+          </span>
         </label>
       </RadioGroup>
     </div>

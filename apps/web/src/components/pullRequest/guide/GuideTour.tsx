@@ -20,6 +20,7 @@ import {
 } from "./guideRunStore";
 import { stepTourPosition, stopFilePaths } from "@supaterm/client-runtime/review-guide-tour";
 import { useGuideDiffFiles } from "./useGuideDiffFiles";
+import { T } from "gt-react";
 
 export function GuideTour({
   environmentId,
@@ -128,7 +129,9 @@ export function GuideTour({
             </p>
           ) : null}
           {stop === null ? (
-            <p className="text-sm text-muted-foreground">This change has no files to tour.</p>
+            <p className="text-sm text-muted-foreground">
+              <T>This change has no files to tour.</T>
+            </p>
           ) : (
             <GuideStop
               key={position}

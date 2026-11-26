@@ -21,6 +21,8 @@ import {
   PullRequestMarkdownTextarea,
   type PullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
+import { msg, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const VERDICTS: ReadonlyArray<{
   readonly value: PullRequestReviewVerdict;
@@ -31,7 +33,7 @@ const VERDICTS: ReadonlyArray<{
   {
     value: "comment",
     label: "Comment",
-    sent: () => "Review submitted",
+    sent: () => m(msg("Review submitted")),
     icon: <MessageSquareIcon className="size-3" />,
   },
   {
@@ -42,7 +44,7 @@ const VERDICTS: ReadonlyArray<{
   },
   {
     value: "request-changes",
-    label: "Request changes",
+    label: msg("Request changes"),
     sent: () => "Changes requested",
     icon: <CircleXIcon className="size-3" />,
   },
@@ -77,6 +79,7 @@ export function PullRequestReviewForm({
   onSubmitted: () => void;
   onRefused: () => void;
 }) {
+  const gt = useGT();
   const [requestedVerdict, setRequestedVerdict] = useState<PullRequestReviewVerdict>("comment");
   const [voiceBusy, setVoiceBusy] = useState(false);
   const comments = usePendingReviewComments(reference);
@@ -112,10 +115,10 @@ export function PullRequestReviewForm({
     if (result._tag === "Failure") {
       toastManager.add({
         type: "error",
-        title: "The review could not be submitted",
+        title: m(msg("The review could not be submitted")),
         description: readableFailure(
           squashAtomCommandFailure(result),
-          "The host refused the review. Your draft is still here to try again.",
+          m(msg("The host refused the review. Your draft is still here to try again.")),
         ),
       });
       onRefused();
@@ -140,8 +143,8 @@ export function PullRequestReviewForm({
     selectedVerdict === undefined || canSubmit(selectedVerdict.value, "")
       ? "Summarize your review (optional)"
       : selectedVerdict.value === "request-changes" && requestChangesSummaryRequired
-        ? "Summarize your review (required to request changes)"
-        : "Summarize your review or add line comments";
+        ? gt("Summarize your review (required to request changes)")
+        : gt("Summarize your review or add line comments");
 
   return (
     <>
@@ -152,7 +155,7 @@ export function PullRequestReviewForm({
         readOnly={voiceBusy}
         value={body}
         placeholder={placeholder}
-        aria-label="Review summary"
+        aria-label={gt("Review summary")}
         onValueChange={(next) => setSummary(reviewKey, next)}
       />
       <div className="mt-2 flex justify-end gap-2">
@@ -171,7 +174,11 @@ export function PullRequestReviewForm({
               if (value !== null) setRequestedVerdict(value);
             }}
           >
-            <SelectTrigger size="xs" className="mr-auto w-auto min-w-0" aria-label="Review verdict">
+            <SelectTrigger
+              size="xs"
+              className="mr-auto w-auto min-w-0"
+              aria-label={gt("Review verdict")}
+            >
               <span className="flex items-center gap-1.5">
                 {selectedVerdict?.icon}
                 {selectedVerdict?.label}
@@ -201,7 +208,7 @@ export function PullRequestReviewForm({
             if (selectedVerdict !== undefined) void submit(selectedVerdict);
           }}
         >
-          {pending ? "Submitting..." : "Submit review"}
+          {pending ? gt("Submitting...") : gt("Submit review")}
         </Button>
       </div>
     </>

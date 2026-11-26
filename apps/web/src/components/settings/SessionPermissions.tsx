@@ -4,6 +4,7 @@ import {
   sessionPermissionsUnavailableMessage,
 } from "@supaterm/shared/authScopeOptions";
 import { useEnvironmentSessionState } from "~/state/session";
+import { useGT } from "gt-react";
 
 export function SessionPermissions({
   environmentId,
@@ -14,6 +15,7 @@ export function SessionPermissions({
   readonly connected: boolean;
   readonly routeContext?: boolean;
 }) {
+  const gt = useGT();
   const session = useEnvironmentSessionState(environmentId);
   return connected && !session.hasError && !session.isPending && session.data?.authenticated ? (
     <div className="space-y-3 py-3 text-xs">
@@ -27,7 +29,9 @@ export function SessionPermissions({
           <li key={scope} className="flex items-start justify-between gap-3">
             <span>{title}</span>
             <span className="shrink-0 text-muted-foreground">
-              {sessionGrantsScope(session.data!, scope) ? "Allowed" : "Not granted"}
+              {sessionGrantsScope(session.data!, scope)
+                ? gt("Allowed", { $context: "permission state" })
+                : gt("Not granted")}
             </span>
           </li>
         ))}

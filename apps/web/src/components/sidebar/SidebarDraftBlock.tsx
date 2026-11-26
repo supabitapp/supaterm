@@ -35,6 +35,7 @@ import {
 import { useChatPaneStore } from "../../chatPanes/store";
 import { useShallow } from "zustand/react/shallow";
 import { JumpHintBadge, SidebarDraftDiscardButton, draftPenClassName } from "./SidebarThreadRow";
+import { useGT } from "gt-react";
 
 const DRAFTS_SHELF_EXPANDED_KEY = "supaterm:sidebar:drafts-expanded";
 
@@ -90,6 +91,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
     source: ContextMenuSource,
   ) => void;
 }) {
+  const gt = useGT();
   const { draftId, onContextMenu, onDiscard, onNavigate } = props;
   const composer = props.composer ?? EMPTY_COMPOSER_PARTS;
   const promptPreview =
@@ -116,7 +118,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
         : `${attachmentCount} attachment${attachmentCount === 1 ? "" : "s"}`;
   const accessibility = resolveSidebarRowAccessibility({
     title: preview,
-    statusLabel: "Unsent draft",
+    statusLabel: gt("Unsent draft"),
     projectDisplayName: props.projectDisplayName,
     isActive: props.isActive,
   });
@@ -205,7 +207,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
         </TooltipTrigger>
         <ThreadHoverCardPopup side="right" align="start" sideOffset={4}>
           <ThreadHoverCard title={preview}>
-            <div>Unsent draft</div>
+            <div>{gt("Unsent draft")}</div>
             {props.projectDisplayName ? <div>{props.projectDisplayName}</div> : null}
           </ThreadHoverCard>
         </ThreadHoverCardPopup>

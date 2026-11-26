@@ -20,6 +20,8 @@ import { PullRequestStackLayers } from "./PullRequestStackLayers";
 import { PullRequestStackHeader } from "./PullRequestStackHeader";
 import { PullRequestGlyph } from "./pullRequestIcons";
 import { mergeHeadPin, readableFailure } from "./pullRequestDetail.logic";
+import { msg, T, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export function PullRequestStackMenu({
   hostLabel,
@@ -64,6 +66,7 @@ export function PullRequestStackMenu({
   onSelect?: ((reference: PullRequestRef) => void) | undefined;
   onActed: () => void;
 }) {
+  const gt = useGT();
   const [open, setOpen] = useState(false);
   const confirm = useInlineConfirm<
     "merge" | "auto-merge" | "menu-merge" | "menu-auto-merge" | "menu-rebase"
@@ -89,7 +92,7 @@ export function PullRequestStackMenu({
     mergeHasClosed ||
     mergeLayers.length === 0 ||
     mergeLayers.some((layer) => layer.isDraft);
-  const staleReason = notice ?? "Checking the stack with the host…";
+  const staleReason = notice ?? gt("Checking the stack with the host…");
   const rebaseDisabled = pending || stale || hasUnknownHead || hasClosed || unmerged.length === 0;
   const run = async (action: "merge" | "enable-auto-merge" | "update-branch") => {
     if (
@@ -112,10 +115,10 @@ export function PullRequestStackMenu({
       type: "loading",
       title:
         action === "merge"
-          ? "Merging stack..."
+          ? m(msg("Merging stack..."))
           : action === "enable-auto-merge"
-            ? "Enabling stack auto-merge..."
-            : "Rebasing stack...",
+            ? m(msg("Enabling stack auto-merge..."))
+            : m(msg("Rebasing stack...")),
     });
     const result = await runAction({
       environmentId,
@@ -136,10 +139,10 @@ export function PullRequestStackMenu({
         type: "error",
         title:
           action === "merge"
-            ? "Could not merge the stack"
+            ? m(msg("Could not merge the stack"))
             : action === "enable-auto-merge"
-              ? "Could not enable stack auto-merge"
-              : "Could not rebase the stack",
+              ? m(msg("Could not enable stack auto-merge"))
+              : m(msg("Could not rebase the stack")),
         description: readableFailure(
           squashAtomCommandFailure(result),
           merging
@@ -152,13 +155,13 @@ export function PullRequestStackMenu({
         type: "success",
         title:
           action === "merge"
-            ? "Stack merge request completed"
+            ? m(msg("Stack merge request completed"))
             : action === "enable-auto-merge"
-              ? "Stack auto-merge enabled"
-              : "Stack rebased",
+              ? m(msg("Stack auto-merge enabled"))
+              : m(msg("Stack rebased")),
         description:
           action === "merge"
-            ? `${hostLabel} merged the stack or added it to its merge queue.`
+            ? m(msg("{host} merged the stack or added it to its merge queue.", { host: hostLabel }))
             : action === "enable-auto-merge"
               ? `${hostLabel} merges the stack through #${reference.number} once its requirements are met.`
               : undefined,
@@ -177,10 +180,10 @@ export function PullRequestStackMenu({
     if (result._tag === "Failure") {
       toastManager.add({
         type: "error",
-        title: "Could not cancel stack auto-merge",
+        title: m(msg("Could not cancel stack auto-merge")),
         description: readableFailure(
           squashAtomCommandFailure(result),
-          "The host refused to cancel auto-merge. Refresh and try again.",
+          m(msg("The host refused to cancel auto-merge. Refresh and try again.")),
         ),
       });
     }
@@ -201,7 +204,11 @@ export function PullRequestStackMenu({
                   <Button
                     variant="ghost"
                     size="xs"
-                    aria-label={`Stack ${stack.number}, layer ${position} of ${stack.layers.length}`}
+                    aria-label={gt("Stack {number}, layer {position} of {size}", {
+                      number: stack.number,
+                      position,
+                      size: stack.layers.length,
+                    })}
                   />
                 }
               >
@@ -219,7 +226,11 @@ export function PullRequestStackMenu({
         <MenuPopup align="start">
           <MenuGroup>
             <PullRequestStackHeader number={stack.number} notice={notice} stale={!!onRetry} />
-            {onRetry ? <MenuItem onClick={onRetry}>Retry stack refresh</MenuItem> : null}
+            {onRetry ? (
+              <MenuItem onClick={onRetry}>
+                <T>Retry stack refresh</T>
+              </MenuItem>
+            ) : null}
             <PullRequestStackLayers
               stack={stack}
               reference={reference}
@@ -258,7 +269,7 @@ export function PullRequestStackMenu({
               {autoMergeArmed && canCancelAutoMerge ? (
                 <MenuItem disabled={pending} onClick={() => void cancelAutoMerge()}>
                   <XIcon aria-hidden />
-                  Cancel stack auto-merge
+                  <T>Cancel stack auto-merge</T>
                 </MenuItem>
               ) : null}
               {canRebase ? (
@@ -286,7 +297,7 @@ export function PullRequestStackMenu({
               ) : null}
               {mergeHasClosed || mergeLayers.some((layer) => layer.isDraft) ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  Every layer being merged must be open and ready for review.
+                  <T>Every layer being merged must be open and ready for review.</T>
                 </p>
               ) : null}
             </>

@@ -24,6 +24,7 @@ import {
   postponeUpdateRestart,
   retryFailedUpdateRunServers,
 } from "./updateEverythingRun";
+import { T, useGT } from "gt-react";
 
 function useNow(intervalMs: number | null): number {
   const step = intervalMs ?? 60_000;
@@ -81,6 +82,7 @@ export function SidebarUpdateCapsule({
   readonly icon: ReactNode;
   readonly onRestart?: () => Promise<void>;
 }) {
+  const gt = useGT();
   const machines = useUpdateRunMachineViews(run, current);
   const hasActiveMachine = machines.some(
     ({ status }) => status !== "done" && status !== "failed" && status !== "waiting",
@@ -97,7 +99,7 @@ export function SidebarUpdateCapsule({
       : "@min-[12rem]/sidebar-update:block";
 
   const actionLabel =
-    view.action === "later" ? "Later" : view.action === "retry" ? "Retry" : "Dismiss";
+    view.action === "later" ? gt("Later") : view.action === "retry" ? gt("Retry") : gt("Dismiss");
   const runAction = () => {
     if (view.action === "later") postponeUpdateRestart();
     else if (view.action === "retry") {
@@ -176,16 +178,20 @@ export function SidebarUpdateCapsule({
         <div className="flex flex-col gap-1 text-xs">
           {run.localVersion !== null ? (
             <div className="flex items-center justify-between gap-3">
-              <span>This app</span>
+              <span>
+                <T>This app</T>
+              </span>
               <span className="text-muted-foreground tabular-nums">
                 {localStatusLabel(run, local, now)}
               </span>
             </div>
           ) : onRestart ? (
             <div className="flex items-center justify-between gap-3">
-              <span>This app</span>
+              <span>
+                <T>This app</T>
+              </span>
               <Button size="xs" variant="outline" onClick={() => void onRestart()}>
-                Restart to update
+                <T>Restart to update</T>
               </Button>
             </div>
           ) : null}
@@ -217,7 +223,7 @@ export function SidebarUpdateCapsule({
               </Button>
               {settled && failed && view.action !== "dismiss" ? (
                 <Button size="xs" variant="ghost" onClick={dismissSettledUpdateRunMachines}>
-                  Dismiss
+                  <T>Dismiss</T>
                 </Button>
               ) : null}
             </div>

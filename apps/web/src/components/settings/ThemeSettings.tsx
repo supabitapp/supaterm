@@ -58,6 +58,7 @@ import {
   type ThemeMode,
 } from "./ThemePreviewCircles";
 import { ThemeWireframe } from "./ThemeWireframe";
+import { T, useGT } from "gt-react";
 
 const DEFAULT_THEME_VALUE = "__default";
 
@@ -109,6 +110,7 @@ export function ThemeLibrary({
   themeHalves: ThemeHalves | null;
   setThemeHalf: (appearance: ThemeAppearance, themeId: string | null) => boolean;
 }) {
+  const gt = useGT();
   const pickerId = useId();
   const openThemeEditor = useThemeEditorStore((store) => store.openThemeEditor);
   const environmentThemes = useEnvironmentThemeDefinitions();
@@ -126,8 +128,8 @@ export function ThemeLibrary({
     toastManager.add(
       stackedThreadToast({
         type: "error",
-        title: "Couldn’t save theme selection",
-        description: "Try again.",
+        title: gt("Couldn’t save theme selection"),
+        description: gt("Try again."),
       }),
     );
   };
@@ -136,8 +138,8 @@ export function ThemeLibrary({
     toastManager.add(
       stackedThreadToast({
         type: "error",
-        title: "Couldn’t remove theme",
-        description: "Try again.",
+        title: gt("Couldn’t remove theme"),
+        description: gt("Try again."),
       }),
     );
   };
@@ -266,12 +268,12 @@ export function ThemeLibrary({
   );
 
   const renderModeTiles = () => (
-    <div aria-label="Appearance mode" className="grid w-full grid-cols-3 gap-2" role="group">
+    <div aria-label={gt("Appearance mode")} className="grid w-full grid-cols-3 gap-2" role="group">
       {(["system", "light", "dark"] as const).map((mode) => {
         const isActive = appearanceMode === mode;
         return (
           <button
-            aria-label={mode === "system" ? "Follow the system appearance" : `Use ${mode} mode`}
+            aria-label={mode === "system" ? gt("Follow the system appearance") : `Use ${mode} mode`}
             aria-pressed={isActive}
             className={cn(
               "flex cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border p-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring",
@@ -291,7 +293,7 @@ export function ThemeLibrary({
                 isActive ? "text-foreground" : "text-muted-foreground",
               )}
             >
-              {mode === "system" ? "System" : mode === "light" ? "Light" : "Dark"}
+              {mode === "system" ? gt("System") : mode === "light" ? gt("Light") : gt("Dark")}
             </span>
           </button>
         );
@@ -497,7 +499,7 @@ export function ThemeLibrary({
             stackedThreadToast({
               type: "success",
               title: `${importedTheme.label} added`,
-              description: "It’s now active.",
+              description: gt("It’s now active."),
             }),
           );
           return true;
@@ -510,13 +512,17 @@ export function ThemeLibrary({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {isSingleThemeRemoval
-                ? `Remove “${removalCollection[0]?.label}”?`
-                : `Remove themes from “${removalCollectionLabel}”?`}
+                ? gt("Remove “{label}”?", { label: removalCollection[0]?.label })
+                : gt("Remove themes from “{removeDialogCollectionLabel}”?", {
+                    removeDialogCollectionLabel: removalCollectionLabel,
+                  })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {isSingleThemeRemoval
                 ? "You can add it again with Add theme."
-                : "Select the variants you want to remove. You can restore them by importing the extension again."}
+                : gt(
+                    "Select the variants you want to remove. You can restore them by importing the extension again.",
+                  )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {isSingleThemeRemoval ? null : (
@@ -570,7 +576,9 @@ export function ThemeLibrary({
             </div>
           )}
           <AlertDialogFooter>
-            <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+            <AlertDialogClose render={<Button variant="outline" />}>
+              <T>Cancel</T>
+            </AlertDialogClose>
             <Button
               disabled={themeIdsToRemove.length === 0}
               variant="destructive"

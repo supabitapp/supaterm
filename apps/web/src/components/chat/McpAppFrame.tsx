@@ -37,6 +37,8 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { observeResize } from "~/lib/observeResize";
 import { attachMcpAppDocumentLink } from "./mcpAppDocumentLink";
 import { useNativeTitlebarHeight } from "~/lib/windowControlsOverlay";
+import { T, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const fullscreenSupported =
   typeof HTMLElement !== "undefined" && "popover" in HTMLElement.prototype;
@@ -82,6 +84,7 @@ export function McpAppFrame(props: {
 
   readonly onFullscreenChange?: (fullscreen: boolean) => void;
 }) {
+  const gt = useGT();
   const { app } = props;
   const theme = useHtmlRenderTheme();
   const nativeTitlebarHeight = useNativeTitlebarHeight();
@@ -366,7 +369,7 @@ export function McpAppFrame(props: {
             setClosed(false);
           }}
         >
-          Show app
+          <T>Show app</T>
         </Button>
       </div>
     );
@@ -398,7 +401,7 @@ export function McpAppFrame(props: {
           >
             <span className="truncate">{app.server}</span>
             <Button
-              aria-label="Exit full screen"
+              aria-label={gt("Exit full screen")}
               size="icon-sm"
               variant="ghost"
               onClick={() => setDisplayMode("inline")}

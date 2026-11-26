@@ -2,6 +2,7 @@ import { TerminalIcon } from "@supaterm/icons";
 
 import type { ContextPresentationCapability } from "../contextPresentationRegistry";
 import { ContextChipPopover, ContextChipShell } from "../contextChipParts";
+import { useGT } from "gt-react";
 
 interface TerminalContextInlineChipProps {
   label: string;
@@ -14,6 +15,7 @@ interface TerminalContextInlineChipProps {
 }
 
 export function TerminalContextInlineChip(props: TerminalContextInlineChipProps) {
+  const gt = useGT();
   const { label, terminalLabel, lineStart, lineEnd, text, detailsMode, expired = false } = props;
 
   if (!expired && text.length > 0 && detailsMode === "popover") {
@@ -22,7 +24,7 @@ export function TerminalContextInlineChip(props: TerminalContextInlineChipProps)
         kind="terminal"
         icon={<TerminalIcon />}
         label={label}
-        accessibleLabel={`Terminal excerpt, ${label}`}
+        accessibleLabel={gt("Terminal excerpt, {label}", { label })}
       >
         <div className="overflow-hidden rounded-md border border-border/70 bg-background/80">
           <div className="flex items-center gap-2 border-b border-border/70 px-3 py-2">
@@ -31,12 +33,14 @@ export function TerminalContextInlineChip(props: TerminalContextInlineChipProps)
               {terminalLabel}
             </span>
             <span className="ml-auto shrink-0 text-secondary-label text-xs">
-              {lineStart === lineEnd ? `Line ${lineStart}` : `Lines ${lineStart}–${lineEnd}`}
+              {lineStart === lineEnd
+                ? gt("Line {lineStart}", { lineStart })
+                : gt("Lines {lineStart}–{lineEnd}", { lineStart, lineEnd })}
             </span>
           </div>
           <pre
             className="max-h-80 overflow-auto whitespace-pre bg-muted p-3 font-mono text-foreground text-xs leading-relaxed outline-none [tab-size:4] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-            aria-label="Captured terminal output"
+            aria-label={gt("Captured terminal output")}
             tabIndex={0}
           >
             {text}
@@ -56,7 +60,10 @@ export function TerminalContextInlineChip(props: TerminalContextInlineChipProps)
       data-terminal-context-expired={expired ? "true" : undefined}
       tooltip={
         expired
-          ? `Terminal context expired. Remove and re-add ${label} to include it in your message.`
+          ? gt(
+              "Terminal context expired. Remove and re-add {label} to include it in your message.",
+              { label },
+            )
           : detailsMode === "none"
             ? undefined
             : text

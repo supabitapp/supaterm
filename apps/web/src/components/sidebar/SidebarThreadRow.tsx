@@ -129,6 +129,7 @@ import { useThreadHasUnsentDraft } from "../../composerDraftStore";
 import { isImeComposing } from "~/lib/imeComposition";
 import { ThreadDetailsIssueRows } from "../chat/ThreadDetailsIssueRows";
 import { IssueGlyph, issueStatePresentation } from "../issue/issuePresentation";
+import { T, useGT } from "gt-react";
 
 // The fields thread rows show. Provider status pushes refresh `checkedAt`,
 // status and auth on every provider; leaving those out keeps each
@@ -313,6 +314,7 @@ function SidebarThreadTooltip({
   terminalStatus: TerminalStatusIndicator | null;
   terminalProcessCount: number;
 }) {
+  const gt = useGT();
   const driverKind = providerEntry?.driverKind ?? null;
   const models = providerEntry?.models ?? [];
   const effortLabel = formatModelSelectionEffort(thread.modelSelection, models);
@@ -368,7 +370,7 @@ function SidebarThreadTooltip({
           <div className="flex min-w-0 items-start gap-2 text-warning">
             <CircleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
             <div className="min-w-0 flex-1 wrap-break-word">
-              You're currently checked out on another branch.
+              <T>You're currently checked out on another branch.</T>
             </div>
           </div>
         ) : null}
@@ -438,8 +440,8 @@ function SidebarThreadTooltip({
             <CircleAlertIcon className="size-3 shrink-0" />
             <div className="min-w-0 truncate">
               {thread.runtime.lastErrorClass === "usage_limit"
-                ? "Usage limit reached"
-                : "Error occurred"}
+                ? gt("Usage limit reached")
+                : gt("Error occurred")}
             </div>
           </div>
         ) : null}
@@ -540,13 +542,13 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
   pin: (
     <>
       <PinIcon aria-hidden className="size-3" />
-      Pin
+      <T>Pin</T>
     </>
   ),
   unpin: (
     <>
       <PinOffIcon aria-hidden className="size-3" />
-      Unpin
+      <T>Unpin</T>
     </>
   ),
   "mark-done": (
@@ -643,6 +645,7 @@ function ThreadRenameInput(props: {
   onCommit: () => void;
   onCancel: () => void;
 }) {
+  const gt = useGT();
   // Enter and Escape blur the input as it unmounts; that blur must not commit again.
   const settledRef = useRef(false);
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -663,7 +666,7 @@ function ThreadRenameInput(props: {
       autoFocus
       value={props.title}
       dir="auto"
-      aria-label="Thread title"
+      aria-label={gt("Thread title")}
       onChange={(event) => props.onTitleChange(event.target.value)}
       onFocus={(event) => event.currentTarget.select()}
       onKeyDown={handleKeyDown}
@@ -678,6 +681,7 @@ function ThreadRenameInput(props: {
 }
 
 const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowProps) {
+  const gt = useGT();
   const {
     isRenaming,
     onCancelRename,
@@ -810,46 +814,46 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         ? {
             label:
               status === "preparing"
-                ? "Setting up"
+                ? gt("Setting up")
                 : thread.goal?.status === "active"
-                  ? "Goal"
-                  : "Working",
+                  ? gt("Goal", { $context: "thread status: working on a goal" })
+                  : gt("Working", { $context: "thread status" }),
             icon: "working" as const,
             className: "text-info-foreground",
           }
         : topStatusKind === "waiting"
           ? {
-              label: "Waiting",
+              label: gt("Waiting", { $context: "thread status" }),
               icon: null,
               className: "text-muted-foreground",
             }
           : topStatusKind === "approval"
             ? {
-                label: "Approval",
+                label: gt("Approval", { $context: "thread status: needs approval" }),
                 icon: "approval" as const,
                 className: "text-warning-foreground",
               }
             : topStatusKind === "input"
               ? {
-                  label: "Input",
+                  label: gt("Input", { $context: "thread status: needs user input" }),
                   icon: "input" as const,
                   className: "text-indigo-600 dark:text-indigo-300",
                 }
               : topStatusKind === "limited"
                 ? {
-                    label: "Limited",
+                    label: gt("Limited", { $context: "thread status: usage limited" }),
                     icon: "failed" as const,
                     className: "text-warning-foreground",
                   }
                 : topStatusKind === "failed"
                   ? {
-                      label: "Failed",
+                      label: gt("Failed", { $context: "thread status" }),
                       icon: "failed" as const,
                       className: "text-error-foreground",
                     }
                   : topStatusKind === "woke"
                     ? {
-                        label: "Woke",
+                        label: gt("Woke", { $context: "thread status: woke from snooze" }),
                         icon: "woke" as const,
                         className: "text-warning-foreground",
                       }
@@ -1251,7 +1255,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         render={
           <span
             role="img"
-            aria-label="Unsent draft"
+            aria-label={gt("Unsent draft")}
             data-testid={`sidebar-draft-indicator-${thread.id}`}
             className="inline-flex shrink-0 items-center"
           />
@@ -1259,7 +1263,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       >
         <SquarePenIcon aria-hidden className={draftPenClassName} />
       </TooltipTrigger>
-      <TooltipPopup side="top">Unsent draft</TooltipPopup>
+      <TooltipPopup side="top">
+        <T>Unsent draft</T>
+      </TooltipPopup>
     </Tooltip>
   ) : null;
   const showPin =
@@ -1274,7 +1280,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       />
     ) : (
       <PinIcon
-        aria-label="Pinned"
+        aria-label={gt("Pinned")}
         role="img"
         className="size-3 shrink-0 text-muted-foreground/65"
       />
@@ -1334,7 +1340,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             </span>
             {isRegeneratingTitle ? (
               <span role="status" className="sr-only">
-                Regenerating title
+                <T>Regenerating title</T>
               </span>
             ) : null}
             {/* Keep PR badges and wake notifications visible when the parked action replaces the time. */}
@@ -1418,7 +1424,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         ) : null}
                         <SidebarParkedActionButton
                           action="unsnooze"
-                          label="Wake thread now"
+                          label={gt("Wake thread now")}
                           onClick={handleUnsnoozeClick}
                           onSweepStart={handleSweepPointerDown}
                         >
@@ -1622,7 +1628,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             ) : null}
             {isRegeneratingTitle ? (
               <span role="status" className="sr-only">
-                Regenerating title
+                <T>Regenerating title</T>
               </span>
             ) : null}
             <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1.5 text-xs text-secondary-label">

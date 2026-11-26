@@ -15,6 +15,8 @@ import {
   supportsDesktopAppUpdate,
 } from "~/versionSkew";
 import type { ServerUpdateOutcome, ServerUpdateTarget } from "../ServerUpdateAction";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export interface UpdateEverythingMachine {
   readonly environmentId: EnvironmentId;
@@ -70,7 +72,7 @@ export interface SkippedMachine {
 
 // Desktop servers without the desktop control fd (older apps, WSL backends: wsl.exe cannot pass
 // fds) cannot be updated from here, and their desktop app is not necessarily the stale part.
-const UPDATE_ON_THAT_MACHINE = "update Supaterm on that machine";
+const UPDATE_ON_THAT_MACHINE = msg("update Supaterm on that machine");
 
 /** Skip current and app-hosted servers; the latter update with the app and would relaunch mid-run.
  * Desktop-managed servers use their own feed. */
@@ -465,7 +467,7 @@ export function describeUpdateCapsule(
     return { tone: "default", label: `Restart in ${seconds}s`, action: "later" };
   }
   if (run.phase === "installing") {
-    return { tone: "default", label: "Restarting…", action: null };
+    return { tone: "default", label: msg("Restarting…"), action: null };
   }
   const active = machines.filter(({ status }) => isActive(status) && status !== "waiting");
   const slowest = active.toSorted((a, b) => a.machine.startedAt - b.machine.startedAt)[0];
@@ -509,12 +511,12 @@ export function describeUpdateCapsule(
 }
 
 export const RUN_STATUS_LABELS: Record<UpdateRunMachineStatus, string> = {
-  providers: "updating providers",
-  waiting: "waiting",
-  downloading: "downloading",
-  restarting: "restarting",
-  done: "done",
-  failed: "failed",
+  providers: msg("updating providers"),
+  waiting: msg("waiting"),
+  downloading: msg("downloading"),
+  restarting: msg("restarting"),
+  done: msg("done"),
+  failed: msg("failed"),
 };
 
 export interface UpdateEverythingResult {
@@ -581,7 +583,7 @@ export function getUpdateEverythingToastView(
   }
   return {
     type: "error",
-    title: parts.length === 0 ? "Update failed" : `Updated ${joinList(parts)}`,
+    title: parts.length === 0 ? m(msg("Update failed")) : `Updated ${joinList(parts)}`,
     description: [...result.failures, ...restarting].join("\n"),
   };
 }
