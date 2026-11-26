@@ -12,7 +12,7 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import { browserTabTitle } from "./browserTabs";
 import { PreviewStreamWebView } from "./PreviewStreamWebView";
 import { usePreparedConnection } from "../../state/session";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 const PLAYER_LONG_SIDE = 184;
 
@@ -83,6 +83,7 @@ function FloatingBrowserPlayer(props: {
 }
 
 function FloatingBrowserStream(props: ComponentProps<typeof FloatingBrowserPlayer>) {
+  const messages = useMessages();
   const gt = useGT();
   const { themeVariables } = useAppearancePreferences();
   const prepared = usePreparedConnection(props.environmentId);
@@ -109,7 +110,9 @@ function FloatingBrowserStream(props: ComponentProps<typeof FloatingBrowserPlaye
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={gt("Open browser, {title}", { title: browserTabTitle(props.tab) })}
+        accessibilityLabel={gt("Open browser, {title}", {
+          title: browserTabTitle(props.tab, messages),
+        })}
         accessibilityHint={gt("Opens the browser tab full screen")}
         onPress={props.onOpen}
         className="flex-1"

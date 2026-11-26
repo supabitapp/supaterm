@@ -33,22 +33,22 @@ export interface PullRequestStatePresentation {
 
 export const PULL_REQUEST_STATE_PRESENTATION = {
   open: {
-    label: msg("Open"),
+    label: msg("Open", { $context: "pull request state" }),
     toneClassName: "text-emerald-600 dark:text-emerald-300/90",
     Icon: PullRequestGlyph.pullRequest,
   },
   draft: {
-    label: msg("Draft"),
+    label: msg("Draft", { $context: "pull request state" }),
     toneClassName: "text-zinc-500 dark:text-zinc-400/80",
     Icon: PullRequestGlyph.draft,
   },
   closed: {
-    label: msg("Closed"),
+    label: msg("Closed", { $context: "pull request state" }),
     toneClassName: "text-red-600 dark:text-red-300/90",
     Icon: PullRequestGlyph.closed,
   },
   merged: {
-    label: msg("Merged"),
+    label: msg("Merged", { $context: "pull request state" }),
     toneClassName: "text-violet-600 dark:text-violet-300/90",
     Icon: PullRequestGlyph.merged,
   },

@@ -95,7 +95,7 @@ import {
 } from "./KeybindingsSettings.logic";
 import { SettingsGroup } from "./SettingsGroup";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
-import { keybindingSearchAnchorId, searchableSetting } from "./settingsSearch";
+import { keybindingSearchAnchorId, useSearchableSetting } from "./settingsSearch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { T, useGT, useMessages } from "gt-react";
@@ -383,6 +383,7 @@ function WhenExpressionNodeEditor({
   onChange: (node: KeybindingWhenNode) => void;
   onRemove?: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const condition = conditionParts(node);
 
@@ -411,7 +412,7 @@ function WhenExpressionNodeEditor({
         />
         {onRemove ? (
           <WhenExpressionRemoveButton
-            label={whenNodeRemoveLabel(node, depth)}
+            label={whenNodeRemoveLabel(node, depth, messages)}
             onRemove={onRemove}
           />
         ) : null}
@@ -440,7 +441,7 @@ function WhenExpressionNodeEditor({
           </Toggle>
           {onRemove ? (
             <WhenExpressionRemoveButton
-              label={whenNodeRemoveLabel(node, depth)}
+              label={whenNodeRemoveLabel(node, depth, messages)}
               className="ml-auto"
               onRemove={onRemove}
             />
@@ -553,7 +554,7 @@ function WhenExpressionNodeEditor({
         </Button>
         {onRemove ? (
           <WhenExpressionRemoveButton
-            label={whenNodeRemoveLabel(node, depth)}
+            label={whenNodeRemoveLabel(node, depth, messages)}
             className="ml-auto"
             onRemove={onRemove}
           />
@@ -1470,6 +1471,7 @@ function useKeybindingCatalog() {
 }
 
 export function KeybindingsSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { environment: primaryEnvironment, connectedEnvironments } = useSettingsScope();
   const canOpenKeybindingsFile = useEnvironmentScope(

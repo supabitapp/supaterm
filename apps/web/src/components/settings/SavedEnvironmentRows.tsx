@@ -160,7 +160,7 @@ export function SavedBackendListRow({
   const mcpUrl = environmentMcpUrl({ entry: environment.entry, connectedTarget });
   const routeCount = connectionRoutes(environment.entry).length;
   const subtitleText = [
-    environmentTransportLabel(environment),
+    environmentTransportLabel(environment, undefined, m),
     // The headline below names the failure in full.
     diagnosis ? null : resumingServerUpdate ? gt("Restarting") : m(status.text),
     enabled && versionMismatch ? serverVersion : null,
@@ -174,7 +174,7 @@ export function SavedBackendListRow({
     versionMismatch !== null &&
     (serverUpdateState.status === "idle" || serverUpdateState.status === "failed");
 
-  const statusTooltip = `${environmentTransportLabel(environment)}\n${
+  const statusTooltip = `${environmentTransportLabel(environment, undefined, m)}\n${
     unsupported
       ? (environment.connection.error ?? connectionStatusText(environment.connection))
       : enabled

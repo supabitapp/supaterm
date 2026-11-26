@@ -54,6 +54,7 @@ import {
 } from "./terminalContext";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 const PREVIEW_LABEL_MAX_CHARS = 48;
 const RESPONSE_LABEL_MAX_CHARS = 64;
@@ -124,7 +125,10 @@ export function pullRequestContextKindLabel(comment: ReviewCommentPresentation):
   return `${capitalizeTerm(state)} ${term}`;
 }
 
-export function previewAnnotationContextLabel(annotation: PreviewAnnotationPayload): string {
+export function previewAnnotationContextLabel(
+  annotation: PreviewAnnotationPayload,
+  resolve: MessageResolver = m,
+): string {
   const comment = annotation.comment.trim().replace(/\s+/g, " ");
   if (comment) {
     if (comment.length <= PREVIEW_LABEL_MAX_CHARS) return comment;
@@ -134,7 +138,7 @@ export function previewAnnotationContextLabel(annotation: PreviewAnnotationPaylo
     if (previous >= 0xd800 && previous <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) end -= 1;
     return `${comment.slice(0, end)}…`;
   }
-  return annotation.pageTitle?.trim() || msg("Preview annotation");
+  return annotation.pageTitle?.trim() || resolve(msg("Preview annotation"));
 }
 
 export function terminalContextReference(context: TerminalContextDraft): ComposerContextReference {

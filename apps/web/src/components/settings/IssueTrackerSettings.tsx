@@ -33,7 +33,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Skeleton } from "../ui/skeleton";
 import { SecretInput } from "./SecretInput";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { T, useGT, useMessages } from "gt-react";
 
 type TrackerIcon = ElementType<{ className?: string }>;
@@ -49,6 +49,7 @@ const TRACKER_ICONS: Partial<Record<string, TrackerIcon>> = {
  * host's. Generic over the trackers the server reports; nothing here names Linear but its icon.
  */
 export function IssueTrackerSettings({ environmentId }: { readonly environmentId: EnvironmentId }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const query = useEnvironmentQuery(
     issueTrackerEnvironment.connections({ environmentId, input: {} }),

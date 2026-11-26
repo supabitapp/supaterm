@@ -19,7 +19,8 @@ import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";
 import { writeLocalStorageValue } from "../../hooks/useLocalStorage";
 import { commandLabel } from "./KeybindingsSettings.logic";
 import type { ResolvedSettingsScope } from "./settingsScope";
-import { msg, useMessages } from "gt-react";
+import { decodeMsg, msg, useMessages } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 export type SettingsPath =
   | "/settings/projects"
@@ -90,29 +91,29 @@ export interface SettingsSearchAvailability {
 }
 
 export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
-  "/settings/diagnostics": "Diagnostics",
-  "/settings/projects": "Projects",
-  "/settings/general": "General",
-  "/settings/appearance": "Appearance",
-  "/settings/chat": "Chat",
-  "/settings/diffs": "Diffs & pull requests",
-  "/settings/keybindings": "Keybindings",
-  "/settings/snap-shot": "SnapShots",
+  "/settings/diagnostics": msg("Diagnostics"),
+  "/settings/projects": msg("Projects"),
+  "/settings/general": msg("General"),
+  "/settings/appearance": msg("Appearance"),
+  "/settings/chat": msg("Chat"),
+  "/settings/diffs": msg("Diffs & pull requests"),
+  "/settings/keybindings": msg("Keybindings"),
+  "/settings/snap-shot": msg("SnapShots"),
   "/settings/codex-micro": "Codex Micro",
   "/settings/sidepulse": "SidePulse",
-  "/settings/providers": "Providers",
-  "/settings/threads": "Threads",
-  "/settings/voice": "Voice transcription",
-  "/settings/browser": "Browser",
-  "/settings/devices": "Devices",
-  "/settings/source-control": "Source control & issues",
-  "/settings/worktrees": "Worktrees",
-  "/settings/connections": "Environments",
-  "/settings/access": "Sharing & access",
-  "/settings/secrets": "Secrets",
-  "/settings/maintenance": "Maintenance",
-  "/settings/about": "About",
-  "/settings/archived": "Archive",
+  "/settings/providers": msg("Providers"),
+  "/settings/threads": msg("Threads"),
+  "/settings/voice": msg("Voice transcription"),
+  "/settings/browser": msg("Browser"),
+  "/settings/devices": msg("Devices"),
+  "/settings/source-control": msg("Source control & issues"),
+  "/settings/worktrees": msg("Worktrees"),
+  "/settings/connections": msg("Environments"),
+  "/settings/access": msg("Sharing & access"),
+  "/settings/secrets": msg("Secrets"),
+  "/settings/maintenance": msg("Maintenance"),
+  "/settings/about": msg("About"),
+  "/settings/archived": msg("Archive"),
 };
 
 /** Sidebar order. A group with a hidden heading is set apart on screen by space alone. */
@@ -174,16 +175,17 @@ export function keybindingSearchAnchorId<Command extends KeybindingCommand>(comm
   return `keybinding-${command}` as const;
 }
 
+const untranslated = ((message) => message) as MessageResolver;
+
 const KEYBINDING_SEARCH_ITEMS = STATIC_KEYBINDING_COMMANDS.toSorted((left, right) =>
   commandLabel(left).localeCompare(commandLabel(right)),
 ).map((command) => {
-  const messages = useMessages();
   const defaultKeys = DEFAULT_KEYBINDINGS.filter((binding) => binding.command === command).map(
     (binding) => binding.key,
   );
   return {
     id: keybindingSearchAnchorId(command),
-    title: commandLabel(command, messages),
+    title: commandLabel(command, untranslated),
     to: "/settings/keybindings" as const,
     searchTerms: [command, ...defaultKeys],
     secondary: true,
@@ -209,8 +211,8 @@ export function sourceControlHostSearchItems(
       {
         id: sourceControlHostSettingsSearchId(definition.kind),
         title: credentials
-          ? `${definition.label} accounts and token`
-          : `${definition.label} credentials`,
+          ? msg("{label} accounts and token", { label: definition.label })
+          : msg("{label} credentials", { label: definition.label }),
         to: "/settings/source-control" as const,
         searchTerms: [
           credentials
@@ -1389,6 +1391,14 @@ export function searchableSetting(id: SettingsSearchItemId): {
   return { id: anchorId, title };
 }
 
+export function useSearchableSetting() {
+  const m = useMessages();
+  return (id: SettingsSearchItemId) => {
+    const setting = searchableSetting(id);
+    return { ...setting, title: m(setting.title) };
+  };
+}
+
 export function filterAvailableSettingsSearchItems(
   availability: SettingsSearchAvailability,
 ): ReadonlyArray<SettingsSearchItem> {
@@ -1426,6 +1436,7 @@ export function settingsForThisPlatform(
 export function searchSettings(
   query: string,
   items: ReadonlyArray<SettingsSearchItem> = SETTINGS_SEARCH_ITEMS,
+  translate: (message: string) => string = (message) => message,
 ): ReadonlyArray<SettingsSearchItem> {
   const normalizedQuery = normalizeSearchText(query);
   if (normalizedQuery.length === 0) return [];
@@ -1433,11 +1444,15 @@ export function searchSettings(
 
   return settingsForThisPlatform(items)
     .flatMap((item, index) => {
-      const title = normalizeSearchText(item.title);
+      const title = normalizeSearchText(decodeMsg(item.title));
       const fields = [
         title,
         normalizeSearchText(SETTINGS_SECTION_LABELS[item.to]),
+        // The labels as displayed, so search also works in the active language.
+        normalizeSearchText(translate(item.title)),
+        normalizeSearchText(translate(SETTINGS_SECTION_LABELS[item.to])),
         ...(item.searchTerms ?? []).map(normalizeSearchText),
+        ...(item.searchTerms ?? []).map((term) => normalizeSearchText(translate(term))),
       ];
       if (!queryTokens.every((token) => fields.some((field) => field.includes(token)))) return [];
 

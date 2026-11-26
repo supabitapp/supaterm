@@ -27,7 +27,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "../../settings/settingsLayout";
-import { searchableSetting } from "../../settings/settingsSearch";
+import { useSearchableSetting } from "../../settings/settingsSearch";
 import { getSidePulseBridge } from "../sidePulseBridge";
 import { SidePulseColorPicker } from "./SidePulseColorPicker";
 import { SidePulseLedPreview } from "./SidePulseLedPreview";
@@ -299,6 +299,7 @@ const REMOVE_COPY = {
 };
 
 function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseBridge }) {
+  const searchableSetting = useSearchableSetting();
   const messages = useMessages();
   const [status, setStatus] = useState<SidePulseEjectGuardStatus | null>(null);
   const [pending, setPending] = useState(false);
@@ -369,6 +370,7 @@ export function SidePulseSettings() {
 }
 
 function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBridge }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const messages = useMessages();
   const settings = useClientSettings((current) => current.sidePulse);

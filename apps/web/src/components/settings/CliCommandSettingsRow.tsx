@@ -9,7 +9,7 @@ import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { SettingsRow } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { msg, T, useGT } from "gt-react";
 import { m } from "../../i18n/messages";
 
@@ -50,6 +50,7 @@ export function useDesktopCliCommand() {
 }
 
 export function CliCommandSettingsRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { state, busy, run } = useDesktopCliCommand();
 

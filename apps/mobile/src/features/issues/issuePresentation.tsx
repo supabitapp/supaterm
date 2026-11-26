@@ -16,6 +16,7 @@ import { pullRequestLabelColor } from "../pull-requests/pullRequestList";
 import { usePullRequestConnected } from "../pull-requests/usePullRequestConnected";
 import { issueTarget, type IssueParams } from "./issueParams";
 import { msg } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 // Open and completed wear the pull request colors for open and merged; closed any other way
 // than completed is grey, because work that stopped must not look like work that finished.
@@ -66,11 +67,14 @@ export function useIssueAccess(params: IssueParams, detail: IssueDetail | null |
   };
 }
 
-export function issueCommandError(result: AsyncResult.AsyncResult<unknown, unknown>) {
+export function issueCommandError(
+  result: AsyncResult.AsyncResult<unknown, unknown>,
+  resolve: MessageResolver = m,
+) {
   if (!AsyncResult.isFailure(result)) return null;
   if (isAtomCommandInterrupted(result)) return ENVIRONMENT_REQUEST_INTERRUPTED;
   const cause = squashAtomCommandFailure(result);
-  return cause instanceof Error ? cause.message : msg("The tracker refused it.");
+  return cause instanceof Error ? cause.message : resolve(msg("The tracker refused it."));
 }
 
 export function IssueLabelPill({ label }: { readonly label: IssueLabel }) {

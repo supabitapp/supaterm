@@ -667,8 +667,11 @@ export function PullRequestMetaLine({
   );
 }
 
-export function summarizePullRequestChecks(checks: ReadonlyArray<PullRequestCheck>): string {
-  if (checks.length === 0) return msg("No checks reported");
+export function summarizePullRequestChecks(
+  checks: ReadonlyArray<PullRequestCheck>,
+  resolve: MessageResolver = m,
+): string {
+  if (checks.length === 0) return resolve(msg("No checks reported"));
   const actionRequired = checks.filter((check) => check.status === "action-required");
   const workflowApprovalRequired = actionRequired.filter(isWorkflowApprovalCheck).length;
   const otherActionRequired = actionRequired.length - workflowApprovalRequired;

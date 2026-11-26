@@ -183,14 +183,17 @@ const readyCheckpointOrder = Order.make<ThreadCheckpointSummary>(
   compareCheckpointTurnCountDescending,
 );
 
-function gitSubtitle(section: ReviewDiffPreviewSource): string | null {
+function gitSubtitle(
+  section: ReviewDiffPreviewSource,
+  resolve: MessageResolver = m,
+): string | null {
   if (section.kind === "working-tree") {
     return UNCOMMITTED_SUBTITLE;
   }
   if (section.baseRef) {
     return `${section.baseRef} ... ${section.headRef ?? "HEAD"}`;
   }
-  return msg("Base branch unavailable");
+  return resolve(msg("Base branch unavailable"));
 }
 
 function stripTrailingNewline(value: string): string {

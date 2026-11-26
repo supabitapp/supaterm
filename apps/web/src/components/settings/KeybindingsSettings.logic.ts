@@ -114,12 +114,16 @@ export function whenAstToExpression(node: KeybindingWhenNode | undefined): strin
   }
 }
 
-export function whenNodeRemoveLabel(node: KeybindingWhenNode, depth: number): string {
-  if (depth === 0) return msg("Clear all conditions");
+export function whenNodeRemoveLabel(
+  node: KeybindingWhenNode,
+  depth: number,
+  resolve: MessageResolver = m,
+): string {
+  if (depth === 0) return resolve(msg("Clear all conditions"));
   if (node.type === "identifier" || (node.type === "not" && node.node.type === "identifier")) {
-    return msg("Remove condition");
+    return resolve(msg("Remove condition"));
   }
-  return msg("Remove group and its conditions");
+  return resolve(msg("Remove group and its conditions"));
 }
 
 function wrapWhenExpression(node: KeybindingWhenNode): string {

@@ -33,7 +33,7 @@ import {
 import { Kbd } from "./ui/kbd";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { stackedThreadToast, toastManager } from "./ui/toast";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 const PREVIOUS_WORKTREE_SELECT_VALUE = "previous-worktree";
 
@@ -64,6 +64,7 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
   previousWorktreeBranch = null,
   onUsePreviousWorktree,
 }: BranchToolbarEnvModeSelectorProps) {
+  const messages = useMessages();
   const gt = useGT();
   const workspacePath =
     displayMode === "panel" && (effectiveEnvMode === "local" || activeWorktreePath !== null)
@@ -86,9 +87,9 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
   const envModeItems = [
     {
       value: "local",
-      label: workspaceDisplayName ?? resolveCurrentWorkspaceLabel(activeWorktreePath),
+      label: workspaceDisplayName ?? resolveCurrentWorkspaceLabel(activeWorktreePath, messages),
     },
-    { value: "worktree", label: resolveEnvModeLabel("worktree") },
+    { value: "worktree", label: resolveEnvModeLabel("worktree", messages) },
     ...(showPreviousWorktree && previousWorktreeLabel
       ? [{ value: PREVIOUS_WORKTREE_SELECT_VALUE, label: previousWorktreeLabel }]
       : []),
@@ -171,9 +172,9 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
         )}
         <ComposerContextLabel displayMode={displayMode}>
           {forceNewWorktree
-            ? resolveEnvModeLabel("worktree")
+            ? resolveEnvModeLabel("worktree", messages)
             : (workspaceDisplayName ??
-              resolveLockedWorkspaceLabel(activeWorktreePath, effectiveEnvMode))}
+              resolveLockedWorkspaceLabel(activeWorktreePath, effectiveEnvMode, messages))}
         </ComposerContextLabel>
         {displayMode === "panel" && lockedWorkspaceKind ? (
           <span className="shrink-0 text-3xs font-normal text-muted-foreground/70">
@@ -191,7 +192,7 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
             ? gt("Each model starts in its own worktree.")
             : (workspacePath ??
               activeWorktreePath ??
-              resolveLockedWorkspaceLabel(activeWorktreePath, effectiveEnvMode))}
+              resolveLockedWorkspaceLabel(activeWorktreePath, effectiveEnvMode, messages))}
         </TooltipPopup>
       </Tooltip>
     );
@@ -256,8 +257,8 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
         >
           {workspacePath ??
             (effectiveEnvMode === "worktree"
-              ? resolveEnvModeLabel("worktree")
-              : resolveCurrentWorkspaceLabel(activeWorktreePath))}
+              ? resolveEnvModeLabel("worktree", messages)
+              : resolveCurrentWorkspaceLabel(activeWorktreePath, messages))}
         </TooltipPopup>
       </Tooltip>
       <ComboboxPopup

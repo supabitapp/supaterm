@@ -21,7 +21,7 @@ import { BrowserChrome } from "./BrowserBar";
 import { BrowserTabMenu } from "./BrowserTabMenu";
 import { browserTabTitle, browserTabUrl, latestBrowserTab } from "./browserTabs";
 import { PreviewStreamWebView, type PreviewStreamRef } from "./PreviewStreamWebView";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 type BrowserPreviewRouteScreenProps = StaticScreenProps<{
@@ -76,6 +76,7 @@ function BrowserPreviewScreen({
   readonly initialTabId: string | null;
   readonly onClose: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { themeVariables } = useAppearancePreferences();
   const prepared = usePreparedConnection(environmentId);
@@ -135,7 +136,7 @@ function BrowserPreviewScreen({
                   accessibilityRole="button"
                   actions={tabs.map((entry) => ({
                     id: entry.tabId,
-                    title: browserTabTitle(entry),
+                    title: browserTabTitle(entry, messages),
                     subtitle: browserTabUrl(entry),
                     state: entry.tabId === tabId ? "on" : "off",
                   }))}

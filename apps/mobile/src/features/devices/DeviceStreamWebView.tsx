@@ -21,8 +21,26 @@ import {
   deviceStreamMessage,
   type DeviceStreamConfiguration,
 } from "./device-stream-document";
-import { msg, useGT } from "gt-react-native";
-import { m } from "../../i18n/messages";
+import { decodeOptions, msg, useGT } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
+
+/** Resolves a status detail the WebView left marked, including marked variables inside it. */
+function streamDetailText(detail: string, resolve: MessageResolver): string {
+  const options = decodeOptions(detail);
+  if (typeof options?.$_source !== "string") return detail;
+  const { $_source: source, ...variables } = options;
+  return resolve(
+    source,
+    Object.fromEntries(
+      Object.entries(variables).map(([key, value]) => [
+        key,
+        typeof value === "string" && !key.startsWith("$")
+          ? streamDetailText(value, resolve)
+          : value,
+      ]),
+    ),
+  );
+}
 
 export interface DeviceStreamRef {
   home: () => void;
@@ -40,7 +58,8 @@ type NativeStreamBridge = {
 export function DeviceStreamWebView({
   ref,
   ...props
-}: DeviceStreamConfiguration & NativeStreamBridge) {
+}: Omit<DeviceStreamConfiguration, "labels"> & NativeStreamBridge) {
+  const gt = useGT();
   const [attempt, setAttempt] = useState(0);
   const processRetried = useRef(false);
   const configuration = JSON.stringify({
@@ -48,7 +67,11 @@ export function DeviceStreamWebView({
     platform: props.platform,
     deviceId: props.deviceId,
     colors: props.colors,
-  });
+    labels: {
+      screen: props.platform === "ios" ? gt("iOS Simulator screen") : gt("Android Emulator screen"),
+      reconnectingControls: gt("Reconnecting device controls..."),
+    },
+  } satisfies DeviceStreamConfiguration);
   return (
     <DeviceStreamDocumentView
       key={`${attempt}:${configuration}`}
@@ -136,7 +159,11 @@ function DeviceStreamDocumentView({
     };
   }, []);
   const source = {
-    html: deviceStreamDocument(configuration, deviceStreamScript),
+    html: deviceStreamDocument(
+      configuration,
+      deviceStreamScript,
+      gt("Device viewer stopped unexpectedly."),
+    ),
     baseUrl,
   };
   const command = (button: keyof DeviceStreamRef) => {
@@ -183,7 +210,12 @@ function DeviceStreamDocumentView({
           else if (message?.type === "retry") onRetry();
           else if (message?.type === "status") {
             clearBootstrapTimer();
-            if (message.status === "error") fail(message.detail ?? "Device stream failed.");
+            if (message.status === "error")
+              fail(
+                message.detail === undefined
+                  ? m(msg("Device stream failed."))
+                  : streamDetailText(message.detail, m),
+              );
             else {
               setStatus(message.status);
               if (message.status === "streaming") onStreaming();

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 
 import { describePreviewError } from "./errorCodeMessages";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 interface Props {
   url: string;
@@ -58,10 +58,11 @@ export function PreviewFileNotShown({
 }
 
 export function PreviewUnreachable({ url, code, description, onReload, move }: Props) {
+  const messages = useMessages();
   const gt = useGT();
   const [showDetails, setShowDetails] = useState(false);
   const host = safeHost(url) ?? url;
-  const friendly = describePreviewError(description);
+  const friendly = describePreviewError(description, messages);
   const errorLabel = description.length > 0 ? description : `ERR_${Math.abs(code) || "FAILED"}`;
 
   return (

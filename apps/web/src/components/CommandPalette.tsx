@@ -298,7 +298,7 @@ import { useChatPaneStore } from "../chatPanes/store";
 import { focusAdjacentPaneFromKeyboard } from "../chatPanes/actions";
 import { threadRecentUse } from "@supaterm/shared/paletteSearch";
 import { isImeComposing } from "~/lib/imeComposition";
-import { T, useGT, useMessages, msg, Var } from "gt-react";
+import { decodeMsg, T, useGT, useMessages, msg, Var } from "gt-react";
 import type { MessageResolver } from "~/i18n/messages";
 
 const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
@@ -646,11 +646,14 @@ function OpenCommandPaletteDialog(props: {
         const isPrimary = environment.entry.target._tag === "PrimaryConnectionTarget";
         return {
           environmentId: environment.environmentId,
-          label: resolveEnvironmentOptionLabel({
-            isPrimary,
-            environmentId: environment.environmentId,
-            runtimeLabel: environment.label,
-          }),
+          label: resolveEnvironmentOptionLabel(
+            {
+              isPrimary,
+              environmentId: environment.environmentId,
+              runtimeLabel: environment.label,
+            },
+            messages,
+          ),
           isPrimary,
           machine: resolveEnvironmentMachineKind(environment.serverConfig),
           isConnected: canCreateProjectInEnvironment(environment.connection.phase),
@@ -1969,9 +1972,16 @@ function OpenCommandPaletteDialog(props: {
   ).map((item) => ({
     kind: "action",
     value: `setting:${item.id}`,
-    searchTerms: [item.title, SETTINGS_SECTION_LABELS[item.to], ...(item.searchTerms ?? [])],
-    title: item.title,
-    description: gt("Settings · {section}", { section: SETTINGS_SECTION_LABELS[item.to] }),
+    // Matches the English and the displayed language, like the settings search.
+    searchTerms: [
+      item.title,
+      SETTINGS_SECTION_LABELS[item.to],
+      ...(item.searchTerms ?? []),
+    ].flatMap((term) => [messages(term), decodeMsg(term)]),
+    title: messages(item.title),
+    description: gt("Settings · {section}", {
+      section: messages(SETTINGS_SECTION_LABELS[item.to]),
+    }),
     ...(item.secondary ? { secondary: true } : {}),
     icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
     run: async () => {
@@ -2669,7 +2679,7 @@ function OpenCommandPaletteDialog(props: {
     newProjectFlow !== null
       ? "Project name"
       : (remoteProjectInputPlaceholder(addProjectCloneFlow, messages) ??
-        getCommandPaletteInputPlaceholder(paletteMode));
+        getCommandPaletteInputPlaceholder(paletteMode, messages));
   const isSubmenu = paletteMode === "submenu" || paletteMode === "submenu-browse";
   const hasHighlightedBrowseItem = highlightedItemValue?.startsWith("browse:") ?? false;
   const canWriteSourceControl = useEnvironmentScope(

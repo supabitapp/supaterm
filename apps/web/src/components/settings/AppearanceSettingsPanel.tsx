@@ -21,7 +21,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { TypographySection } from "./TypographySettings";
 import { ThreadDetailsItemsRow } from "./ThreadDetailsItemsRow";
 import { msg, useGT, useMessages } from "gt-react";
@@ -39,6 +39,7 @@ const HTML_PREVIEW_WIDTH_LABELS: Record<HtmlPreviewWidth, string> = {
 };
 
 export function AppearanceSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const m = useMessages();
   const {

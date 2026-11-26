@@ -34,7 +34,7 @@ import {
 } from "./SettingsPanels.logic";
 import { IntervalSecondsField } from "./IntervalSecondsField";
 import { PolicyTooltip, SettingResetButton, SettingsRow } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { msg, T, useGT } from "gt-react";
 
 const BACKGROUND_ACTIVITY_PROFILE_LABELS: Record<BackgroundActivityProfile, string> = {
@@ -95,6 +95,7 @@ function BackgroundActivityAdvancedDialog({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const canWriteSettings = useScopedSettingsWriteAllowed();
   const settings = useScopedSettings();
@@ -358,6 +359,7 @@ function BackgroundActivityAdvancedDialog({
 }
 
 export function BackgroundActivitySettingsRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();

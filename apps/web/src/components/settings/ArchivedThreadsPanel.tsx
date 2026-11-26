@@ -28,7 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { ProjectFavicon } from "../ProjectFavicon";
 import {
   EMPTY_ROW_SELECTION,
@@ -95,6 +95,7 @@ function ArchivedThreadChunk(props: {
 }
 
 export function ArchivedThreadsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { scope, groups: projectGroups, environments } = useSettingsScope();
   const { unarchiveThreads, deleteThread } = useThreadActions();

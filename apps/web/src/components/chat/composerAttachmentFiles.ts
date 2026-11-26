@@ -14,6 +14,7 @@ import { isVideoAttachment, videoMimeType } from "../../types";
 import { isSvgAttachment } from "@supaterm/shared/image";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/mediaPreview";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 type ComposerAttachmentFileKind = "image" | "file" | "unsupported-image";
 
@@ -208,16 +209,19 @@ export function fileAttachmentCapabilityBlockReason(
   input: FileAttachmentCapabilityState & {
     readonly files: ReadonlyArray<{ readonly name: string; readonly sizeBytes: number }>;
   },
+  resolve: MessageResolver = m,
 ): string | null {
   if (input.files.length === 0) {
     return null;
   }
   if (!input.attachmentUploadsCapabilityKnown) {
-    return msg("Waiting for the server before file attachments can send");
+    return resolve(msg("Waiting for the server before file attachments can send"));
   }
   const maxFileAttachmentBytes = fileAttachmentStagingLimit(input);
   if (maxFileAttachmentBytes === null) {
-    return msg("This server does not accept file attachments right now. Remove the files to send.");
+    return resolve(
+      msg("This server does not accept file attachments right now. Remove the files to send."),
+    );
   }
   const oversizedFile = input.files.find((file) => file.sizeBytes > maxFileAttachmentBytes);
   if (oversizedFile) {

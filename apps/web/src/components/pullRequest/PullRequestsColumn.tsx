@@ -16,8 +16,8 @@ import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { PullRequestCompactFilterMenu } from "./PullRequestCompactFilterMenu";
 import type { PullRequestFilterOption } from "./PullRequestListFilters";
-import { INVOLVEMENT_TABS, STATE_TABS } from "./pullRequestListOptions";
-import { T, useGT } from "gt-react";
+import { INVOLVEMENT_TABS, resolveFilterOptions, STATE_TABS } from "./pullRequestListOptions";
+import { T, useGT, useMessages } from "gt-react";
 
 function ExpandableSearch({
   searchInput,
@@ -118,6 +118,7 @@ export function PullRequestsColumn({
   scrollRef: RefObject<HTMLDivElement | null>;
 }) {
   const gt = useGT();
+  const resolve = useMessages();
   const contentArea = workspaceAreaProps("pull-requests", 1, "Pull requests");
   const markerRef = useRef<HTMLDivElement | null>(null);
   const [condensed, setCondensed] = useState(false);
@@ -191,14 +192,14 @@ export function PullRequestsColumn({
               <PullRequestCompactFilterMenu
                 label={gt("Filter by state")}
                 value={state}
-                options={STATE_TABS}
+                options={resolveFilterOptions(STATE_TABS, resolve)}
                 onChange={onState}
                 className="shrink-0"
               />
               <PullRequestCompactFilterMenu
                 label={gt("Filter by involvement")}
                 value={involvement}
-                options={INVOLVEMENT_TABS}
+                options={resolveFilterOptions(INVOLVEMENT_TABS, resolve)}
                 onChange={onInvolvement}
               />
               {hostMenuOptions.length > 2 ? (

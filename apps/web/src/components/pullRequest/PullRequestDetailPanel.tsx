@@ -1465,7 +1465,7 @@ export function PullRequestDetailPanel({
       ? "No checks reported"
       : pullRequestChecksStatePresentation(checksState, resolve).label
     : detail
-      ? summarizePullRequestChecks(detail.checks)
+      ? summarizePullRequestChecks(detail.checks, resolve)
       : null;
   const approvalCount =
     detail && !detail.commentsTruncated

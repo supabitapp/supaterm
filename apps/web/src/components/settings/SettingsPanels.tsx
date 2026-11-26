@@ -94,7 +94,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
 import { OrchestrationSkillsSettings } from "./OrchestrationSkillsSettings";
@@ -132,6 +132,7 @@ const TIMESTAMP_FORMAT_LABELS = {
 
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
 function AboutVersionSection() {
+  const searchableSetting = useSearchableSetting();
   const messages = useMessages();
   const gt = useGT();
   const updateState = useDesktopUpdateState();
@@ -268,7 +269,7 @@ function AboutVersionSection() {
   const description =
     action === "download" || action === "install"
       ? "Update available."
-      : (getDesktopUpdateDisabledReason(updateState) ?? null);
+      : (getDesktopUpdateDisabledReason(updateState, messages) ?? null);
 
   return (
     <>
@@ -705,6 +706,7 @@ export function useSettingsRestore(onRestored?: () => void) {
 const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 7;
 
 export function GeneralSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -1057,6 +1059,7 @@ export function GeneralSettingsPanel() {
 }
 
 export function ChatSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const modifierLabel = isMacPlatform(navigator.platform) ? "⌘" : "Ctrl";
   const followUpOverrideShortcut = {
@@ -1252,6 +1255,7 @@ const TOOL_CALL_VISIBILITY_LABELS: Record<ToolCallVisibility, string> = {
 const isToolCallVisibility = Schema.is(ToolCallVisibility);
 
 function ToolCallVisibilityRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -1303,6 +1307,7 @@ const SCREEN_READER_ANNOUNCEMENTS_LABELS: Record<ScreenReaderAnnouncements, stri
 const isScreenReaderAnnouncements = Schema.is(ScreenReaderAnnouncements);
 
 function ScreenReaderAnnouncementsRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -1359,6 +1364,7 @@ function ScreenReaderAnnouncementsRow() {
 }
 
 function ScreenReaderWindowTitleRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -1394,6 +1400,7 @@ function ScreenReaderWindowTitleRow() {
 }
 
 function DiffColorsSettingsRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -1454,6 +1461,7 @@ function DiffColorsSettingsRow() {
 }
 
 export function DiffsSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -1551,6 +1559,7 @@ export function DiffsSettingsPanel() {
 }
 
 export function ThreadsSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -2028,6 +2037,7 @@ export function ThreadsSettingsPanel() {
 }
 
 export function MaintenanceSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -2201,6 +2211,7 @@ export function MaintenanceSettingsPanel() {
 }
 
 export function AboutSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   // The Welcome page sets up this computer, so it needs one.
   const primaryEnvironmentId = usePrimaryEnvironmentId();

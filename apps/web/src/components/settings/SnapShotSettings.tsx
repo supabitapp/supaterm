@@ -47,7 +47,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../ui/menu";
 import { SelectButton } from "../ui/select";
@@ -80,6 +80,7 @@ type ShortcutCheck =
     };
 
 export function SnapShotSettings() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const messages = useMessages();
   const settings = useClientSettings((current) => ({
@@ -137,9 +138,9 @@ export function SnapShotSettings() {
       ? latestShortcutCheck
       : { status: "idle", availability: null };
   const shortcutCheckIdRef = useRef(0);
-  const unavailableMessage = snapShotUnavailableMessage(Boolean(bridge));
+  const unavailableMessage = snapShotUnavailableMessage(Boolean(bridge), messages);
   const captureAvailable = Boolean(bridge) && state !== null && state.mode !== "unavailable";
-  const feedbackUnavailable = snapShotFeedbackUnavailableMessage(state);
+  const feedbackUnavailable = snapShotFeedbackUnavailableMessage(state, messages);
   const managedShortcut = state?.linuxBackend === "niri" || state?.linuxBackend === "hyprland";
   const shortcutChanged = !managedShortcut && !sameSnapShotShortcut(candidate, savedShortcut);
   const displayShortcut = shortcutChanged ? candidate : (state?.shortcut ?? savedShortcut);
@@ -273,7 +274,7 @@ export function SnapShotSettings() {
               !state.shortcutLabel &&
               isModifierPairShortcut(displayShortcut)
             ? "Try a shortcut such as Ctrl+Shift+2."
-            : snapShotShortcutStatus(state);
+            : snapShotShortcutStatus(state, messages);
 
   const openSetup = async (requested: CaptureSetupStep | "resume" = "resume") => {
     if (!state || setupBusy) return;
@@ -361,14 +362,14 @@ export function SnapShotSettings() {
         <SettingsUnavailableGroup message={unavailableMessage}>
           <SettingsRow
             {...searchableSetting("snap-shot-enabled")}
-            description={snapShotDescription(state)}
+            description={snapShotDescription(state, messages)}
             status={
               bridge
                 ? setupBusy && !wizard
                   ? gt("Updating capture settings…")
                   : refreshError
                     ? `${refreshError.title}. ${refreshError.message}`
-                    : snapShotStatus(state, settings.snapShotEnabled)
+                    : snapShotStatus(state, settings.snapShotEnabled, messages)
                 : undefined
             }
             control={
@@ -402,15 +403,16 @@ export function SnapShotSettings() {
               <SettingsRow
                 {...searchableSetting("snap-shot-accessibility")}
                 description={gt("Include text and controls when the app makes them available.")}
-                status={snapShotAccessibilityUnavailableMessage(state)}
+                status={snapShotAccessibilityUnavailableMessage(state, messages)}
                 control={
                   <Switch
                     checked={
-                      !snapShotAccessibilityUnavailableMessage(state) &&
+                      !snapShotAccessibilityUnavailableMessage(state, messages) &&
                       settings.snapShotIncludeAccessibility
                     }
                     disabled={
-                      !captureAvailable || Boolean(snapShotAccessibilityUnavailableMessage(state))
+                      !captureAvailable ||
+                      Boolean(snapShotAccessibilityUnavailableMessage(state, messages))
                     }
                     aria-label={gt("Include app text in snapshots")}
                     onCheckedChange={(checked) => void saveIncludeAccessibility(checked)}

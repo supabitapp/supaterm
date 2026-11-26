@@ -586,9 +586,9 @@ function surfaceTitle(
 ): string {
   switch (surface.kind) {
     case "diff":
-      return msg("Diff");
+      return resolve(msg("Diff"));
     case "files":
-      return msg("Files");
+      return resolve(msg("Files"));
     case "file":
       return surface.relativePath.slice(
         Math.max(surface.relativePath.lastIndexOf("/"), surface.relativePath.lastIndexOf("\\")) + 1,
@@ -601,22 +601,22 @@ function surfaceTitle(
     case "pull-request":
       return `#${surface.number}`;
     case "pull-requests":
-      return msg("Linked items");
+      return resolve(msg("Linked items"));
     case "issue":
       // A git host numbers its issues; a tracker with keys of its own, such as Linear, names them.
       return /^\d+$/.test(surface.key) ? `#${surface.key}` : surface.key;
     case "device":
-      return surface.title ?? surface.target?.name ?? msg("Device");
+      return surface.title ?? surface.target?.name ?? resolve(msg("Device"));
     case "linked-thread":
       return linkedThreadTitle(surface, `Thread on ${surface.label}`);
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
-      if (!snapshot || snapshot.navStatus._tag === "Idle") return msg("Browser");
+      if (!snapshot || snapshot.navStatus._tag === "Idle") return resolve(msg("Browser"));
       if (snapshot.navStatus.title.trim().length > 0) return snapshot.navStatus.title;
       try {
-        return new URL(snapshot.navStatus.url).host || msg("Browser");
+        return new URL(snapshot.navStatus.url).host || resolve(msg("Browser"));
       } catch {
-        return msg("Browser");
+        return resolve(msg("Browser"));
       }
     }
   }

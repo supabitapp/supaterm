@@ -39,7 +39,7 @@ import { FoldedSettingsSection } from "./FoldedSettingsSection";
 import { SettingsGroup } from "./SettingsGroup";
 import type { ScopedSettingsTarget } from "./scopedSettings";
 import { useSettingsScope } from "./SettingsScopeContext";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import {
   useClearScopedSettings,
   useScopedSettings,
@@ -50,6 +50,7 @@ import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
 import { msg, T, useGT, Var } from "gt-react";
 
 export function WorktreesDirectoryRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { connectedEnvironments, targets } = useSettingsScope();
   const settings = useScopedSettings();
@@ -381,6 +382,7 @@ const storageCleanupPermissionsAtom = environmentAtomList(
 );
 
 function CleanupSection() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const nowMinute = useNowMinute();
   const nowMs = Date.parse(`${nowMinute}:00.000Z`);
@@ -563,6 +565,7 @@ function StorageCleanupScopeNotice() {
 }
 
 export function WorktreeCleanupSection() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { scope, connectedEnvironments, targets, target } = useSettingsScope();
   const scopedSettings = useScopedSettings();

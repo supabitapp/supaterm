@@ -24,7 +24,7 @@ import {
 } from "./ProviderSettingsPanel.logic";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { T, useGT, Var } from "gt-react";
 
@@ -33,6 +33,7 @@ const SECRET_PROVIDER_KINDS: Readonly<Record<string, { readonly name: string }>>
 };
 
 export function SecretsSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const { scope, environment } = useSettingsScope();
   const connected = environment?.connection.phase === "connected";
   return (
@@ -74,6 +75,7 @@ function EnvironmentSecretProviders({
   readonly environment: EnvironmentPresentation;
   readonly projectScoped: boolean;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const environmentId = environment.environmentId;
   const sessionState = useEnvironmentSessionState(environmentId);

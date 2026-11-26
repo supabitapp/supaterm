@@ -15,8 +15,9 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 import { m } from "../../i18n/messages";
+import { type MessageResolver } from "~/i18n/messages";
 
 export function PairingPendingSurface() {
   const gt = useGT();
@@ -39,6 +40,7 @@ export function PairingRouteSurface({
   initialErrorMessage?: string;
   onAuthenticated: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [autoPairToken] = useState<string | null>(peekPairingTokenFromUrl);
   const [autoPairingUrl] = useState(() => window.location.href);
@@ -92,7 +94,7 @@ export function PairingRouteSurface({
     <StandalonePage>
       <StandalonePageHeader
         title={gt("Pair with this environment")}
-        description={describeAuthGate(auth.bootstrapMethods)}
+        description={describeAuthGate(auth.bootstrapMethods, messages)}
       />
 
       <form className="mt-6 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
@@ -136,7 +138,7 @@ export function PairingRouteSurface({
       </form>
 
       <div className="mt-6 rounded-lg border border-border/70 bg-background/55 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
-        {describeSupportedMethods(auth.bootstrapMethods)}
+        {describeSupportedMethods(auth.bootstrapMethods, messages)}
       </div>
     </StandalonePage>
   );
@@ -306,31 +308,45 @@ function errorMessageFromUnknown(error: unknown): string {
   return m(msg("Authentication failed."));
 }
 
-function describeAuthGate(bootstrapMethods: ReadonlyArray<string>): string {
+function describeAuthGate(
+  bootstrapMethods: ReadonlyArray<string>,
+  resolve: MessageResolver = m,
+): string {
   if (bootstrapMethods.includes("desktop-bootstrap")) {
-    return msg("This environment expects a trusted pairing credential before the app can connect.");
+    return resolve(
+      msg("This environment expects a trusted pairing credential before the app can connect."),
+    );
   }
 
-  return msg("Enter a pairing token to start a session with this environment.");
+  return resolve(msg("Enter a pairing token to start a session with this environment."));
 }
 
-function describeSupportedMethods(bootstrapMethods: ReadonlyArray<string>): string {
+function describeSupportedMethods(
+  bootstrapMethods: ReadonlyArray<string>,
+  resolve: MessageResolver = m,
+): string {
   if (
     bootstrapMethods.includes("desktop-bootstrap") &&
     bootstrapMethods.includes("one-time-token")
   ) {
-    return msg(
-      "Desktop-managed pairing and one-time pairing tokens are both accepted for this environment.",
+    return resolve(
+      msg(
+        "Desktop-managed pairing and one-time pairing tokens are both accepted for this environment.",
+      ),
     );
   }
 
   if (bootstrapMethods.includes("desktop-bootstrap")) {
-    return msg(
-      "This environment is desktop-managed. Open it from the desktop app or paste a bootstrap credential if one was issued explicitly.",
+    return resolve(
+      msg(
+        "This environment is desktop-managed. Open it from the desktop app or paste a bootstrap credential if one was issued explicitly.",
+      ),
     );
   }
 
-  return msg(
-    "This environment accepts one-time pairing tokens. Pairing links can open this page directly, or you can paste the token here.",
+  return resolve(
+    msg(
+      "This environment accepts one-time pairing tokens. Pairing links can open this page directly, or you can paste the token here.",
+    ),
   );
 }

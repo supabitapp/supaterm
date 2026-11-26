@@ -68,7 +68,7 @@ import { LinkAddressWarning, LinkMachineSelect } from "./LinkMachineSelect";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { useNowMinute } from "../../hooks/useNowMinute";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { T, useGT, Var, useMessages } from "gt-react";
 
 // Console log labels for the atom commands.
@@ -85,6 +85,7 @@ export const failureToast = (title: string, failure: unknown) =>
   );
 
 export function LinkedEnvironmentsSections() {
+  const searchableSetting = useSearchableSetting();
   const hosts = usePeerLinkHosts();
   const search = searchableSetting("linked-environments");
   const incoming = useIncomingLinkNames(hosts);
@@ -270,7 +271,7 @@ function LinkedEnvironmentRow({
             <h3 className="text-sm font-medium text-foreground">{label}</h3>
           </div>
           <p className="text-xs text-muted-foreground">
-            {accessConfig[link.access].label} · {status}
+            {messages(accessConfig[link.access].label)} · {status}
           </p>
           {health.kind === "reachable" && health.expiresInDays === null ? null : (
             <p className="truncate text-xs text-muted-foreground/80">{link.urls.join(", ")}</p>

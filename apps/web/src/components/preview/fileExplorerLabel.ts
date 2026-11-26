@@ -1,21 +1,28 @@
 import type { ExecutionEnvironmentPlatformOs, FileManagerRevealKind } from "@supaterm/contracts";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
-export function revealInFileExplorerLabel(platform: string): string {
+export function revealInFileExplorerLabel(platform: string, resolve: MessageResolver = m): string {
   const normalized = platform.toLowerCase();
-  if (normalized.includes("mac")) return msg("Reveal in Finder");
-  if (normalized.includes("win")) return msg("Reveal in File Explorer");
-  return msg("Reveal in Files");
+  if (normalized.includes("mac")) return resolve(msg("Reveal in Finder"));
+  if (normalized.includes("win")) return resolve(msg("Reveal in File Explorer"));
+  return resolve(msg("Reveal in Files"));
 }
 
-export function revealInFileExplorerLabelForOs(os: ExecutionEnvironmentPlatformOs): string {
-  if (os === "darwin") return msg("Reveal in Finder");
-  if (os === "windows") return msg("Reveal in File Explorer");
-  return msg("Reveal in Files");
+export function revealInFileExplorerLabelForOs(
+  os: ExecutionEnvironmentPlatformOs,
+  resolve: MessageResolver = m,
+): string {
+  if (os === "darwin") return resolve(msg("Reveal in Finder"));
+  if (os === "windows") return resolve(msg("Reveal in File Explorer"));
+  return resolve(msg("Reveal in Files"));
 }
 
-export function revealInFileExplorerLabelForKind(kind: FileManagerRevealKind): string {
-  if (kind === "finder") return msg("Reveal in Finder");
-  if (kind === "file-explorer") return msg("Reveal in File Explorer");
-  return msg("Reveal in Files");
+export function revealInFileExplorerLabelForKind(
+  kind: FileManagerRevealKind,
+  resolve: MessageResolver = m,
+): string {
+  if (kind === "finder") return resolve(msg("Reveal in Finder"));
+  if (kind === "file-explorer") return resolve(msg("Reveal in File Explorer"));
+  return resolve(msg("Reveal in Files"));
 }

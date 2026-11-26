@@ -26,7 +26,7 @@ import {
   isSettingsSearchScopeAvailable,
   movedSettingsPath,
 } from "../components/settings/settingsSearch";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, useMessages, Var } from "gt-react";
 
 function RestoreDeviceDefaultsButton({ onRestored }: { onRestored: () => void }) {
   const { changedSettingLabels, restoreDefaults } = useSettingsRestore(onRestored);
@@ -47,6 +47,7 @@ function RestoreDeviceDefaultsButton({ onRestored }: { onRestored: () => void })
 
 function SettingsScopeBoundary({ pathname, children }: { pathname: string; children: ReactNode }) {
   const gt = useGT();
+  const m = useMessages();
   const { scope, connectedEnvironments } = useSettingsScope();
   const { environments } = useEnvironments();
   const hash = useLocation({ select: (location) => location.hash });
@@ -68,11 +69,11 @@ function SettingsScopeBoundary({ pathname, children }: { pathname: string; child
       >
         {autoMarkDoneAvailability.eligibleEnvironmentIds.length > 0
           ? gt("{title} requires a supporting environment. Choose one to continue.", {
-              title: searchTarget.title,
+              title: m(searchTarget.title),
             })
           : gt(
               "{title} requires a supporting environment. Connect or update an environment to continue.",
-              { title: searchTarget.title },
+              { title: m(searchTarget.title) },
             )}
       </SettingsScopeNotice>
     );
@@ -92,7 +93,7 @@ function SettingsScopeBoundary({ pathname, children }: { pathname: string; child
       <SettingsScopeNotice target={target} targetId={hash}>
         {gt(
           "{title} is not available for the selected target. Choose its owning scope to continue.",
-          { title: searchTarget.title },
+          { title: m(searchTarget.title) },
         )}
       </SettingsScopeNotice>
     );

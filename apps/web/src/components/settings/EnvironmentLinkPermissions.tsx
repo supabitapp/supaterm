@@ -37,7 +37,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { type LinkChoice, LINK_OFF, linkPermissionRow } from "./EnvironmentLinkPermissions.logic";
 import { failureToast, UNLINK_COMMAND_LABEL } from "./LinkedEnvironmentsSettings";
 import { toastManager } from "../ui/toast";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, useMessages, Var } from "gt-react";
 
 /** What agents on each of the user's other connected machines may do on `target`. */
 export function EnvironmentLinkPermissions({
@@ -97,6 +97,7 @@ function SourceLinkRow({
   readonly intermediaries: ReadonlyArray<LinkIntermediary>;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const labelId = useId();
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(source.environmentId));
   const canUnlink = useAtomValue(peerLinkEnvironment.unlink.permissionAtom(source.environmentId));
@@ -172,7 +173,7 @@ function SourceLinkRow({
       next === LINK_OFF
         ? `Stop agents on ${source.label} from working on ${target.label}? ${source.label} forgets the link, and its session on ${target.label} ends too if it answers.`
         : row.linked
-          ? `Let agents on ${source.label} work on ${target.label} at ${accessConfig[next].label}? ${source.label} links again with a new code. Its old session stays in ${target.label}'s Sharing & access until you revoke it there, and a task starting over the old link right now may need starting again.`
+          ? `Let agents on ${source.label} work on ${target.label} at ${messages(accessConfig[next].label)}? ${source.label} links again with a new code. Its old session stays in ${target.label}'s Sharing & access until you revoke it there, and a task starting over the old link right now may need starting again.`
           : null;
     if (
       confirmation !== null &&
@@ -231,7 +232,7 @@ function SourceLinkRow({
                 ? "…"
                 : row.value === LINK_OFF
                   ? gt("Off", { $context: "agent link turned off" })
-                  : accessConfig[row.value].label}
+                  : messages(accessConfig[row.value].label)}
             </SelectValue>
           </SelectTrigger>
           <SelectPopup alignItemWithTrigger={false}>
@@ -262,6 +263,7 @@ function LinkAccessOption({
   readonly grant: LinkPairingRoute | null;
   readonly targetId: EnvironmentId;
 }) {
+  const messages = useMessages();
   // The machine holding the link refuses a level this app's session there does not hold.
   const mayPairThrough = useAtomValue(
     peerLinkEnvironment.pairLink.permissionAtom(
@@ -275,9 +277,9 @@ function LinkAccessOption({
       disabled={grant === null || (grant._tag === "Through" && !mayPairThrough)}
     >
       <span className="grid min-w-0 gap-0.5 py-0.5">
-        <span className="font-medium text-foreground">{accessConfig[option].label}</span>
+        <span className="font-medium text-foreground">{messages(accessConfig[option].label)}</span>
         <span className="text-xs leading-4 text-muted-foreground">
-          {accessConfig[option].description}
+          {messages(accessConfig[option].description)}
         </span>
       </span>
     </SelectItem>

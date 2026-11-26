@@ -108,7 +108,8 @@ import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { observeResize } from "~/lib/observeResize";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 interface Props {
   threadRef: ScopedThreadRef;
@@ -124,8 +125,11 @@ interface Props {
 function previewProfileName(
   profiles: ReadonlyArray<{ readonly id: string; readonly name: string }>,
   profileId: string,
+  resolve: MessageResolver = m,
 ): string {
-  return profiles.find((profile) => profile.id === profileId)?.name ?? msg("Removed profile");
+  return (
+    profiles.find((profile) => profile.id === profileId)?.name ?? resolve(msg("Removed profile"))
+  );
 }
 
 const localApi = typeof window === "undefined" ? null : ensureLocalApi();
@@ -173,6 +177,7 @@ export function PreviewView({
   visible,
   onSendAnnotation,
 }: Props) {
+  const messages = useMessages();
   const gt = useGT();
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const [find, setFind] = useState<{ tabId: string; requestId: number } | null>(null);
@@ -264,7 +269,7 @@ export function PreviewView({
   // Passing the snapshot's raw `undefined` through would reach the IPC layer
   // as "every profile".
   const activeProfileId = snapshot?.profileId ?? DEFAULT_BROWSER_PROFILE_ID;
-  const activeProfileName = previewProfileName(browserDefaults.profiles, activeProfileId);
+  const activeProfileName = previewProfileName(browserDefaults.profiles, activeProfileId, messages);
   const panelRect = useBrowserSurfaceStore((state) =>
     runtimeTabId ? (state.byTabId[runtimeTabId]?.rect ?? null) : null,
   );
@@ -634,7 +639,7 @@ export function PreviewView({
           };
 
           const revealAction = {
-            children: revealInFileExplorerLabel(navigator.platform),
+            children: revealInFileExplorerLabel(navigator.platform, messages),
             onClick: () => void bridge.revealArtifact(artifact.path),
           };
           const updateRecordingToast = () => {
@@ -696,7 +701,7 @@ export function PreviewView({
     void bridge.captureScreenshot(runtimeTabId).then(
       (artifact) => {
         const revealAction = {
-          children: revealInFileExplorerLabel(navigator.platform),
+          children: revealInFileExplorerLabel(navigator.platform, messages),
           onClick: () => void bridge.revealArtifact(artifact.path),
         };
         let pathCopied = false;

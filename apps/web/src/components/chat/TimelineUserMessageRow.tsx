@@ -99,7 +99,7 @@ import { useTimelineDisclosure } from "./timelineDisclosure";
 import { WorkflowOpeningBlock } from "./WorkflowOpeningBlock";
 import { useTallEnoughToFold } from "./useTallEnoughToFold";
 import { isPinnableProjectedItem, MessagePinButton, useMessagePinned } from "./PinnedMessages";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 // Drawn inside the media so dark screenshots keep an edge on the dark background.
 const MEDIA_EDGE_CLASS_NAME =
@@ -115,10 +115,11 @@ function UserFileCard({
   readonly file: ChatFileAttachment;
   readonly copyMarkdown: string | undefined;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const ctx = use(TimelineRowCtx);
   const pastedText = file.source?._tag === "pasted-text";
-  const label = userMessageFileLabel(file);
+  const label = userMessageFileLabel(file, messages);
   const extension = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toUpperCase() ?? "File";
   const identity = (
     <>
@@ -440,6 +441,7 @@ function UserMessageProjectedStatus({ row }: { row: Extract<TimelineRow, { kind:
 }
 
 function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
+  const resolveMessage = useMessages();
   const gt = useGT();
   const ctx = use(TimelineRowCtx);
   const { onImageExpand, onFileOpen, onOpenThread } = ctx;
@@ -986,7 +988,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
               <div className="mb-2 flex flex-col gap-1">
                 {unchippedFiles.map((file) => {
                   const pastedText = file.source?._tag === "pasted-text";
-                  const label = userMessageFileLabel(file);
+                  const label = userMessageFileLabel(file, resolveMessage);
                   const fileIdentity = (
                     <>
                       <PierreEntryIcon

@@ -63,6 +63,7 @@ import {
 } from "./ResourceTelemetryDiagnostics.logic";
 import { SettingsSection } from "./settingsLayout";
 import { T, useGT, msg, useMessages, Var } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 const HISTORY_WINDOWS = [
   { label: "5m", windowMs: 5 * 60_000, bucketMs: 15_000 },
@@ -88,28 +89,31 @@ function formatProcessName(process: Pick<ResourceTelemetryProcess, "command" | "
   return normalized.split(/[\\/]/).findLast((segment) => segment.length > 0) ?? normalized;
 }
 
-function categoryLabel(category: ResourceTelemetryProcessCategory): string {
+function categoryLabel(
+  category: ResourceTelemetryProcessCategory,
+  resolve: MessageResolver = m,
+): string {
   switch (category) {
     case "server":
-      return msg("Server");
+      return resolve(msg("Server"));
     case "server-child":
-      return msg("Backend child");
+      return resolve(msg("Backend child"));
     case "provider-root":
-      return msg("Provider");
+      return resolve(msg("Provider"));
     case "terminal-root":
-      return msg("Terminal");
+      return resolve(msg("Terminal"));
     case "electron-main":
-      return msg("Electron main");
+      return resolve(msg("Electron main"));
     case "electron-renderer":
-      return msg("Renderer");
+      return resolve(msg("Renderer"));
     case "electron-gpu":
       return "GPU";
     case "electron-utility":
-      return msg("Electron utility");
+      return resolve(msg("Electron utility"));
     case "resource-monitor":
-      return msg("Monitor");
+      return resolve(msg("Monitor"));
     case "unknown-supaterm":
-      return msg("Supaterm process");
+      return resolve(msg("Supaterm process"));
   }
 }
 
@@ -120,26 +124,30 @@ function categoryDotClass(category: ResourceTelemetryProcessCategory): string {
   return "bg-success";
 }
 
-function ioSemanticsLabel(semantics: ResourceTelemetryIoSemantics): string {
+function ioSemanticsLabel(
+  semantics: ResourceTelemetryIoSemantics,
+  resolve: MessageResolver = m,
+): string {
   switch (semantics) {
     case "storage":
-      return msg("Storage bytes");
+      return resolve(msg("Storage bytes"));
     case "logical":
-      return msg("Logical bytes");
+      return resolve(msg("Logical bytes"));
     case "all-io":
-      return msg("All I/O bytes");
+      return resolve(msg("All I/O bytes"));
     case "unavailable":
-      return msg("Unavailable");
+      return resolve(msg("Unavailable"));
   }
 }
 
 function booleanStateLabel(
   value: BackgroundBooleanState,
   labels: { readonly true: string; readonly false: string },
+  resolve: MessageResolver = m,
 ): string {
   if (value === "true") return labels.true;
   if (value === "false") return labels.false;
-  return msg("Unknown");
+  return resolve(msg("Unknown"));
 }
 
 function sourceStatusTone(status: ResourceTelemetrySourceStatus): "default" | "warning" | "danger" {
@@ -549,6 +557,7 @@ function ProcessTable({
   signalingKeys: ReadonlySet<string>;
   onSignal: (process: ResourceTelemetryProcess, signal: ServerProcessSignal) => void;
 }) {
+  const messages = useMessages();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const visible = visibleResourceTelemetryProcesses(processes, collapsed);
   const toggle = (process: ResourceTelemetryProcess) => {
@@ -641,7 +650,7 @@ function ProcessTable({
                   />
                 </td>
                 <td className="truncate px-3 py-2 text-2xs text-muted-foreground">
-                  {categoryLabel(process.category)}
+                  {categoryLabel(process.category, messages)}
                 </td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">
                   {process.cpuPercent.toFixed(1)}%
@@ -664,7 +673,9 @@ function ProcessTable({
                 <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">
                   <Tooltip>
                     <TooltipTrigger render={<span>{formatBytes(process.ioWriteBytes)}</span>} />
-                    <TooltipPopup side="top">{ioSemanticsLabel(process.ioSemantics)}</TooltipPopup>
+                    <TooltipPopup side="top">
+                      {ioSemanticsLabel(process.ioSemantics, messages)}
+                    </TooltipPopup>
                   </Tooltip>
                 </td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">
@@ -692,6 +703,7 @@ function HistoryProcessTable({
 }: {
   processes: ReadonlyArray<ResourceTelemetryProcessSummary>;
 }) {
+  const messages = useMessages();
   return (
     <div className="border-t border-border/60">
       <ScrollArea
@@ -768,7 +780,7 @@ function HistoryProcessTable({
                   </Tooltip>
                 </td>
                 <td className="truncate px-3 py-2 text-2xs text-muted-foreground">
-                  {categoryLabel(process.category)}
+                  {categoryLabel(process.category, messages)}
                 </td>
                 <td className="px-3 py-2 text-right font-mono tabular-nums">
                   {formatCpuTime(process.cpuTimeMs / 1_000)}
@@ -1191,24 +1203,36 @@ function ResourceTelemetryDiagnosticsBody({
               <>
                 <DetailRow
                   label={gt("Power source")}
-                  value={booleanStateLabel(snapshot.power.onBattery, {
-                    true: "Battery",
-                    false: "External power",
-                  })}
+                  value={booleanStateLabel(
+                    snapshot.power.onBattery,
+                    {
+                      true: "Battery",
+                      false: "External power",
+                    },
+                    messages,
+                  )}
                 />
                 <DetailRow
                   label={gt("Low power mode")}
-                  value={booleanStateLabel(snapshot.power.lowPowerMode, {
-                    true: "Enabled",
-                    false: "Disabled",
-                  })}
+                  value={booleanStateLabel(
+                    snapshot.power.lowPowerMode,
+                    {
+                      true: "Enabled",
+                      false: "Disabled",
+                    },
+                    messages,
+                  )}
                 />
                 <DetailRow
                   label={gt("Idle")}
-                  value={`${booleanStateLabel(snapshot.power.idle, {
-                    true: "Idle",
-                    false: "Active",
-                  })}${
+                  value={`${booleanStateLabel(
+                    snapshot.power.idle,
+                    {
+                      true: "Idle",
+                      false: "Active",
+                    },
+                    messages,
+                  )}${
                     snapshot.power.idleSeconds === null
                       ? ""
                       : ` · ${Math.round(snapshot.power.idleSeconds)}s`
@@ -1219,10 +1243,14 @@ function ResourceTelemetryDiagnosticsBody({
                   value={
                     snapshot.power.suspended
                       ? "Suspended"
-                      : booleanStateLabel(snapshot.power.locked, {
-                          true: "Locked",
-                          false: "Unlocked",
-                        })
+                      : booleanStateLabel(
+                          snapshot.power.locked,
+                          {
+                            true: "Locked",
+                            false: "Unlocked",
+                          },
+                          messages,
+                        )
                   }
                 />
                 <DetailRow

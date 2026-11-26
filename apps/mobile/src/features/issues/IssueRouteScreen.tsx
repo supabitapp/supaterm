@@ -493,6 +493,7 @@ export function IssueRouteScreen({ route }: StaticScreenProps<IssueParams>) {
 }
 
 function IssueRoute({ params }: { readonly params: IssueParams }) {
+  const messages = useMessages();
   const gt = useGT();
   const identity = issueIdentity(params);
   const target = issueTarget(params);
@@ -554,7 +555,7 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
     if (busy !== null) return false;
     setBusy(kind);
     setMutationError(null);
-    const failure = issueCommandError(await command());
+    const failure = issueCommandError(await command(), messages);
     setBusy(null);
     setMutationError(failure);
     // The list beside this issue shows its state and comment count, and reads only when asked.

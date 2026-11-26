@@ -795,16 +795,19 @@ export function buildRootGroups(input: {
   return groups;
 }
 
-export function getCommandPaletteInputPlaceholder(mode: CommandPaletteMode): string {
+export function getCommandPaletteInputPlaceholder(
+  mode: CommandPaletteMode,
+  resolve: MessageResolver = m,
+): string {
   switch (mode) {
     case "root":
-      return msg("Search commands, projects, and threads...");
+      return resolve(msg("Search commands, projects, and threads..."));
     case "root-browse":
-      return msg("Enter project path (e.g. ~/projects/my-app)");
+      return resolve(msg("Enter project path (e.g. ~/projects/my-app)"));
     case "submenu":
-      return msg("Search...");
+      return resolve(msg("Search..."));
     case "submenu-browse":
-      return msg("Enter path (e.g. ~/projects/my-app)");
+      return resolve(msg("Enter path (e.g. ~/projects/my-app)"));
   }
 }
 

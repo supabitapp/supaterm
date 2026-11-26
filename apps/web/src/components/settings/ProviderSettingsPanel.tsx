@@ -97,7 +97,7 @@ import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
 import { readCodexSetupMode } from "./CodexSetupSection.logic";
 import { providerClients } from "./providerDriverMeta";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import {
   backgroundActivityOverrideSettings,
   buildProviderInstanceUpdatePatch,
@@ -123,7 +123,8 @@ import {
   resolveRemoteOperateAccess,
   resolveSelectedProviderEnvironmentId,
 } from "./ProviderSettingsPanel.logic";
-import { T, useGT, msg, Var } from "gt-react";
+import { T, useGT, msg, Var, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 function modelListChanges(current: ReadonlyArray<string>, next: ReadonlyArray<string>) {
   const currentSet = new Set(current);
@@ -198,12 +199,16 @@ function ProviderLastChecked({ environmentId }: { environmentId: EnvironmentId }
   );
 }
 
-function providerEnvironmentDetail(environment: EnvironmentPresentation): string {
-  if (environment.entry.target._tag === "PrimaryConnectionTarget") return msg("Primary device");
+function providerEnvironmentDetail(
+  environment: EnvironmentPresentation,
+  resolve: MessageResolver = m,
+): string {
+  if (environment.entry.target._tag === "PrimaryConnectionTarget")
+    return resolve(msg("Primary device"));
   if (environment.entry.target._tag === "SshConnectionTarget") return "SSH";
-  if (isDesktopLocalConnectionTarget(environment.entry.target)) return msg("Local device");
+  if (isDesktopLocalConnectionTarget(environment.entry.target)) return resolve(msg("Local device"));
   return environment.displayUrl === null
-    ? msg("Remote device")
+    ? resolve(msg("Remote device"))
     : connectionAddressLabel(environment.displayUrl);
 }
 
@@ -223,6 +228,7 @@ function ProviderSettingsPlaceholder({
   readonly description: string;
   readonly children?: ReactNode;
 }) {
+  const searchableSetting = useSearchableSetting();
   return (
     <SettingsSection {...searchableSetting("providers")} variant="plain">
       {deviceTabs ? (
@@ -312,6 +318,8 @@ export function ProviderSettingsPanel(target: ProviderSettingsTarget) {
 }
 
 function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
+  const searchableSetting = useSearchableSetting();
+  const messages = useMessages();
   const gt = useGT();
   const { environments, isReady } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -372,7 +380,7 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
         >
           {options.map((environment) => {
             const machine = resolveEnvironmentMachineKind(environment.serverConfig);
-            const detail = providerEnvironmentDetail(environment);
+            const detail = providerEnvironmentDetail(environment, messages);
             const statusText = connectionStatusTitle(environment.connection);
             return (
               <Tooltip key={environment.environmentId}>
@@ -534,6 +542,7 @@ export function EnvironmentProviderSettings({
   readonly projectIds?: readonly ProjectId[];
   readonly readOnly?: boolean;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useEnvironmentSettings(environmentId);
   const canWriteSettings = useEnvironmentScope(environmentId, AuthSettingsWriteScope);

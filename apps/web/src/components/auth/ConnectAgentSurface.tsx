@@ -25,7 +25,7 @@ import { Input } from "../ui/input";
 import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 
 export const accessConfig: Record<
   AuthMcpClientAccess,
@@ -87,6 +87,7 @@ function readAuthorizationRequest(): AuthMcpAuthorizationRequest {
 
 export function ConnectAgentSurface() {
   const gt = useGT();
+  const messages = useMessages();
   const [authorization] = useState(readAuthorizationRequest);
   const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
   const [access, setAccess] = useState<AuthMcpClientAccess>("read-only");
@@ -238,7 +239,7 @@ export function ConnectAgentSurface() {
             <span className="text-muted-foreground">
               <T context="access level">Access</T>
             </span>{" "}
-            <span className="font-medium">{accessConfig[codeAccess].label}</span>
+            <span className="font-medium">{messages(accessConfig[codeAccess].label)}</span>
           </p>
         ) : (
           <div className="space-y-2">
@@ -274,7 +275,7 @@ export function ConnectAgentSurface() {
             {pending === "approve"
               ? gt("Approving…")
               : codeAccess
-                ? gt("Approve {level}", { level: accessConfig[codeAccess].label })
+                ? gt("Approve {level}", { level: messages(accessConfig[codeAccess].label) })
                 : gt("Approve", { $context: "verb, approves the agent sign-in" })}
           </Button>
           <Button
@@ -308,6 +309,7 @@ export function AccessOption({
   readonly access: AuthMcpClientAccess;
   readonly selected: boolean;
 }) {
+  const messages = useMessages();
   const { label, description, icon: Icon } = accessConfig[access];
   return (
     <RadioPrimitive.Root
@@ -328,8 +330,8 @@ export function AccessOption({
         )}
       />
       <span className="min-w-0">
-        <span className="block text-sm font-medium text-foreground">{label}</span>
-        <span className="block text-xs text-muted-foreground">{description}</span>
+        <span className="block text-sm font-medium text-foreground">{messages(label)}</span>
+        <span className="block text-xs text-muted-foreground">{messages(description)}</span>
       </span>
     </RadioPrimitive.Root>
   );

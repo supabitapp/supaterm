@@ -1,5 +1,6 @@
 import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import { msg } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export interface FloatingStatusAction {
   readonly label: string;
@@ -36,14 +37,19 @@ export type FloatingWorkingStatus =
     };
 
 /** A connection still retrying on its own; short enough for the thread header subtitle. */
-export function connectionRetryLabel(input: {
-  readonly connectionError: string | null;
-  readonly connectionState: EnvironmentConnectionPhase;
-}): string | null {
+export function connectionRetryLabel(
+  input: {
+    readonly connectionError: string | null;
+    readonly connectionState: EnvironmentConnectionPhase;
+  },
+  resolve: MessageResolver = m,
+): string | null {
   if (input.connectionState !== "connecting" && input.connectionState !== "reconnecting") {
     return null;
   }
-  return input.connectionError === null ? msg("Reconnecting…") : msg("Retrying connection…");
+  return input.connectionError === null
+    ? resolve(msg("Reconnecting…"))
+    : resolve(msg("Retrying connection…"));
 }
 
 export function connectionFloatingStatus(input: {

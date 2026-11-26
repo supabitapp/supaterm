@@ -1108,10 +1108,13 @@ function ThreadRouteContent(
     connectionRetrying ? routeConnectionError : null,
     RECONNECT_ERROR_DELAY_MS,
   );
-  const connectionStatusLabel = connectionRetryLabel({
-    connectionError: retryConnectionError,
-    connectionState: routeConnectionState,
-  });
+  const connectionStatusLabel = connectionRetryLabel(
+    {
+      connectionError: retryConnectionError,
+      connectionState: routeConnectionState,
+    },
+    m,
+  );
   // A thread this client is creating has nothing older to sync.
   const threadSyncLabel =
     creationState === null
@@ -1119,6 +1122,7 @@ function ThreadRouteContent(
           selectedThreadDetailState.status,
           contentPresentation.kind,
           Option.isSome(selectedThreadDetailState.error),
+          m,
         )
       : null;
   // Transient states go in the header subtitle so the composer's status slot doesn't jump.

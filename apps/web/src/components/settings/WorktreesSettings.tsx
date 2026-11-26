@@ -3,7 +3,7 @@ import { StartFromRemoteRow, WorktreeSubmodulesRow } from "./ProjectDefaultsSett
 import { ScopedSwitch } from "./ScopedSwitch";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { WorktreeCleanupSection, WorktreesDirectoryRow } from "./StorageSettings";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import { useGT } from "gt-react";
@@ -34,6 +34,7 @@ export function WorktreesSettingsPanel() {
 
 /** Shows only when every machine in scope is a Mac, since only macOS servers honor it. */
 function FastWorktreeCheckoutRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { connectedEnvironments } = useSettingsScope();
   const settings = useScopedSettings();

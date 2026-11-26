@@ -352,7 +352,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           stackedThreadToast({
             type: "error",
             title: m(msg("Failed to switch checkout")),
-            description: chatActionErrorMessage(squashAtomCommandFailure(checkoutResult)),
+            description: chatActionErrorMessage(squashAtomCommandFailure(checkoutResult), messages),
           }),
         );
       }
@@ -376,7 +376,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
             stackedThreadToast({
               type: "error",
               title: m(msg("Checkout switched, but the thread could not be updated")),
-              description: chatActionErrorMessage(squashAtomCommandFailure(updateResult)),
+              description: chatActionErrorMessage(squashAtomCommandFailure(updateResult), messages),
             }),
           );
         }

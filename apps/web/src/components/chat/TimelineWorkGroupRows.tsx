@@ -65,7 +65,7 @@ import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { cn } from "~/lib/utils";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
 import { WORK_GROUP_CLOSE_MS, WORK_GROUP_OPEN_MS } from "./workGroupDisclosure";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 export const WorkGroupSection = memo(function WorkGroupSection({
   anchorKey,
@@ -636,10 +636,11 @@ export function LiveWorkEntryTimelineRow({
 }: {
   row: Extract<TimelineRow, { kind: "work-live" }>;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const ctx = use(TimelineRowCtx);
   const threadTarget = useThreadReadTarget(row.entry, ctx.activeThreadEnvironmentId);
-  const label = liveWorkEntryLabel(row.entry, ctx.workspaceRoot, row.active);
+  const label = liveWorkEntryLabel(row.entry, ctx.workspaceRoot, row.active, messages);
   const threadLabel = threadReadLabel(label, threadTarget);
 
   const item = row.entry.projectedItem?.item;

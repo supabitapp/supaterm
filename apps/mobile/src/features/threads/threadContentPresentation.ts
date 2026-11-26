@@ -1,6 +1,7 @@
 import { type EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import type { EnvironmentThreadStatus } from "@supaterm/client-runtime/state/threads";
 import { msg } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export type ThreadContentPresentation =
   | { readonly kind: "ready" }
@@ -52,8 +53,9 @@ export function threadSyncStatusLabel(
   status: EnvironmentThreadStatus,
   presentation: ThreadContentPresentation["kind"],
   hasError: boolean,
+  resolve: MessageResolver = m,
 ): string | null {
   if (status !== "empty" && status !== "cached" && status !== "synchronizing") return null;
   if (presentation !== "ready") return null;
-  return hasError ? msg("Could not sync messages") : msg("Syncing messages…");
+  return hasError ? resolve(msg("Could not sync messages")) : resolve(msg("Syncing messages…"));
 }

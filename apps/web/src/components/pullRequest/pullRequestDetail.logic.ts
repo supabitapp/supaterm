@@ -329,8 +329,11 @@ export function classifyPullRequestChecks(
   return "passing";
 }
 
-export function describePullRequestChecks(checks: ReadonlyArray<PullRequestCheck>): string {
-  if (checks.length === 0) return msg("No checks reported");
+export function describePullRequestChecks(
+  checks: ReadonlyArray<PullRequestCheck>,
+  resolve: MessageResolver = m,
+): string {
+  if (checks.length === 0) return resolve(msg("No checks reported"));
   const failed = checks.filter(
     (check) => check.status === "failure" || check.status === "cancelled",
   ).length;
@@ -345,7 +348,7 @@ export function describePullRequestChecks(checks: ReadonlyArray<PullRequestCheck
   }
   if (parts.length === 0) {
     return passed === checks.length
-      ? msg("All checks passed")
+      ? resolve(msg("All checks passed"))
       : `${passed} of ${checks.length} passing`;
   }
   return parts.join(" · ");

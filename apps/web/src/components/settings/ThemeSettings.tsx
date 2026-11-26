@@ -47,7 +47,7 @@ import {
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { SettingsGroup } from "./SettingsGroup";
 import { ThemeImportDialog } from "./ThemeImportDialog";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useThemeEditorStore } from "./themeEditorStore";
 import {
   STANDARD_THEME_CARDS,
@@ -110,6 +110,7 @@ export function ThemeLibrary({
   themeHalves: ThemeHalves | null;
   setThemeHalf: (appearance: ThemeAppearance, themeId: string | null) => boolean;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const pickerId = useId();
   const openThemeEditor = useThemeEditorStore((store) => store.openThemeEditor);

@@ -5,7 +5,7 @@ import { useClientSettings } from "../../../hooks/useSettings";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../ui/select";
 import { Switch } from "../../ui/switch";
 import { SettingsRow, SettingsSection } from "../../settings/settingsLayout";
-import { searchableSetting } from "../../settings/settingsSearch";
+import { useSearchableSetting } from "../../settings/settingsSearch";
 import { updateCodexMicroSettings } from "../updateCodexMicroSettings";
 import {
   CODEX_MICRO_AGENT_SOURCE_OPTIONS,
@@ -32,6 +32,7 @@ function OptionLabel({ label, description }: { label: string; description: strin
 }
 
 export function CodexMicroOptionsSection() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const m = useMessages();
   const settings = useClientSettings(selectOptionSettings);

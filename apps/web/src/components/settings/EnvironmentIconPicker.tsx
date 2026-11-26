@@ -19,17 +19,21 @@ import {
   MenuSubPopup,
   MenuSubTrigger,
 } from "../ui/menu";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
-export function resolveEnvironmentIconPickerLock(input: {
-  readonly serverConfig: Pick<ServerConfig, "environment"> | null;
-  readonly operateAccess: "granted" | "denied" | "pending";
-}): string | null {
+export function resolveEnvironmentIconPickerLock(
+  input: {
+    readonly serverConfig: Pick<ServerConfig, "environment"> | null;
+    readonly operateAccess: "granted" | "denied" | "pending";
+  },
+  resolve: MessageResolver = m,
+): string | null {
   if (input.serverConfig === null) {
-    return msg("Connect to this environment to change its icon.");
+    return resolve(msg("Connect to this environment to change its icon."));
   }
   if (input.operateAccess !== "granted") {
-    return msg("Your session on this environment cannot change its settings.");
+    return resolve(msg("Your session on this environment cannot change its settings."));
   }
   return null;
 }
@@ -41,12 +45,13 @@ export function EnvironmentIconMenu({
   readonly environmentId: EnvironmentId;
   readonly serverConfig: Pick<ServerConfig, "environment"> | null;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const updateSettings = useUpdateEnvironmentSettings(environmentId);
   const operateAccess = useEnvironmentScope(environmentId, AuthSettingsWriteScope)
     ? "granted"
     : "denied";
-  const lock = resolveEnvironmentIconPickerLock({ serverConfig, operateAccess });
+  const lock = resolveEnvironmentIconPickerLock({ serverConfig, operateAccess }, messages);
   const detected = serverConfig?.environment.platform.machine ?? "server";
   const resolved = resolveEnvironmentMachineKind(serverConfig);
 

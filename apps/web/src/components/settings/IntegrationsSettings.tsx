@@ -121,12 +121,13 @@ import {
   SettingsRow,
   SettingsSection,
 } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { AgentBrowserAccessRow } from "./ProjectDefaultsSettings";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { BrowserImportWizard, type WizardTarget } from "./BrowserImportWizard";
 import type { ImportOutcome } from "./browserImportWizard.logic";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 const FILL_VALUE = "fill";
 const RESPONSIVE_VALUE = "responsive";
@@ -294,11 +295,17 @@ const viewportSelectValue = (viewport: PreviewViewportSetting): string => {
 };
 
 /** Inline options lack an items map; bare SelectValue would display the stored fill token. */
-const viewportSelectLabel = (viewport: PreviewViewportSetting): string => {
+const viewportSelectLabel = (
+  viewport: PreviewViewportSetting,
+  resolve: MessageResolver = m,
+): string => {
   const value = viewportSelectValue(viewport);
-  if (value === FILL_VALUE) return msg("Fill panel");
-  if (value === RESPONSIVE_VALUE) return msg("Responsive");
-  return PREVIEW_VIEWPORT_PRESETS.find((preset) => preset.id === value)?.label ?? msg("Responsive");
+  if (value === FILL_VALUE) return resolve(msg("Fill panel"));
+  if (value === RESPONSIVE_VALUE) return resolve(msg("Responsive"));
+  return (
+    PREVIEW_VIEWPORT_PRESETS.find((preset) => preset.id === value)?.label ??
+    resolve(msg("Responsive"))
+  );
 };
 
 const isValidDimension = (value: number) =>
@@ -315,6 +322,7 @@ const rotateViewport = (
 });
 
 function BrowserViewportSetting({ disabled }: { readonly disabled: boolean }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const m = useMessages();
   const viewport = useClientSettings((settings) => settings.browserDefaultViewport);
@@ -389,7 +397,7 @@ function BrowserViewportSetting({ disabled }: { readonly disabled: boolean }) {
               className="w-full min-w-0 sm:w-44"
               aria-label={gt("Default browser viewport")}
             >
-              <SelectValue>{m(viewportSelectLabel(viewport))}</SelectValue>
+              <SelectValue>{m(viewportSelectLabel(viewport, m))}</SelectValue>
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
               <SelectItem value={FILL_VALUE}>
@@ -480,6 +488,7 @@ function BrowserViewportSetting({ disabled }: { readonly disabled: boolean }) {
 }
 
 function BrowserZoomSetting({ disabled }: { readonly disabled: boolean }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const zoomFactor = useClientSettings((settings) => settings.browserDefaultZoomFactor);
   const updateSettings = useUpdateScopedSettings();
@@ -528,6 +537,7 @@ function BrowserZoomSetting({ disabled }: { readonly disabled: boolean }) {
 }
 
 function BrowserAppearanceSetting({ disabled }: { readonly disabled: boolean }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const appearance = useClientSettings((settings) => settings.browserDefaultAppearance);
   const updateSettings = useUpdateScopedSettings();
@@ -577,6 +587,7 @@ function BrowserAppearanceSetting({ disabled }: { readonly disabled: boolean }) 
 }
 
 function BrowserRecordingInputSettings({ disabled }: { readonly disabled: boolean }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const showKeys = useClientSettings((settings) => settings.browserRecordingShowKeyPresses);
   const showMouse = useClientSettings((settings) => settings.browserRecordingShowMousePresses);
@@ -612,6 +623,7 @@ function BrowserRecordingInputSettings({ disabled }: { readonly disabled: boolea
 }
 
 function BrowserRecordingFrameRateSetting({ disabled }: { readonly disabled: boolean }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const frameRate = useClientSettings((settings) => settings.browserRecordingFrameRate);
   const updateSettings = useUpdateScopedSettings();
@@ -670,6 +682,7 @@ const LINK_TARGET_LABELS: Readonly<Record<BrowserLinkTarget, string>> = {
 };
 
 function BrowserLinkTargetSetting({ disabled }: { readonly disabled: boolean }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const linkTarget = useClientSettings((settings) => settings.browserLinkTarget);
   const updateSettings = useUpdateScopedSettings();
@@ -726,6 +739,7 @@ const SEARCH_ENGINE_LABELS: Readonly<Record<BrowserSearchEngine, string>> = {
 };
 
 function BrowserSearchEngineSetting() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const engine = useClientSettings((settings) => settings.browserSearchEngine);
   const customUrl = useClientSettings((settings) => settings.browserCustomSearchUrl);
@@ -804,6 +818,7 @@ function BrowserSearchEngineSetting() {
 }
 
 export function PullRequestLinksOpenInAppSetting() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const openInApp = useClientSettings((settings) => settings.pullRequestLinksOpenInApp);
   const updateSettings = useUpdatePrimarySettings();
@@ -865,6 +880,7 @@ function DeviceIntegrationControls({
   enabled: boolean;
   agentAccessEnabled: boolean;
 }) {
+  const searchableSetting = useSearchableSetting();
   const messages = useMessages();
   const gt = useGT();
   const canConfigure = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
@@ -1132,6 +1148,7 @@ const AGENT_OPEN_TARGET_LABELS: Readonly<Record<BrowserAgentOpenTarget, string>>
 };
 
 function BrowserAgentOpenTargetSetting() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const openTarget = useClientSettings((settings) => settings.browserAgentOpenTarget);
   const updateSettings = useUpdateScopedSettings();
@@ -1222,6 +1239,8 @@ function ClearBrowserProfileDataItem({
 }
 
 function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
+  const searchableSetting = useSearchableSetting();
+  const messages = useMessages();
   const gt = useGT();
   const userProfiles = useClientSettings((settings) => settings.browserProfiles);
   const defaultProfileId = useClientSettings((settings) => settings.browserDefaultProfileId);
@@ -1464,11 +1483,14 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
                         setImportSession({
                           source,
                           environmentId: primaryEnvironment.environmentId,
-                          environmentName: resolveEnvironmentOptionLabel({
-                            isPrimary: true,
-                            environmentId: primaryEnvironment.environmentId,
-                            runtimeLabel: primaryEnvironment.label,
-                          }),
+                          environmentName: resolveEnvironmentOptionLabel(
+                            {
+                              isPrimary: true,
+                              environmentId: primaryEnvironment.environmentId,
+                              runtimeLabel: primaryEnvironment.label,
+                            },
+                            messages,
+                          ),
                         });
                       }}
                     >

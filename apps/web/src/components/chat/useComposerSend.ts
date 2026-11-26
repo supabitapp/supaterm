@@ -968,12 +968,15 @@ export function useComposerSend(input: ComposerSendInput) {
         currentRouteThreadKeyRef.current !== routeThreadKey
       ) {
         sendInFlightRef.current = false;
-        const notice = approvalRedirectNotice({
-          draftChanged,
-          declined,
-          approvalResponding,
-          approvalArrived,
-        });
+        const notice = approvalRedirectNotice(
+          {
+            draftChanged,
+            declined,
+            approvalResponding,
+            approvalArrived,
+          },
+          resolveMessage,
+        );
         if (notice !== null) {
           toastManager.add({
             type: "info",

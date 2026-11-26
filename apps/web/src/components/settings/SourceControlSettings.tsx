@@ -62,7 +62,7 @@ import {
   SettingsSection,
   useSettingsSearchTargetId,
 } from "./settingsLayout";
-import { searchableSetting, sourceControlHostSettingsSearchId } from "./settingsSearch";
+import { useSearchableSetting, sourceControlHostSettingsSearchId } from "./settingsSearch";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { sourceControlIcon } from "~/sourceControlPresentation";
@@ -302,6 +302,7 @@ function DiscoveryItemRow({
   readonly item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem;
   readonly children?: ReactNode;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const messages = useMessages();
   const version = optionLabel(item.version);
@@ -376,6 +377,7 @@ function DiscoveryItemRow({
 }
 
 function GitFetchIntervalSettings() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -509,6 +511,7 @@ function EmptySourceControlDiscovery({
   readonly isPending: boolean;
   readonly onScan: () => void;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const hasError = error !== null;
 
@@ -542,6 +545,7 @@ function EmptySourceControlDiscovery({
 }
 
 export function SourceControlSettingsPanel() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { scope, environment, connectedEnvironments } = useSettingsScope();
 

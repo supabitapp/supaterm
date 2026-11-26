@@ -25,6 +25,7 @@ import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { WorkLogRow } from "./WorkLog";
 import { useTimelineDisclosure } from "./timelineDisclosure";
 import { T, useGT, useMessages, msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 interface WorktreeSetupCardProps {
   snapshot: WorktreeSetupSnapshot;
@@ -112,27 +113,28 @@ function ShimmerOverlay({ children }: { children: ReactNode }) {
   );
 }
 
-function headerLabel(snapshot: WorktreeSetupSnapshot): string {
+function headerLabel(snapshot: WorktreeSetupSnapshot, resolve: MessageResolver = m): string {
   switch (snapshot.phase) {
     case "running":
-      return msg("Setting up worktree…");
+      return resolve(msg("Setting up worktree…"));
     case "done":
       return snapshot.stages.some((stage) => stage.status === "failed")
-        ? msg("Worktree ready, setup script failed")
-        : msg("Worktree ready");
+        ? resolve(msg("Worktree ready, setup script failed"))
+        : resolve(msg("Worktree ready"));
     case "failed":
-      return msg("Worktree setup failed");
+      return resolve(msg("Worktree setup failed"));
     case "cancelled":
-      return msg("Worktree setup cancelled");
+      return resolve(msg("Worktree setup cancelled"));
   }
 }
 
 function SetupHeaderRow({ snapshot }: { snapshot: WorktreeSetupSnapshot }) {
+  const messages = useMessages();
   const running = snapshot.phase === "running";
   const failed = snapshot.phase === "failed";
   const finishedWithFailedStage =
     snapshot.phase === "done" && snapshot.stages.some((stage) => stage.status === "failed");
-  const text = headerLabel(snapshot);
+  const text = headerLabel(snapshot, messages);
   const tone = failed
     ? "text-destructive-foreground"
     : finishedWithFailedStage
@@ -298,13 +300,14 @@ function SetupDetails({ snapshot }: { snapshot: WorktreeSetupSnapshot }) {
 }
 
 function CollapsedSummaryRow({ snapshot }: { snapshot: WorktreeSetupSnapshot }) {
+  const messages = useMessages();
   const status: WorktreeSetupStage["status"] =
     snapshot.phase === "failed" || snapshot.phase === "cancelled"
       ? "failed"
       : snapshot.stages.some((stage) => stage.id === "setup-script" && stage.status === "failed")
         ? "failed"
         : "done";
-  const label = headerLabel(snapshot);
+  const label = headerLabel(snapshot, messages);
   return (
     <WorkLogRow
       data-worktree-setup-stage="summary"

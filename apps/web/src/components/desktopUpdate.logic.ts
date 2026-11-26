@@ -80,24 +80,33 @@ export function isDesktopUpdateButtonDisabled(state: DesktopUpdateState | null):
   return state?.status === "downloading";
 }
 
-export function getArm64IntelBuildWarningDescription(state: DesktopUpdateState): string {
+export function getArm64IntelBuildWarningDescription(
+  state: DesktopUpdateState,
+  resolve: MessageResolver = m,
+): string {
   if (!shouldShowArm64IntelBuildWarning(state)) {
-    return msg("This install is using the correct architecture.");
+    return resolve(msg("This install is using the correct architecture."));
   }
 
   const action = resolveDesktopUpdateButtonAction(state);
   if (action === "download") {
-    return msg(
-      "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. Download the available update to switch to the native Apple Silicon build.",
+    return resolve(
+      msg(
+        "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. Download the available update to switch to the native Apple Silicon build.",
+      ),
     );
   }
   if (action === "install") {
-    return msg(
-      "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. Restart to install the downloaded Apple Silicon build.",
+    return resolve(
+      msg(
+        "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. Restart to install the downloaded Apple Silicon build.",
+      ),
     );
   }
-  return msg(
-    "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. The next app update will replace it with the native Apple Silicon build.",
+  return resolve(
+    msg(
+      "This Mac has Apple Silicon, but Supaterm is still running the Intel build under Rosetta. The next app update will replace it with the native Apple Silicon build.",
+    ),
   );
 }
 
@@ -244,7 +253,10 @@ export function canCheckForUpdate(state: DesktopUpdateState | null): boolean {
 
 export function getDesktopUpdateDisabledReason(
   state: Pick<DesktopUpdateState, "enabled" | "status" | "message"> | null,
+  resolve: MessageResolver = m,
 ): string | null {
   if (!state || (state.enabled && state.status !== "disabled")) return null;
-  return state.message?.trim() || msg("Automatic updates are not available in this build.");
+  return (
+    state.message?.trim() || resolve(msg("Automatic updates are not available in this build."))
+  );
 }

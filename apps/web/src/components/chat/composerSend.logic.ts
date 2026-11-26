@@ -3,6 +3,7 @@ import { collectInlineContextIds } from "../../lib/composerContextReferences";
 import type { ReferenceContextRecord } from "../../lib/composerContextRecords";
 import type { ComposerThreadDraftState } from "../../composerDraftStore";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 /** Compare immutable user content without copying image bytes or upload metadata. */
 export function composerDraftContentChanged(
@@ -93,22 +94,25 @@ export function multipleModelSendBlock(input: {
 }
 
 /** Why a message sent over pending approvals did not go out, or null to stop quietly. */
-export function approvalRedirectNotice(input: {
-  readonly draftChanged: boolean;
-  readonly declined: boolean;
-  readonly approvalResponding: boolean;
-  readonly approvalArrived: boolean;
-}): string | null {
+export function approvalRedirectNotice(
+  input: {
+    readonly draftChanged: boolean;
+    readonly declined: boolean;
+    readonly approvalResponding: boolean;
+    readonly approvalArrived: boolean;
+  },
+  resolve: MessageResolver = m,
+): string | null {
   if (input.draftChanged) {
     return input.declined
-      ? msg("Approval declined. Your message changed, so it wasn't sent.")
-      : msg("Your message changed, so it wasn't sent.");
+      ? resolve(msg("Approval declined. Your message changed, so it wasn't sent."))
+      : resolve(msg("Your message changed, so it wasn't sent."));
   }
   if (input.approvalResponding) {
-    return msg("An approval is already being answered, so your message wasn't sent.");
+    return resolve(msg("An approval is already being answered, so your message wasn't sent."));
   }
   if (input.declined && input.approvalArrived) {
-    return msg("Another approval arrived, so your message wasn't sent.");
+    return resolve(msg("Another approval arrived, so your message wasn't sent."));
   }
   return null;
 }

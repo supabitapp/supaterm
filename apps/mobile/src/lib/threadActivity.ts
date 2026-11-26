@@ -949,11 +949,15 @@ function toFeedActivity(
   };
 }
 
-function singleToolCallLabel(activity: ThreadFeedActivity, expanded: boolean): string {
+function singleToolCallLabel(
+  activity: ThreadFeedActivity,
+  expanded: boolean,
+  resolve: MessageResolver = m,
+): string {
   if (activity.workEntry.itemType === "reasoning")
     return expanded
-      ? msg("Thought")
-      : compactWorkEntryText(activity.workEntry.detail ?? "") || msg("Thought");
+      ? resolve(msg("Thought"))
+      : compactWorkEntryText(activity.workEntry.detail ?? "") || resolve(msg("Thought"));
   const presentation = resolveWorkEntryToolPresentation(activity.workEntry, "completed", m);
   if (presentation) return presentation.displayName;
   const command = activity.workEntry.command?.trim();

@@ -57,7 +57,7 @@ import {
 import { handleSettingsSectionKeyDown } from "./settingsSectionNavigation";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 import { isImeComposing } from "~/lib/imeComposition";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 const SETTINGS_SECTION_ICONS: Readonly<
   Record<SettingsPath, ComponentType<{ className?: string }>>
@@ -115,6 +115,7 @@ function SettingsSectionIcon({ to }: { to: SettingsPath }) {
 
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const gt = useGT();
+  const messages = useMessages();
   const navArea = workspaceAreaProps("settings-nav", 0, "Settings sections");
   const navigate = useNavigate();
   const { isMobile } = useSidebar();
@@ -130,7 +131,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const navSections = useHasSecretProvidersEnvironment()
     ? SETTINGS_NAV_SECTIONS
     : SETTINGS_NAV_SECTIONS_WITHOUT_SECRETS;
-  const results = searchSettings(query, searchableItems);
+  const results = searchSettings(query, searchableItems, messages);
   const isSearching = query.trim().length > 0;
   const hasResults = results.length > 0;
   const maxResultIndex = Math.max(results.length - 1, 0);
@@ -341,10 +342,10 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                       <SettingsSectionIcon to={item.to} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-sidebar-foreground">
-                          {item.title}
+                          {messages(item.title)}
                         </span>
                         <span className="block truncate text-2xs text-sidebar-muted-foreground/75">
-                          {SETTINGS_SECTION_LABELS[item.to]}
+                          {messages(SETTINGS_SECTION_LABELS[item.to])}
                         </span>
                       </span>
                     </SidebarMenuButton>
@@ -378,7 +379,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                           group.headingHidden ? "sr-only" : !compactSearchOpen && "max-md:sr-only",
                         )}
                       >
-                        {group.heading}
+                        {messages(group.heading)}
                       </h3>
                       {/* The heading stays outside the group it names so NVDA does not read the name twice. */}
                       <div role="group" aria-labelledby={`settings-nav-group-${index}`}>
@@ -402,7 +403,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                                       !compactSearchOpen && "max-md:sr-only",
                                     )}
                                   >
-                                    {SETTINGS_SECTION_LABELS[to]}
+                                    {messages(SETTINGS_SECTION_LABELS[to])}
                                   </span>
                                 </SidebarMenuButton>
                               </SidebarMenuItem>

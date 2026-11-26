@@ -14,7 +14,7 @@ import { Switch } from "../../ui/switch";
 import { BrightnessSlider } from "../../settings/BrightnessSlider";
 import { toastManager } from "../../ui/toast";
 import { SettingsRow, SettingsSection } from "../../settings/settingsLayout";
-import { searchableSetting } from "../../settings/settingsSearch";
+import { useSearchableSetting } from "../../settings/settingsSearch";
 import { updateCodexMicroSettings } from "../updateCodexMicroSettings";
 import {
   CODEX_MICRO_AUTO_DIM_LABELS,
@@ -68,6 +68,7 @@ function InputMonitoringStatus({
 }
 
 export function CodexMicroConnectionSection({ state }: { state: CodexMicroDeviceState | null }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const m = useMessages();
   const settings = useClientSettings(selectConnectionSettings);

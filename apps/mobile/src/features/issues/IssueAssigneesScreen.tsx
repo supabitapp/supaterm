@@ -21,10 +21,11 @@ import { IssueCandidatesSheet } from "./IssueCandidatesSheet";
 import { issueParamsKey, issueTarget, type IssueParams } from "./issueParams";
 import { issueAssigneePicksFamily } from "./issuePicks";
 import { issueCommandError, useIssueAccess } from "./issuePresentation";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 export function IssueAssigneesScreen({ route }: StaticScreenProps<IssueParams>) {
+  const messages = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const target = issueTarget(route.params);
@@ -65,14 +66,14 @@ export function IssueAssigneesScreen({ route }: StaticScreenProps<IssueParams>) 
         const sent = { ...current, written: assignees };
         setStored(sent);
         void update({ ...target, input: { ...target.input, assignees } }).then((response) => {
-          const failure = issueCommandError(response);
+          const failure = issueCommandError(response, messages);
           if (failure === null) return refreshIssueLists(target.environmentId);
           // Picks made after this write was sent are kept.
           setStored((latest) => issuePicksAfterFailedWrite(latest, sent));
           Dialog.alert(m(msg("Couldn't change assignees")), failure);
         });
       }),
-    [navigation, detail, draft, current, setStored, update, target],
+    [navigation, detail, draft, current, setStored, update, target, messages],
   );
   return (
     <IssueCandidatesSheet

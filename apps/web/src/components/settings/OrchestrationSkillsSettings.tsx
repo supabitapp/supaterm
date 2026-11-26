@@ -2,7 +2,7 @@ import type { OrchestrationSkillsEnvironment } from "@supaterm/client-runtime/or
 import { useOrchestrationSkills } from "../../state/useOrchestrationSkills";
 import { serverEnvironment } from "../../state/server";
 import { Button } from "../ui/button";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { T, useGT } from "gt-react";
@@ -80,6 +80,7 @@ function SelectedEnvironmentSkills({
 }
 
 export function OrchestrationSkillsSettings() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { environments, connectedEnvironments } = useSettingsScope();
   const offline = environments.filter(

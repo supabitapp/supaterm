@@ -470,19 +470,23 @@ export function isHostedAppPairingUrl(value: string): boolean {
   }
 }
 
-export function endpointShareHint(endpoint: AdvertisedEndpoint, url: string): string {
+export function endpointShareHint(
+  endpoint: AdvertisedEndpoint,
+  url: string,
+  resolve: MessageResolver = m,
+): string {
   if (isHostedAppPairingUrl(url)) {
-    return msg("Opens the hosted app, no install needed");
+    return resolve(msg("Opens the hosted app, no install needed"));
   }
   switch (endpoint.reachability) {
     case "lan":
-      return msg("Devices on the same network");
+      return resolve(msg("Devices on the same network"));
     case "private-network":
-      return msg("Devices on your private network");
+      return resolve(msg("Devices on your private network"));
     case "public":
-      return msg("Reachable from anywhere");
+      return resolve(msg("Reachable from anywhere"));
     case "loopback":
-      return msg("Clients on this machine");
+      return resolve(msg("Clients on this machine"));
   }
 }
 

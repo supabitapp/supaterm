@@ -50,7 +50,7 @@ import {
 import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
 import { RenameEnvironmentDialog } from "./RenameEnvironmentDialog";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
@@ -254,6 +254,7 @@ function ConnectionsSettingsContent({
   readonly accessEnvironmentId: EnvironmentId | null;
   readonly accessEnvironmentPicker?: ReactNode;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const resolve = useMessages();
   const desktopBridge = window.desktopBridge;

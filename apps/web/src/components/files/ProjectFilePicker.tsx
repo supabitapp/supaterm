@@ -15,7 +15,8 @@ import {
   PROJECT_FILE_PICKER_RESULT_LIMIT,
 } from "./ProjectFilePicker.logic";
 import { useProjectFilePickerQuery } from "./projectFilesQueryState";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 interface ProjectFilePickerProps {
   readonly setOpen: (open: boolean) => void;
@@ -44,12 +45,19 @@ function HighlightedFuzzyText(props: {
   return <span className="text-muted-foreground">{parts}</span>;
 }
 
-function getEmptyStateMessage(query: string, error: string | null, isPending: boolean): string {
+function getEmptyStateMessage(
+  query: string,
+  error: string | null,
+  isPending: boolean,
+  resolve: MessageResolver = m,
+): string {
   if (error) return error;
   const isSearching = query.trim().length > 0;
   if (isPending)
-    return isSearching ? msg("Searching workspace files…") : msg("Indexing workspace files…");
-  return isSearching ? msg("No matching files.") : msg("No files found.");
+    return isSearching
+      ? resolve(msg("Searching workspace files…"))
+      : resolve(msg("Indexing workspace files…"));
+  return isSearching ? resolve(msg("No matching files.")) : resolve(msg("No files found."));
 }
 
 function EmptyProjectFilePicker() {
@@ -72,6 +80,7 @@ function EmptyProjectFilePicker() {
 }
 
 function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveProjectTarget }) {
+  const messages = useMessages();
   const gt = useGT();
   const { target } = props;
   const [query, setQuery] = useState("");
@@ -110,7 +119,7 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
     },
   }));
 
-  const emptyStateMessage = getEmptyStateMessage(query, result.error, result.isPending);
+  const emptyStateMessage = getEmptyStateMessage(query, result.error, result.isPending, messages);
 
   return (
     <CommandPaletteContent

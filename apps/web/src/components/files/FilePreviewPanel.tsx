@@ -154,7 +154,8 @@ import {
   setProjectFileQueryData,
   useProjectFileQuery,
 } from "./projectFilesQueryState";
-import { T, useGT, msg, Var } from "gt-react";
+import { T, useGT, msg, Var, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 const NO_FILE_REVISION_ATOM = Atom.make(null);
 
@@ -1247,13 +1248,14 @@ function RenderedMarkdownSurface({
 function renderedToggleLabel(
   mode: "markdown" | "mermaid" | "html" | "table",
   rendered: boolean,
+  resolve: MessageResolver = m,
 ): string {
   if (mode === "mermaid")
-    return rendered ? msg("Show Mermaid source") : msg("Show rendered diagram");
+    return rendered ? resolve(msg("Show Mermaid source")) : resolve(msg("Show rendered diagram"));
   if (mode === "markdown")
-    return rendered ? msg("Show markdown source") : msg("Show rendered markdown");
-  if (mode === "table") return rendered ? msg("Show source") : msg("Show table");
-  return rendered ? msg("Show HTML source") : msg("Show rendered page");
+    return rendered ? resolve(msg("Show markdown source")) : resolve(msg("Show rendered markdown"));
+  if (mode === "table") return rendered ? resolve(msg("Show source")) : resolve(msg("Show table"));
+  return rendered ? resolve(msg("Show HTML source")) : resolve(msg("Show rendered page"));
 }
 
 function initialExplorerOpen(): boolean {
@@ -1285,6 +1287,7 @@ export default function FilePreviewPanel({
   selectedFilePending,
   workspaceMutationId,
 }: FilePreviewPanelProps) {
+  const messages = useMessages();
   const gt = useGT();
   const relativePath =
     attachment === undefined ? resolveFilePreviewPath(requestedPath, cwd) : requestedPath;
@@ -1653,7 +1656,7 @@ export default function FilePreviewPanel({
           ) : null}
           {canToggleRendered && renderedMode ? (
             <FileSurfaceAction
-              label={renderedToggleLabel(renderedMode, rendered)}
+              label={renderedToggleLabel(renderedMode, rendered, messages)}
               pressed={rendered}
               onPress={() => {
                 const pressed = !rendered;
@@ -1845,7 +1848,9 @@ export default function FilePreviewPanel({
               >
                 <div className="my-auto flex shrink-0 flex-col gap-3 px-6 py-6 text-center text-xs leading-relaxed">
                   <p className="text-destructive">
-                    {file.readError ? filePreviewReadErrorMessage(file.readError) : file.error}
+                    {file.readError
+                      ? filePreviewReadErrorMessage(file.readError, messages)
+                      : file.error}
                   </p>
                   {attemptedPath ? (
                     <p className="text-muted-foreground">

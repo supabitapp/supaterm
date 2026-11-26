@@ -14,7 +14,8 @@ import type { EnvironmentPresentation } from "~/state/environments";
 import { usePreparedConnection } from "~/state/session";
 import { isDesktopLocalConnectionTarget } from "~/connection/desktopLocal";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 export function formatDesktopSshTarget(target: DesktopSshEnvironmentTarget): string {
   const authority = target.username ? `${target.username}@${target.hostname}` : target.hostname;
@@ -28,9 +29,10 @@ export function formatDesktopSshTarget(target: DesktopSshEnvironmentTarget): str
 export function environmentTransportLabel(
   environment: EnvironmentPresentation,
   activeTarget: ConnectionTarget | null = null,
+  resolve: MessageResolver = m,
 ): string {
   const { entry } = environment;
-  if (entry.target._tag === "PrimaryConnectionTarget") return msg("This machine");
+  if (entry.target._tag === "PrimaryConnectionTarget") return resolve(msg("This machine"));
   const routes = connectionRoutes(entry);
   if (routes.length > 1 && activeTarget !== null) {
     const activeId = connectionRouteId(activeTarget);
@@ -46,7 +48,7 @@ export function environmentTransportLabel(
     return `SSH ${formatDesktopSshTarget(entry.profile.value.target)}`;
   }
   return environment.displayUrl === null
-    ? msg("Remote link")
+    ? resolve(msg("Remote link"))
     : connectionAddressLabel(environment.displayUrl);
 }
 
@@ -55,12 +57,14 @@ export function EnvironmentTransportLabel({
 }: {
   readonly environment: EnvironmentPresentation;
 }) {
+  const messages = useMessages();
   const prepared = usePreparedConnection(environment.environmentId);
   return environmentTransportLabel(
     environment,
     environment.connection.phase === "connected" && prepared._tag === "Some"
       ? prepared.value.target
       : null,
+    messages,
   );
 }
 

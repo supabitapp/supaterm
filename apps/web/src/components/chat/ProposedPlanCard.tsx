@@ -38,7 +38,7 @@ import { projectEnvironment } from "~/state/projects";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 export const ProposedPlanCard = memo(function ProposedPlanCard({
   planMarkdown,
@@ -55,6 +55,7 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
   workspaceRoot: string | undefined;
   findActive?: boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
   const canWriteFiles = useEnvironmentScope(environmentId, AuthFilesystemWriteScope);
@@ -83,7 +84,7 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
   const canCollapse = planMarkdown.length > 900 || lineCount > 20;
   const displayedPlanMarkdown = stripDisplayedPlanMarkdown(planMarkdown);
   const collapsedPreview = canCollapse
-    ? buildCollapsedProposedPlanPreviewMarkdown(planMarkdown, { maxLines: 10 })
+    ? buildCollapsedProposedPlanPreviewMarkdown(planMarkdown, { maxLines: 10 }, messages)
     : null;
   const isCollapsed = canCollapse && !expanded;
 

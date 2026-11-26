@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { Textarea } from "../ui/textarea";
 import { SettingsRow, SettingResetButton } from "./settingsLayout";
 import { useSettingsScope } from "./SettingsScopeContext";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import {
   useScopedSettings,
   useScopedSettingsMixed,
@@ -12,6 +12,7 @@ import {
 import { useGT } from "gt-react";
 
 export function ThreadTitleInstructionsSettings() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const { targets } = useSettingsScope();

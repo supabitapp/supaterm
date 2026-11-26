@@ -156,7 +156,8 @@ export function PullRequestChecksPopover({
   const messages = useMessages();
   const gt = useGT();
   const presentation = pullRequestChecksStatePresentation(checksState, messages);
-  const summary = checks === undefined || stale ? null : summarizePullRequestChecks(checks);
+  const summary =
+    checks === undefined || stale ? null : summarizePullRequestChecks(checks, messages);
   return (
     <Popover>
       <PopoverTrigger

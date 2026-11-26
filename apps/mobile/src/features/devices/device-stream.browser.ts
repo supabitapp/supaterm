@@ -4,13 +4,17 @@ import {
 } from "@supaterm/client-runtime/device/stream";
 
 import type { DeviceStreamConfiguration } from "./device-stream-document";
-import { m } from "../../i18n/messages";
 
 declare global {
   interface Window {
     ReactNativeWebView: { postMessage: (message: string) => void };
   }
 }
+
+// The WebView has no catalogs: status details leave marked, and React Native resolves them.
+const keepMarked = ((message: string) => message) as NonNullable<
+  Parameters<typeof createDeviceStreamClient>[3]
+>;
 
 let activeClient: ReturnType<typeof createDeviceStreamClient> | null = null;
 
@@ -49,10 +53,7 @@ export function start(configuration: DeviceStreamConfiguration) {
   });
   const frame = document.createElement("div");
   frame.setAttribute("role", "application");
-  frame.setAttribute(
-    "aria-label",
-    platform === "ios" ? "iOS Simulator screen" : "Android Emulator screen",
-  );
+  frame.setAttribute("aria-label", configuration.labels.screen);
   frame.tabIndex = 0;
   Object.assign(frame.style, {
     position: "relative",
@@ -69,7 +70,7 @@ export function start(configuration: DeviceStreamConfiguration) {
   image.style.display = "none";
   const inputStatus = document.createElement("div");
   inputStatus.setAttribute("role", "status");
-  inputStatus.textContent = "Reconnecting device controls...";
+  inputStatus.textContent = configuration.labels.reconnectingControls;
   Object.assign(inputStatus.style, {
     position: "fixed",
     bottom: "12px",
@@ -152,7 +153,7 @@ export function start(configuration: DeviceStreamConfiguration) {
         post({ type: "input", connected });
       },
     },
-    m,
+    keepMarked,
   );
   activeClient = client;
   client.setMjpegImage(image);

@@ -25,7 +25,7 @@ import {
 } from "../../ui/alert-dialog";
 import { Button } from "../../ui/button";
 import { scrollToSettingsTarget, SettingsSection } from "../../settings/settingsLayout";
-import { searchableSetting } from "../../settings/settingsSearch";
+import { searchableSetting, useSearchableSetting } from "../../settings/settingsSearch";
 import { CodexMicroAgentKeyDialog } from "./CodexMicroAgentKeyDialog";
 import { CodexMicroKeyboard } from "./CodexMicroKeyboard";
 import { CodexMicroKeycapDialog } from "./CodexMicroKeycapDialog";
@@ -94,6 +94,7 @@ function KeyEditor({
 }
 
 export function CodexMicroLayoutSection({ state }: { state: CodexMicroDeviceState | null }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const m = useMessages();
   const settings = useClientSettings(selectLayoutSettings);

@@ -153,15 +153,19 @@ function parseWithheldFile(result: PullRequestDiffResult, scope: string) {
   return file;
 }
 
-function withheldFileNotice(load: WithheldFileLoad | undefined, canLoad: boolean): string {
+function withheldFileNotice(
+  load: WithheldFileLoad | undefined,
+  canLoad: boolean,
+  resolve: MessageResolver = m,
+): string {
   if (load === undefined) {
     return canLoad
-      ? msg("Diff too large to display. Tap to load it.")
-      : msg("Diff too large to display here.");
+      ? resolve(msg("Diff too large to display. Tap to load it."))
+      : resolve(msg("Diff too large to display here."));
   }
-  if (load.status === "loading") return msg("Loading diff…");
-  if (load.status === "error") return msg("Couldn't load this diff. Tap to try again.");
-  return msg("No text diff for this file.");
+  if (load.status === "loading") return resolve(msg("Loading diff…"));
+  if (load.status === "error") return resolve(msg("Couldn't load this diff. Tap to try again."));
+  return resolve(msg("No text diff for this file."));
 }
 
 /**

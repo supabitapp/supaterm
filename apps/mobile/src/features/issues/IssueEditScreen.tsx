@@ -9,11 +9,12 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { PullRequestSheetContent } from "../pull-requests/PullRequestSheetContent";
 import { issueTarget, type IssueParams } from "./issueParams";
 import { issueCommandError, useIssueAccess } from "./issuePresentation";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 type IssueEditParams = IssueParams & { readonly field: "title" | "body" };
 
 export function IssueEditScreen({ route }: StaticScreenProps<IssueEditParams>) {
+  const messages = useMessages();
   const params = route.params;
   const gt = useGT();
   const navigation = useNavigation();
@@ -42,6 +43,7 @@ export function IssueEditScreen({ route }: StaticScreenProps<IssueEditParams>) {
         ...target,
         input: { ...target.input, ...(isTitle ? { title: value.trim() } : { body: value }) },
       }),
+      messages,
     );
     inFlight.current = false;
     setBusy(false);

@@ -13,7 +13,7 @@ export const runtimeModeConfig: Record<
   { label: string; description: string; icon: IconComponent }
 > = {
   "approval-required": {
-    label: msg("Supervised"),
+    label: msg("Supervised", { $context: "permission mode, agent asks before acting" }),
     description: msg("Ask before commands and file changes."),
     icon: LockIcon,
   },
@@ -23,7 +23,7 @@ export const runtimeModeConfig: Record<
     icon: PenLineIcon,
   },
   auto: {
-    label: msg("Auto"),
+    label: msg("Auto", { $context: "permission mode, provider approves routine actions" }),
     description: msg("Supported providers approve routine actions; others still ask."),
     icon: ShieldCheckIcon,
   },

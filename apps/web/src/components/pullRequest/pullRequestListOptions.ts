@@ -19,16 +19,36 @@ import { msg } from "gt-react";
 import type { MessageResolver } from "~/i18n/messages";
 
 export const INVOLVEMENT_TABS = [
-  { value: "all", label: msg("All"), Icon: LayersIcon },
-  { value: "reviewing", label: msg("Reviewing"), Icon: EyeIcon },
-  { value: "authored", label: msg("Authored"), Icon: PenLineIcon },
+  { value: "all", label: msg("All", { $context: "pull request filter" }), Icon: LayersIcon },
+  {
+    value: "reviewing",
+    label: msg("Reviewing", { $context: "pull request filter" }),
+    Icon: EyeIcon,
+  },
+  {
+    value: "authored",
+    label: msg("Authored", { $context: "pull request filter" }),
+    Icon: PenLineIcon,
+  },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<PullRequestInvolvement>>;
 
 export const STATE_TABS = [
-  { value: "all", label: msg("All"), Icon: LayersIcon },
-  { value: "open", label: msg("Open"), Icon: PullRequestGlyph.pullRequest },
-  { value: "closed", label: msg("Closed"), Icon: PullRequestGlyph.closed },
-  { value: "merged", label: msg("Merged"), Icon: PullRequestGlyph.merged },
+  { value: "all", label: msg("All", { $context: "pull request filter" }), Icon: LayersIcon },
+  {
+    value: "open",
+    label: msg("Open", { $context: "pull request state" }),
+    Icon: PullRequestGlyph.pullRequest,
+  },
+  {
+    value: "closed",
+    label: msg("Closed", { $context: "pull request state" }),
+    Icon: PullRequestGlyph.closed,
+  },
+  {
+    value: "merged",
+    label: msg("Merged", { $context: "pull request state" }),
+    Icon: PullRequestGlyph.merged,
+  },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<PullRequestListState>>;
 
 export const SORT_OPTIONS = [

@@ -104,7 +104,7 @@ function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
 
 function singleToolCallLabel(entry: WorkLogEntry, resolve: MessageResolver): string {
   if (entry.itemType === "reasoning")
-    return entry.detail?.trim().replace(/\s+/g, " ") || msg("Thought");
+    return entry.detail?.trim().replace(/\s+/g, " ") || resolve(msg("Thought"));
   const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed", resolve);
   if (toolPresentation) return toolPresentation.displayName;
   const item = entry.structuredPayload;
@@ -113,7 +113,7 @@ function singleToolCallLabel(entry: WorkLogEntry, resolve: MessageResolver): str
       ? dynamicToolTitle(item.toolName, item.input, item.title, resolve)
       : null;
   if (title) return title;
-  if (entry.itemType === "web_search") return entry.toolTitle ?? msg("Web search");
+  if (entry.itemType === "web_search") return entry.toolTitle ?? resolve(msg("Web search"));
   return workEntryDisplayLabel(entry, undefined, resolve);
 }
 
@@ -273,12 +273,13 @@ export function liveWorkEntryLabel(
   entry: WorkLogEntry,
   workspaceRoot: string | undefined,
   active: boolean,
+  resolve: MessageResolver = m,
 ) {
   const status = liveActivityToolStatus(entry.toolLifecycleStatus, active);
   if (entry.itemType === "reasoning") {
     return (
       entry.detail?.trim().replace(/\s+/g, " ") ||
-      (status === "inProgress" ? msg("Thinking") : msg("Thought"))
+      (status === "inProgress" ? resolve(msg("Thinking")) : resolve(msg("Thought")))
     );
   }
   const toolPresentation = resolveWorkEntryToolPresentation(
@@ -304,7 +305,9 @@ export function liveWorkEntryLabel(
               : "Ran";
     return `${verb} ${commandProgramName(command) ?? "command"}`;
   }
-  return commandlessCommandLabel(entry, status) ?? workEntryDisplayLabel(entry, workspaceRoot);
+  return (
+    commandlessCommandLabel(entry, status) ?? workEntryDisplayLabel(entry, workspaceRoot, resolve)
+  );
 }
 
 export function workEntryIsVisibleInGroup(

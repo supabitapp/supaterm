@@ -10,7 +10,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Switch } from "../ui/switch";
 import { EnvironmentRow, EnvironmentTransportLabel } from "./EnvironmentRow";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { msg, T, useGT, useMessages } from "gt-react";
 
 const preferences = [
@@ -50,6 +50,7 @@ export function LoadBalancingSettings({
 }: {
   environments: ReadonlyArray<EnvironmentPresentation>;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const m = useMessages();
   const items = preferences.map((entry) => ({ ...entry, label: m(entry.label) }));

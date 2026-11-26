@@ -14,7 +14,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { toastManager } from "../ui/toast";
 import { EnvironmentRow, EnvironmentTransportLabel } from "./EnvironmentRow";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { msg, T, useGT, useMessages } from "gt-react";
 
 const options: ReadonlyArray<{ value: PullRequestRoutingPermission; label: string }> = [
@@ -45,6 +45,7 @@ export function PullRequestRoutingSettings({
 }: {
   readonly environments: ReadonlyArray<EnvironmentPresentation>;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const m = useMessages();
   const items = options.map((option) => ({ ...option, label: m(option.label) }));

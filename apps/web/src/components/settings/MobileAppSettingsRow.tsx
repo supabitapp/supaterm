@@ -3,12 +3,13 @@ import { Button } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTitle, PopoverTrigger } from "../ui/popover";
 import { QRCodeSvg } from "../ui/qr-code";
 import { SettingsRow } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useGT, T } from "gt-react";
 
 const IOS_TESTFLIGHT_URL = "https://testflight.apple.com/join/VUJkRPwq";
 
 export function MobileAppSettingsRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   return (
     <SettingsRow

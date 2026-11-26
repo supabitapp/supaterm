@@ -502,26 +502,27 @@ export function getAntigravitySendBlockReason(
     | null
     | undefined,
   model: string,
+  resolve: MessageResolver = m,
 ): string | null {
   if (provider?.driver !== "antigravity") return null;
   if (!provider.installed) {
-    return msg("Install Antigravity in provider settings before sending.");
+    return resolve(msg("Install Antigravity in provider settings before sending."));
   }
   if (provider.auth.status === "unauthenticated") {
-    return msg("Sign in to Antigravity in provider settings before sending.");
+    return resolve(msg("Sign in to Antigravity in provider settings before sending."));
   }
   const slug = model.trim();
-  if (slug.length === 0) return msg("Choose an Antigravity model before sending.");
+  if (slug.length === 0) return resolve(msg("Choose an Antigravity model before sending."));
   if (provider.auth.status === "unknown") return null;
   if (provider.models.length === 0) {
-    return msg("Refresh Antigravity models in provider settings before sending.");
+    return resolve(msg("Refresh Antigravity models in provider settings before sending."));
   }
   if (
     provider.status === "ready" &&
     slug !== ANTIGRAVITY_DEFAULT_MODEL &&
     !provider.models.some((entry) => entry.slug === slug || entry.aliases?.includes(slug))
   ) {
-    return msg("That Antigravity model is no longer available. Choose another model.");
+    return resolve(msg("That Antigravity model is no longer available. Choose another model."));
   }
   return null;
 }
@@ -1086,8 +1087,8 @@ export type LocalThreadErrorEntry = {
   readonly at: number;
 };
 
-export function chatActionErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : msg("An error occurred.");
+export function chatActionErrorMessage(error: unknown, resolve: MessageResolver = m): string {
+  return error instanceof Error ? error.message : resolve(msg("An error occurred."));
 }
 
 /** A local copy of the runtime's error shares the runtime's key, so one dismissal covers both. */

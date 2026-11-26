@@ -44,75 +44,95 @@ export interface DescriptorPreset {
 }
 
 const EFFORT_CHOICES = [
-  { id: "low", label: msg("Low") },
-  { id: "medium", label: msg("Medium"), isDefault: true },
-  { id: "high", label: msg("High") },
-  { id: "xhigh", label: msg("Extra High") },
+  { id: "low", label: msg("Low", { $context: "reasoning level" }) },
+  { id: "medium", label: msg("Medium", { $context: "reasoning level" }), isDefault: true },
+  { id: "high", label: msg("High", { $context: "reasoning level" }) },
+  { id: "xhigh", label: msg("Extra High", { $context: "reasoning level" }) },
 ] as const;
 
 export const DESCRIPTOR_PRESETS_BY_KIND: Partial<
   Record<ProviderDriverKind, ReadonlyArray<DescriptorPreset>>
 > = {
   [ProviderDriverKind.make("codex")]: [
-    { id: "reasoningEffort", label: msg("Reasoning"), type: "select", choices: EFFORT_CHOICES },
+    {
+      id: "reasoningEffort",
+      label: msg("Reasoning", { $context: "model option name" }),
+      type: "select",
+      choices: EFFORT_CHOICES,
+    },
     {
       id: "serviceTier",
-      label: msg("Speed"),
+      label: msg("Speed", { $context: "model option name" }),
       type: "select",
       choices: [
-        { id: "default", label: msg("Standard"), isDefault: true },
-        { id: "fast", label: msg("Fast") },
+        { id: "default", label: msg("Standard", { $context: "speed tier" }), isDefault: true },
+        { id: "fast", label: msg("Fast", { $context: "speed tier" }) },
       ],
     },
   ],
   [ProviderDriverKind.make("claudeAgent")]: [
     {
       id: "effort",
-      label: msg("Reasoning"),
+      label: msg("Reasoning", { $context: "model option name" }),
       type: "select",
       choices: [
-        { id: "low", label: msg("Low") },
-        { id: "medium", label: msg("Medium") },
-        { id: "high", label: msg("High"), isDefault: true },
-        { id: "xhigh", label: msg("Extra High") },
-        { id: "max", label: msg("Max") },
+        { id: "low", label: msg("Low", { $context: "reasoning level" }) },
+        { id: "medium", label: msg("Medium", { $context: "reasoning level" }) },
+        { id: "high", label: msg("High", { $context: "reasoning level" }), isDefault: true },
+        { id: "xhigh", label: msg("Extra High", { $context: "reasoning level" }) },
+        { id: "max", label: msg("Max", { $context: "reasoning level" }) },
       ],
     },
-    { id: "thinking", label: msg("Thinking"), type: "boolean" },
+    { id: "thinking", label: msg("Thinking", { $context: "model option name" }), type: "boolean" },
   ],
   [ProviderDriverKind.make("cursor")]: [
-    { id: "reasoning", label: msg("Reasoning"), type: "select", choices: EFFORT_CHOICES },
-    { id: "fastMode", label: msg("Fast Mode"), type: "boolean" },
-    { id: "thinking", label: msg("Thinking"), type: "boolean" },
+    {
+      id: "reasoning",
+      label: msg("Reasoning", { $context: "model option name" }),
+      type: "select",
+      choices: EFFORT_CHOICES,
+    },
+    { id: "fastMode", label: msg("Fast Mode", { $context: "model option name" }), type: "boolean" },
+    { id: "thinking", label: msg("Thinking", { $context: "model option name" }), type: "boolean" },
   ],
   [ProviderDriverKind.make("grok")]: [
-    { id: "reasoningEffort", label: msg("Reasoning"), type: "select", choices: EFFORT_CHOICES },
+    {
+      id: "reasoningEffort",
+      label: msg("Reasoning", { $context: "model option name" }),
+      type: "select",
+      choices: EFFORT_CHOICES,
+    },
   ],
   [ProviderDriverKind.make("pi")]: [
     {
       id: "thinking",
-      label: msg("Thinking"),
+      label: msg("Thinking", { $context: "model option name" }),
       type: "select",
       choices: [
-        { id: "off", label: msg("Off") },
-        { id: "minimal", label: msg("Minimal") },
-        { id: "low", label: msg("Low") },
-        { id: "medium", label: msg("Medium"), isDefault: true },
-        { id: "high", label: msg("High") },
-        { id: "xhigh", label: msg("Extra High") },
-        { id: "max", label: msg("Max") },
+        { id: "off", label: msg("Off", { $context: "reasoning level" }) },
+        { id: "minimal", label: msg("Minimal", { $context: "reasoning level" }) },
+        { id: "low", label: msg("Low", { $context: "reasoning level" }) },
+        { id: "medium", label: msg("Medium", { $context: "reasoning level" }), isDefault: true },
+        { id: "high", label: msg("High", { $context: "reasoning level" }) },
+        { id: "xhigh", label: msg("Extra High", { $context: "reasoning level" }) },
+        { id: "max", label: msg("Max", { $context: "reasoning level" }) },
       ],
     },
   ],
   [ProviderDriverKind.make("opencode")]: [
-    { id: "variant", label: msg("Reasoning"), type: "select", choices: EFFORT_CHOICES },
+    {
+      id: "variant",
+      label: msg("Reasoning", { $context: "model option name" }),
+      type: "select",
+      choices: EFFORT_CHOICES,
+    },
     {
       id: "agent",
-      label: msg("Agent"),
+      label: msg("Agent", { $context: "model option name" }),
       type: "select",
       choices: [
-        { id: "build", label: msg("Build"), isDefault: true },
-        { id: "plan", label: msg("Plan") },
+        { id: "build", label: msg("Build", { $context: "OpenCode agent name" }), isDefault: true },
+        { id: "plan", label: msg("Plan", { $context: "OpenCode agent name" }) },
       ],
     },
   ],

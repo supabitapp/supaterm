@@ -27,17 +27,20 @@ import {
   type TerminalMenuSession,
 } from "../terminal/terminalMenu";
 import { compactMenuBranchLabel } from "./ThreadGitControls.logic";
-import { useGT, msg } from "gt-react-native";
+import { useGT, msg, useMessages } from "gt-react-native";
 
 import { m, type MessageResolver } from "../../i18n/messages";
 import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 
-function compactMenuStatus(gitStatus: VcsStatusResult | null): string {
+function compactMenuStatus(
+  gitStatus: VcsStatusResult | null,
+  resolve: MessageResolver = m,
+): string {
   if (!gitStatus) {
-    return msg("Checking status");
+    return resolve(msg("Checking status"));
   }
   if (!gitStatus.isRepo) {
-    return msg("Not a repo");
+    return resolve(msg("Not a repo"));
   }
 
   const parts: string[] = [];
@@ -318,6 +321,7 @@ export function threadTerminalMenu(
 
 /** The thread's git menu, shared by the thread bar and Review. */
 export function useThreadGitMenuDefinition(props: ThreadGitMenuProps): AppBarMenu | null {
+  const messages = useMessages();
   const gt = useGT();
   const model = useThreadGitControlModel(props);
   // A plain folder that tracks repositories has no branch of its own; its turns still have diffs.
@@ -347,7 +351,7 @@ export function useThreadGitMenuDefinition(props: ThreadGitMenuProps): AppBarMen
               title: compactMenuBranchLabel(model.currentBranchLabel),
               icon: "point.topleft.down.curvedto.point.bottomright.up",
               disabled: true,
-              subtitle: compactMenuStatus(props.gitStatus),
+              subtitle: compactMenuStatus(props.gitStatus, messages),
               onPress: () => {},
             },
             {

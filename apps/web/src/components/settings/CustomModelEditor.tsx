@@ -56,7 +56,17 @@ export function CustomModelEditor({
     onDraftChange();
     setDraft(next);
   };
-  const presets = driverKind ? (DESCRIPTOR_PRESETS_BY_KIND[driverKind] ?? []) : [];
+  const presets = (driverKind ? (DESCRIPTOR_PRESETS_BY_KIND[driverKind] ?? []) : []).map(
+    (preset) => ({
+      ...preset,
+      label: messages(preset.label),
+      ...(preset.choices
+        ? {
+            choices: preset.choices.map((choice) => ({ ...choice, label: messages(choice.label) })),
+          }
+        : {}),
+    }),
+  );
   const startFromCandidates = builtInModels.filter(
     (model) => (model.capabilities?.optionDescriptors?.length ?? 0) > 0,
   );

@@ -46,7 +46,7 @@ import {
   SettingsSection,
 } from "./settingsLayout";
 import { useSettingsScope } from "./SettingsScopeContext";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 
 const SYSTEM_LANGUAGE = "system";
@@ -72,6 +72,7 @@ function transcriptionStatus(provider: ServerProvider, resolve: MessageResolver 
 function VoiceTranscriptionSettingRow(props: {
   readonly providers: ReadonlyArray<ServerProvider>;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const messages = useMessages();
   const settings = useScopedSettings();
@@ -160,6 +161,7 @@ function VoiceTranscriptionSettingRow(props: {
 }
 
 function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<ServerProvider> }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -220,6 +222,7 @@ function VoiceLanguageSettingRow(props: { readonly providers: ReadonlyArray<Serv
 }
 
 function VoiceHoldToTalkSettingRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -429,6 +432,7 @@ function MicrophoneSelect(props: {
 }
 
 function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const messages = useMessages();
   const settings = useScopedSettings();
@@ -496,6 +500,7 @@ function VoiceMicrophoneSettingRow(props: { readonly microphones: MicrophoneList
 }
 
 function VoiceAvoidBluetoothSettingRow(props: { readonly microphones: MicrophoneList }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -530,6 +535,7 @@ function parseHeardAs(value: string): ReadonlyArray<string> {
 }
 
 function VoiceDictionarySettingRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();

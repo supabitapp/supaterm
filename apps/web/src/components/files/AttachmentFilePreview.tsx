@@ -48,8 +48,8 @@ import {
   FileSurfaceLoading,
   FileSurfaceNotice,
 } from "./fileSurfaceChrome";
-import { msg, useGT, T, Var } from "gt-react";
-import { m } from "~/i18n/messages";
+import { msg, useGT, T, Var, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 const LargeTextViewer = lazy(() => import("./LargeTextViewer"));
 
@@ -130,13 +130,14 @@ export function ReadOnlySourcePreview(props: { name: string; text: string; wordW
 function renderedToggleLabel(
   mode: "markdown" | "mermaid" | "html" | "table",
   rendered: boolean,
+  resolve: MessageResolver = m,
 ): string {
   if (mode === "mermaid")
-    return rendered ? msg("Show Mermaid source") : msg("Show rendered diagram");
+    return rendered ? resolve(msg("Show Mermaid source")) : resolve(msg("Show rendered diagram"));
   if (mode === "markdown")
-    return rendered ? msg("Show markdown source") : msg("Show rendered markdown");
-  if (mode === "table") return rendered ? msg("Show source") : msg("Show table");
-  return rendered ? msg("Show HTML source") : msg("Show rendered page");
+    return rendered ? resolve(msg("Show markdown source")) : resolve(msg("Show rendered markdown"));
+  if (mode === "table") return rendered ? resolve(msg("Show source")) : resolve(msg("Show table"));
+  return rendered ? resolve(msg("Show HTML source")) : resolve(msg("Show rendered page"));
 }
 
 export function AttachmentFilePreview(props: {
@@ -157,6 +158,7 @@ export function AttachmentFilePreview(props: {
   onRemove?: () => void;
   onClose?: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const kind = props.kind ?? filePreviewKind(props);
   const documentKind = officePreviewKind(props);
@@ -515,7 +517,7 @@ export function AttachmentFilePreview(props: {
         </div>
         {renderedMode ? (
           <FileSurfaceAction
-            label={renderedToggleLabel(renderedMode, rendered)}
+            label={renderedToggleLabel(renderedMode, rendered, messages)}
             pressed={rendered}
             onPress={() => setRendered((value) => !value)}
           >

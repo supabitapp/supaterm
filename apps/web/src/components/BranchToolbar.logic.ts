@@ -45,12 +45,15 @@ function normalizeDisplayLabel(value: string | null | undefined): string | null 
   return trimmed && trimmed.length > 0 ? trimmed : null;
 }
 
-export function resolveEnvironmentOptionLabel(input: {
-  isPrimary: boolean;
-  environmentId: EnvironmentId;
-  runtimeLabel?: string | null;
-  savedLabel?: string | null;
-}): string {
+export function resolveEnvironmentOptionLabel(
+  input: {
+    isPrimary: boolean;
+    environmentId: EnvironmentId;
+    runtimeLabel?: string | null;
+    savedLabel?: string | null;
+  },
+  resolve: MessageResolver = m,
+): string {
   const runtimeLabel = normalizeDisplayLabel(input.runtimeLabel);
   const savedLabel = normalizeDisplayLabel(input.savedLabel);
 
@@ -59,7 +62,7 @@ export function resolveEnvironmentOptionLabel(input: {
       if (!label) return false;
       return !GENERIC_LOCAL_ENVIRONMENT_LABELS.has(label.toLowerCase());
     });
-    return preferredLocalLabel ?? msg("This device");
+    return preferredLocalLabel ?? resolve(msg("This device"));
   }
 
   return runtimeLabel ?? savedLabel ?? input.environmentId;
@@ -109,8 +112,8 @@ export function resolveContextStripLabelsCompact(input: {
     : input.neededWidth > input.availableWidth;
 }
 
-export function resolveEnvModeLabel(mode: EnvMode): string {
-  return mode === "worktree" ? msg("New worktree") : msg("Current checkout");
+export function resolveEnvModeLabel(mode: EnvMode, resolve: MessageResolver = m): string {
+  return mode === "worktree" ? resolve(msg("New worktree")) : resolve(msg("Current checkout"));
 }
 
 export const WORKTREE_SUBMODULES_LABELS: Record<WorktreeSubmodules, string> = {
@@ -119,16 +122,25 @@ export const WORKTREE_SUBMODULES_LABELS: Record<WorktreeSubmodules, string> = {
   none: msg("Skip"),
 };
 
-export function resolveCurrentWorkspaceLabel(activeWorktreePath: string | null): string {
-  return activeWorktreePath ? msg("Current worktree") : resolveEnvModeLabel("local");
+export function resolveCurrentWorkspaceLabel(
+  activeWorktreePath: string | null,
+  resolve: MessageResolver = m,
+): string {
+  return activeWorktreePath
+    ? resolve(msg("Current worktree"))
+    : resolveEnvModeLabel("local", resolve);
 }
 
 export function resolveLockedWorkspaceLabel(
   activeWorktreePath: string | null,
   effectiveEnvMode: EnvMode,
+  resolve: MessageResolver = m,
 ): string {
-  if (activeWorktreePath) return resolveWorkspaceDisplayName(activeWorktreePath) ?? msg("Worktree");
-  return effectiveEnvMode === "worktree" ? resolveEnvModeLabel("worktree") : msg("Local checkout");
+  if (activeWorktreePath)
+    return resolveWorkspaceDisplayName(activeWorktreePath) ?? resolve(msg("Worktree"));
+  return effectiveEnvMode === "worktree"
+    ? resolveEnvModeLabel("worktree", resolve)
+    : resolve(msg("Local checkout"));
 }
 
 export interface PreviousWorktreeSeed {

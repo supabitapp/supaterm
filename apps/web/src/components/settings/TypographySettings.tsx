@@ -39,12 +39,13 @@ import {
 import {
   isAdvancedTypographyTarget,
   revealSettingsSearchTarget,
-  searchableSetting,
+  useSearchableSetting,
 } from "./settingsSearch";
 import { isImeComposing } from "~/lib/imeComposition";
 import { T, useGT, useMessages } from "gt-react";
 
 function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -76,6 +77,7 @@ function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
 }
 
 function PromptFontRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -115,6 +117,7 @@ function CodeFontRow({
   description?: string;
   preview?: ReactNode;
 }) {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -148,6 +151,7 @@ function CodeFontRow({
 }
 
 function TerminalFontRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -189,6 +193,7 @@ function TerminalFontRow() {
 }
 
 function FontSmoothingRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -219,6 +224,7 @@ function FontSmoothingRow() {
 }
 
 function WordWrapRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();

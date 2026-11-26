@@ -1,10 +1,13 @@
+import { msg, useGT, useMessages } from "gt-react";
+
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
   WorkspaceBreadcrumbSeparator,
 } from "../WorkspaceBreadcrumb";
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
-import { msg, useGT } from "gt-react";
+
+const SETTINGS_LABEL = msg("Settings");
 
 const SETTINGS_BREADCRUMB_LABELS: Readonly<Record<string, string>> = {
   ...SETTINGS_SECTION_LABELS,
@@ -19,18 +22,19 @@ function settingsBreadcrumbLabel(pathname: string): string | null {
 
 export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
   const gt = useGT();
+  const m = useMessages();
   const sectionLabel = settingsBreadcrumbLabel(pathname);
 
   return (
     <WorkspaceBreadcrumb ariaLabel={gt("Settings breadcrumb")}>
       {sectionLabel ? (
         <>
-          <WorkspaceBreadcrumbItem>{msg("Settings")}</WorkspaceBreadcrumbItem>
+          <WorkspaceBreadcrumbItem>{m(SETTINGS_LABEL)}</WorkspaceBreadcrumbItem>
           <WorkspaceBreadcrumbSeparator />
         </>
       ) : null}
       <WorkspaceBreadcrumbItem current className="truncate">
-        {sectionLabel ?? msg("Settings")}
+        {m(sectionLabel ?? SETTINGS_LABEL)}
       </WorkspaceBreadcrumbItem>
     </WorkspaceBreadcrumb>
   );

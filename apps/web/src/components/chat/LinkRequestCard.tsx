@@ -62,7 +62,7 @@ export function LinkRequestCard(props: {
   const display = linkRequestDisplay(
     item,
     props.visibility,
-    (access: AuthMcpClientAccess) => accessConfig[access].label,
+    (access: AuthMcpClientAccess) => messages(accessConfig[access].label),
     messages,
   );
   if (display.kind === "answered" || display.kind === "pending-elsewhere") {

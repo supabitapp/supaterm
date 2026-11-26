@@ -26,7 +26,7 @@ import { Switch } from "../ui/switch";
 import { ScopedSwitch } from "./ScopedSwitch";
 import { resolveDefaultModelSettingsPresentation } from "./ProjectDefaultsSettings.logic";
 import type { ProjectSettingsCategory } from "./ProjectSettingsPanel";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useSettingsScope } from "./SettingsScopeContext";
 import {
   SETTINGS_PICKER_TRIGGER_CLASSNAME,
@@ -41,7 +41,7 @@ import {
   useScopedSettingSource,
   useUpdateScopedSettings,
 } from "./useScopedSettings";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 const WORKTREE_SUBMODULES_OPTIONS = ["recursive", "top-level", "none"] as const;
 function isWorktreeSubmodules(value: string | null): value is WorktreeSubmodules {
@@ -49,6 +49,8 @@ function isWorktreeSubmodules(value: string | null): value is WorktreeSubmodules
 }
 
 export function ProjectDefaultsSettings({ category }: { category: ProjectSettingsCategory }) {
+  const searchableSetting = useSearchableSetting();
+  const messages = useMessages();
   const gt = useGT();
   const { scope, target, targets, connectedEnvironments } = useSettingsScope();
   const settings = useScopedSettings();
@@ -233,7 +235,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             <SelectValue>
               {(value: string | null) =>
                 value === "local" || value === "worktree"
-                  ? resolveEnvModeLabel(value)
+                  ? resolveEnvModeLabel(value, messages)
                   : unavailable
                     ? gt("Unavailable", { $context: "setting value cannot be read" })
                     : gt("Mixed", { $context: "values differ across targets" })
@@ -241,8 +243,8 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             </SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
-            <SelectItem value="local">{resolveEnvModeLabel("local")}</SelectItem>
-            <SelectItem value="worktree">{resolveEnvModeLabel("worktree")}</SelectItem>
+            <SelectItem value="local">{resolveEnvModeLabel("local", messages)}</SelectItem>
+            <SelectItem value="worktree">{resolveEnvModeLabel("worktree", messages)}</SelectItem>
           </SelectPopup>
         </Select>
       }
@@ -378,7 +380,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   <SelectValue>
                     {mixedPermissions
                       ? gt("Mixed", { $context: "values differ across targets" })
-                      : runtimeModeConfig[settings.defaultRuntimeMode].label}
+                      : messages(runtimeModeConfig[settings.defaultRuntimeMode].label)}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -390,10 +392,10 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                         <div className="grid gap-0.5">
                           <span className="inline-flex items-center gap-1.5 font-medium">
                             <Icon className="size-3.5 shrink-0 text-muted-foreground" />
-                            {option.label}
+                            {messages(option.label)}
                           </span>
                           <span className="text-xs leading-4 text-muted-foreground">
-                            {option.description}
+                            {messages(option.description)}
                           </span>
                         </div>
                       </SelectItem>
@@ -495,7 +497,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   <SelectValue>
                     {(value: string | null) =>
                       value === "merge" || value === "squash" || value === "rebase"
-                        ? PULL_REQUEST_MERGE_METHOD_LABELS[value]
+                        ? messages(PULL_REQUEST_MERGE_METHOD_LABELS[value])
                         : value === "last"
                           ? gt("Last selected")
                           : gt("Mixed", { $context: "values differ across targets" })
@@ -506,9 +508,15 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   <SelectItem value="last">
                     <T>Last selected</T>
                   </SelectItem>
-                  <SelectItem value="merge">{PULL_REQUEST_MERGE_METHOD_LABELS.merge}</SelectItem>
-                  <SelectItem value="squash">{PULL_REQUEST_MERGE_METHOD_LABELS.squash}</SelectItem>
-                  <SelectItem value="rebase">{PULL_REQUEST_MERGE_METHOD_LABELS.rebase}</SelectItem>
+                  <SelectItem value="merge">
+                    {messages(PULL_REQUEST_MERGE_METHOD_LABELS.merge)}
+                  </SelectItem>
+                  <SelectItem value="squash">
+                    {messages(PULL_REQUEST_MERGE_METHOD_LABELS.squash)}
+                  </SelectItem>
+                  <SelectItem value="rebase">
+                    {messages(PULL_REQUEST_MERGE_METHOD_LABELS.rebase)}
+                  </SelectItem>
                 </SelectPopup>
               </Select>
             }
@@ -520,6 +528,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
 }
 
 export function AgentBrowserAccessRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -558,7 +567,9 @@ export function AgentBrowserAccessRow() {
 }
 
 export function WorktreeSubmodulesRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
+  const messages = useMessages();
   const { scope, target, connectedEnvironments } = useSettingsScope();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -594,7 +605,7 @@ export function WorktreeSubmodulesRow() {
             <SelectValue>
               {(value: string | null) =>
                 isWorktreeSubmodules(value)
-                  ? WORKTREE_SUBMODULES_LABELS[value]
+                  ? messages(WORKTREE_SUBMODULES_LABELS[value])
                   : unavailable
                     ? gt("Unavailable", { $context: "setting value cannot be read" })
                     : gt("Mixed", { $context: "values differ across targets" })
@@ -604,7 +615,7 @@ export function WorktreeSubmodulesRow() {
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {WORKTREE_SUBMODULES_OPTIONS.map((option) => (
               <SelectItem key={option} value={option}>
-                {WORKTREE_SUBMODULES_LABELS[option]}
+                {messages(WORKTREE_SUBMODULES_LABELS[option])}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -615,6 +626,7 @@ export function WorktreeSubmodulesRow() {
 }
 
 export function StartFromRemoteRow() {
+  const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();

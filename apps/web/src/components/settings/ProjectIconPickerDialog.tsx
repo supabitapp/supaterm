@@ -30,7 +30,7 @@ import {
 import { Input } from "../ui/input";
 import { ScrollArea } from "../ui/scroll-area";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 type PickerMode = "icon" | "emoji" | "monogram";
 
@@ -105,6 +105,7 @@ function ProjectIconPickerBody({
   readonly onSelect: (icon: ProjectIconOverride) => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const [mode, setMode] = useState<PickerMode>(() => initialMode(current));
   const [iconName, setIconName] = useState<string>(() => initialIconName(current));
   const [color, setColor] = useState<ProjectIconColor>(
@@ -174,7 +175,7 @@ function ProjectIconPickerBody({
                 <button
                   key={option.value}
                   type="button"
-                  aria-label={option.label}
+                  aria-label={m(option.label)}
                   aria-pressed={color === option.value}
                   className={cn(
                     "flex size-6 items-center justify-center rounded-full border border-transparent outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
@@ -269,7 +270,7 @@ function ProjectIconPickerBody({
                   <button
                     key={option.emoji}
                     type="button"
-                    aria-label={option.label}
+                    aria-label={m(option.label)}
                     aria-pressed={emoji === option.emoji}
                     className={cn(
                       "flex aspect-square items-center justify-center rounded-md border border-transparent text-xl outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",

@@ -897,12 +897,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     supportsAttachmentUploads,
     maxFileAttachmentBytes,
   });
-  const fileCapabilityBlockReason = fileAttachmentCapabilityBlockReason({
-    files: composerFiles,
-    attachmentUploadsCapabilityKnown,
-    supportsAttachmentUploads,
-    maxFileAttachmentBytes,
-  });
+  const fileCapabilityBlockReason = fileAttachmentCapabilityBlockReason(
+    {
+      files: composerFiles,
+      attachmentUploadsCapabilityKnown,
+      supportsAttachmentUploads,
+      maxFileAttachmentBytes,
+    },
+    m,
+  );
   const attachmentBlockReason =
     (questionAttachmentTarget &&
     !supportsQuestionAttachments &&
@@ -1058,7 +1061,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ? null
       : selectedProviderEntry?.isAvailable === false
         ? "This provider is unavailable. Choose another provider or try again later."
-        : getAntigravitySendBlockReason(selectedProviderEntry?.snapshot, selectedModel);
+        : getAntigravitySendBlockReason(selectedProviderEntry?.snapshot, selectedModel, m);
   const sendDisabledReason =
     externalSendDisabledReason ??
     (multipleModelSelections?.length === 0 ? gt("Select at least one model.") : null) ??
