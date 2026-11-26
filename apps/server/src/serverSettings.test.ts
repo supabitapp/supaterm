@@ -2328,7 +2328,11 @@ it.effect("publishes edits made before the restored settings watch is registered
                       Stream.concat(Stream.never),
                     );
                   }
-                  if (directory !== active) return fs.watch(directory, options);
+                  // A real watch can deliver the symlink's creation after start and publish early.
+                  if (directory !== active) {
+                    options?.onReady?.();
+                    return Stream.never;
+                  }
                   if (yield* Deferred.isDone(replaced)) {
                     yield* Deferred.succeed(registering, undefined);
                     yield* Deferred.await(allowRegistration);
