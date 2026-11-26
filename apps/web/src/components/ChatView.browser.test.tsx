@@ -286,6 +286,7 @@ it("a queued message sending on one thread leaves the next thread's queue usable
     createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${second.id}`] }),
   );
   await router.load();
+  using consoleError = vi.spyOn(console, "error");
   await using _app = await render(<AppRoot router={router} />, {
     // AppRoot brings its own router.
     router: false,
@@ -307,6 +308,9 @@ it("a queued message sending on one thread leaves the next thread's queue usable
 
   await open(second.id);
   await expect.element(sendNow).toBeEnabled();
+  expect(consoleError.mock.calls.map(([message]) => String(message))).not.toContainEqual(
+    expect.stringContaining("Encountered two children with the same key"),
+  );
 });
 
 it("a stashed prompt ending in a file chip restores with the chip", async () => {
