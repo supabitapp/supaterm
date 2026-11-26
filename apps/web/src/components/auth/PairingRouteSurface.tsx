@@ -15,7 +15,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
 import { m } from "../../i18n/messages";
 
 export function PairingPendingSurface() {
@@ -238,7 +238,12 @@ export function HostedPairingRouteSurface() {
 
       {request ? (
         <div className="mt-5 rounded-lg border border-border/70 bg-background/55 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
-          Host: <span className="font-mono text-foreground/80">{origin ?? request.host}</span>
+          <T>
+            Host:{" "}
+            <span className="font-mono text-foreground/80">
+              <Var>{origin ?? request.host}</Var>
+            </span>
+          </T>
         </div>
       ) : null}
 

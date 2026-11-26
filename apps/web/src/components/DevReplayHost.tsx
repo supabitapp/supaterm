@@ -15,7 +15,7 @@ import { buildThreadRouteParams, resolveThreadRouteTarget } from "../threadRoute
 import { Button } from "./ui/button";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "./ui/dialog";
 import { toastManager } from "./ui/toast";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 // Dev servers register this free ACP agent; see ProviderInstanceRegistryHydration.ts.
 const DEV_REPLAY_INSTANCE_ID = ProviderInstanceId.make("devReplay");
@@ -128,7 +128,13 @@ export function DevReplayHost() {
       <DialogPopup className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {project === undefined ? "Replay a recorded turn" : `Replay in ${project.title}`}
+            {project === undefined ? (
+              <T>Replay a recorded turn</T>
+            ) : (
+              <T>
+                Replay in <Var>{project.title}</Var>
+              </T>
+            )}
           </DialogTitle>
         </DialogHeader>
         <DialogPanel>

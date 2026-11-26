@@ -134,7 +134,7 @@ import {
   type TurnDiffSection,
 } from "@supaterm/client-runtime/state/thread-repositories";
 import { useOpenLink } from "../browser/useOpenLink";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 type DiffThemeType = "light" | "dark";
 const AUTOMATIC_BASE_REF = "__automatic_base_ref__";
@@ -221,6 +221,7 @@ function DiffFileHeaderSuffix({
   onOpenFile: (path: string) => void;
   onRetry: (path: string) => void;
 }) {
+  const gt = useGT();
   return (
     <>
       <DiffFilePathCopyButton filePath={filePath} workspaceRoot={workspaceRoot} />
@@ -230,7 +231,7 @@ function DiffFileHeaderSuffix({
             <Button
               size="icon-micro"
               variant="ghost-muted"
-              aria-label={`Open ${filePath}`}
+              aria-label={gt("Open {path}", { path: filePath })}
               aria-disabled={!canOpenFile}
               onClick={canOpenFile ? () => onOpenFile(filePath) : undefined}
             />
@@ -238,7 +239,9 @@ function DiffFileHeaderSuffix({
         >
           <FileSymlinkIcon className="size-3" />
         </TooltipTrigger>
-        <TooltipPopup>{canOpenFile ? "Open file" : "File is outside this workspace"}</TooltipPopup>
+        <TooltipPopup>
+          {canOpenFile ? gt("Open file") : gt("File is outside this workspace")}
+        </TooltipPopup>
       </Tooltip>
       {hasStat ? (
         <DiffFileStatus error={error} truncated={truncated} retry={() => onRetry(filePath)} />
@@ -1100,7 +1103,11 @@ export default function DiffPanel({
                         closeOnClick
                       >
                         <span className="flex items-center gap-2">
-                          <span>Turn {turnCount}</span>
+                          <span>
+                            <T>
+                              Turn <Var>{turnCount}</Var>
+                            </T>
+                          </span>
                           <span className="ml-auto text-xs tabular-nums text-muted-foreground">
                             {formatShortTimestamp(summary.completedAt, settings.timestampFormat)}
                           </span>
@@ -1205,7 +1212,10 @@ export default function DiffPanel({
                     </DropdownMenuItem>
                   ) : branchCommits.truncated ? (
                     <DropdownMenuItem disabled>
-                      {`Showing latest ${branchCommits.commits.length} commits`}
+                      {gt(
+                        "{count, plural, one {Showing latest {count} commits} other {Showing latest {count} commits}}",
+                        { count: branchCommits.commits.length },
+                      )}
                     </DropdownMenuItem>
                   ) : null}
                 </DropdownMenuSubContent>
@@ -1356,7 +1366,9 @@ export default function DiffPanel({
                     className="w-full min-w-0 grid-cols-[1rem_minmax(0,1fr)]"
                     value={AUTOMATIC_BASE_REF}
                   >
-                    <span className="block min-w-0 truncate">Automatic</span>
+                    <span className="block min-w-0 truncate">
+                      <T context="compare against the default base ref">Automatic</T>
+                    </span>
                   </ComboboxItem>
                   {baseRefChoices.map((choice) => {
                     const item = valueForBaseRefChoice(choice);
@@ -1567,7 +1579,10 @@ export default function DiffPanel({
             </TooltipTrigger>
             <TooltipPopup side="top">
               {hideTestFiles
-                ? `Show ${testFileCount} hidden test ${testFileCount === 1 ? "file" : "files"}`
+                ? gt(
+                    "{count, plural, one {Show {count} hidden test file} other {Show {count} hidden test files}}",
+                    { count: testFileCount },
+                  )
                 : gt("Hide test files")}
             </TooltipPopup>
           </Tooltip>
@@ -1632,20 +1647,22 @@ export default function DiffPanel({
             )}
             {isSelectedPatchTruncated && !lazySource && (
               <p className="shrink-0 border-b border-border/70 bg-muted/40 px-3 py-1.5 text-2xs text-muted-foreground">
-                This preview exceeds the size limit. Changes shown are incomplete.
                 {isGitSelection && selectedGitSource?.files && !preview?.incomplete
-                  ? " Totals include all changes."
-                  : ""}
+                  ? gt(
+                      "This preview exceeds the size limit. Changes shown are incomplete. Totals include all changes.",
+                    )
+                  : gt("This preview exceeds the size limit. Changes shown are incomplete.")}
               </p>
             )}
             {omittedToolCallFiles > 0 && (
               <p className="shrink-0 border-b border-border/70 bg-muted/40 px-3 py-1.5 text-2xs text-muted-foreground">
-                This tool call changed {recordedToolCallFileCount.toLocaleString()}{" "}
-                {recordedToolCallFileCount === 1 ? "file" : "files"}. The recorded patch omits{" "}
-                {recordedToolCallFileCount === 1
-                  ? "it"
-                  : `${omittedToolCallFiles.toLocaleString()} of them`}
-                .
+                {gt(
+                  "{recorded, plural, =1 {This tool call changed {recorded} file. The recorded patch omits it.} other {This tool call changed {recorded} files. The recorded patch omits {omitted} of them.}}",
+                  {
+                    recorded: recordedToolCallFileCount,
+                    omitted: omittedToolCallFiles,
+                  },
+                )}
               </p>
             )}
             {selectedPatchError && !renderablePatch && (

@@ -18,6 +18,7 @@ const beginTransaction = createIndexedDbTransaction({
     }
     if (!database.objectStoreNames.contains(STORE_NAME)) database.createObjectStore(STORE_NAME);
   },
+  // oxlint-disable-next-line supaterm/no-untranslated-copy -- an IndexedDB Error the favicon cache swallows
   blockedMessage: "Project icon cache is blocked.",
 });
 

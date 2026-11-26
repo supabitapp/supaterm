@@ -68,6 +68,11 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
     views.find((view) => view.id === selectedId) ??
     views.find((view) => kind.matches(view, preferences));
   if (selectedView && selectedId !== selectedView.id) setSelectedId(selectedView.id);
+  const list = kind.noun === "pull request" ? "pullRequest" : "issue";
+  const savedViewsLabel = gt(
+    "{list, select, pullRequest {Saved pull request views} other {Saved issue views}}",
+    { list },
+  );
   const modified = selectedView !== undefined && !kind.matches(selectedView, preferences);
   const nameError = editor ? savedViewNameError(editor.name, views, editor.id) : null;
 
@@ -93,7 +98,10 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
     }
     toastManager.add({
       type: "error",
-      title: `Could not save ${kind.shortNoun} views`,
+      title: gt(
+        "{list, select, pullRequest {Could not save PR views} other {Could not save issue views}}",
+        { list },
+      ),
       description: gt(
         "Local storage is unavailable or full. Try again after freeing space or allowing storage.",
       ),
@@ -136,10 +144,7 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
         <Tooltip>
           <TooltipTrigger
             render={
-              <MenuTrigger
-                render={<Button variant="outline" />}
-                aria-label={`Saved ${kind.noun} views`}
-              />
+              <MenuTrigger render={<Button variant="outline" />} aria-label={savedViewsLabel} />
             }
           >
             <BookmarkIcon aria-hidden className="size-4" />
@@ -149,7 +154,7 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
             {modified ? <span aria-label={gt("Modified view")}>*</span> : null}
             <ChevronDownIcon aria-hidden className="size-3 shrink-0" />
           </TooltipTrigger>
-          <TooltipPopup>{selectedView?.name ?? `Saved ${kind.noun} views`}</TooltipPopup>
+          <TooltipPopup>{selectedView?.name ?? savedViewsLabel}</TooltipPopup>
         </Tooltip>
         <MenuPopup align="start">
           {views.map((view) => (
@@ -228,7 +233,13 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
           >
             <DialogHeader>
               <DialogTitle>
-                {editor?.id ? `Rename ${kind.shortNoun} view` : `Save ${kind.shortNoun} view`}
+                {editor?.id
+                  ? gt("{list, select, pullRequest {Rename PR view} other {Rename issue view}}", {
+                      list,
+                    })
+                  : gt("{list, select, pullRequest {Save PR view} other {Save issue view}}", {
+                      list,
+                    })}
               </DialogTitle>
               <DialogDescription>
                 <T>Save your search, filters, and sort order on this device.</T>

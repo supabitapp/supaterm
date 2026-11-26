@@ -108,8 +108,7 @@ import { registerCommands } from "../shortcuts/dispatcher";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
 import { isImeComposing } from "~/lib/imeComposition";
 import { msg, T, useGT, useMessages } from "gt-react";
-
-import { m, type MessageResolver } from "../i18n/messages";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 export interface RightPanelTabsProps {
   mode: PreviewPanelMode;
@@ -236,13 +235,16 @@ function previewTabIdOf(
  * resolve while the preview manager's createTab is still in flight, and muting
  * then fails with a PreviewTabNotFoundError nothing surfaces to the user.
  */
-function tabMuteMenuItem(input: {
-  overlay: DesktopPreviewOverlay | null;
-  canResolveRuntimeTabId: boolean;
-}): { label: string; disabled: boolean } {
+function tabMuteMenuItem(
+  input: {
+    overlay: DesktopPreviewOverlay | null;
+    canResolveRuntimeTabId: boolean;
+  },
+  resolve: MessageResolver = m,
+): { label: string; disabled: boolean } {
   const muted = input.overlay?.audioMuted ?? false;
   return {
-    label: muted ? "Unmute tab" : "Mute tab",
+    label: muted ? resolve(msg("Unmute tab")) : resolve(msg("Mute tab")),
     disabled: input.overlay === null || !input.canResolveRuntimeTabId,
   };
 }
@@ -322,7 +324,9 @@ function SurfaceRunningDot(props: { readonly className: string }) {
           props.className,
         )}
       />
-      <span className="sr-only">(running)</span>
+      <span className="sr-only">
+        <T>(running)</T>
+      </span>
     </>
   );
 }
@@ -911,7 +915,7 @@ function RightPanelTab(
       <PanelTabCloseButton
         label={gt("Close {title}", { title })}
         onClick={() => onClose(surface)}
-        tooltip="Close tab"
+        tooltip={gt("Close tab")}
         shortcut={props.active ? props.closeShortcut : null}
       >
         <SurfaceIcon
@@ -1220,10 +1224,13 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       });
       items.push({
         id: "toggle-mute",
-        ...tabMuteMenuItem({
-          overlay: menuOverlay,
-          canResolveRuntimeTabId: props.previewRuntimeTabId !== undefined,
-        }),
+        ...tabMuteMenuItem(
+          {
+            overlay: menuOverlay,
+            canResolveRuntimeTabId: props.previewRuntimeTabId !== undefined,
+          },
+          messages,
+        ),
       });
     }
     items.push(

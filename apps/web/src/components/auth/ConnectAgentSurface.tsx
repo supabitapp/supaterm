@@ -25,7 +25,7 @@ import { Input } from "../ui/input";
 import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
 
 export const accessConfig: Record<
   AuthMcpClientAccess,
@@ -175,24 +175,29 @@ export function ConnectAgentSurface() {
       <ConnectAgentHeading
         title={gt("Connect {app}", { app: details.clientName })}
         description={
-          <>
+          <T>
             This agent wants to use the threads in every project on{" "}
-            <span className="font-medium text-foreground">{details.environmentHost}</span>.
-          </>
+            <span className="font-medium text-foreground">
+              <Var>{details.environmentHost}</Var>
+            </span>
+            .
+          </T>
         }
       />
       <p className="mt-2 text-xs text-muted-foreground">
         {redirectsToThisComputer(details.redirectHost) ? (
-          <>
-            The name is chosen by the agent. Approval returns to {details.redirectHost} on the
-            computer that opened this page. Only approve a sign-in you just started.
-          </>
+          <T>
+            The name is chosen by the agent. Approval returns to <Var>{details.redirectHost}</Var>{" "}
+            on the computer that opened this page. Only approve a sign-in you just started.
+          </T>
         ) : (
-          <>
+          <T>
             The name is chosen by the agent. Approval gives access to whoever runs{" "}
-            <span className="font-medium text-foreground">{details.redirectHost}</span>. Only
-            approve a sign-in you just started there.
-          </>
+            <span className="font-medium text-foreground">
+              <Var>{details.redirectHost}</Var>
+            </span>
+            . Only approve a sign-in you just started there.
+          </T>
         )}
       </p>
 
@@ -220,8 +225,11 @@ export function ConnectAgentSurface() {
             value={pairingCode}
           />
           <p className="text-xs text-muted-foreground">
-            Get one from Use Supaterm in another app (MCP) in Settings → Sharing & access, create a
-            pairing code there, or run <code>supaterm auth pairing create</code> on this machine.
+            <T>
+              Get one from Use Supaterm in another app (MCP) in Settings → Sharing & access, create
+              a pairing code there, or run <code>supaterm auth pairing create</code> on this
+              machine.
+            </T>
           </p>
         </div>
 
@@ -267,7 +275,7 @@ export function ConnectAgentSurface() {
               ? gt("Approving…")
               : codeAccess
                 ? gt("Approve {level}", { level: accessConfig[codeAccess].label })
-                : "Approve"}
+                : gt("Approve", { $context: "verb, approves the agent sign-in" })}
           </Button>
           <Button
             disabled={pending !== null}

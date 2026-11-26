@@ -35,6 +35,7 @@ import { formatRelativeTimeLabel } from "../timestampFormat";
 import { type Project, type SidebarThreadSummary, type Thread } from "../types";
 import { isSidebarHiddenThread } from "./Sidebar.logic";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "../i18n/messages";
 
 export const RECENT_THREAD_LIMIT = 12;
 export const ITEM_ICON_CLASS = "size-4 text-icon-muted";
@@ -844,13 +845,21 @@ export type AddProjectCloneFlow =
       readonly remoteUrl: string;
     };
 
-export function remoteProjectInputPlaceholder(flow: AddProjectCloneFlow | null): string | null {
+export function remoteProjectInputPlaceholder(
+  flow: AddProjectCloneFlow | null,
+  resolve: MessageResolver = m,
+): string | null {
   if (!flow) return null;
   if (flow.step === "confirm") return null;
   if (flow.source === "url") {
-    return msg("Enter Git clone URL");
+    return resolve(msg("Enter Git clone URL"));
   }
-  return `Enter ${addProjectRemoteSourceLabel(flow.source)} repository (${addProjectRemoteSourcePathHint(flow.source)})`;
+  return resolve(
+    msg("Enter {source} repository ({hint})", {
+      source: addProjectRemoteSourceLabel(flow.source),
+      hint: addProjectRemoteSourcePathHint(flow.source),
+    }),
+  );
 }
 
 export function buildPaletteRemoteSourceReadiness(

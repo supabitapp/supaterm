@@ -13,7 +13,7 @@ import { workspaceRelativeFilePath } from "@supaterm/shared/path";
 import { toSortableTimestamp } from "@supaterm/client-runtime/state/thread-sort";
 import { deriveCanInterruptRunningThread } from "../session-logic";
 import { msg } from "gt-react";
-import { m } from "../i18n/messages";
+import { m, type MessageResolver } from "../i18n/messages";
 export { deriveLocalBranchNameFromRemoteRef, sanitizeNewRefName } from "@supaterm/shared/git";
 
 const isGitCommandError = Schema.is(GitCommandError);
@@ -169,8 +169,13 @@ export function resolvePreviousWorktreeSeed(input: {
   return latest === null ? null : { branch: latest.branch, worktreePath: latest.worktreePath };
 }
 
-export function resolvePreviousWorktreeLabel(seed: PreviousWorktreeSeed): string {
-  return seed.branch ? `Previous worktree (${seed.branch})` : msg("Previous worktree");
+export function resolvePreviousWorktreeLabel(
+  seed: PreviousWorktreeSeed,
+  resolve: MessageResolver = m,
+): string {
+  return seed.branch
+    ? resolve(msg("Previous worktree ({branch})", { branch: seed.branch }))
+    : resolve(msg("Previous worktree"));
 }
 
 export function resolveEffectiveEnvMode(input: {
@@ -263,13 +268,16 @@ export function isBranchHoldCurrent(
   );
 }
 
-export function resolveBranchTriggerLabel(input: {
-  activeWorktreePath: string | null;
-  effectiveEnvMode: EnvMode;
-  resolvedActiveBranch: string | null;
-  resolvedActiveBranchIsRemote: boolean | null;
-  startFromOrigin: boolean;
-}): string {
+export function resolveBranchTriggerLabel(
+  input: {
+    activeWorktreePath: string | null;
+    effectiveEnvMode: EnvMode;
+    resolvedActiveBranch: string | null;
+    resolvedActiveBranchIsRemote: boolean | null;
+    startFromOrigin: boolean;
+  },
+  resolve: MessageResolver = m,
+): string {
   const {
     activeWorktreePath,
     effectiveEnvMode,
@@ -279,14 +287,14 @@ export function resolveBranchTriggerLabel(input: {
   } = input;
   if (!resolvedActiveBranch) {
     return effectiveEnvMode === "worktree" && !activeWorktreePath
-      ? "Default branch"
-      : msg("Select ref");
+      ? resolve(msg("Default branch"))
+      : resolve(msg("Select ref"));
   }
   if (effectiveEnvMode === "worktree" && !activeWorktreePath) {
     // Only the server can determine a local branch's configured remote.
     return startFromOrigin && resolvedActiveBranchIsRemote === false
-      ? `From ${resolvedActiveBranch} (remote)`
-      : `From ${resolvedActiveBranch}`;
+      ? resolve(msg("From {branch} (remote)", { branch: resolvedActiveBranch }))
+      : resolve(msg("From {branch}", { branch: resolvedActiveBranch }));
   }
   return resolvedActiveBranch;
 }

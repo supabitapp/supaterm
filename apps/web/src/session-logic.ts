@@ -54,6 +54,7 @@ import * as DateTime from "effect/DateTime";
 import * as Equal from "effect/Equal";
 import { shallow } from "zustand/vanilla/shallow";
 import { msg } from "gt-react";
+
 import { m, type MessageResolver } from "./i18n/messages";
 
 export { formatDuration } from "@supaterm/shared/orchestrationTiming";
@@ -348,7 +349,7 @@ function projectedWorkEntry(
     case "thread_created":
       return {
         ...common,
-        label: msg("Created thread"),
+        label: resolve(msg("Created thread")),
       };
     case "compaction":
       return {
@@ -360,16 +361,16 @@ function projectedWorkEntry(
     case "reasoning":
       return {
         ...common,
-        label: title ?? "Thinking",
+        label: title ?? resolve(msg("Thinking", { $context: "status of an agent reasoning" })),
         ...(item.text ? { detail: item.text } : {}),
       };
     case "command_execution":
       return {
         ...common,
-        label: title ?? msg("Ran command"),
+        label: title ?? resolve(msg("Ran command")),
         command: item.input,
         rawCommand: item.input,
-        toolTitle: title ?? "Command",
+        toolTitle: title ?? resolve(msg("Command", { $context: "noun, a shell command tool" })),
         toolData: item,
       };
     case "file_change": {
@@ -378,29 +379,32 @@ function projectedWorkEntry(
         label:
           title ??
           (item.changes !== undefined && item.changes.length > 1
-            ? `Changed ${item.changes.length} files`
-            : `Changed ${item.fileName}`),
+            ? resolve(
+                msg("{count, plural, one {Changed {count} file} other {Changed {count} files}}"),
+                { count: item.changes.length },
+              )
+            : resolve(msg("Changed {fileName}", { fileName: item.fileName }))),
         changedFiles: item.changes?.length
           ? item.changes.map((change) => change.path)
           : [item.fileName],
-        toolTitle: title ?? "File change",
+        toolTitle: title ?? resolve(msg("File change", { $context: "noun, a tool title" })),
         toolData: item,
       };
     }
     case "file_search":
       return {
         ...common,
-        label: title ?? formatSearchToolLabel(item, resolve) ?? msg("Searched files"),
+        label: title ?? formatSearchToolLabel(item, resolve) ?? resolve(msg("Searched files")),
         ...(item.pattern ? { detail: item.pattern } : {}),
-        toolTitle: title ?? "File search",
+        toolTitle: title ?? resolve(msg("File search", { $context: "noun, a tool title" })),
         toolData: item,
       };
     case "web_search":
       return {
         ...common,
-        label: title ?? msg("Searched the web"),
+        label: title ?? resolve(msg("Searched the web")),
         ...(item.patterns?.length ? { detail: item.patterns.join(", ") } : {}),
-        toolTitle: title ?? "Web search",
+        toolTitle: title ?? resolve(msg("Web search", { $context: "noun, a tool title" })),
         toolData: item,
       };
     case "system_notice":
@@ -437,9 +441,10 @@ function projectedWorkEntry(
             : classified === "search"
               ? (formatSearchToolLabel({ input: item.input }, resolve) ??
                 item.toolName ??
-                "Tool call")
-              : (item.toolName ?? "Tool call")),
-        toolTitle: title ?? item.toolName ?? "Tool",
+                resolve(msg("Tool call", { $context: "noun" })))
+              : (item.toolName ?? resolve(msg("Tool call", { $context: "noun" })))),
+        toolTitle:
+          title ?? item.toolName ?? resolve(msg("Tool", { $context: "noun, a tool title" })),
         toolData: { input: item.input, output: item.output },
       };
     }
@@ -452,21 +457,29 @@ function projectedWorkEntry(
       return {
         ...common,
         label: current
-          ? `Tasks ${done}/${item.steps.length} · ${current.text}`
-          : `Tasks ${done}/${item.steps.length}`,
+          ? resolve(msg("Tasks {done}/{total} · {current}"), {
+              done,
+              total: item.steps.length,
+              current: current.text,
+            })
+          : resolve(msg("Tasks {done}/{total}"), { done, total: item.steps.length }),
       };
     }
     case "approval_request":
       return {
         ...common,
-        label: title ?? msg("Approval requested"),
+        label: title ?? resolve(msg("Approval requested")),
         detail: item.prompt ?? item.requestKind,
         toolData: item,
       };
     case "user_input_request":
       return {
         ...common,
-        label: title ?? (item.questionAnswer ? msg("Answered questions") : msg("Input requested")),
+        label:
+          title ??
+          (item.questionAnswer
+            ? resolve(msg("Answered questions"))
+            : resolve(msg("Input requested"))),
         ...(item.questionAnswer ? { questionAnswer: item.questionAnswer } : {}),
         toolData: item,
       };

@@ -10,7 +10,7 @@ import { ProjectFavicon } from "./ProjectFavicon";
 import { ThreadHoverCard } from "./ThreadHoverCard";
 import { ThreadPullRequestsMiniList } from "./ThreadStatusIndicators";
 import { MiddleTruncate } from "./ui/middle-truncate";
-import { useGT } from "gt-react";
+import { T, useGT } from "gt-react";
 
 type ChipProject = NonNullable<ReturnType<typeof useProject>>;
 
@@ -50,7 +50,9 @@ export function ThreadChipHoverCard(props: {
       }
     >
       {props.available ? null : (
-        <div className="text-muted-foreground">Thread no longer available</div>
+        <div className="text-muted-foreground">
+          <T>Thread no longer available</T>
+        </div>
       )}
       {props.project ? (
         <div className="flex min-w-0 items-center gap-2">

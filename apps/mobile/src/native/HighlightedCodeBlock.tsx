@@ -9,7 +9,7 @@ import type { HighlightScheme } from "../lib/highlights";
 import { CodeBlockFrame, CodeBlockHeaderButton } from "./CodeBlockFrame";
 import { fencedCodeMarkdown } from "./codeBlockMarkdown";
 import type { NativeMarkdownTextStyle } from "./SelectableMarkdownText.types";
-import { useGT, msg } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 // Header names from enriched-markdown's CodeBlockLanguages.cpp that are not the fence capitalized.
 const FENCE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
@@ -31,7 +31,11 @@ const FENCE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 
 // The native block's long-press menu, with its labels and iOS symbols.
 const CODE_MENU_ACTIONS = [
-  { id: "copy-code", title: "Copy", image: "doc.on.doc" },
+  {
+    id: "copy-code",
+    title: msg("Copy", { $context: "verb, copies the code" }),
+    image: "doc.on.doc",
+  },
   { id: "copy-markdown", title: msg("Copy as Markdown"), image: "doc.text" },
 ];
 
@@ -47,6 +51,7 @@ export function HighlightedCodeBlock(props: {
   readonly codeStyle: NonNullable<MarkdownStyle["codeBlock"]>;
 }) {
   const gt = useGT();
+  const resolve = useMessages();
   const { code, codeStyle, textStyle } = props;
   const [wrapped, setWrapped] = useState(true);
   const lines = useMarkdownCodeHighlight({
@@ -89,7 +94,7 @@ export function HighlightedCodeBlock(props: {
   const content = (
     <Menu
       shouldOpenOnLongPress
-      actions={CODE_MENU_ACTIONS}
+      actions={CODE_MENU_ACTIONS.map((action) => ({ ...action, title: resolve(action.title) }))}
       style={{ flexGrow: 1 }}
       onPressAction={({ nativeEvent }) => {
         copyTextWithHaptic(

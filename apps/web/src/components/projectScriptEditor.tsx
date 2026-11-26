@@ -398,8 +398,10 @@ function ProjectScriptEditorForm({
                 onKeyDown={captureKeybinding}
               />
               <p className="text-xs text-muted-foreground">
-                Press a shortcut. Use <code>Backspace</code> to clear. Shortcuts are
-                environment-wide. Projects using the same action share its shortcut.
+                <T>
+                  Press a shortcut. Use <code>Backspace</code> to clear. Shortcuts are
+                  environment-wide. Projects using the same action share its shortcut.
+                </T>
               </p>
             </div>
             <div className="space-y-1.5">
@@ -408,6 +410,7 @@ function ProjectScriptEditorForm({
               </Label>
               <Textarea
                 id="script-command"
+                // oxlint-disable-next-line supaterm/no-untranslated-copy -- example shell command
                 placeholder="bun test"
                 value={command}
                 onChange={(event) => setCommand(event.target.value)}
@@ -451,14 +454,18 @@ function ProjectScriptEditorForm({
               />
             </label>
             <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2 text-sm dark:border-transparent dark:bg-white/[0.035]">
-              <span>Run in the thread's worktree when the thread is marked Done</span>
+              <span>
+                <T>Run in the thread's worktree when the thread is marked Done</T>
+              </span>
               <Switch
                 checked={runOnDone}
                 onCheckedChange={(checked) => setRunOnDone(Boolean(checked))}
               />
             </label>
             <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2 text-sm dark:border-transparent dark:bg-white/[0.035]">
-              <span>Stop this action when the thread is marked Done</span>
+              <span>
+                <T>Stop this action when the thread is marked Done</T>
+              </span>
               <Switch
                 checked={stopOnDone}
                 onCheckedChange={(checked) => setStopOnDone(Boolean(checked))}
@@ -518,6 +525,7 @@ function DeleteActionButton({
   readonly disabled: boolean;
   readonly onDelete: () => void;
 }) {
+  const gt = useGT();
   const confirm = useInlineConfirm<"delete">();
   const armed = confirm.armed === "delete";
   return (
@@ -536,7 +544,9 @@ function DeleteActionButton({
         }
       />
       <TooltipPopup>
-        {armed ? `Click again to delete “${name}”. This can’t be undone.` : "Delete this action"}
+        {armed
+          ? gt("Click again to delete “{name}”. This can’t be undone.", { name })
+          : gt("Delete this action")}
       </TooltipPopup>
     </Tooltip>
   );

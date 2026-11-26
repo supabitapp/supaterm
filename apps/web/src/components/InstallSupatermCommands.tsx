@@ -25,9 +25,11 @@ export function InstallSupatermCommands({
       </p>
       <CommandBlock command={command} />
       <p className="text-xs text-muted-foreground">
-        Skip the install if you already have <code className="font-mono">supaterm</code>. If{" "}
-        <code className="font-mono">supaterm</code> is not found after installing, add the folder
-        the installer names to your PATH.
+        <T>
+          Skip the install if you already have <code className="font-mono">supaterm</code>. If{" "}
+          <code className="font-mono">supaterm</code> is not found after installing, add the folder
+          the installer names to your PATH.
+        </T>
       </p>
     </div>
   );

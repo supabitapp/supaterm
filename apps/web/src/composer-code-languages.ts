@@ -1,4 +1,7 @@
 import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "./i18n/messages";
+
 export const CODE_BLOCK_LANGUAGES = [
   { id: "", label: msg("Plain text") },
   { id: "asm", label: msg("Assembly") },
@@ -8,6 +11,7 @@ export const CODE_BLOCK_LANGUAGES = [
   { id: "csharp", label: "C#" },
   { id: "css", label: "CSS" },
   { id: "dart", label: "Dart" },
+  // oxlint-disable-next-line supaterm/no-untranslated-copy -- code language name
   { id: "diff", label: "Diff" },
   { id: "dockerfile", label: "Dockerfile" },
   { id: "elixir", label: "Elixir" },
@@ -37,6 +41,7 @@ export const CODE_BLOCK_LANGUAGES = [
   { id: "toml", label: "TOML" },
   { id: "tsx", label: "TSX" },
   { id: "typescript", label: "TypeScript" },
+  // oxlint-disable-next-line supaterm/no-untranslated-copy -- code language name
   { id: "verilog", label: "Verilog" },
   { id: "vhdl", label: "VHDL" },
   { id: "vue", label: "Vue" },
@@ -85,6 +90,7 @@ export function codeLanguageEntry(language: string): CodeBlockLanguage | null {
   return CODE_BLOCK_LANGUAGES.find((entry) => entry.id === id.toLowerCase()) ?? null;
 }
 
-export function codeLanguageLabel(language: string): string {
-  return codeLanguageEntry(language)?.label ?? language;
+export function codeLanguageLabel(language: string, resolve: MessageResolver = m): string {
+  const label = codeLanguageEntry(language)?.label;
+  return label === undefined ? language : resolve(label);
 }

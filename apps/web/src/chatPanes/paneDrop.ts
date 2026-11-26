@@ -1,4 +1,5 @@
 import type { ScopedThreadRef } from "@supaterm/contracts";
+import { msg } from "gt-react";
 import { useSyncExternalStore } from "react";
 
 import {
@@ -10,6 +11,7 @@ import {
   type PaneEdge,
 } from "./layout";
 import { useChatPaneStore } from "./store";
+import { m } from "~/i18n/messages";
 
 export type PaneDropZone = PaneEdge | "center";
 
@@ -47,11 +49,18 @@ export function resolvePaneDropZone(rect: Rect, point: { x: number; y: number })
 }
 
 /** A thread already on screen moves its pane rather than opening a second one. */
+const PANE_DROP_VERBS: Record<PaneDropZone, { readonly move: string; readonly open: string }> = {
+  center: { move: msg("Swap panes"), open: msg("Open here") },
+  left: { move: msg("Move left"), open: msg("Split left") },
+  right: { move: msg("Move right"), open: msg("Split right") },
+  top: { move: msg("Move up"), open: msg("Split up") },
+  bottom: { move: msg("Move down"), open: msg("Split down") },
+};
+
 export function paneDropVerb(zone: PaneDropZone, payload: PaneDragPayload): string {
   const moving = payload.kind === "pane" || sourcePaneId(payload) !== null;
-  if (zone === "center") return moving ? "Swap panes" : "Open here";
-  const direction = { left: "left", right: "right", top: "up", bottom: "down" }[zone];
-  return `${moving ? "Move" : "Split"} ${direction}`;
+  const verbs = PANE_DROP_VERBS[zone];
+  return m(moving ? verbs.move : verbs.open);
 }
 
 /** The pane a dragged thread or pane already occupies, if any. */

@@ -137,10 +137,16 @@ export function useServerUpdate() {
     if (!quiet) {
       toastManager.add({
         type: "success",
-        title: result.value.upToDate ? `${serverLabel} is up to date` : `${serverLabel} updated`,
+        title: result.value.upToDate
+          ? m(msg("{serverLabel} is up to date", { serverLabel }))
+          : m(msg("{serverLabel} updated", { serverLabel })),
         description:
           "upToDate" in result.value && result.value.upToDate
-            ? `Desktop app is current on its release feed at ${result.value.targetVersion}.`
+            ? m(
+                msg("Desktop app is current on its release feed at {version}.", {
+                  version: result.value.targetVersion,
+                }),
+              )
             : selfUpdate === "desktop-managed"
               ? m(
                   msg("Desktop app relaunched on {version}.", {
@@ -160,13 +166,14 @@ export function useServerUpdate() {
 
 export function ServerUpdatesAction({
   targets,
-  label = "Update all",
+  label,
   variant = "outline",
   size = "xs",
   className,
 }: UpdateButtonProps & {
   readonly targets: ReadonlyArray<ServerUpdateTarget>;
 }) {
+  const gt = useGT();
   const update = useServerUpdate();
   const serverConfigs = useServerConfigs();
   const pending = useRef(false);
@@ -207,7 +214,7 @@ export function ServerUpdatesAction({
       disabled={isPending || eligible.length === 0}
       onClick={() => void handleUpdate()}
     >
-      {label}
+      {label ?? gt("Update all")}
     </Button>
   );
 }
@@ -252,7 +259,7 @@ export function ServerUpdateAction({
   desktopAppUpdate = false,
   targetVersion,
   channel,
-  label = "Update",
+  label,
   variant = "outline",
   size = "xs",
   className,
@@ -336,9 +343,9 @@ export function ServerUpdateAction({
   const actionLabel =
     manualCommand !== null
       ? updatesInstall
-        ? "Copy update command"
-        : "Copy relaunch command"
-      : label;
+        ? gt("Copy update command")
+        : gt("Copy relaunch command")
+      : (label ?? gt("Update", { $context: "verb, updates the server" }));
   const onClick =
     manualCommand !== null
       ? () => copyToClipboard(manualCommand, { command: manualCommand })
@@ -385,7 +392,7 @@ export function OutdatedServerUpdateAction({
   serverLabel,
   fromVersion,
   targetVersion,
-  label = "Update",
+  label,
 }: {
   readonly environmentId: EnvironmentId;
   readonly serverLabel: string;
@@ -393,6 +400,7 @@ export function OutdatedServerUpdateAction({
   readonly targetVersion: string;
   readonly label?: string;
 }) {
+  const gt = useGT();
   const update = useAtomCommand(updateOutdatedServer, { reportFailure: false });
   const handleUpdate = async () => {
     if (pendingUpdateEnvironmentIds.has(environmentId)) return;
@@ -414,10 +422,14 @@ export function OutdatedServerUpdateAction({
     }
     toastManager.add({
       type: "success",
-      title: `${serverLabel} updated`,
+      title: m(msg("{serverLabel} updated", { serverLabel })),
       description:
         "upToDate" in result.value && result.value.upToDate
-          ? `Already current on its release feed at ${result.value.targetVersion}.`
+          ? m(
+              msg("Already current on its release feed at {version}.", {
+                version: result.value.targetVersion,
+              }),
+            )
           : m(msg("Reconnected on supaterm@{version}.", { version: result.value.targetVersion })),
     });
   };
@@ -426,7 +438,7 @@ export function OutdatedServerUpdateAction({
   }
   return (
     <Button size="xs" variant="outline" onClick={() => void handleUpdate()}>
-      {label}
+      {label ?? gt("Update", { $context: "verb, updates the server" })}
     </Button>
   );
 }

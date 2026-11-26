@@ -9,6 +9,7 @@ import { SourceText } from "@supaterm/mobile-source-text";
 import { NativeMermaidSvg } from "./NativeMermaidSvg";
 import { diagramOptions, type Diagram, type DiagramOptions } from "@supaterm/mermaid/diagram";
 import type { NativeMarkdownTextStyle } from "./SelectableMarkdownText.types";
+import { useGT } from "gt-react-native";
 
 export function NativeMermaidBlock({
   source,
@@ -23,6 +24,7 @@ export function NativeMermaidBlock({
     | ((source: string, options?: DiagramOptions) => Promise<Diagram | null>)
     | null;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const [result, setResult] = useState<{ source: string; diagram: Diagram | null } | null>(null);
   const [sourceSelected, setSourceSelected] = useState(false);
@@ -91,24 +93,24 @@ export function NativeMermaidBlock({
         }}
       >
         <Text style={{ flex: 1, color: textStyle.mutedColor, fontSize }}>
-          {failed ? "Mermaid · diagram unavailable" : "Mermaid"}
+          {failed ? gt("Mermaid · diagram unavailable") : "Mermaid"}
         </Text>
         {diagram !== null ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={showDiagram ? "View Mermaid source" : "View diagram"}
+            accessibilityLabel={showDiagram ? gt("View Mermaid source") : gt("View diagram")}
             onPress={() => setSourceSelected((selected) => !selected)}
             style={({ pressed }) => ({ padding: 8, opacity: pressed ? 0.52 : 1 })}
           >
             <Text style={{ color: textStyle.linkColor, fontSize }}>
-              {showDiagram ? "View Source" : "View Diagram"}
+              {showDiagram ? gt("View Source") : gt("View Diagram")}
             </Text>
           </Pressable>
         ) : null}
         {diagram !== null ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Open diagram full screen"
+            accessibilityLabel={gt("Open diagram full screen")}
             hitSlop={8}
             onPress={() => navigation.navigate("MermaidDiagram", { source })}
             style={({ pressed }) => ({ padding: 8, opacity: pressed ? 0.52 : 1 })}
@@ -122,7 +124,7 @@ export function NativeMermaidBlock({
           </Pressable>
         ) : null}
         <CopyTextButton
-          accessibilityLabel="Copy Mermaid source"
+          accessibilityLabel={gt("Copy Mermaid source")}
           text={source}
           tintColor={textStyle.mutedColor}
           copiedTintColor={textStyle.linkColor}

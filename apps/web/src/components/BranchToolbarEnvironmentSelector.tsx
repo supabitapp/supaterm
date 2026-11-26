@@ -27,7 +27,7 @@ import {
   useComboboxFilter,
 } from "./ui/combobox";
 import { Kbd } from "./ui/kbd";
-import { useGT } from "gt-react";
+import { T, useGT } from "gt-react";
 
 interface BranchToolbarEnvironmentSelectorProps {
   autoEnvironmentLabel?: string | undefined;
@@ -121,7 +121,7 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
           className={displayMode === "panel" ? THREAD_DETAILS_PANEL_ICON_CLASS : "size-3 shrink-0"}
         />
         <ComposerContextLabel displayMode={displayMode}>
-          {activeEnvironment?.label ?? "Run on"}
+          {activeEnvironment?.label ?? gt("Run on")}
         </ComposerContextLabel>
       </span>
     );
@@ -182,11 +182,11 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
             />
           )}
           <ComposerContextLabel displayMode={displayMode}>
-            {autoEnvironmentLabel ?? activeEnvironment?.label ?? "Run on"}
+            {autoEnvironmentLabel ?? activeEnvironment?.label ?? gt("Run on")}
           </ComposerContextLabel>
         </TooltipTrigger>
         <TooltipPopup shortcut={hostShortcut}>
-          {autoEnvironmentLabel ?? activeEnvironment?.label ?? "Run on"}
+          {autoEnvironmentLabel ?? activeEnvironment?.label ?? gt("Run on")}
         </TooltipPopup>
       </Tooltip>
       <ComboboxPopup
@@ -199,12 +199,14 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
       >
         <ComboboxSearchInput
           autoFocus
-          aria-label="Search hosts"
-          placeholder="Search hosts..."
+          aria-label={gt("Search hosts")}
+          placeholder={gt("Search hosts...")}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <ComboboxEmpty>No matches found.</ComboboxEmpty>
+        <ComboboxEmpty>
+          <T>No matches found.</T>
+        </ComboboxEmpty>
         <ComboboxList>
           {(item: (typeof environmentItems)[number]) => (
             <ComboboxItem key={item.value} value={item}>

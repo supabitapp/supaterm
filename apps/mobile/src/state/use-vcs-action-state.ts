@@ -3,10 +3,12 @@ import type { ScopedThreadRef } from "@supaterm/contracts";
 import { type VcsActionState, type VcsActionTarget } from "@supaterm/client-runtime/state/vcs";
 import { Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
+import { msg, useMessages } from "gt-react-native";
 
 import { playOutcomeHaptic } from "../lib/outcomeHaptic";
 import { appAtomRegistry } from "./atom-registry";
 import { vcsActionManager } from "./vcs";
+import type { MessageResolver } from "../i18n/messages";
 
 export function useVcsActionState(target: VcsActionTarget): VcsActionState {
   return useAtomValue(vcsActionManager.stateAtom(target));
@@ -93,11 +95,15 @@ const EMPTY_PROGRESS: GitActionProgress = {
   description: null,
 };
 
-function formatElapsedSeconds(ms: number | null, nowMs: number): string | null {
+function formatElapsedSeconds(
+  ms: number | null,
+  nowMs: number,
+  resolve: MessageResolver,
+): string | null {
   if (ms === null) return null;
   const elapsed = Math.max(0, Math.floor((nowMs - ms) / 1000));
   if (elapsed < 2) return null;
-  return `Running for ${elapsed}s`;
+  return resolve(msg("Running for {elapsed}s", { elapsed: String(elapsed) }));
 }
 
 /** Checkout progress and the selected thread's own Git result. */
@@ -123,6 +129,7 @@ export function useGitActionProgress(
   const result = useAtomValue(gitActionResultsAtom, (results) =>
     resultKey === null ? undefined : results.get(resultKey)?.notification,
   );
+  const resolve = useMessages();
 
   const [nowMs, setNowMs] = useState(() => Date.now());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs a one-second interval that refreshes the elapsed label while the git action runs
@@ -135,7 +142,11 @@ export function useGitActionProgress(
   if (actionState.isRunning) {
     const description =
       actionState.lastOutputLine ??
-      formatElapsedSeconds(actionState.hookStartedAtMs ?? actionState.phaseStartedAtMs, nowMs);
+      formatElapsedSeconds(
+        actionState.hookStartedAtMs ?? actionState.phaseStartedAtMs,
+        nowMs,
+        resolve,
+      );
     return {
       phase: "running",
       label: actionState.currentLabel,

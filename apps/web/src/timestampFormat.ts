@@ -1,6 +1,8 @@
 import { type TimestampFormat } from "@supaterm/contracts/settings";
 import { msg } from "gt-react";
 
+import { m, type MessageResolver } from "./i18n/messages";
+
 function getTimestampFormatOptions(
   timestampFormat: TimestampFormat,
   includeSeconds: boolean,
@@ -356,21 +358,38 @@ export function formatElapsedDurationLabel(isoDate: string, nowMs: number = Date
   return `${days}d`;
 }
 
+const secondsLabel = (count: number, resolve: MessageResolver) =>
+  resolve(msg("{count}s", { count, $context: "seconds, abbreviated" }));
+const minutesLabel = (count: number, resolve: MessageResolver) =>
+  resolve(msg("{count}m", { count, $context: "minutes, abbreviated" }));
+const hoursLabel = (count: number, resolve: MessageResolver) =>
+  resolve(msg("{count}h", { count, $context: "hours, abbreviated" }));
+const daysLabel = (count: number, resolve: MessageResolver) =>
+  resolve(msg("{count}d", { count, $context: "days, abbreviated" }));
+
 /** Pass nowMs to match a parent-driven render tick. */
-export function formatExpiresInLabel(isoDate: string, nowMs: number = Date.now()): string {
+export function formatExpiresInLabel(
+  isoDate: string,
+  nowMs: number = Date.now(),
+  resolve: MessageResolver = m,
+): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
   const diffMs = date.getTime() - nowMs;
-  if (diffMs <= 0) return msg("Expired");
+  if (diffMs <= 0) return resolve(msg("Expired"));
 
   const totalSeconds = Math.floor(diffMs / 1000);
-  if (totalSeconds < 5) return msg("Expires in a moment");
-  if (totalSeconds < 60) return `Expires in ${totalSeconds}s`;
+  if (totalSeconds < 5) return resolve(msg("Expires in a moment"));
+  const expiresIn = (parts: string[]) =>
+    resolve(msg("Expires in {duration}", { duration: parts.join(" ") }));
+  if (totalSeconds < 60) return expiresIn([secondsLabel(totalSeconds, resolve)]);
 
   if (totalSeconds < 3600) {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    return seconds === 0 ? `Expires in ${minutes}m` : `Expires in ${minutes}m ${seconds}s`;
+    return seconds === 0
+      ? expiresIn([minutesLabel(minutes, resolve)])
+      : expiresIn([minutesLabel(minutes, resolve), secondsLabel(seconds, resolve)]);
   }
 
   if (totalSeconds < 86_400) {
@@ -378,22 +397,22 @@ export function formatExpiresInLabel(isoDate: string, nowMs: number = Date.now()
     const rem = totalSeconds % 3600;
     const minutes = Math.floor(rem / 60);
     const seconds = rem % 60;
-    const parts = [`${hours}h`];
-    if (minutes > 0) parts.push(`${minutes}m`);
-    if (seconds > 0) parts.push(`${seconds}s`);
-    return `Expires in ${parts.join(" ")}`;
+    const parts = [hoursLabel(hours, resolve)];
+    if (minutes > 0) parts.push(minutesLabel(minutes, resolve));
+    if (seconds > 0) parts.push(secondsLabel(seconds, resolve));
+    return expiresIn(parts);
   }
 
   const days = Math.floor(totalSeconds / 86_400);
   const remAfterDays = totalSeconds % 86_400;
-  if (remAfterDays === 0) return `Expires in ${days}d`;
+  if (remAfterDays === 0) return expiresIn([daysLabel(days, resolve)]);
   const hours = Math.floor(remAfterDays / 3600);
   const rem = remAfterDays % 3600;
   const minutes = Math.floor(rem / 60);
   const seconds = rem % 60;
-  const tail: string[] = [];
-  if (hours > 0) tail.push(`${hours}h`);
-  if (minutes > 0) tail.push(`${minutes}m`);
-  if (seconds > 0) tail.push(`${seconds}s`);
-  return tail.length > 0 ? `Expires in ${days}d ${tail.join(" ")}` : `Expires in ${days}d`;
+  const parts = [daysLabel(days, resolve)];
+  if (hours > 0) parts.push(hoursLabel(hours, resolve));
+  if (minutes > 0) parts.push(minutesLabel(minutes, resolve));
+  if (seconds > 0) parts.push(secondsLabel(seconds, resolve));
+  return expiresIn(parts);
 }

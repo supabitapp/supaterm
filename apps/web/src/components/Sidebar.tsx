@@ -811,6 +811,7 @@ function isOptimisticDropReleased(input: {
 // Sidebar() is large enough that the compiler cannot prove its local maps stay
 // unmutated; built inside a hook they reach it frozen and cached.
 function useSidebarLookups() {
+  const gt = useGT();
   const projects = useProjects();
   const environments = useEnvironmentIdentities();
   const serverConfigs = useServerConfigs();
@@ -833,7 +834,7 @@ function useSidebarLookups() {
     projectGroups.map((project) => [project.projectKey, project] as const),
   );
   const projectScopeItems = [
-    { value: "all", label: "All" },
+    { value: "all", label: gt("All", { $context: "project scope filter, every project" }) },
     ...pickableProjectGroups(projectGroups).map((project) => ({
       value: project.projectKey,
       label: project.displayName,
@@ -894,7 +895,7 @@ function toastThreadActionFailure(title: string, result: AtomCommandResult<unkno
     stackedThreadToast({
       type: "error",
       title,
-      description: error instanceof Error ? error.message : "An error occurred.",
+      description: error instanceof Error ? error.message : m(msg("An error occurred.")),
     }),
   );
 }
@@ -1563,7 +1564,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           toastManager.add(
             stackedThreadToast({
               type: "error",
-              title: "Failed to mark thread as Done",
+              title: gt("Failed to mark thread as Done"),
               description: error instanceof Error ? error.message : gt("An error occurred."),
             }),
           );
@@ -2303,7 +2304,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               : []),
             {
               id: "mark-done",
-              label: `Mark as Done (${count})`,
+              label: gt("Mark as Done ({count})", { count: String(count) }),
               disabled: markingDoneThreads.length === 0 || !canOperateThreads(markingDoneThreads),
             },
             ...(canSnoozeSelection
@@ -2401,7 +2402,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 type: "error",
                 title:
                   snoozedThreadRefs.length > 0
-                    ? `Failed to snooze ${failures.length} thread${failures.length === 1 ? "" : "s"}`
+                    ? gt(
+                        "{count, plural, one {Failed to snooze {count} thread} other {Failed to snooze {count} threads}}",
+                        { count: failures.length },
+                      )
                     : gt("Failed to snooze threads"),
                 description:
                   firstError instanceof Error ? firstError.message : gt("An error occurred."),
@@ -2738,7 +2742,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               toastManager.add(
                 stackedThreadToast({
                   type: "error",
-                  title: "Failed to update automatic completion",
+                  title: gt("Failed to update automatic completion"),
                   description: error instanceof Error ? error.message : gt("An error occurred."),
                 }),
               );
@@ -2993,15 +2997,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-sidebar-border px-2.5 py-1 text-2xs font-medium text-sidebar-muted-foreground transition-colors hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
                   >
                     <PlusIcon className="-mx-0.5 size-3" />
-                    Add project
+                    <T>Add project</T>
                   </button>
                 </>
               ) : scopeLabel !== null ? (
                 <>
                   <span>
-                    {`No ${doneCount > 0 ? "active threads" : "threads"} in ${
-                      scopedProjectGroups.length > 1 ? "these projects" : scopeLabel
-                    }${doneCount > 0 ? "" : " yet"}`}
+                    {doneCount > 0
+                      ? scopedProjectGroups.length > 1
+                        ? gt("No active threads in these projects")
+                        : gt("No active threads in {scope}", { scope: scopeLabel })
+                      : scopedProjectGroups.length > 1
+                        ? gt("No threads in these projects yet")
+                        : gt("No threads in {scope} yet", { scope: scopeLabel })}
                   </span>
                   <button
                     type="button"
@@ -3012,11 +3020,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     }
                     className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-sidebar-border px-2.5 py-1 text-2xs font-medium text-sidebar-muted-foreground transition-colors hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
                   >
-                    {scopedProjectGroups.length > 0 ? "Show all projects" : "Show all environments"}
+                    {scopedProjectGroups.length > 0
+                      ? gt("Show all projects")
+                      : gt("Show all environments")}
                   </button>
                 </>
               ) : (
-                "No threads yet"
+                <T>No threads yet</T>
               )}
             </div>
           ) : null}
@@ -3222,7 +3232,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 label={
                                   pinnedShelfVisible
                                     ? gt("Pinned", { $context: "sidebar section" })
-                                    : `Pinned (${pinnedThreads.length.toLocaleString()})`
+                                    : gt("Pinned ({count})", {
+                                        count: pinnedThreads.length.toLocaleString(),
+                                        $context: "sidebar section",
+                                      })
                                 }
                                 dragging={from !== null}
                                 isDropTarget={dragTargetSection === "pinned"}
@@ -3296,7 +3309,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               label={
                                 workingShelfExpanded
                                   ? gt("Working", { $context: "sidebar section" })
-                                  : `Working (${workingThreads.length})`
+                                  : gt("Working ({count})", {
+                                      count: String(workingThreads.length),
+                                      $context: "sidebar section",
+                                    })
                               }
                               toggle={{
                                 expanded: workingShelfExpanded,
@@ -3315,7 +3331,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               label={
                                 snoozedShelfExpanded
                                   ? gt("Snoozed", { $context: "sidebar section" })
-                                  : `Snoozed (${snoozedThreads.length})`
+                                  : gt("Snoozed ({count})", {
+                                      count: String(snoozedThreads.length),
+                                      $context: "sidebar section",
+                                    })
                               }
                               toggle={{
                                 expanded: snoozedShelfExpanded,
@@ -3340,7 +3359,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               label={
                                 doneShelfExpanded
                                   ? gt("Done", { $context: "sidebar section" })
-                                  : `Done (${doneCount.toLocaleString()})`
+                                  : gt("Done ({count})", {
+                                      count: doneCount.toLocaleString(),
+                                      $context: "sidebar section",
+                                    })
                               }
                               dragging={from !== null}
                               isDropTarget={dragTargetSection === "done"}
@@ -3393,7 +3415,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           ? gt("Loading")
                           : olderDoneShelf.failed
                             ? gt("Could not load older threads. Retry")
-                            : `Show ${Math.min(hiddenDoneCount, DONE_TAIL_PAGE_COUNT)} more`}
+                            : gt(
+                                "{count, plural, one {Show {count} more} other {Show {count} more}}",
+                                {
+                                  count: Math.min(hiddenDoneCount, DONE_TAIL_PAGE_COUNT),
+                                },
+                              )}
                       </button>
                     </li>
                   ) : null}

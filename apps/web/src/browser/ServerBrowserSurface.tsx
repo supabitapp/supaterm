@@ -158,7 +158,7 @@ function offerDownload(
           (cause: unknown) =>
             toastManager.add({
               type: "error",
-              title: "Could not save the download",
+              title: m(msg("Could not save the download")),
               description: cause instanceof Error ? cause.message : undefined,
             }),
         );
@@ -894,7 +894,11 @@ export function ServerBrowserSurface(props: {
             aria-label={gt("Choose files for the page")}
           >
             <p className="text-sm">
-              The page asks for {fileChooser.multiple ? "files" : "a file"}.
+              {fileChooser.multiple ? (
+                <T>The page asks for files.</T>
+              ) : (
+                <T>The page asks for a file.</T>
+              )}
             </p>
             <input
               ref={fileInputRef}
@@ -913,7 +917,7 @@ export function ServerBrowserSurface(props: {
                 <T>Cancel</T>
               </Button>
               <Button size="sm" onClick={() => fileInputRef.current?.click()}>
-                Choose {fileChooser.multiple ? "files" : "file"}
+                {fileChooser.multiple ? <T>Choose files</T> : <T>Choose file</T>}
               </Button>
             </div>
           </div>

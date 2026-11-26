@@ -7,8 +7,10 @@ import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@supaterm/contrac
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { previewPdfAssetUrl } from "@supaterm/shared/preview";
 import { type RefObject, useSyncExternalStore } from "react";
+import { msg } from "gt-react";
 
 import { toastManager } from "~/components/ui/toast";
+import { m } from "~/i18n/messages";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { readPreviewStreamAccess } from "~/state/previewStream";
 import { readPreparedConnection } from "~/state/session";
@@ -230,8 +232,8 @@ export function useServerPictureInPicture(input: {
     }).catch((error: unknown) => {
       toastManager.add({
         type: "error",
-        title: "Unable to pop out preview",
-        description: error instanceof Error ? error.message : "An error occurred.",
+        title: m(msg("Unable to pop out preview")),
+        description: error instanceof Error ? error.message : m(msg("An error occurred.")),
       });
     });
   });
