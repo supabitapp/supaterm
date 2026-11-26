@@ -24,6 +24,8 @@ import {
 } from "./deviceHostConnectionChecks";
 import { T, useGT } from "gt-react";
 
+const EXAMPLE_HOST_NAME = "Mac mini";
+
 export function DeviceHostEditor({
   host,
   isNew,
@@ -109,8 +111,10 @@ function DeviceHostEditorForm({
         <DialogDescription>
           {targets.length === 1
             ? gt("Connect from {environment}.", { environment: targets[0]?.label })
-            : `Connect from ${targets.length} selected environments.`}{" "}
-          Hosts on the same machine are skipped.
+            : gt("{count, plural, other {Connect from {count} selected environments.}}", {
+                count: targets.length,
+              })}{" "}
+          <T>Hosts on the same machine are skipped.</T>
         </DialogDescription>
       </DialogHeader>
       <DialogPanel>
@@ -127,7 +131,7 @@ function DeviceHostEditorForm({
               const label = event.target.value;
               setDraft((current) => ({ ...current, label }));
             }}
-            placeholder="Mac mini"
+            placeholder={EXAMPLE_HOST_NAME}
           />
         </label>
         <label className="block space-y-1.5 text-sm">

@@ -28,7 +28,7 @@ import {
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const DismissedEnvironmentIds = Schema.Array(Schema.String);
 const reclaimPermissionsAtom = environmentAtomList(
@@ -73,11 +73,13 @@ export function DatabaseStorageNotice({
     <SettingsSection id="storage-database" title={gt("Database")}>
       <SettingsRow
         title={gt("Reclaim freed database space")}
-        description={`These databases still hold space freed by history cleanup.${
+        description={
           visible.every((recommendation) => recommendation.reclaimable)
-            ? ""
-            : " Run the command on each machine to reclaim it. It restarts the background service. Quit the desktop app first if it hosts the environment."
-        }`}
+            ? gt("These databases still hold space freed by history cleanup.")
+            : gt(
+                "These databases still hold space freed by history cleanup. Run the command on each machine to reclaim it. It restarts the background service. Quit the desktop app first if it hosts the environment.",
+              )
+        }
       />
       {visible.map(({ environmentId, status, label, reclaimable }) => {
         const dismiss = (
@@ -184,11 +186,16 @@ function ReclaimRow({
             <AlertDialogPopup>
               <AlertDialogHeader>
                 <AlertDialogTitle>
-                  Reclaim {amount} on {label}?
+                  <T>
+                    Reclaim <Var>{amount}</Var> on <Var>{label}</Var>?
+                  </T>
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Supaterm on {label} stops, rebuilds its database, and starts again. It will be
-                  offline for about {minutes} min. Running agents stop when it restarts.
+                  <T>
+                    Supaterm on <Var>{label}</Var> stops, rebuilds its database, and starts again.
+                    It will be offline for about <Var>{minutes}</Var> min. Running agents stop when
+                    it restarts.
+                  </T>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

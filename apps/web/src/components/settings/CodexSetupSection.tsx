@@ -123,15 +123,17 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
           existingReady ? (
             props.provider?.auth.email?.trim() ? (
               <>
-                Signed in as{" "}
-                <RedactedSensitiveText
-                  value={props.provider.auth.email.trim()}
-                  ariaLabel={gt("Toggle account email visibility")}
-                  revealTooltip={gt("Click to reveal email")}
-                  hideTooltip={gt("Click to hide email")}
-                  className="break-all"
-                />
-                .
+                <T>
+                  Signed in as{" "}
+                  <RedactedSensitiveText
+                    value={props.provider.auth.email.trim()}
+                    ariaLabel={gt("Toggle account email visibility")}
+                    revealTooltip={gt("Click to reveal email")}
+                    hideTooltip={gt("Click to hide email")}
+                    className="break-all"
+                  />
+                  .
+                </T>
               </>
             ) : (
               gt("Connected with your Codex CLI.")
@@ -165,7 +167,7 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
                 props.onModeChange("managed");
               }}
             >
-              Continue with ChatGPT
+              <T>Continue with ChatGPT</T>
             </ChatGptConnectionButton>
           )
         }
@@ -627,21 +629,23 @@ function ManagedCodexSetup({
     runtimeDescription
   ) : authActive || auth?.phase === "failed" || auth?.phase === "cancelled" ? (
     auth?.phase === "waiting" && requestedAccountEmail ? (
-      `Continue as ${requestedAccountEmail} on OpenAI.`
+      gt("Continue as {email} on OpenAI.", { email: requestedAccountEmail })
     ) : (
       (auth?.message ?? gt("Finish signing in in your browser."))
     )
   ) : authenticated ? (
     provider?.auth.email?.trim() ? (
       <>
-        Signed in as{" "}
-        <RedactedSensitiveText
-          value={provider.auth.email.trim()}
-          ariaLabel={gt("Toggle account email visibility")}
-          revealTooltip={gt("Click to reveal email")}
-          hideTooltip={gt("Click to hide email")}
-        />
-        .
+        <T>
+          Signed in as{" "}
+          <RedactedSensitiveText
+            value={provider.auth.email.trim()}
+            ariaLabel={gt("Toggle account email visibility")}
+            revealTooltip={gt("Click to reveal email")}
+            hideTooltip={gt("Click to hide email")}
+          />
+          .
+        </T>
       </>
     ) : (
       gt("Signed in with ChatGPT.")
@@ -829,15 +833,17 @@ function ManagedCodexSetup({
             ) : authenticated ? (
               provider?.auth.email?.trim() ? (
                 <>
-                  Signed in as{" "}
-                  <RedactedSensitiveText
-                    value={provider.auth.email.trim()}
-                    ariaLabel={gt("Toggle account email visibility")}
-                    revealTooltip={gt("Click to reveal email")}
-                    hideTooltip={gt("Click to hide email")}
-                    className="break-all"
-                  />
-                  .
+                  <T>
+                    Signed in as{" "}
+                    <RedactedSensitiveText
+                      value={provider.auth.email.trim()}
+                      ariaLabel={gt("Toggle account email visibility")}
+                      revealTooltip={gt("Click to reveal email")}
+                      hideTooltip={gt("Click to hide email")}
+                      className="break-all"
+                    />
+                    .
+                  </T>
                 </>
               ) : (
                 gt("Connected to ChatGPT.")
@@ -1015,7 +1021,10 @@ function ManagedCodexSetup({
                   onClick={() => {
                     void ensureLocalApi()
                       .dialogs.confirm(
-                        `Disconnect ${title} from ChatGPT? This stops running threads that use this sign-in. Thread history is kept.`,
+                        gt(
+                          "Disconnect {title} from ChatGPT? This stops running threads that use this sign-in. Thread history is kept.",
+                          { title },
+                        ),
                       )
                       .then((confirmed) => {
                         if (confirmed) void run(() => logoutAuth(target));
@@ -1172,7 +1181,7 @@ export function CodexManagedRuntimeFields({
 }
 
 function CodexSignInDescription({
-  label = "Complete sign-in in your browser.",
+  label: labelOverride,
   expanded = false,
   controls,
   onToggle,
@@ -1183,6 +1192,7 @@ function CodexSignInDescription({
   readonly onToggle?: () => void;
 }) {
   const gt = useGT();
+  const label = labelOverride ?? gt("Complete sign-in in your browser.");
   if (!onToggle) return <div className="leading-relaxed">{label}</div>;
   return (
     <button

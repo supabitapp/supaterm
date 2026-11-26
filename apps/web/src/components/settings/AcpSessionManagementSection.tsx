@@ -387,7 +387,14 @@ function InstanceSessionManagement(
     )
       return;
     const confirmed = await ensureLocalApi().dialogs.confirm(
-      `Log out of ${props.provider.displayName ?? "this agent"}? This stops running threads that share this sign-in, including other instances of the same agent. Thread history is kept.`,
+      props.provider.displayName
+        ? gt(
+            "Log out of {name}? This stops running threads that share this sign-in, including other instances of the same agent. Thread history is kept.",
+            { name: props.provider.displayName },
+          )
+        : gt(
+            "Log out of this agent? This stops running threads that share this sign-in, including other instances of the same agent. Thread history is kept.",
+          ),
     );
     if (!confirmed || !readEnvironmentScope(props.environmentId, AuthProvidersManageScope)) return;
     const result = await track(
@@ -521,11 +528,13 @@ function InstanceSessionManagement(
                           label={
                             running("deleting")?.sessionId === session.sessionId
                               ? gt("Deleting")
-                              : "Delete"
+                              : gt("Delete")
                           }
-                          confirmLabel="Confirm delete"
-                          tooltip="Delete this session from the agent"
-                          confirmTooltip="Click again to permanently delete this session. The agent can't restore it."
+                          confirmLabel={gt("Confirm delete")}
+                          tooltip={gt("Delete this session from the agent")}
+                          confirmTooltip={gt(
+                            "Click again to permanently delete this session. The agent can't restore it.",
+                          )}
                           onConfirm={() => void deleteNativeSession(session)}
                         />
                       ) : null}
@@ -633,7 +642,7 @@ function InstanceSessionManagement(
                           {provider.current === null
                             ? gt("Disabled", { $context: "ACP provider status" })
                             : gt("Configured")}
-                          {provider.required ? " · Required" : ""}
+                          {provider.required ? ` · ${gt("Required")}` : ""}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
@@ -658,10 +667,13 @@ function InstanceSessionManagement(
                             size="xs"
                             variant="ghost-muted"
                             disabled={props.readOnly || !canSave}
-                            label="Disable"
-                            confirmLabel="Confirm disable"
-                            tooltip={`Disable ${provider.providerId}`}
-                            confirmTooltip={`Click again to disable ${provider.providerId}. Turning it back on means entering its base URL and headers again.`}
+                            label={gt("Disable")}
+                            confirmLabel={gt("Confirm disable")}
+                            tooltip={gt("Disable {provider}", { provider: provider.providerId })}
+                            confirmTooltip={gt(
+                              "Click again to disable {provider}. Turning it back on means entering its base URL and headers again.",
+                              { provider: provider.providerId },
+                            )}
                             onConfirm={() => void disableConfiguredProvider(provider)}
                           />
                         ) : null}
@@ -702,7 +714,9 @@ function InstanceSessionManagement(
                       aria-label={gt("{provider} write-only headers JSON", {
                         provider: provider.providerId,
                       })}
-                      placeholder='Write-only headers JSON, e.g. {"Authorization":"Bearer …"}'
+                      placeholder={gt("Write-only headers JSON, e.g. {example}", {
+                        example: '{"Authorization":"Bearer …"}',
+                      })}
                       value={draft.headers}
                       disabled={props.readOnly || savingProvider !== undefined}
                       onValueChange={(value) => updateDraft({ headers: value })}

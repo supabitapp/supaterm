@@ -185,7 +185,9 @@ function BackgroundActivityAdvancedDialog({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <IntervalSecondsField
-                  label="Git fetch interval"
+                  label={gt("Git fetch interval", {
+                    $context: "setting name in number field labels",
+                  })}
                   value={automaticGitFetchIntervalSeconds}
                   min={0}
                   step={5}
@@ -220,7 +222,9 @@ function BackgroundActivityAdvancedDialog({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <IntervalSecondsField
-                  label="provider health interval"
+                  label={gt("provider health interval", {
+                    $context: "setting name in number field labels",
+                  })}
                   value={providerHealthRefreshIntervalSeconds}
                   min={0}
                   step={PROVIDER_HEALTH_INTERVAL_STEP_SECONDS}
@@ -252,7 +256,9 @@ function BackgroundActivityAdvancedDialog({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <IntervalSecondsField
-                  label="active host power interval"
+                  label={gt("active host power interval", {
+                    $context: "setting name in number field labels",
+                  })}
                   value={hostPowerMonitorActiveIntervalSeconds}
                   min={5}
                   step={5}
@@ -284,7 +290,9 @@ function BackgroundActivityAdvancedDialog({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <IntervalSecondsField
-                  label="idle host power interval"
+                  label={gt("idle host power interval", {
+                    $context: "setting name in number field labels",
+                  })}
                   value={hostPowerMonitorIdleIntervalSeconds}
                   min={5}
                   step={30}
@@ -391,7 +399,7 @@ export function BackgroundActivitySettingsRow() {
       resetAction={
         canResetBackgroundActivity ? (
           <SettingResetButton
-            label="background activity"
+            label={gt("background activity", { $context: "setting name in a reset button label" })}
             onClick={() => updateSettings(resetBackgroundActivitySettings())}
           />
         ) : null
@@ -417,7 +425,9 @@ export function BackgroundActivitySettingsRow() {
             >
               <SelectValue>
                 {(value: BackgroundActivityProfileOption | null) =>
-                  value === null ? "Mixed" : BACKGROUND_ACTIVITY_PROFILE_OPTION_LABELS[value]
+                  value === null
+                    ? gt("Mixed", { $context: "settings differ between environments" })
+                    : BACKGROUND_ACTIVITY_PROFILE_OPTION_LABELS[value]
                 }
               </SelectValue>
             </SelectTrigger>
@@ -434,7 +444,9 @@ export function BackgroundActivitySettingsRow() {
               <SelectItem hideIndicator value="advanced" disabled={!isEnvironmentScope}>
                 {isEnvironmentScope
                   ? BACKGROUND_ACTIVITY_PROFILE_OPTION_LABELS.advanced
-                  : `${BACKGROUND_ACTIVITY_PROFILE_OPTION_LABELS.advanced} (one environment)`}
+                  : gt("{profile} (one environment)", {
+                      profile: BACKGROUND_ACTIVITY_PROFILE_OPTION_LABELS.advanced,
+                    })}
               </SelectItem>
             </SelectPopup>
           </Select>

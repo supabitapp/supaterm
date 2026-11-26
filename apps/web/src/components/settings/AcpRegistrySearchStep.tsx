@@ -31,7 +31,7 @@ import { isConfiguredAcpRegistryAgent } from "./AddProviderInstanceDialog.logic"
 import { ProviderDriverKind } from "@supaterm/contracts";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import { providerClients } from "./providerDriverMeta";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
 import { m } from "../../i18n/messages";
 
 function errorMessage(error: unknown): string {
@@ -229,7 +229,10 @@ export function AcpRegistrySearchStep({
           : isRefreshing
             ? gt("Refreshing ACP Registry results.")
             : results
-              ? `${resultCount} compatible ${resultCount === 1 ? "agent" : "agents"} found.`
+              ? gt(
+                  "{count, plural, one {{count} compatible agent found.} other {{count} compatible agents found.}}",
+                  { count: resultCount },
+                )
               : ""}
       </div>
 
@@ -327,7 +330,11 @@ function AcpRegistryAgentRow({
                   </Button>
                 }
               />
-              <TooltipPopup>About {agent.name}</TooltipPopup>
+              <TooltipPopup>
+                <T>
+                  About <Var>{agent.name}</Var>
+                </T>
+              </TooltipPopup>
             </Tooltip>
           ) : null}
           <Button

@@ -2,6 +2,7 @@ import {
   MAX_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS,
   MIN_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS,
 } from "@supaterm/contracts/settings";
+import { T, useGT } from "gt-react";
 import { useRef, useState } from "react";
 
 import {
@@ -36,6 +37,7 @@ export function DaysField({
   value: number;
   onCommit: (days: number, options: { onFailed: () => void }) => void;
 }) {
+  const gt = useGT();
   const [stored, setField] = useState(() => autoMarkDoneDaysField(value));
   const field = syncAutoMarkDoneDaysField(stored, value);
   if (field !== stored) setField(field);
@@ -76,9 +78,9 @@ export function DaysField({
       }}
     >
       <NumberFieldGroup>
-        <NumberFieldDecrement aria-label={`Decrease ${label}`} />
+        <NumberFieldDecrement aria-label={gt("Decrease {label}", { label })} />
         <NumberFieldInput
-          aria-label={`${label} in days`}
+          aria-label={gt("{label} in days", { label })}
           size={5}
           className="w-auto grow-0 text-right"
           onBlur={() => {
@@ -99,9 +101,9 @@ export function DaysField({
           }}
         />
         <span aria-hidden="true" className="self-center pr-2 text-xs">
-          days
+          <T context="unit after a number field">days</T>
         </span>
-        <NumberFieldIncrement aria-label={`Increase ${label}`} />
+        <NumberFieldIncrement aria-label={gt("Increase {label}", { label })} />
       </NumberFieldGroup>
     </NumberField>
   );

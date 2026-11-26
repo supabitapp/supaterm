@@ -36,7 +36,8 @@ import {
   selectRow,
   setRowsSelected,
 } from "./ArchivedThreadsPanel.logic";
-import { useGT, msg } from "gt-react";
+import { T, useGT, msg, Var } from "gt-react";
+import { m } from "~/i18n/messages";
 
 function toastFailure(title: string, failure: AsyncResult.Failure<unknown, unknown>) {
   if (isAtomCommandInterrupted(failure)) return;
@@ -45,13 +46,9 @@ function toastFailure(title: string, failure: AsyncResult.Failure<unknown, unkno
     stackedThreadToast({
       type: "error",
       title,
-      description: error instanceof Error ? error.message : "An error occurred.",
+      description: error instanceof Error ? error.message : m(msg("An error occurred.")),
     }),
   );
-}
-
-function threadCount(count: number) {
-  return `${count.toLocaleString()} thread${count === 1 ? "" : "s"}`;
 }
 
 const ARCHIVED_ROW_CHUNK_SIZE = 50;
@@ -207,7 +204,13 @@ export function ArchivedThreadsPanel() {
     );
     const failure = outcomes.find(({ result }) => result._tag === "Failure")?.result;
     if (failure?._tag === "Failure") {
-      toastFailure(`Failed to unarchive ${targets.length === 1 ? "thread" : "threads"}`, failure);
+      toastFailure(
+        gt(
+          "{count, plural, one {Failed to unarchive thread} other {Failed to unarchive threads}}",
+          { count: targets.length },
+        ),
+        failure,
+      );
     }
   };
 
@@ -218,9 +221,12 @@ export function ArchivedThreadsPanel() {
         api.dialogs.confirm(
           [
             targets.length === 1
-              ? `Delete thread "${targets[0]?.title}"?`
-              : `Delete ${threadCount(targets.length)}?`,
-            "This permanently clears conversation history.",
+              ? gt('Delete thread "{title}"?', { title: targets[0]?.title })
+              : gt(
+                  "{count, plural, one {Delete {formatted} thread?} other {Delete {formatted} threads?}}",
+                  { count: targets.length, formatted: targets.length.toLocaleString() },
+                ),
+            gt("This permanently clears conversation history."),
           ].join("\n"),
           { variant: "destructive" },
         ),
@@ -235,7 +241,12 @@ export function ArchivedThreadsPanel() {
     setPendingAction(null);
     setSelection((current) => setRowsSelected(current, [...deletedThreadKeys], false));
     if (firstFailure) {
-      toastFailure(`Failed to delete ${targets.length === 1 ? "thread" : "threads"}`, firstFailure);
+      toastFailure(
+        gt("{count, plural, one {Failed to delete thread} other {Failed to delete threads}}", {
+          count: targets.length,
+        }),
+        firstFailure,
+      );
     }
   };
 
@@ -247,14 +258,22 @@ export function ArchivedThreadsPanel() {
     const api = readLocalApi();
     if (!api) return;
     const targets = selection.keys.has(row.key) && selectedRows.length > 1 ? selectedRows : [row];
-    const suffix = targets.length > 1 ? ` (${targets.length})` : "";
+
     const clicked = await settlePromise(() =>
       api.contextMenu.show(
         [
-          { id: "unarchive", label: `Unarchive${suffix}`, disabled: pendingAction !== null },
+          {
+            id: "unarchive",
+            label:
+              targets.length > 1
+                ? gt("Unarchive ({count})", { count: targets.length })
+                : gt("Unarchive"),
+            disabled: pendingAction !== null,
+          },
           {
             id: "delete",
-            label: `Delete${suffix}`,
+            label:
+              targets.length > 1 ? gt("Delete ({count})", { count: targets.length }) : gt("Delete"),
             destructive: true,
             disabled: pendingAction !== null,
           },
@@ -264,7 +283,7 @@ export function ArchivedThreadsPanel() {
       ),
     );
     if (clicked._tag === "Failure") {
-      toastFailure("Archived thread action failed", clicked);
+      toastFailure(gt("Archived thread action failed"), clicked);
       return;
     }
     if (clicked.value === "unarchive") await unarchiveRows(targets);
@@ -299,7 +318,7 @@ export function ArchivedThreadsPanel() {
         <TableCell>
           <span className="ms-1 flex size-6 items-center justify-center">
             <Checkbox
-              aria-label={`Select ${row.title}`}
+              aria-label={gt("Select {title}", { title: row.title })}
               checked={selected}
               onCheckedChange={(_checked, details) =>
                 setSelection((current) =>
@@ -356,7 +375,7 @@ export function ArchivedThreadsPanel() {
               <TooltipTrigger
                 render={
                   <Button
-                    aria-label={`Unarchive ${row.title}`}
+                    aria-label={gt("Unarchive {title}", { title: row.title })}
                     disabled={pendingAction !== null}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -440,15 +459,21 @@ export function ArchivedThreadsPanel() {
           <div className="flex items-center gap-3">
             <span className="hidden text-xs tabular-nums text-muted-foreground sm:inline">
               {needle === ""
-                ? threadCount(rows.length)
-                : `${visibleRows.length.toLocaleString()} of ${rows.length.toLocaleString()}`}
+                ? gt("{count, plural, one {{formatted} thread} other {{formatted} threads}}", {
+                    count: rows.length,
+                    formatted: rows.length.toLocaleString(),
+                  })
+                : gt("{visible} of {total}", {
+                    visible: visibleRows.length.toLocaleString(),
+                    total: rows.length.toLocaleString(),
+                  })}
             </span>
             <InputGroup className="w-40 sm:w-52">
               <InputGroupAddon>
                 <SearchIcon aria-hidden className="size-3" />
               </InputGroupAddon>
               <InputGroupInput
-                aria-label="Search archived threads"
+                aria-label={gt("Search archived threads")}
                 onChange={(event) => setQuery(event.currentTarget.value)}
                 onKeyDown={(event) => {
                   if (event.key !== "Escape" || query === "") return;
@@ -456,7 +481,7 @@ export function ArchivedThreadsPanel() {
                   event.stopPropagation();
                   setQuery("");
                 }}
-                placeholder="Search"
+                placeholder={gt("Search", { $context: "placeholder" })}
                 size="sm"
                 type="search"
                 value={query}
@@ -466,13 +491,13 @@ export function ArchivedThreadsPanel() {
         }
       >
         <div className="overflow-hidden rounded-[inherit]">
-          <Table aria-label="Archived threads" className="table-fixed">
+          <Table aria-label={gt("Archived threads")} className="table-fixed">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-11">
                   <span className="ms-1 flex size-6 items-center justify-center">
                     <Checkbox
-                      aria-label="Select all"
+                      aria-label={gt("Select all")}
                       checked={allVisibleSelected}
                       disabled={visibleRows.length === 0}
                       indeterminate={selectedRows.length > 0 && !allVisibleSelected}
@@ -484,17 +509,29 @@ export function ArchivedThreadsPanel() {
                     />
                   </span>
                 </TableHead>
-                <TableHead>Thread</TableHead>
+                <TableHead>
+                  <T context="table column">Thread</T>
+                </TableHead>
                 {showProject ? (
-                  <TableHead className="hidden w-40 sm:table-cell">Project</TableHead>
+                  <TableHead className="hidden w-40 sm:table-cell">
+                    <T context="table column">Project</T>
+                  </TableHead>
                 ) : null}
                 {hasMultipleEnvironments ? (
-                  <TableHead className="hidden w-36 sm:table-cell">Environment</TableHead>
+                  <TableHead className="hidden w-36 sm:table-cell">
+                    <T context="table column">Environment</T>
+                  </TableHead>
                 ) : null}
-                <TableHead className="w-24 text-right">Archived</TableHead>
-                <TableHead className="hidden w-24 text-right sm:table-cell">Created</TableHead>
+                <TableHead className="w-24 text-right">
+                  <T context="table column, when the thread was archived">Archived</T>
+                </TableHead>
+                <TableHead className="hidden w-24 text-right sm:table-cell">
+                  <T context="table column, when the thread was created">Created</T>
+                </TableHead>
                 <TableHead className="w-16">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">
+                    <T context="table column">Actions</T>
+                  </span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -503,7 +540,9 @@ export function ArchivedThreadsPanel() {
                 <TableRow>
                   <TableCell colSpan={columnCount} className="text-center">
                     <span className="block py-6 text-muted-foreground">
-                      No archived threads match “{query.trim()}”.
+                      <T>
+                        No archived threads match “<Var>{query.trim()}</Var>”.
+                      </T>
                     </span>
                   </TableCell>
                 </TableRow>
@@ -532,7 +571,7 @@ export function ArchivedThreadsPanel() {
       {selectedRows.length > 0 ? (
         <div
           role="toolbar"
-          aria-label="Selected archived threads"
+          aria-label={gt("Selected archived threads")}
           className="sticky bottom-4 flex items-center gap-1 self-center rounded-lg border bg-popover p-1 ps-3 shadow-lg/5 transition-[opacity,translate] duration-150 ease-out starting:translate-y-1 starting:opacity-0 motion-reduce:transition-none"
         >
           <span className="me-2 text-xs tabular-nums text-muted-foreground">
@@ -546,7 +585,7 @@ export function ArchivedThreadsPanel() {
             variant="ghost"
           >
             {pendingAction === "unarchive" ? <Spinner /> : <ArchiveXIcon />}
-            Unarchive
+            <T>Unarchive</T>
           </Button>
           <Button
             disabled={pendingAction !== null}
@@ -563,7 +602,7 @@ export function ArchivedThreadsPanel() {
             <TooltipTrigger
               render={
                 <Button
-                  aria-label="Clear selection"
+                  aria-label={gt("Clear selection")}
                   onClick={() => setSelection(EMPTY_ROW_SELECTION)}
                   size="icon-xs"
                   type="button"
@@ -573,7 +612,9 @@ export function ArchivedThreadsPanel() {
                 </Button>
               }
             />
-            <TooltipPopup side="top">Clear selection</TooltipPopup>
+            <TooltipPopup side="top">
+              <T>Clear selection</T>
+            </TooltipPopup>
           </Tooltip>
         </div>
       ) : null}
