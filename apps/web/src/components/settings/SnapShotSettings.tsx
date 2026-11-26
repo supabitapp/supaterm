@@ -60,7 +60,7 @@ import {
   captureSetupShouldDisableOnClose,
   type CaptureSetupStep,
 } from "./SnapShotSetupDialog.logic";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 const soundOptionRowClassName = "grid grid-cols-[1fr_auto]";
 
@@ -81,6 +81,7 @@ type ShortcutCheck =
 
 export function SnapShotSettings() {
   const gt = useGT();
+  const messages = useMessages();
   const settings = useClientSettings((current) => ({
     snapShotAnimations: current.snapShotAnimations,
     snapShotEnabled: current.snapShotEnabled,
@@ -380,7 +381,7 @@ export function SnapShotSettings() {
                     disabled={setupBusy}
                     onClick={() => void openSetup()}
                   >
-                    {snapShotSetupButtonLabel(state)}
+                    {snapShotSetupButtonLabel(state, messages)}
                   </Button>
                 ) : null}
                 <Switch
@@ -490,9 +491,9 @@ export function SnapShotSettings() {
                       {soundSelection === "off" ? (
                         gt("Off", { $context: "snapshot sound turned off" })
                       ) : soundSelection === "soft-pop" ? (
-                        <>
+                        <T>
                           Whoosh <span className="text-muted-foreground">(Default)</span>
-                        </>
+                        </T>
                       ) : (
                         gt("Click", { $context: "name of a camera-shutter sound" })
                       )}
@@ -509,7 +510,9 @@ export function SnapShotSettings() {
                         </MenuRadioItem>
                         <div className={soundOptionRowClassName}>
                           <MenuRadioItem closeOnClick value="soft-pop">
-                            Whoosh <span className="text-muted-foreground">(Default)</span>
+                            <T>
+                              Whoosh <span className="text-muted-foreground">(Default)</span>
+                            </T>
                           </MenuRadioItem>
                           <MenuItem
                             aria-label={gt("Play Whoosh")}

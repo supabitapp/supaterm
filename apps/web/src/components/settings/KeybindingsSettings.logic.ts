@@ -20,6 +20,8 @@ import { isMacPlatform } from "../../lib/utils";
 import { METRIC_OPTIONS, WINDOW_OPTIONS } from "../usage/usageShortcuts";
 import { msg } from "gt-react";
 
+import { m, type MessageResolver } from "../../i18n/messages";
+
 // Rank every usage command; mixing rank and alphabetical comparisons makes order input-dependent.
 const usageCommandOrder = new Map<KeybindingCommand, number>(
   [
@@ -135,7 +137,7 @@ export function parseWhenExpressionDraft(
   if (!ast) {
     return {
       ok: false,
-      message: "Use variables with !, &&, ||, and parentheses.",
+      message: msg("Use variables with !, &&, ||, and parentheses."),
     };
   }
 
@@ -245,18 +247,18 @@ const KEYBINDING_GROUPS = [
     prefixes: ["sidebar", "rightPanel", "commandPalette", "filePicker", "projectSearch", "editor"],
   },
   { id: "threads", title: msg("Threads"), prefixes: ["thread", "chat", "pullRequest"] },
-  { id: "panes", title: "Chat panes", prefixes: ["pane"] },
+  { id: "panes", title: msg("Chat panes"), prefixes: ["pane"] },
   {
     id: "composer",
     title: msg("Composer"),
     prefixes: ["composer", "modelPicker", "projectPicker", "hostPicker", "branchPicker"],
   },
   { id: "terminal", title: msg("Terminal"), prefixes: ["terminal"] },
-  { id: "preview", title: "Preview & diff", prefixes: ["preview", "diff"] },
+  { id: "preview", title: msg("Preview & diff"), prefixes: ["preview", "diff"] },
   { id: "appearance", title: msg("Appearance"), prefixes: ["theme", "appearance", "themeEditor"] },
   { id: "scripts", title: msg("Project scripts"), prefixes: ["script"] },
 ] as const;
-const OTHER_KEYBINDING_GROUP = { id: "other", title: "Other" } as const;
+const OTHER_KEYBINDING_GROUP = { id: "other", title: msg("Other") } as const;
 
 function keybindingGroupFor(command: KeybindingCommand): { id: string; title: string } {
   const prefix = String(command).split(".")[0] ?? "";
@@ -429,27 +431,37 @@ export function buildKeybindingCommandOptions(
   return [...commands].toSorted((left, right) => compareCommands(left, right, commandLabel));
 }
 
-export function commandLabel(command: KeybindingCommand): string {
-  if (command === "workspace.focusNext") return msg("Focus Next Workspace Area");
-  if (command === "workspace.focusPrevious") return msg("Focus Previous Workspace Area");
-  if (command === "composer.sendAlternate") return msg("Composer: Opposite Queue or Steer Action");
-  if (command === "composer.sendBackground") return msg("Composer: Start in Background");
-  if (command === "composer.sendAndNewThread") return msg("Composer: Send and Start New Thread");
-  if (command === "thread.steerQueuedMessage") return msg("Queue: Send First Queued Message");
-  if (command === "thread.editQueuedMessage") return msg("Queue: Edit Last Queued Message");
-  if (command === "thread.copyReference") return msg("Pull Request: Copy Link or Thread");
+export function commandLabel(command: KeybindingCommand, resolve: MessageResolver = m): string {
+  if (command === "workspace.focusNext") return resolve(msg("Focus Next Workspace Area"));
+  if (command === "workspace.focusPrevious") return resolve(msg("Focus Previous Workspace Area"));
+  if (command === "composer.sendAlternate")
+    return resolve(msg("Composer: Opposite Queue or Steer Action"));
+  if (command === "composer.sendBackground") return resolve(msg("Composer: Start in Background"));
+  if (command === "composer.sendAndNewThread")
+    return resolve(msg("Composer: Send and Start New Thread"));
+  if (command === "thread.steerQueuedMessage")
+    return resolve(msg("Queue: Send First Queued Message"));
+  if (command === "thread.editQueuedMessage")
+    return resolve(msg("Queue: Edit Last Queued Message"));
+  if (command === "thread.copyReference") return resolve(msg("Pull Request: Copy Link or Thread"));
   const usageMetric = METRIC_OPTIONS.find((option) => option.command === command);
-  if (usageMetric) return `Usage: ${usageMetric.label}`;
+  if (usageMetric) return resolve(msg("Usage: {metric}", { metric: resolve(usageMetric.label) }));
   const usagePeriod = WINDOW_OPTIONS.find((option) => option.command === command);
-  if (usagePeriod) return `Usage: Period: ${usagePeriod.label}`;
-  if (command === "view.reopenClosed") return "Reopen Closed Tab or Pane";
+  if (usagePeriod) {
+    return resolve(msg("Usage: Period: {period}", { period: resolve(usagePeriod.label) }));
+  }
+  if (command === "view.reopenClosed") return resolve(msg("Reopen Closed Tab or Pane"));
   if (command.startsWith("pane.focus."))
-    return `Pane: Focus Pane ${command.slice("pane.focus.".length)}`;
-  if (command === "preview.focusUrl") return msg("Preview: Focus URL");
-  if (command === "preview.find") return msg("Preview: Find on Page");
+    return resolve(msg("Pane: Focus Pane {n}", { n: command.slice("pane.focus.".length) }));
+  if (command === "preview.focusUrl") return resolve(msg("Preview: Focus URL"));
+  if (command === "preview.find") return resolve(msg("Preview: Find on Page"));
   const raw = String(command);
   if (raw.startsWith("script.") && raw.endsWith(".run")) {
-    return `Run Script: ${titleCaseCommandSegment(raw.slice("script.".length, -".run".length))}`;
+    return resolve(
+      msg("Run Script: {name}", {
+        name: titleCaseCommandSegment(raw.slice("script.".length, -".run".length)),
+      }),
+    );
   }
   return raw.split(".").map(titleCaseCommandSegment).join(": ");
 }
