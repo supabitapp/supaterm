@@ -57,7 +57,7 @@ import { buildReviewSectionMenu } from "./review-section-menu";
 import { reportShowcaseSceneRendered } from "../showcase/showcaseRenderSignal";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import type { usePullRequestFileFilter } from "../pull-requests/usePullRequestFileFilter";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 function ReviewHeader(
   props: Parameters<typeof useReviewHeaderPresentation>[0] & {
@@ -652,8 +652,10 @@ export function ReviewSheet(props: ReviewSheetProps) {
       children.push(
         <ContentBand key="review-unlisted-repositories">
           <Text className="text-xs leading-normal text-foreground-muted">
-            This turn's changes in {selectedSection.unlistedRepositories.join(", ")} cannot be
-            listed.
+            <T>
+              This turn's changes in <Var>{selectedSection.unlistedRepositories.join(", ")}</Var>{" "}
+              cannot be listed.
+            </T>
           </Text>
         </ContentBand>,
       );
