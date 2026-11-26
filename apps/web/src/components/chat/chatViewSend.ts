@@ -133,7 +133,12 @@ export async function rewindToMessage(input: {
       toastManager.add({
         type: "warning",
         title: m(msg("Some repositories were not rewound")),
-        description: `${unrestored.join(", ")} had no snapshot from before these turns, so ${unrestored.length === 1 ? "it keeps" : "they keep"} the changes. Check the uncommitted changes there.`,
+        description: m(
+          msg(
+            "{count, plural, one {{repositories} had no snapshot from before these turns, so it keeps the changes. Check the uncommitted changes there.} other {{repositories} had no snapshot from before these turns, so they keep the changes. Check the uncommitted changes there.}}",
+            { repositories: unrestored.join(", "), count: unrestored.length },
+          ),
+        ),
       });
     }
     const currentPrompt = store.getComposerDraft(draftTarget)?.prompt ?? "";

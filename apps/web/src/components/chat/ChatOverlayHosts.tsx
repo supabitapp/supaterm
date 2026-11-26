@@ -200,9 +200,18 @@ export function RevertConfirmHost(props: {
             <T>Edit from here?</T>
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {fileRestore === "repositories"
-              ? "Rewind chat to before this message. Your prompt and attachments return to the composer. “Revert repositories too” also undoes your own edits in this thread’s repository worktrees. Files in the project folder itself stay as they are."
-              : "Rewind chat to before this message. Your prompt and attachments return to the composer. “Revert files too” also undoes your own edits."}
+            {fileRestore === "repositories" ? (
+              <T>
+                Rewind chat to before this message. Your prompt and attachments return to the
+                composer. “Revert repositories too” also undoes your own edits in this thread’s
+                repository worktrees. Files in the project folder itself stay as they are.
+              </T>
+            ) : (
+              <T>
+                Rewind chat to before this message. Your prompt and attachments return to the
+                composer. “Revert files too” also undoes your own edits.
+              </T>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -214,7 +223,11 @@ export function RevertConfirmHost(props: {
             disabled={fileRestore === null}
             onClick={() => confirm(true)}
           >
-            {fileRestore === "repositories" ? "Revert repositories too" : "Revert files too"}
+            {fileRestore === "repositories" ? (
+              <T>Revert repositories too</T>
+            ) : (
+              <T>Revert files too</T>
+            )}
           </Button>
           <Button onClick={() => confirm(false)}>
             <T>Revert and keep changes</T>

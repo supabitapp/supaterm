@@ -56,7 +56,11 @@ export function TerminalContextInlineChip(props: TerminalContextInlineChipProps)
       {...(expired ? { state: "invalid" as const } : {})}
       icon={<TerminalIcon />}
       label={label}
-      aria-label={`Terminal excerpt, ${label}${expired ? ", expired" : ""}`}
+      aria-label={
+        expired
+          ? gt("Terminal excerpt, {label}, expired", { label })
+          : gt("Terminal excerpt, {label}", { label })
+      }
       data-terminal-context-expired={expired ? "true" : undefined}
       tooltip={
         expired

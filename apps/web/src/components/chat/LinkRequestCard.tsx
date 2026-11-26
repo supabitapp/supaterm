@@ -41,7 +41,7 @@ import { Input } from "../ui/input";
 import { Radio, RadioGroup } from "../ui/radio-group";
 import { WizardFooter, WizardHeader, WizardPanel, WizardPopup, WizardSteps } from "../ui/wizard";
 import { WorkLogRow } from "./WorkLog";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 /** Whether the agent left the machine for the user to pick. */
 const picksMachine = (item: LinkRequestItem) =>
@@ -121,7 +121,9 @@ function PendingLinkRequest(props: {
       className="flex min-w-0 flex-col gap-3 rounded-xl border border-border/60 bg-card p-4"
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <p className="text-sm font-medium text-foreground">Link {target} to this environment</p>
+        <p className="text-sm font-medium text-foreground">
+          {gt("Link {target} to this environment", { target })}
+        </p>
         {item.reason.trim() ? <p className="text-sm text-muted-foreground">{item.reason}</p> : null}
       </div>
       {error !== null ? (
@@ -297,11 +299,16 @@ function LinkRequestDialog(props: {
       <WizardPopup>
         <WizardHeader
           title={pickMachine ? gt("Link a machine") : gt("Link {targetName}", { targetName })}
-          description="Agents here can then launch, message and wait on threads there. Revoke it in that machine's Sharing & access."
+          description={gt(
+            "Agents here can then launch, message and wait on threads there. Revoke it in that machine's Sharing & access.",
+          )}
         >
           {steps.length > 1 && !useExisting ? (
             <WizardSteps
-              steps={["Machine", "Access"]}
+              steps={[
+                gt("Machine", { $context: "wizard step title" }),
+                gt("Access", { $context: "wizard step title" }),
+              ]}
               currentStep={steps.indexOf(current)}
               summaries={[target.kind === "none" ? null : targetName, null]}
               showSummaries
@@ -352,8 +359,10 @@ function LinkRequestDialog(props: {
                     />
                     {target.kind === "machine" ? (
                       <span className="block text-xs text-muted-foreground">
-                        This app has no address for {target.label} that another machine can reach.
-                        Enter its https or Tailscale address.
+                        <T>
+                          This app has no address for <Var>{target.label}</Var> that another machine
+                          can reach. Enter its https or Tailscale address.
+                        </T>
                       </span>
                     ) : null}
                   </label>
@@ -382,8 +391,10 @@ function LinkRequestDialog(props: {
                           spellCheck={false}
                         />
                         <span className="block text-xs text-muted-foreground">
-                          Create a link on {targetName}: Settings → Sharing & access → Authorized
-                          clients → Create link, then paste its code here.
+                          <T>
+                            Create a link on <Var>{targetName}</Var>: Settings → Sharing & access →
+                            Authorized clients → Create link, then paste its code here.
+                          </T>
                         </span>
                       </label>
                     )}
@@ -394,8 +405,10 @@ function LinkRequestDialog(props: {
             )}
             {useExisting ? (
               <p className="text-xs text-muted-foreground">
-                This environment is already linked to {targetName}. The agent can use that link as
-                it is; change its access in Settings → Environments.
+                <T>
+                  This environment is already linked to <Var>{targetName}</Var>. The agent can use
+                  that link as it is; change its access in Settings → Environments.
+                </T>
               </p>
             ) : null}
             {error !== null ? (
