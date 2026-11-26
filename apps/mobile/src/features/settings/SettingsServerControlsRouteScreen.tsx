@@ -46,7 +46,7 @@ import { msg, T, useGT, useMessages } from "gt-react-native";
 type SettingsPage = "threads" | "source-control" | "worktrees" | "maintenance";
 
 const PAGE_TITLES: Record<SettingsPage, string> = {
-  threads: "Threads",
+  threads: msg("Threads", { $context: "settings page title" }),
   "source-control": msg("Source control & issues"),
   worktrees: msg("Worktrees"),
   maintenance: msg("Maintenance"),
@@ -253,7 +253,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
       ));
 
   return (
-    <SettingsScreen title={PAGE_TITLES[props.page]} menus={[environmentMenu]}>
+    <SettingsScreen title={m(PAGE_TITLES[props.page])} menus={[environmentMenu]}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}

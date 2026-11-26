@@ -172,9 +172,9 @@ function repeatLabel(
   if (days.size === 7) return resolve(msg("Every day"));
   if (isWeekdays(weekdays)) return resolve(msg("Weekdays"));
   return (
-    DAYS.filter((day) => days.has(day.index))
-      .map((day) => weekdayLabel(day.index, locale))
-      .join(", ") || resolve(msg("Choose days"))
+    DAYS.flatMap((day) => (days.has(day.index) ? [weekdayLabel(day.index, locale)] : [])).join(
+      ", ",
+    ) || resolve(msg("Choose days"))
   );
 }
 

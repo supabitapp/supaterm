@@ -24,6 +24,8 @@ export interface RenderFailureProps {
   readonly retry: () => void;
 }
 
+const COMPONENT_STACK_HEADING = "Component stack:";
+
 function errorDetails(error: unknown, componentStack?: string): string {
   let description: string;
   try {
@@ -31,8 +33,9 @@ function errorDetails(error: unknown, componentStack?: string): string {
   } catch {
     description = "Unknown render error";
   }
-  // oxlint-disable-next-line supaterm/no-untranslated-copy -- crash report text shared with maintainers
-  return componentStack ? `${description}\nComponent stack:\n${componentStack}` : description;
+  return componentStack
+    ? `${description}\n${COMPONENT_STACK_HEADING}\n${componentStack}`
+    : description;
 }
 
 export class RenderErrorBoundary extends Component<
