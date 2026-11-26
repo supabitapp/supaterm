@@ -50,7 +50,7 @@ import {
   ServerUpdateAction,
   ServerUpdateProgress,
 } from "../ServerUpdateAction";
-import { useGT, msg, T } from "gt-react";
+import { useGT, msg, T, useMessages } from "gt-react";
 
 type SavedBackendListRowProps = {
   environment: EnvironmentPresentation;
@@ -65,7 +65,7 @@ function savedBackendStatus(environment: EnvironmentPresentation): {
   readonly tone: "muted" | "warning" | "error";
 } {
   if (!environment.entry.enabled && environment.connection.phase !== "unsupported")
-    return { text: "Off", tone: "muted" };
+    return { text: msg("Off", { $context: "environment switched off" }), tone: "muted" };
   const { connection } = environment;
   switch (connection.phase) {
     case "connected":
@@ -75,7 +75,7 @@ function savedBackendStatus(environment: EnvironmentPresentation): {
     case "reconnecting":
       return { text: msg("Reconnecting"), tone: "warning" };
     case "unsupported":
-      return { text: "Client not supported", tone: "muted" };
+      return { text: msg("Client not supported"), tone: "muted" };
     case "error":
       return { text: msg("Connection failed"), tone: "error" };
     case "offline":
@@ -93,6 +93,7 @@ export function SavedBackendListRow({
   onAddRoute,
 }: SavedBackendListRowProps) {
   const gt = useGT();
+  const m = useMessages();
   const [renameOpen, setRenameOpen] = useState(false);
   const [routesOpen, setRoutesOpen] = useState(false);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -161,7 +162,7 @@ export function SavedBackendListRow({
   const subtitleText = [
     environmentTransportLabel(environment),
     // The headline below names the failure in full.
-    diagnosis ? null : resumingServerUpdate ? gt("Restarting") : status.text,
+    diagnosis ? null : resumingServerUpdate ? gt("Restarting") : m(status.text),
     enabled && versionMismatch ? serverVersion : null,
   ]
     .filter((value): value is string => value !== null)
@@ -200,7 +201,7 @@ export function SavedBackendListRow({
                 !resumingServerUpdate && status.tone === "warning" && "text-warning-foreground",
               )}
             >
-              {resumingServerUpdate ? gt("Restarting") : status.text}
+              {resumingServerUpdate ? gt("Restarting") : m(status.text)}
             </span>
           </PopoverTrigger>
           <PopoverPopup side="bottom" align="start">
@@ -334,7 +335,7 @@ export function SavedBackendListRow({
             aria-controls={`remote-permissions-${environmentId}`}
             onClick={() => setPermissionsOpen((open) => !open)}
           >
-            Permissions
+            <T>Permissions</T>
             <ChevronRightIcon
               aria-hidden
               className={cn("size-3", permissionsOpen && "rotate-90")}
@@ -353,7 +354,7 @@ export function SavedBackendListRow({
               }
             />
             <TooltipPopup side="top">
-              {blocked ? "Client not supported" : enabled ? gt("Switch off") : gt("Switch on")}
+              {blocked ? gt("Client not supported") : enabled ? gt("Switch off") : gt("Switch on")}
             </TooltipPopup>
           </Tooltip>
           <Menu>
@@ -373,7 +374,7 @@ export function SavedBackendListRow({
             <MenuPopup align="end">
               <MenuItem onClick={() => setRenameOpen(true)}>
                 <PencilIcon />
-                Rename…
+                <T>Rename…</T>
               </MenuItem>
               <EnvironmentIconMenu
                 environmentId={environmentId}

@@ -4,6 +4,7 @@ import { useInlineConfirm } from "../../hooks/useInlineConfirm";
 import { InlineConfirmIcon } from "../InlineConfirm";
 import { InlineButton } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { T, useGT, Var } from "gt-react";
 
 /** Process ownership stays with the diagnostics view. */
 export function ProcessSignalActions({
@@ -15,6 +16,7 @@ export function ProcessSignalActions({
   disabled: boolean;
   onSignal: (signal: ServerProcessSignal) => void;
 }) {
+  const gt = useGT();
   const confirm = useInlineConfirm<"kill">();
   const killArmed = confirm.armed === "kill";
   return (
@@ -24,7 +26,7 @@ export function ProcessSignalActions({
           render={
             <InlineButton
               disabled={disabled}
-              aria-label="Send SIGINT"
+              aria-label={gt("Send {signal}", { signal: "SIGINT" })}
               tone="muted"
               onClick={() => onSignal("SIGINT")}
             >
@@ -32,14 +34,22 @@ export function ProcessSignalActions({
             </InlineButton>
           }
         />
-        <TooltipPopup side="top">Send SIGINT</TooltipPopup>
+        <TooltipPopup side="top">
+          <T>
+            Send <Var>{"SIGINT"}</Var>
+          </T>
+        </TooltipPopup>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger
           render={
             <InlineButton
               disabled={disabled}
-              aria-label={killArmed ? "Confirm SIGKILL" : "Send SIGKILL"}
+              aria-label={
+                killArmed
+                  ? gt("Confirm {signal}", { signal: "SIGKILL" })
+                  : gt("Send {signal}", { signal: "SIGKILL" })
+              }
               tone="destructive"
               {...confirm.bind("kill", () => onSignal("SIGKILL"))}
             >
@@ -48,9 +58,16 @@ export function ProcessSignalActions({
           }
         />
         <TooltipPopup side="top">
-          {killArmed
-            ? `Click again to send SIGKILL to process ${pid}. The process can’t handle it.`
-            : "Send SIGKILL"}
+          {killArmed ? (
+            gt("Click again to send {signal} to process {pid}. The process can’t handle it.", {
+              signal: "SIGKILL",
+              pid,
+            })
+          ) : (
+            <T>
+              Send <Var>{"SIGKILL"}</Var>
+            </T>
+          )}
         </TooltipPopup>
       </Tooltip>
     </div>

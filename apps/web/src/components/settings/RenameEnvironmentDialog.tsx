@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
+import { T, useGT } from "gt-react";
 
 export function RenameEnvironmentDialog({
   environment,
@@ -24,6 +25,7 @@ export function RenameEnvironmentDialog({
   readonly environment: Pick<EnvironmentPresentation, "environmentId" | "label" | "entry">;
   readonly onClose: () => void;
 }) {
+  const gt = useGT();
   const rename = useAtomCommand(environmentCatalog.rename, { reportFailure: false });
   const [label, setLabel] = useState(environment.label);
   const [pending, setPending] = useState(false);
@@ -41,7 +43,7 @@ export function RenameEnvironmentDialog({
       onClose();
     } else {
       const cause = squashAtomCommandFailure(result);
-      setError(cause instanceof Error ? cause.message : "Could not rename host.");
+      setError(cause instanceof Error ? cause.message : gt("Could not rename host."));
     }
   }
 
@@ -65,13 +67,17 @@ export function RenameEnvironmentDialog({
         }
       >
         <DialogHeader>
-          <DialogTitle>Rename host</DialogTitle>
-          <DialogDescription>Choose a label for this host on this device.</DialogDescription>
+          <DialogTitle>
+            <T>Rename host</T>
+          </DialogTitle>
+          <DialogDescription>
+            <T>Choose a label for this host on this device.</T>
+          </DialogDescription>
         </DialogHeader>
         <DialogPanel>
           <div className="space-y-2">
             <label htmlFor={labelId} className="text-sm font-medium">
-              Label
+              <T context="name shown for a host">Label</T>
             </label>
             <Input
               ref={inputRef}
@@ -81,7 +87,7 @@ export function RenameEnvironmentDialog({
               onFocus={(event) => event.target.select()}
               disabled={pending}
               autoComplete="off"
-              placeholder="My MacBook"
+              placeholder={gt("My MacBook")}
             />
             {error && (
               <p role="alert" className="text-sm text-destructive wrap-anywhere">
@@ -98,12 +104,14 @@ export function RenameEnvironmentDialog({
               disabled={pending}
               onClick={() => void save(null)}
             >
-              Reset to default
+              <T>Reset to default</T>
             </Button>
           )}
-          <DialogClose render={<Button variant="outline" disabled={pending} />}>Cancel</DialogClose>
+          <DialogClose render={<Button variant="outline" disabled={pending} />}>
+            <T>Cancel</T>
+          </DialogClose>
           <Button type="submit" disabled={pending || label.trim() === ""}>
-            {pending ? "Saving…" : "Save"}
+            {pending ? gt("Saving…") : gt("Save")}
           </Button>
         </DialogFooter>
       </DialogPopup>

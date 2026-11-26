@@ -98,7 +98,7 @@ import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsL
 import { keybindingSearchAnchorId, searchableSetting } from "./settingsSearch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 function KeybindingPill({ shortcut }: { shortcut: KeybindingShortcut }) {
   const isMac = navigator.platform.toLowerCase().includes("mac");
@@ -860,6 +860,7 @@ function KeybindingKeyControl({
   pillClassName?: string | undefined;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const {
     keyDraft,
     isRecording,
@@ -890,8 +891,10 @@ function KeybindingKeyControl({
           type="button"
           onClick={() => setDraft({ isRecording: true })}
           aria-label={gt("Edit shortcut for {command}: {shortcut}", {
-            command: commandLabel(row.command),
-            shortcut: row.isUnassigned ? "Unassigned" : formatShortcutLabel(row.binding.shortcut),
+            command: commandLabel(row.command, m),
+            shortcut: row.isUnassigned
+              ? gt("Unassigned")
+              : formatShortcutLabel(row.binding.shortcut),
           })}
           className={cn(
             "inline-flex h-8 cursor-pointer items-center rounded-md border border-transparent px-1.5 sm:h-7 outline-none transition-colors hover:border-border/70 hover:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-ring/24",
@@ -899,7 +902,9 @@ function KeybindingKeyControl({
           )}
         >
           {row.isUnassigned ? (
-            <span className="text-sm text-muted-foreground">Unassigned</span>
+            <span className="text-sm text-muted-foreground">
+              <T>Unassigned</T>
+            </span>
           ) : (
             <KeybindingPill shortcut={row.binding.shortcut} />
           )}
@@ -908,7 +913,7 @@ function KeybindingKeyControl({
         <Input
           data-keybinding-capture=""
           autoFocus={isRecording}
-          aria-label={gt("Keybinding for {command}", { command: commandLabel(row.command) })}
+          aria-label={gt("Keybinding for {command}", { command: commandLabel(row.command, m) })}
           value={isRecording ? "" : keyDraft}
           placeholder={isRecording ? gt("Press shortcut") : gt("Unassigned")}
           size="sm"
@@ -986,6 +991,7 @@ function KeybindingRowMenu({
   onRemove: (row: KeybindingRow) => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const canReset = row.source === "Custom" && row.defaultKey !== null;
   const canUnassign = row.source === "Default";
   // Reset to default is the way back; removing would drop the default for good.
@@ -1000,7 +1006,7 @@ function KeybindingRowMenu({
             variant="ghost-muted"
             size="icon-sm"
             disabled={isSaving}
-            aria-label={gt("Actions for {command}", { command: commandLabel(row.command) })}
+            aria-label={gt("Actions for {command}", { command: commandLabel(row.command, m) })}
           />
         }
       >
@@ -1037,10 +1043,11 @@ function KeybindingSourceBadge({ source }: { source: KeybindingRow["source"] }) 
 }
 
 function KeybindingRowTitle({ row }: { row: KeybindingRow }) {
+  const m = useMessages();
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="flex items-center gap-2" />}>
-        {commandLabel(row.command)}
+        {commandLabel(row.command, m)}
         <KeybindingSourceBadge source={row.source} />
       </TooltipTrigger>
       <TooltipPopup side="top">{row.command}</TooltipPopup>
@@ -1058,13 +1065,14 @@ function KeybindingRowWhen({
   variables: ReadonlyArray<WhenVariableOption>;
 }) {
   const gt = useGT();
+  const m = useMessages();
   return (
     <span className="flex h-6 items-center gap-1.5">
       <span className="text-xs leading-none text-muted-foreground/70">
         {gt("When", { $context: "heading for keybinding conditions" })}
       </span>
       <WhenClauseControl
-        label={commandLabel(row.command)}
+        label={commandLabel(row.command, m)}
         expression={editor.whenDraftExpression}
         value={editor.whenDraft}
         variables={variables}
@@ -1135,6 +1143,7 @@ function useNewKeybindingDraft({
   allRows: ReadonlyArray<KeybindingRow>;
   onSave: (input: ServerUpsertKeybindingInput) => void;
 }) {
+  const m = useMessages();
   const [commandDraft, setCommandDraft] = useState<KeybindingCommand | "">("");
   const [draft, setDraft] = useReducer(keybindingRowDraftReducer, {
     keyDraft: "",
@@ -1149,7 +1158,7 @@ function useNewKeybindingDraft({
     key: keyDraft,
     when: whenDraftExpression,
   });
-  const commandLabelText = commandDraft ? commandLabel(commandDraft) : "new keybinding";
+  const commandLabelText = commandDraft ? commandLabel(commandDraft, m) : "new keybinding";
   const canSave = Boolean(commandDraft) && keyDraft.trim().length > 0 && isWhenDraftValid;
 
   const save = () => {
@@ -1217,6 +1226,7 @@ function NewKeybindingCommandSelect({
   className?: string | undefined;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const shortcutsByCommand = new Map<
     KeybindingCommand,
     Array<{ id: string; label: string; when: string }>
@@ -1234,7 +1244,7 @@ function NewKeybindingCommandSelect({
       defaultOpen
       itemToStringLabel={commandLabel}
       filter={(command, query) =>
-        `${command} ${commandLabel(command)}`.toLowerCase().includes(query.trim().toLowerCase())
+        `${command} ${commandLabel(command, m)}`.toLowerCase().includes(query.trim().toLowerCase())
       }
       autoHighlight
       value={draft.commandDraft || null}
@@ -1245,7 +1255,7 @@ function NewKeybindingCommandSelect({
         render={<SelectButton size="sm" />}
         className={className}
       >
-        {draft.commandDraft ? commandLabel(draft.commandDraft) : gt("Command")}
+        {draft.commandDraft ? commandLabel(draft.commandDraft, m) : gt("Command")}
       </ComboboxTrigger>
       <ComboboxPopup aria-label={gt("Command")} className="w-96">
         <ComboboxSearchInput
@@ -1260,7 +1270,7 @@ function NewKeybindingCommandSelect({
             return (
               <ComboboxItem key={command} value={command}>
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                  <span>{commandLabel(command)}</span>
+                  <span>{commandLabel(command, m)}</span>
                   {shortcuts && (
                     <span className="flex shrink-0 flex-col items-end gap-1">
                       {shortcuts.map((shortcut) => (

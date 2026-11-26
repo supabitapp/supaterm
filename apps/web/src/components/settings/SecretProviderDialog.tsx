@@ -20,7 +20,7 @@ import {
   secretProviderFromDraft,
   type SecretProviderDraft,
 } from "./SecretProviderDialog.logic";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 /** Mounted per open, so each open starts from a fresh draft. */
 export function SecretProviderDialog({
@@ -74,8 +74,10 @@ export function SecretProviderDialog({
               : gt("Add a 1Password provider")}
           </DialogTitle>
           <DialogDescription>
-            Provider variables on {environmentLabel} can read values from it by name. Values are
-            read with the op CLI on that server when a provider starts.
+            <T>
+              Provider variables on <Var>{environmentLabel}</Var> can read values from it by name.
+              Values are read with the op CLI on that server when a provider starts.
+            </T>
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>

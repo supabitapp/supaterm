@@ -530,7 +530,7 @@ export function SettingsRow({
 
 export function SettingResetButton({
   label,
-  tooltip = "Reset to default",
+  tooltip,
   confirmTooltip,
   disabled = false,
   onClick,
@@ -550,8 +550,8 @@ export function SettingResetButton({
         disabled={disabled}
         icon={<UndoIcon className="size-3" />}
         label={gt("Reset {title} to default", { title: label })}
-        confirmLabel={`Confirm reset ${label}`}
-        tooltip={tooltip}
+        confirmLabel={gt("Confirm reset {title}", { title: label })}
+        tooltip={tooltip ?? gt("Reset to default")}
         confirmTooltip={confirmTooltip}
         onConfirm={onClick}
       />
@@ -580,7 +580,7 @@ export function SettingResetButton({
           </Button>
         }
       />
-      <TooltipPopup side="top">{tooltip}</TooltipPopup>
+      <TooltipPopup side="top">{tooltip ?? gt("Reset to default")}</TooltipPopup>
     </Tooltip>
   );
 }

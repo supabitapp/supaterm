@@ -18,7 +18,7 @@ export function MobileAppSettingsRow() {
         <Popover>
           <PopoverTrigger render={<Button size="sm" variant="outline" />}>
             <AppleIcon />
-            iPhone and iPad
+            <T>iPhone and iPad</T>
           </PopoverTrigger>
           <PopoverPopup align="end">
             <div className="flex flex-col items-center gap-3">
@@ -32,7 +32,7 @@ export function MobileAppSettingsRow() {
                   size={128}
                   level="M"
                   marginSize={1}
-                  title="TestFlight link"
+                  title={gt("TestFlight link")}
                 />
               </div>
               <Button
@@ -40,7 +40,7 @@ export function MobileAppSettingsRow() {
                 variant="outline"
                 render={<a href={IOS_TESTFLIGHT_URL} target="_blank" rel="noreferrer noopener" />}
               >
-                Open TestFlight
+                <T>Open TestFlight</T>
               </Button>
             </div>
           </PopoverPopup>

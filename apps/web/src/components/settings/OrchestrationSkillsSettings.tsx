@@ -5,28 +5,30 @@ import { Button } from "../ui/button";
 import { searchableSetting } from "./settingsSearch";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { useSettingsScope } from "./SettingsScopeContext";
+import { T, useGT } from "gt-react";
 
 function SelectedEnvironmentSkills({
   environments,
 }: {
   environments: readonly OrchestrationSkillsEnvironment[];
 }) {
+  const gt = useGT();
   const skills = useOrchestrationSkills(environments, serverEnvironment);
   const busy = skills.pending !== null;
   const stateLabel =
     skills.pending === "Status"
-      ? "Checking…"
+      ? gt("Checking…")
       : skills.pending === null && skills.installed
-        ? "Installed"
+        ? gt("Installed")
         : null;
   const hasControl =
     stateLabel !== null || skills.canUninstall || skills.canInstall || skills.error;
   return (
     <SettingsRow
-      title="Orchestration skills"
+      title={gt("Orchestration skills")}
       description={
         <>
-          Install supaterm-commitee and supaterm-advisor skills.
+          <T>Install supaterm-commitee and supaterm-advisor skills.</T>
           {skills.notices.map((notice) => (
             <span className="block" key={notice}>
               {notice}
@@ -47,7 +49,7 @@ function SelectedEnvironmentSkills({
                 disabled={busy}
                 onClick={() => void skills.request("Uninstall")}
               >
-                {skills.pending === "Uninstall" ? "Uninstalling…" : "Uninstall"}
+                {skills.pending === "Uninstall" ? gt("Uninstalling…") : gt("Uninstall")}
               </Button>
             ) : null}
             {skills.canInstall ? (
@@ -57,7 +59,7 @@ function SelectedEnvironmentSkills({
                 disabled={busy}
                 onClick={() => void skills.request("Install")}
               >
-                {skills.pending === "Install" ? "Installing…" : "Install"}
+                {skills.pending === "Install" ? gt("Installing…") : gt("Install")}
               </Button>
             ) : null}
             {skills.error ? (
@@ -67,7 +69,7 @@ function SelectedEnvironmentSkills({
                 disabled={busy}
                 onClick={() => void skills.request("Status")}
               >
-                Retry
+                <T>Retry</T>
               </Button>
             ) : null}
           </>
@@ -78,6 +80,7 @@ function SelectedEnvironmentSkills({
 }
 
 export function OrchestrationSkillsSettings() {
+  const gt = useGT();
   const { environments, connectedEnvironments } = useSettingsScope();
   const offline = environments.filter(
     (environment) =>
@@ -89,8 +92,10 @@ export function OrchestrationSkillsSettings() {
     <SettingsSection {...searchableSetting("orchestration-skills")} hideTitle>
       {connectedEnvironments.length === 0 ? (
         <SettingsRow
-          title="Orchestration skills"
-          description="Connect to an environment to install supaterm-commitee and supaterm-advisor skills."
+          title={gt("Orchestration skills")}
+          description={gt(
+            "Connect to an environment to install supaterm-commitee and supaterm-advisor skills.",
+          )}
         />
       ) : (
         <SelectedEnvironmentSkills
@@ -103,8 +108,10 @@ export function OrchestrationSkillsSettings() {
       )}
       {offline.length > 0 ? (
         <SettingsRow
-          title="Offline environments"
-          description={`Skipped: ${offline.map((environment) => environment.label).join(", ")}. Reconnect and install again to include them.`}
+          title={gt("Offline environments")}
+          description={gt("Skipped: {environments}. Reconnect and install again to include them.", {
+            environments: offline.map((environment) => environment.label).join(", "),
+          })}
         />
       ) : null}
     </SettingsSection>

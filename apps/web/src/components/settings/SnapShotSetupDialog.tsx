@@ -20,11 +20,11 @@ import {
   captureSetupShortcutReady,
   type CaptureSetupStep,
 } from "./SnapShotSetupDialog.logic";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const SETUP_STEPS = [
-  { id: "access", label: "Access" },
-  { id: "shortcut", label: "Shortcut" },
+  { id: "access", label: msg("Access", { $context: "setup step: capture permissions" }) },
+  { id: "shortcut", label: msg("Shortcut", { $context: "setup step: keyboard shortcut" }) },
 ] as const;
 
 const GNOME_ACCESS_COPY = {
@@ -100,6 +100,7 @@ export function SnapShotSetupDialog({
   onLeaveStep: () => void;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const [step, setStep] = useState(() => captureSetupInitialStep(state, initialStep));
   const [checking, setChecking] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -244,7 +245,7 @@ export function SnapShotSetupDialog({
           }
         >
           <WizardSteps
-            steps={SETUP_STEPS.map((item) => item.label)}
+            steps={SETUP_STEPS.map((item) => messages(item.label))}
             currentStep={stepIndex}
             isStepDisabled={(index) => busy || index > stepIndex}
             onStepChange={(index) => {

@@ -25,7 +25,7 @@ export function NotificationSettings() {
       {...searchableSetting("thread-notifications")}
       description={
         permissionMessage ??
-        "System alerts when a thread finishes, fails, or needs you. This device only."
+        gt("System alerts when a thread finishes, fails, or needs you. This device only.")
       }
       control={
         <Select

@@ -35,7 +35,7 @@ import {
   useScopedSettingsMixed,
   useUpdateScopedSettings,
 } from "./useScopedSettings";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const UNIT_MINUTES = { minutes: 1, hours: 60, days: 24 * 60 } as const;
 type DurationUnit = keyof typeof UNIT_MINUTES;
@@ -194,7 +194,7 @@ export function SnoozePresetsRow() {
       resetAction={
         !mixed && sameSnoozePresets(presets, DEFAULT_SNOOZE_PRESETS) ? null : (
           <SettingResetButton
-            label="snooze options"
+            label={gt("snooze options", { $context: "setting name in a reset button label" })}
             onClick={() => {
               const sorted = sortSnoozeRows(
                 DEFAULT_SNOOZE_PRESETS,
@@ -329,7 +329,9 @@ function SnoozePresetList(props: {
         </Button>
         {props.presets.length >= MAX_SNOOZE_PRESETS ? (
           <span className="ps-2 text-xs text-muted-foreground">
-            Up to {MAX_SNOOZE_PRESETS} options
+            <T>
+              Up to <Var>{MAX_SNOOZE_PRESETS}</Var> options
+            </T>
           </span>
         ) : null}
       </div>

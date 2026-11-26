@@ -42,7 +42,7 @@ import {
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
 
 const NO_TRACKED_FOLDERS: ReadonlyArray<ProjectTrackedFolder> = [];
 const BROWSE_SUGGESTION_LIMIT = 100;
@@ -355,7 +355,9 @@ function AddTrackedFolderDialog(props: {
                 </p>
               ) : hiddenCount > 0 ? (
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                  {hiddenCount} more. Keep typing to narrow the list.
+                  <T>
+                    <Var>{hiddenCount}</Var> more. Keep typing to narrow the list.
+                  </T>
                 </p>
               ) : !props.canBrowse ? (
                 <p className="px-2 py-1.5 text-sm text-muted-foreground">

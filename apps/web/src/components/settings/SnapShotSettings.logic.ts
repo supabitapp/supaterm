@@ -7,6 +7,8 @@ import {
 } from "./SnapShotSetupDialog.logic";
 import { msg } from "gt-react";
 
+import { m, type MessageResolver } from "../../i18n/messages";
+
 export function snapShotStatus(state: DesktopSnapShotState | null, enabled: boolean): string {
   if (!state) return msg("Checking snapshots…");
   if (state.mode === "unavailable") return state.message ?? msg("Not supported on this platform.");
@@ -51,11 +53,16 @@ export function snapShotShortcutStatus(state: DesktopSnapShotState | null): stri
   return state.shortcutMessage;
 }
 
-export function snapShotSetupButtonLabel(state: DesktopSnapShotState | null): string {
-  if (!state) return msg("Continue setup");
-  if (captureSetupAccessReady(state)) return msg("Manage capture");
+export function snapShotSetupButtonLabel(
+  state: DesktopSnapShotState | null,
+  resolve: MessageResolver = m,
+): string {
+  if (!state) return resolve(msg("Continue setup"));
+  if (captureSetupAccessReady(state)) return resolve(msg("Manage capture"));
   const desktop = captureSetupDesktopName(state);
-  return desktop ? `Set up ${desktop} capture` : msg("Continue setup");
+  return desktop
+    ? resolve(msg("Set up {desktop} capture", { desktop }))
+    : resolve(msg("Continue setup"));
 }
 
 export function snapShotSetupComplete(

@@ -66,7 +66,7 @@ import { searchableSetting, sourceControlHostSettingsSearchId } from "./settings
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { sourceControlIcon } from "~/sourceControlPresentation";
-import { T, useMessages, useGT, msg } from "gt-react";
+import { T, useMessages, useGT, msg, Var } from "gt-react";
 import { type MessageResolver } from "../../i18n/messages";
 
 const EMPTY_DISCOVERY_RESULT: SourceControlDiscoveryResult = {
@@ -136,7 +136,7 @@ function authPresentation(auth: SourceControlProviderAuth): {
   readonly badge: "secondary" | null;
 } {
   if (auth.status === "authenticated") {
-    return { label: "Authenticated", badge: null };
+    return { label: msg("Authenticated"), badge: null };
   }
   if (auth.status === "unauthenticated") {
     return { label: msg("Not authenticated"), badge: "secondary" };
@@ -214,7 +214,13 @@ function itemSummary({
 }) {
   const installHint = sourceControlInstallHintText(item.installHint, resolve);
   if (item.status !== "available") {
-    return <span>Unavailable. {installHint}</span>;
+    return (
+      <span>
+        <T>
+          Unavailable. <Var>{installHint}</Var>
+        </T>
+      </span>
+    );
   }
 
   if (auth) {
@@ -222,7 +228,9 @@ function itemSummary({
       const authDetail = optionLabel(auth.detail);
       return (
         <>
-          <span>Authenticated</span>
+          <span>
+            <T>Authenticated</T>
+          </span>
           {authAccount ? (
             <>
               <span aria-hidden>as</span>
@@ -235,26 +243,47 @@ function itemSummary({
     }
 
     if (!item.executable && auth.status === "unauthenticated") {
-      return <span>Available. {installHint}</span>;
+      return (
+        <span>
+          <T>
+            Available. <Var>{installHint}</Var>
+          </T>
+        </span>
+      );
     }
 
     if (auth.status === "unauthenticated" && auth.accounts?.some((entry) => entry.authenticated)) {
-      return <span>{optionLabel(auth.detail) ?? `Every ${item.label} host is turned off.`}</span>;
+      return (
+        <span>
+          {optionLabel(auth.detail) ?? (
+            <T>
+              Every <Var>{item.label}</Var> host is turned off.
+            </T>
+          )}
+        </span>
+      );
     }
 
     if (auth.status === "unauthenticated") {
       return (
         <span>
-          {item.label} is not authenticated on this server. Sign in or configure credentials using
-          the <code className="rounded bg-muted px-1 py-px text-2xs">{item.executable}</code> tool
-          on the server host to enable change request features.
+          <T>
+            <Var>{item.label}</Var> is not authenticated on this server. Sign in or configure
+            credentials using the{" "}
+            <code className="rounded bg-muted px-1 py-px text-2xs">
+              <Var>{item.executable}</Var>
+            </code>{" "}
+            tool on the server host to enable change request features.
+          </T>
         </span>
       );
     }
     const authDetail = optionLabel(auth.detail);
     return (
       <span>
-        Could not verify {item.label}. {authDetail ?? installHint}
+        <T>
+          Could not verify <Var>{item.label}</Var>. <Var>{authDetail ?? installHint}</Var>
+        </T>
       </span>
     );
   }
@@ -308,7 +337,7 @@ function DiscoveryItemRow({
               {version ? <code className="text-xs text-muted-foreground">{version}</code> : null}
               {authStatus?.badge ? (
                 <Badge variant={authStatus.badge} size="sm">
-                  {authStatus.label}
+                  {messages(authStatus.label)}
                 </Badge>
               ) : null}
             </div>
@@ -347,6 +376,7 @@ function DiscoveryItemRow({
 }
 
 function GitFetchIntervalSettings() {
+  const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const resolvedBackgroundActivity = resolveServerBackgroundActivitySettings(settings);
@@ -369,9 +399,9 @@ function GitFetchIntervalSettings() {
           <div className="flex min-w-0 items-center gap-1">
             <span className="text-xs font-medium text-foreground">{setting.title}</span>
             <PolicyTooltip>
-              This interval is configured for Git only. The shared Background activity policy still
-              decides whether Git refreshes may run when the timer fires. Custom intervals appear as
-              Advanced in Maintenance settings.
+              {gt(
+                "This interval is configured for Git only. The shared Background activity policy still decides whether Git refreshes may run when the timer fires. Custom intervals appear as Advanced in Maintenance settings.",
+              )}
             </PolicyTooltip>
             <span
               className={cn(
@@ -382,7 +412,9 @@ function GitFetchIntervalSettings() {
             >
               {canResetFetchInterval ? (
                 <SettingResetButton
-                  label="fetch interval"
+                  label={gt("fetch interval", {
+                    $context: "setting name in a reset button label",
+                  })}
                   onClick={() =>
                     updateSettings(
                       backgroundActivityOverrideSettings(settings.backgroundActivity, {
@@ -395,7 +427,9 @@ function GitFetchIntervalSettings() {
             </span>
           </div>
           <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-            Refresh remote branches in the background. Set to 0 to avoid automatic Git prompts.
+            <T>
+              Refresh remote branches in the background. Set to 0 to avoid automatic Git prompts.
+            </T>
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -414,12 +448,14 @@ function GitFetchIntervalSettings() {
             }
           >
             <NumberFieldGroup>
-              <NumberFieldDecrement aria-label="Decrease fetch interval" />
-              <NumberFieldInput aria-label="Automatic Git fetch interval in seconds" />
-              <NumberFieldIncrement aria-label="Increase fetch interval" />
+              <NumberFieldDecrement aria-label={gt("Decrease fetch interval")} />
+              <NumberFieldInput aria-label={gt("Automatic Git fetch interval in seconds")} />
+              <NumberFieldIncrement aria-label={gt("Increase fetch interval")} />
             </NumberFieldGroup>
           </NumberField>
-          <span className="text-xs text-muted-foreground">seconds</span>
+          <span className="text-xs text-muted-foreground">
+            <T>seconds</T>
+          </span>
         </div>
       </div>
     </SettingsSearchTarget>
@@ -618,7 +654,7 @@ export function SourceControlSettingsPanel() {
       ) : isInitialScanPending ? (
         <>
           <SourceControlSectionSkeleton
-            title={`Version Control${environmentSuffix}`}
+            title={`${gt("Version Control")}${environmentSuffix}`}
             headerAction={scanButton}
           />
           <SourceControlSectionSkeleton title={gt("Source control providers")} />
@@ -628,7 +664,7 @@ export function SourceControlSettingsPanel() {
           {hasVersionControlSystems ? (
             <SettingsSection
               id={searchableSetting("source-control").id}
-              title={`Version Control${environmentSuffix}`}
+              title={`${gt("Version Control")}${environmentSuffix}`}
               headerAction={scanButton}
             >
               {versionControlSystems.map((item) => (
@@ -642,7 +678,7 @@ export function SourceControlSettingsPanel() {
           {result.sourceControlProviders.length > 0 ? (
             <SettingsSection
               id={hasVersionControlSystems ? undefined : searchableSetting("source-control").id}
-              title={`Source control providers${environmentSuffix}`}
+              title={`${gt("Source control providers")}${environmentSuffix}`}
               headerAction={hasVersionControlSystems ? null : scanButton}
             >
               {result.sourceControlProviders.map((item) => (

@@ -9,6 +9,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { InlineConfirmButton } from "../InlineConfirm";
 import { ProviderSettingsForm } from "./ProviderSettingsForm";
 import { useEnvironmentScope } from "../../state/session";
+import { T, useGT } from "gt-react";
 
 export function SourceControlHostSettings({
   environmentId,
@@ -21,6 +22,7 @@ export function SourceControlHostSettings({
   };
   readonly onSaved: () => void;
 }) {
+  const gt = useGT();
   const saved = useEnvironmentSettings(
     environmentId,
     (settings) => settings.sourceControlHosts[definition.kind],
@@ -48,7 +50,7 @@ export function SourceControlHostSettings({
     <fieldset disabled={saving || !canWriteSettings} className="contents">
       {!canWriteSettings ? (
         <p className="text-xs text-muted-foreground">
-          This connection cannot change host settings.
+          <T>This connection cannot change host settings.</T>
         </p>
       ) : null}
       <ProviderSettingsForm
@@ -72,10 +74,12 @@ export function SourceControlHostSettings({
             size="xs"
             variant="outline"
             disabled={saving}
-            label="Remove"
-            confirmLabel="Confirm remove"
-            tooltip={`Remove the saved ${definition.label} settings`}
-            confirmTooltip={`Click again to remove the saved ${definition.label} settings and credentials.`}
+            label={gt("Remove")}
+            confirmLabel={gt("Confirm remove")}
+            tooltip={gt("Remove the saved {host} settings", { host: definition.label })}
+            confirmTooltip={gt("Click again to remove the saved {host} settings and credentials.", {
+              host: definition.label,
+            })}
             onConfirm={() =>
               void save(Object.fromEntries(Object.keys(saved ?? {}).map((key) => [key, ""])))
             }

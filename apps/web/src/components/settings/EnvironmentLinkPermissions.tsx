@@ -37,6 +37,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { type LinkChoice, LINK_OFF, linkPermissionRow } from "./EnvironmentLinkPermissions.logic";
 import { failureToast, UNLINK_COMMAND_LABEL } from "./LinkedEnvironmentsSettings";
 import { toastManager } from "../ui/toast";
+import { T, useGT, Var } from "gt-react";
 
 /** What agents on each of the user's other connected machines may do on `target`. */
 export function EnvironmentLinkPermissions({
@@ -62,8 +63,10 @@ export function EnvironmentLinkPermissions({
   return (
     <div className="space-y-2 border-t border-border/50 py-3 text-xs">
       <p className="text-muted-foreground">
-        Agents on your other machines can work on {target.label} at the level you pick. Each machine
-        links separately, and only in this direction.
+        <T>
+          Agents on your other machines can work on <Var>{target.label}</Var> at the level you pick.
+          Each machine links separately, and only in this direction.
+        </T>
       </p>
       <ul className="space-y-2">
         {sources.map((source) => (
@@ -93,6 +96,7 @@ function SourceLinkRow({
   /** The machines that can get a pairing code from `target`, when this app cannot. */
   readonly intermediaries: ReadonlyArray<LinkIntermediary>;
 }) {
+  const gt = useGT();
   const labelId = useId();
   const canLink = useAtomValue(peerLinkEnvironment.link.permissionAtom(source.environmentId));
   const canUnlink = useAtomValue(peerLinkEnvironment.unlink.permissionAtom(source.environmentId));
@@ -151,8 +155,11 @@ function SourceLinkRow({
       if (result.value.removed && result.value.endedThere !== true) {
         toastManager.add({
           type: "warning",
-          title: `${target.label} did not answer`,
-          description: `Revoke "Supaterm · ${source.label}" in ${target.label}'s Sharing & access to end the session there too.`,
+          title: gt("{label} did not answer", { label: target.label }),
+          description: gt(
+            'Revoke "Supaterm · {source}" in {target}\'s Sharing & access to end the session there too.',
+            { source: source.label, target: target.label },
+          ),
         });
       }
     } else if (!isAtomCommandInterrupted(result)) {
@@ -183,7 +190,11 @@ function SourceLinkRow({
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
       <span id={labelId} className="min-w-0">
-        <span className="block text-foreground">Agents on {source.label}</span>
+        <span className="block text-foreground">
+          <T>
+            Agents on <Var>{source.label}</Var>
+          </T>
+        </span>
         {row.note === null ? null : <span className="block text-muted-foreground">{row.note}</span>}
       </span>
       <span className="flex items-center gap-2">
@@ -194,7 +205,7 @@ function SourceLinkRow({
             disabled={busy || links.isPending}
             onClick={() => void forget()}
           >
-            Forget
+            <T>Forget</T>
           </Button>
         ) : null}
         {relinkAccess === null ? null : (
@@ -204,7 +215,7 @@ function SourceLinkRow({
             disabled={busy || links.isPending}
             onClick={() => void linkAt(relinkAccess)}
           >
-            Link again
+            <T>Link again</T>
           </Button>
         )}
         <Select
@@ -219,13 +230,13 @@ function SourceLinkRow({
               {row.value === null
                 ? "…"
                 : row.value === LINK_OFF
-                  ? "Off"
+                  ? gt("Off", { $context: "agent link turned off" })
                   : accessConfig[row.value].label}
             </SelectValue>
           </SelectTrigger>
           <SelectPopup alignItemWithTrigger={false}>
             <SelectItem value={LINK_OFF} disabled={!row.canForget}>
-              Off
+              {gt("Off", { $context: "agent link turned off" })}
             </SelectItem>
             {AuthMcpClientAccess.literals.map((option) => (
               <LinkAccessOption

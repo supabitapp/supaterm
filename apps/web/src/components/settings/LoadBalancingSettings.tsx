@@ -11,11 +11,11 @@ import { Switch } from "../ui/switch";
 import { EnvironmentRow, EnvironmentTransportLabel } from "./EnvironmentRow";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
 import { searchableSetting } from "./settingsSearch";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const preferences = [
   { value: 100, label: msg("Prefer") },
-  { value: 50, label: "Normal" },
+  { value: 50, label: msg("Normal", { $context: "load balancing preference" }) },
   { value: 25, label: msg("Less often") },
   { value: 0, label: msg("Manual only") },
 ] as const;
@@ -51,6 +51,8 @@ export function LoadBalancingSettings({
   environments: ReadonlyArray<EnvironmentPresentation>;
 }) {
   const gt = useGT();
+  const m = useMessages();
+  const items = preferences.map((entry) => ({ ...entry, label: m(entry.label) }));
   const settings = useClientSettings((current) => ({
     loadBalancingEnabled: current.loadBalancingEnabled,
     loadBalancingWeights: current.loadBalancingWeights,
@@ -92,7 +94,7 @@ export function LoadBalancingSettings({
           subtitle={<EnvironmentTransportLabel environment={environment} />}
         >
           <Select
-            items={preferences}
+            items={items}
             value={loadPreferenceForWeight(
               settings.loadBalancingWeights[environment.environmentId],
             )}
@@ -115,7 +117,7 @@ export function LoadBalancingSettings({
               <SelectValue />
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
-              {preferences.map(({ value, label }) => (
+              {items.map(({ value, label }) => (
                 <SelectItem key={value} value={value}>
                   {label}
                 </SelectItem>

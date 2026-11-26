@@ -113,6 +113,7 @@ function ProviderCustomColorPicker(props: {
   readonly onClear: () => void;
   readonly onClose: () => void;
 }) {
+  const gt = useGT();
   const normalized = normalizeProviderAccentColor(props.value);
 
   return (
@@ -128,7 +129,11 @@ function ProviderCustomColorPicker(props: {
             size="icon-sm"
             variant="ghost-muted"
             style={normalized ? { backgroundColor: normalized } : undefined}
-            aria-label={`${normalized ? "Change" : "Add"} accent color for ${props.displayName}`}
+            aria-label={
+              normalized
+                ? gt("Change accent color for {provider}", { provider: props.displayName })
+                : gt("Add accent color for {provider}", { provider: props.displayName })
+            }
           >
             {normalized ? (
               <span className="sr-only">

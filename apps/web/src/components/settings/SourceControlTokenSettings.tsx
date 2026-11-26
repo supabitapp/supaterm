@@ -21,7 +21,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { useEnvironmentScope } from "../../state/session";
 import { SecretSourceInput, useSecretSources } from "./SecretSourceInput";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const hasToken = (token: SettingsSecretValue | undefined) =>
   typeof token === "string" ? token.length > 0 : token !== undefined;
@@ -94,16 +94,22 @@ export function SourceControlTokenSettings({
       <fieldset disabled={saving || !canWriteSettings} className="contents">
         {!canWriteSettings ? (
           <p className="text-xs text-muted-foreground">
-            This connection cannot change host settings.
+            <T>This connection cannot change host settings.</T>
           </p>
         ) : null}
         <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-          A token saved here is used before{" "}
-          <code className="rounded bg-muted px-1 py-px text-2xs">{credentials.tokenEnvVar}</code>{" "}
-          and the{" "}
-          <code className="rounded bg-muted px-1 py-px text-2xs">{credentials.cliName}</code> login,
-          so {definition.label} works without the {credentials.cliLabel}. Give it{" "}
-          {credentials.tokenAccess}.{" "}
+          <T>
+            A token saved here is used before{" "}
+            <code className="rounded bg-muted px-1 py-px text-2xs">
+              <Var>{credentials.tokenEnvVar}</Var>
+            </code>{" "}
+            and the{" "}
+            <code className="rounded bg-muted px-1 py-px text-2xs">
+              <Var>{credentials.cliName}</Var>
+            </code>{" "}
+            login, so <Var>{definition.label}</Var> works without the{" "}
+            <Var>{credentials.cliLabel}</Var>. Give it <Var>{credentials.tokenAccess}</Var>.
+          </T>{" "}
           {normalizedHost || defaultHost ? (
             <InlineButton
               render={
