@@ -158,7 +158,9 @@ conversations, diffs and checkpoints are kept.
 
 - Before it deletes anything the first time, Supaterm copies the database to
   `statev2-before-pruning.sqlite` beside it, in the `userdata` folder of the
-  data directory. The copy needs free disk space about the size of the data in
+  data directory. If a copy of an earlier database is already there, it is kept
+  and the new copy gets a number, as in `statev2-before-pruning-2.sqlite`. The
+  copy needs free disk space about the size of the data in
   use; without it nothing is deleted, and Settings > Maintenance and
   `supaterm doctor` say why. Delete the copy once you no longer need it.
 - The first pass only records where history ends. A pass at least a day later

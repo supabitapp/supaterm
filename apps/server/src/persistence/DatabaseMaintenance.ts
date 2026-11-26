@@ -276,14 +276,17 @@ const make = Effect.gen(function* () {
       return yield* Effect.gen(function* () {
         const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
         const preview = yield* maintenance.previewEventStorePrune;
-        const backupPath = pruneBackupPath(path, databasePath);
-        const backup = preview.backupNeeded
-          ? {
-              path: backupPath,
-              neededBytes: backupBytesNeeded(yield* readStorage),
-              freeBytes: yield* freeBytes(path.dirname(backupPath)),
-            }
+        const backupPath = preview.backupNeeded
+          ? yield* unusedPruneBackupPath(fs, path, databasePath)
           : null;
+        const backup =
+          backupPath === null
+            ? null
+            : {
+                path: backupPath,
+                neededBytes: backupBytesNeeded(yield* readStorage),
+                freeBytes: yield* freeBytes(path.dirname(backupPath)),
+              };
         return {
           schedule: preview.schedule,
           prunableEventCount: preview.prunableEventCount,
@@ -312,13 +315,25 @@ const make = Effect.gen(function* () {
 export const layer = Layer.effect(DatabaseMaintenance, make);
 
 /** The copy taken before the first prune deletes anything. Restoring it brings back the whole log. */
-export const pruneBackupPath = (path: Path.Path, databasePath: string) => {
+export const pruneBackupPath = (path: Path.Path, databasePath: string, copy = 1) => {
   const extension = path.extname(databasePath);
   return path.join(
     path.dirname(databasePath),
-    `${path.basename(databasePath, extension)}-before-pruning${extension}`,
+    `${path.basename(databasePath, extension)}-before-pruning${copy === 1 ? "" : `-${copy}`}${extension}`,
   );
 };
+
+/** An earlier database at this path may have left its copy, which a new one must not replace. */
+const unusedPruneBackupPath = Effect.fnUntraced(function* (
+  fs: FileSystem.FileSystem,
+  path: Path.Path,
+  databasePath: string,
+) {
+  for (let copy = 1; ; copy++) {
+    const candidate = pruneBackupPath(path, databasePath, copy);
+    if (!(yield* fs.exists(candidate))) return candidate;
+  }
+});
 
 const backupBytesNeeded = (storage: {
   readonly databaseBytes: number;
@@ -335,7 +350,7 @@ export const backUpBeforePruning = Effect.fn("DatabaseMaintenance.backUpBeforePr
   const sql = yield* SqlClient.SqlClient;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const target = pruneBackupPath(path, databasePath);
+  const target = yield* unusedPruneBackupPath(fs, path, databasePath);
   const partial = `${target}.partial`;
   const neededBytes = backupBytesNeeded(yield* readStorage);
   const available = yield* freeBytes(path.dirname(target));

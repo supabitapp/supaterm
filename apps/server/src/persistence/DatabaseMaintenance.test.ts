@@ -315,6 +315,21 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         assert.deepEqual(steps, ["prune-events", "vacuum", "rebuild-search", "checkpoint"]);
         assert.equal(yield* eventCount(dbPath), 1);
         assert.equal(yield* eventCount(backupPath), 40);
+
+        // A new database at the same path gets a copy of its own; the earlier one is kept.
+        for (const suffix of ["", "-wal", "-shm"]) {
+          yield* fs.remove(`${dbPath}${suffix}`, { force: true });
+        }
+        yield* Effect.void.pipe(Effect.provide(Sqlite.layerFromPath(dbPath)));
+        yield* appendVisits(1, 20);
+        yield* maintenance.compact(dbPath, { history: "prune", vacuum: "when-deleted", onStep });
+        yield* markOldHistory;
+        const nextBackupPath = path.join(path.dirname(dbPath), "statev2-before-pruning-2.sqlite");
+        assert.equal((yield* maintenance.previewPrune(dbPath)).backup?.path, nextBackupPath);
+        yield* maintenance.compact(dbPath, { history: "prune", onStep });
+        assert.equal(yield* eventCount(dbPath), 1);
+        assert.equal(yield* eventCount(backupPath), 40);
+        assert.equal(yield* eventCount(nextBackupPath), 20);
       }),
     );
   },
