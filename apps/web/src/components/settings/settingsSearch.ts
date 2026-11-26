@@ -862,7 +862,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Orchestration skills",
     to: "/settings/skills",
     searchTerms: [
-      "supaterm commitee committee advisor install uninstall native skills agents delegation",
+      "committee and advisor supaterm commitee install uninstall native skills agents delegation",
     ],
   },
   {
