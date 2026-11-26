@@ -580,6 +580,31 @@ it.live("rewinds a linked project folder's repositories to how each was before t
   ),
 );
 
+it.live("rewinds a linked project folder's repositories to before the thread's first turn", () =>
+  withThread({ projectIsRepository: false }, (thread) =>
+    Effect.gen(function* () {
+      const { path, folders, write, read } = thread;
+      const api = path.join(folders.api, "a.txt");
+      const web = path.join(folders.web, "README.md");
+      assert.deepEqual(yield* thread.turn(1, Effect.all([write(api, "1"), write(web, "1")])), {
+        shop: [],
+        api: ["a.txt"],
+        web: ["README.md"],
+      });
+      assert.deepEqual((yield* thread.recorded).checkpoints, {
+        shop: { 0: "missing", 1: "missing" },
+        api: { 0: "ready", 1: "ready" },
+        web: { 0: "ready", 1: "ready" },
+      });
+
+      yield* thread.rewind(0);
+
+      assert.deepEqual(yield* Effect.all([read(api), read(web)]), [null, "start\n"]);
+      assert.deepEqual((yield* thread.recorded).runs, ["rolled_back"]);
+    }),
+  ),
+);
+
 it.live.each([
   { label: "whose baseline is lost", runSnapshot: "ready" },
   { label: "whose baseline is lost and whose run snapshot failed", runSnapshot: "error" },
