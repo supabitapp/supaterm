@@ -3,6 +3,7 @@ import type { ChangeRequestTerminology } from "@supaterm/client-runtime/source-c
 import type { PullRequestActor } from "@supaterm/contracts";
 import { TriangleAlertFilled } from "@supaterm/icons/nodes";
 import { Image } from "expo-image";
+import { useGT } from "gt-react-native";
 import { View } from "react-native";
 import { useResolveClassNames } from "uniwind";
 
@@ -10,17 +11,24 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { cn } from "../../lib/cn";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { NodeIcon } from "../../components/ui/NodeIcon";
+import { changeRequestTermKind } from "./pullRequestActions";
 
 export function PullRequestReadStatus(props: {
   readonly pending: boolean;
   readonly error: string | null;
   readonly terminology: ChangeRequestTerminology;
 }) {
+  const gt = useGT();
   return props.pending ? (
     <AppActivityIndicator className="my-12" colorClassName="accent-icon" />
   ) : props.error ? (
     <EmptyState
-      title={`Couldn't load this ${props.terminology.singular}`}
+      title={gt(
+        "Couldn't load this {term, select, mr {merge request} cr {change request} other {pull request}}",
+        {
+          term: changeRequestTermKind(props.terminology),
+        },
+      )}
       detail={props.error}
       variant="plain"
     />

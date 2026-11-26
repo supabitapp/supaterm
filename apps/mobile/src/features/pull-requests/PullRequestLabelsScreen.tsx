@@ -89,7 +89,9 @@ export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequest
           playOutcomeHaptic(false);
           const cause = squashAtomCommandFailure(response);
           Dialog.alert(
-            applied ? `Couldn't add ${names.join(", ")}` : `Couldn't remove ${names.join(", ")}`,
+            applied
+              ? gt("Couldn't add {labels}", { labels: names.join(", ") })
+              : gt("Couldn't remove {labels}", { labels: names.join(", ") }),
             cause instanceof Error ? cause.message : gt("The provider refused the change."),
           );
         };

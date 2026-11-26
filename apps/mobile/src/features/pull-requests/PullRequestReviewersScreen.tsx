@@ -7,6 +7,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { changeRequestTermKind } from "./pullRequestActions";
 import {
   hostReviewerQuery,
   reviewerCandidateView,
@@ -57,9 +58,9 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
   const target = pullRequestTarget(route.params);
   const detail = useEnvironmentQuery(composerPullRequests.detail(target));
   const pr = detail.data;
-  const { singular } = sourceControlClients.get(
-    (pr ?? route.params.initialSummary)?.provider,
-  ).changeRequest;
+  const term = changeRequestTermKind(
+    sourceControlClients.get((pr ?? route.params.initialSummary)?.provider).changeRequest,
+  );
   const canWrite = useAtomValue(
     composerPullRequests.requestReviewers.permissionAtom(target.environmentId),
   );
@@ -176,8 +177,8 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
           const logins = people.map((person) => person.login).join(", ");
           Dialog.alert(
             requested
-              ? `Couldn't request a review from ${logins}`
-              : `Couldn't remove the review request from ${logins}`,
+              ? gt("Couldn't request a review from {logins}", { logins })
+              : gt("Couldn't remove the review request from {logins}", { logins }),
             cause instanceof Error ? cause.message : gt("The provider refused the change."),
           );
         };
@@ -240,7 +241,10 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
               </Text>
               {!allowed ? (
                 <Text className="text-xs text-foreground-muted">
-                  Requesting reviews requires write access and an open {singular}.
+                  {gt(
+                    "Requesting reviews requires write access and an open {term, select, mr {merge request} cr {change request} other {pull request}}.",
+                    { term },
+                  )}
                 </Text>
               ) : null}
             </View>
@@ -267,7 +271,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
                   </Text>
                   <Text className="text-xs text-foreground-muted" numberOfLines={1}>
                     {item.login}
-                    {item.kind === "team" ? " · Team" : ""}
+                    {item.kind === "team" ? ` · ${gt("Team", { $context: "reviewer kind" })}` : ""}
                   </Text>
                 </View>
                 {requested ? (
@@ -330,7 +334,11 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
               <AppActivityIndicator />
             ) : (
               <Text className="text-danger-foreground">
-                {detail.error ?? `Couldn't load this ${singular}.`}
+                {detail.error ??
+                  gt(
+                    "Couldn't load this {term, select, mr {merge request} cr {change request} other {pull request}}.",
+                    { term },
+                  )}
               </Text>
             )
           ) : (

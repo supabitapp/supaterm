@@ -34,7 +34,7 @@ import {
   type EnvironmentPullRequestListEntry,
   type PullRequestListPages,
 } from "./pullRequestList";
-import { msg } from "gt-react-native";
+import { msg, useMessages } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 type ListTarget = { readonly environmentId: EnvironmentId; readonly input: PullRequestListInput };
@@ -188,6 +188,7 @@ const settledError = (result: AsyncResult.AsyncResult<string | null, never>) =>
   AsyncResult.isSuccess(result) && !result.waiting ? result.value : null;
 
 export function usePullRequestList(targets: readonly ListTarget[]) {
+  const messages = useMessages();
   const registry = use(RegistryContext);
   const scopeKey = JSON.stringify(targets);
   const sources = useAtomValue(sourcesFamily(scopeKey));
@@ -341,11 +342,14 @@ export function usePullRequestList(targets: readonly ListTarget[]) {
           {
             environmentId: target.environmentId,
             projectTitle: "",
-            message: cause instanceof Error ? cause.message : "Couldn't load pull requests.",
+            message:
+              cause instanceof Error
+                ? cause.message
+                : messages(msg("Couldn't load pull requests.")),
           },
         ];
       }),
-    [sources],
+    [sources, messages],
   );
   const listing = useMemo(
     () => ({ ...data, entries, errors: [...data.errors, ...errors] }),

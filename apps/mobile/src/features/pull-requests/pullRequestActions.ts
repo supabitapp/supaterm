@@ -59,6 +59,11 @@ export function changeRequestTermKind(
   return "pr";
 }
 
+/** Select key for a merge method in translated sentences; ICU keys cannot contain "-". */
+export function mergeMethodKind(method: PullRequestMergeMethod | undefined) {
+  return method === "fast-forward" ? "fastForward" : (method ?? "other");
+}
+
 export function pullRequestActionLabel(
   action: PullRequestAction,
   terminology: ChangeRequestTerminology,

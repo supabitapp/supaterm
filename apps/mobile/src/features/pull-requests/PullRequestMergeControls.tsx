@@ -17,6 +17,8 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import {
   allowedMergeMethods,
   canPerformPullRequestAction,
+  changeRequestTermKind,
+  mergeMethodKind,
   mergeUnavailableReason,
   MERGE_METHODS,
   PR_ACTION_ICONS,
@@ -32,7 +34,7 @@ import type { AppSymbolName } from "../../components/ui/AppSymbol";
 import type { PullRequestStackState } from "./usePullRequestStack";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import * as Haptics from "expo-haptics";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 export function PullRequestMergeControls(props: {
   readonly pr: PullRequestDetail;
@@ -40,6 +42,7 @@ export function PullRequestMergeControls(props: {
   readonly stack: PullRequestStackState;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const { pr, stack } = props;
   const terminology = sourceControlClients.get(pr.provider).changeRequest;
   const target = pullRequestTarget(props.params);
@@ -76,8 +79,8 @@ export function PullRequestMergeControls(props: {
     permissions.connected && stack.supportsStackActions && !stack.isFresh && !stack.error;
   const reason =
     (!permissions.connected
-      ? "Reconnect to merge."
-      : mergeUnavailableReason(pr, permissions.canWrite, terminology)) ??
+      ? gt("Reconnect to merge.")
+      : mergeUnavailableReason(pr, permissions.canWrite, terminology, m)) ??
     (stack.stack
       ? !stack.supportsStackActions
         ? gt("This environment can display stacks but cannot merge them.")
@@ -92,9 +95,12 @@ export function PullRequestMergeControls(props: {
   const canMerge = !busy && method !== undefined && !reason;
   const label = method
     ? scope && scope.layers.length > 1
-      ? `${MERGE_METHODS[method].title} stack (${scope.layers.length})`
-      : MERGE_METHODS[method].title
-    : "Merge unavailable";
+      ? gt(
+          "{kind, select, squash {Squash and merge stack ({count})} merge {Create a merge commit stack ({count})} rebase {Rebase and merge stack ({count})} other {Fast-forward merge stack ({count})}}",
+          { kind: mergeMethodKind(method), count: scope.layers.length },
+        )
+      : m(MERGE_METHODS[method].title)
+    : gt("Merge unavailable");
   const nextAction =
     pr.state === "closed" ? "reopen" : pr.state === "open" && pr.isDraft ? "ready" : null;
   // States the button itself names, instead of a reason line under it. Draft and
@@ -107,7 +113,7 @@ export function PullRequestMergeControls(props: {
   } | null =
     nextAction && stateAction.available(nextAction)
       ? {
-          label: pullRequestActionLabel(nextAction, terminology),
+          label: pullRequestActionLabel(nextAction, terminology, m),
           icon: PR_ACTION_ICONS[nextAction],
           final: nextAction === "reopen",
           action: nextAction,
@@ -133,7 +139,15 @@ export function PullRequestMergeControls(props: {
               ? { label: gt("Resolve conflicts to merge"), icon: PullRequestGlyph.conflicting }
               : pr.autoMergeEnabled
                 ? {
-                    label: `Auto-merge pending${pr.autoMergeMethod ? ` (${pr.autoMergeMethod})` : ""}`,
+                    label: pr.autoMergeMethod
+                      ? gt(
+                          "Auto-merge pending ({kind, select, squash {squash} merge {merge} rebase {rebase} fastForward {fast-forward} other {{method}}})",
+                          {
+                            kind: mergeMethodKind(pr.autoMergeMethod),
+                            method: pr.autoMergeMethod,
+                          },
+                        )
+                      : gt("Auto-merge pending"),
                     icon: "clock",
                   }
                 : checkingStack && !busy
@@ -197,7 +211,12 @@ export function PullRequestMergeControls(props: {
                       !allowedMergeMethods(fresh).includes(method)
                     )
                       throw new Error(
-                        `The ${terminology.singular} changed. Refresh before merging.`,
+                        gt(
+                          "The {term, select, mr {merge request} cr {change request} other {pull request}} changed. Refresh before merging.",
+                          {
+                            term: changeRequestTermKind(terminology),
+                          },
+                        ),
                       );
                     return method;
                   },
@@ -230,28 +249,72 @@ export function PullRequestMergeControls(props: {
     const title =
       action === "merge"
         ? scope && scope.layers.length > 1
-          ? `Merge ${scope.layers.length} stack layers?`
-          : `${pullRequestActionLabel("merge", terminology)}?`
+          ? gt(
+              "{count, plural, one {Merge {count} stack layers?} other {Merge {count} stack layers?}}",
+              { count: scope.layers.length },
+            )
+          : gt(
+              "Merge {term, select, mr {merge request} cr {change request} other {pull request}}?",
+              { term: changeRequestTermKind(terminology) },
+            )
         : action === "enable-auto-merge"
           ? gt("Enable auto-merge?")
           : gt("Disable auto-merge?");
     const message =
       action === "merge" && scope
-        ? `Merge ${scope.layers.map((layer) => `#${layer.number}`).join(" → ")} into ${stack.stack?.base} using ${method}. Layers above #${pr.number} stay open.`
+        ? gt(
+            "Merge {layers} into {base} using {kind, select, squash {squash} merge {merge} rebase {rebase} fastForward {fast-forward} other {{method}}}. Layers above #{number} stay open.",
+            {
+              layers: scope.layers.map((layer) => `#${layer.number}`).join(" → "),
+              base: stack.stack?.base ?? "",
+              kind: mergeMethodKind(method),
+              method: method ?? "",
+              number: pr.number,
+            },
+          )
         : action === "enable-auto-merge" && stackAutoMerge && scope
-          ? `Merge ${scope.layers.map((layer) => `#${layer.number}`).join(" → ")} into ${stack.stack?.base ?? ""} using ${method} once their requirements are met. This may happen immediately.`
+          ? gt(
+              "Merge {layers} into {base} using {kind, select, squash {squash} merge {merge} rebase {rebase} fastForward {fast-forward} other {{method}}} once their requirements are met. This may happen immediately.",
+              {
+                layers: scope.layers.map((layer) => `#${layer.number}`).join(" → "),
+                base: stack.stack?.base ?? "",
+                kind: mergeMethodKind(method),
+                method: method ?? "",
+              },
+            )
           : action === "enable-auto-merge"
-            ? `Merge #${pr.number} using ${method} when its requirements are met. This may happen immediately.`
+            ? gt(
+                "Merge #{number} using {kind, select, squash {squash} merge {merge} rebase {rebase} fastForward {fast-forward} other {{method}}} when its requirements are met. This may happen immediately.",
+                { number: pr.number, kind: mergeMethodKind(method), method: method ?? "" },
+              )
             : action === "disable-auto-merge"
-              ? `Stop the provider from automatically merging this ${terminology.singular}.`
-              : `Merge #${pr.number} into ${pr.baseBranch} using ${method}.`;
+              ? gt(
+                  "Stop the provider from automatically merging this {term, select, mr {merge request} cr {change request} other {pull request}}.",
+                  {
+                    term: changeRequestTermKind(terminology),
+                  },
+                )
+              : gt(
+                  "Merge #{number} into {branch} using {kind, select, squash {squash} merge {merge} rebase {rebase} fastForward {fast-forward} other {{method}}}.",
+                  {
+                    number: pr.number,
+                    branch: pr.baseBranch,
+                    kind: mergeMethodKind(method),
+                    method: method ?? "",
+                  },
+                );
     Dialog.alert(title, message, [
       {
         text: gt("Cancel"),
         style: "cancel",
       },
       {
-        text: action === "merge" ? label : title.replace("?", ""),
+        text:
+          action === "merge"
+            ? label
+            : action === "enable-auto-merge"
+              ? gt("Enable auto-merge")
+              : gt("Disable auto-merge"),
         onPress: () => void perform(action, shownHeadSha),
       },
     ]);
@@ -270,7 +333,14 @@ export function PullRequestMergeControls(props: {
           status
             ? status.label
             : scope
-              ? `${label}, ${scope.layers.length} stack layers through #${pr.number}`
+              ? gt(
+                  "{count, plural, one {{label}, {count} stack layers through '#'{number}} other {{label}, {count} stack layers through '#'{number}}}",
+                  {
+                    label,
+                    count: scope.layers.length,
+                    number: pr.number,
+                  },
+                )
               : label
         }
         icon={status?.icon ?? PullRequestGlyph.merged}
@@ -286,7 +356,7 @@ export function PullRequestMergeControls(props: {
             : [
                 ...methods.map((id) => ({
                   id,
-                  title: MERGE_METHODS[id].title,
+                  title: m(MERGE_METHODS[id].title),
                   state: id === method ? ("on" as const) : ("off" as const),
                   attributes: { disabled: !canMerge && !canAutoMerge },
                 })),

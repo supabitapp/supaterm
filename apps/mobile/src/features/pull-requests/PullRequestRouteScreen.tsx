@@ -101,10 +101,11 @@ import {
   capitalizeTerm,
   sourceControlClients,
 } from "@supaterm/client-runtime/source-control-clients";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages, Var } from "gt-react-native";
 
 function usePullRequestActivityRows(params: PullRequestParams, filter: ActivityFilter) {
   const navigation = useNavigation();
+  const messages = useMessages();
   const result = useEnvironmentQuery(composerPullRequests.activity(requestTarget(params)));
   const detail = useEnvironmentQuery(composerPullRequests.detail(requestTarget(params)));
   const permissions = usePullRequestPermissions(params, detail.data);
@@ -117,6 +118,7 @@ function usePullRequestActivityRows(params: PullRequestParams, filter: ActivityF
       navigation,
       { permissions, onChanged: result.refresh },
       filter.newestFirst,
+      messages,
     );
     if (!rows.length)
       rows.push({
@@ -171,7 +173,8 @@ function PullRequestIdentity(props: {
 }) {
   const gt = useGT();
   const { pr } = props;
-  const status = pullRequestStatus({ state: pr.state, isDraft: pr.isDraft === true });
+  const messages = useMessages();
+  const status = pullRequestStatus({ state: pr.state, isDraft: pr.isDraft === true }, messages);
   return (
     <View className="gap-3">
       <View className="flex-row flex-wrap items-center gap-2">
@@ -201,7 +204,13 @@ function PullRequestIdentity(props: {
           {pr.author?.login ?? gt("Unknown author")}
         </Text>
         <Text className="shrink text-right text-2xs text-foreground-muted" numberOfLines={1}>
-          Updated <RelativeTime timestamp={pr.updatedAt} /> ago
+          <T>
+            Updated{" "}
+            <Var>
+              <RelativeTime timestamp={pr.updatedAt} />
+            </Var>{" "}
+            ago
+          </T>
         </Text>
       </View>
       <View className="flex-row items-start gap-1.5">
@@ -330,6 +339,7 @@ function PullRequestOverview(props: {
 
 export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestParams>) {
   const gt = useGT();
+  const messages = useMessages();
   const returnToList = useAndroidWorkspaceBack();
   const { layout } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
@@ -500,7 +510,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
     pr &&
     action.confirm(
       "delete-branch",
-      pullRequestActionLabel("delete-branch", terminology),
+      pullRequestActionLabel("delete-branch", terminology, messages),
       `Delete ${pr.headBranch} from ${pr.headRepositoryNameWithOwner ?? pr.repository}? Local branches and worktrees are not changed.`,
     );
   const stack = usePullRequestStack(params, pr);
@@ -605,7 +615,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         ? [
             {
               id: "open-on-provider",
-              title: openOnProviderLabel(identity.provider),
+              title: openOnProviderLabel(identity.provider, messages),
               icon: "arrow.up.right",
               onPress: () => void tryOpenExternalUrl(identity.url, "pull-request"),
             },
@@ -627,7 +637,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         ? [
             {
               id: "state",
-              title: pullRequestActionLabel(stateAction, terminology),
+              title: pullRequestActionLabel(stateAction, terminology, messages),
               icon: PR_ACTION_ICONS[stateAction],
               destructive: stateAction === "close",
               onPress: runStateAction,
@@ -638,7 +648,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         ? [
             {
               id: "delete-branch",
-              title: pullRequestActionLabel("delete-branch", terminology),
+              title: pullRequestActionLabel("delete-branch", terminology, messages),
               icon: PR_ACTION_ICONS["delete-branch"],
               destructive: true,
               disabled: !action.available("delete-branch"),

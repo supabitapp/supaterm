@@ -6,7 +6,7 @@ import { SymbolView } from "../../../components/ui/AppSymbol";
 import { PR_ROW_EXIT, PR_ROW_LAYOUT } from "../pullRequestAnimations";
 import { guideNoticeState } from "./reviewGuideState";
 import type { useReviewGuide } from "./useReviewGuide";
-import { useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 const NOTICE_ENTER = FadeIn.delay(180).duration(120).reduceMotion(ReduceMotion.System);
 
@@ -59,11 +59,15 @@ export function GuideNotice({ state }: { readonly state: ReturnType<typeof useRe
         )}
         {notice.kind === "writing" && state.data?.run?._tag === "Running" ? (
           <Text className="shrink text-xs text-foreground-muted">
-            Started{" "}
-            {new Date(state.data.run.startedAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            <T>
+              Started{" "}
+              <Var>
+                {new Date(state.data.run.startedAt).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Var>
+            </T>
           </Text>
         ) : null}
       </View>
