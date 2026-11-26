@@ -108,6 +108,12 @@ const policies = (): ReadonlyArray<Policy> => [
     toggle: "Relay",
   },
   {
+    id: "BrowserCookieImport",
+    title: "Allow importing browser cookies",
+    help: "Disabled stops users from importing cookies from another browser into Supaterm's browser.",
+    toggle: "BrowserCookieImport",
+  },
+  {
     id: "PreviewTunnel",
     title: "Allow the preview tunnel",
     help: "Disabled stops other devices from opening this machine's local servers through Supaterm: no in-app browser tabs loaded on the device, no Open on this device, no port forwarding. Browser tabs still stream from this machine.",

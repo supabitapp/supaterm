@@ -78,10 +78,14 @@ it.layer(NodeServices.layer)("ManagedPolicy.load", (it) => {
         JSON.stringify({
           schemaVersion: 1,
           organization: "Example Corp",
-          limits: { relay: false, previewTunnel: false },
+          limits: { relay: false, previewTunnel: false, browserCookieImport: false },
         }),
       );
-      assert.deepEqual(policy.summary?.limits, { relay: false, previewTunnel: false });
+      assert.deepEqual(policy.summary?.limits, {
+        relay: false,
+        previewTunnel: false,
+        browserCookieImport: false,
+      });
       assert.equal(ManagedPolicy.deniedBy(policy, "previewTunnel"), "Example Corp");
       const allowing = yield* loadFrom(
         JSON.stringify({

@@ -129,12 +129,14 @@ function summarizeLimits(
   document: ManagedPolicyDocument,
   lockedInstanceFields: Readonly<Record<string, ReadonlyArray<string>>>,
 ): LimitsSummary {
-  const { maxRuntimeMode, clients, previewTunnel, providers, updates } = document.limits ?? {};
+  const { maxRuntimeMode, clients, browserCookieImport, previewTunnel, providers, updates } =
+    document.limits ?? {};
   const relay = ManagedLimits.allowsRelay({ document });
   return {
     ...(maxRuntimeMode === undefined ? {} : { maxRuntimeMode }),
     ...(clients === undefined ? {} : { clients }),
     ...(relay ? {} : { relay: false }),
+    ...(browserCookieImport === undefined ? {} : { browserCookieImport }),
     ...(previewTunnel === undefined ? {} : { previewTunnel }),
     ...(providers?.allowedDrivers === undefined && Object.keys(lockedInstanceFields).length === 0
       ? {}

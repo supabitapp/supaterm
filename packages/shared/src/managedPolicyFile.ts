@@ -111,6 +111,7 @@ export const WINDOWS_POLICY_VALUES = {
   Settings: { type: "json", path: ["settings"] },
   MaxRuntimeMode: { type: "string", path: ["limits", "maxRuntimeMode"] },
   Relay: { type: "boolean", path: ["limits", "relay"] },
+  BrowserCookieImport: { type: "boolean", path: ["limits", "browserCookieImport"] },
   PreviewTunnel: { type: "boolean", path: ["limits", "previewTunnel"] },
   ProviderInstances: { type: "json", path: ["limits", "providers", "instances"] },
   UpdatesMode: { type: "string", path: ["limits", "updates", "mode"] },

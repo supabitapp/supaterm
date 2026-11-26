@@ -2,9 +2,11 @@
 
 A managed policy lets an administrator set defaults, lock settings, and restrict what Supaterm can
 do for everyone on a machine: the broadest permission mode, which clients may connect, the
-Encrypted Relay, the preview tunnel, which providers run, and how Supaterm updates. The Supaterm
-server on that machine enforces the policy for every client that connects to it, whether desktop,
-web, or mobile. Clients show "Managed by <organization>" on the controls it locks.
+Encrypted Relay, the preview tunnel, importing browser cookies, which providers run, and how
+Supaterm updates. The Supaterm server on that machine enforces the policy for every client that
+connects to it, whether desktop, web, or mobile, and the desktop app applies it to its own updates,
+network access, WSL backend, and cookie import. Clients show "Managed by <organization>" on the
+controls it locks.
 
 ## Roll out a policy
 
@@ -117,6 +119,7 @@ optional. A missing limit restricts nothing.
     "clients": ["desktop", "local-browser", "remote"],
     "relay": false,
     "previewTunnel": false,
+    "browserCookieImport": false,
     "providers": {
       "allowedDrivers": ["claudeAgent", "codex"],
       "instances": {
@@ -193,6 +196,12 @@ the preview tunnel, whatever the
 forwarding and **Open on this device** are unavailable. Browser tabs keep working by streaming from
 the machine.
 
+### Browser cookie import
+
+`"browserCookieImport": false` stops the desktop app from importing cookies from other browsers on
+the machine into Supaterm's browser. Cookies imported earlier stay until a user clears them from
+the browser profile.
+
 ### Providers
 
 - `providers.allowedDrivers` lists the providers that may run: `codex`, `claudeAgent`, `cursor`,
@@ -264,7 +273,6 @@ same values can stay: they succeed without changing anything.
 
 ## What a policy does not cover
 
-- **The desktop app's own controls.** Importing cookies from other browsers is not managed yet.
 - **Provider CLIs.** Agents run through each provider's own CLI, which reads its own configuration,
   such as `~/.claude`, and which a user can also run outside Supaterm. Restrict those CLIs with their
   own managed configuration, such as Claude Code's managed settings.

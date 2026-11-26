@@ -232,6 +232,7 @@ describe("readManagedPolicy", () => {
               // Registry names ignore case.
               text("maxRuntimeMode", "auto-accept-edits"),
               dword("Relay", 0),
+              dword("BrowserCookieImport", 0),
               text("Settings", '{"enableAgentBrowserAccess": {"value": false, "locked": true}}'),
               text("UpdatesMode", "off"),
               dword("AllowNightly", 1),
@@ -253,6 +254,7 @@ describe("readManagedPolicy", () => {
           limits: {
             maxRuntimeMode: "auto-accept-edits",
             relay: false,
+            browserCookieImport: false,
             updates: { mode: "off", allowNightly: true },
             clients: ["desktop", "local-browser", "remote"],
             providers: { allowedDrivers: ["codex", "claudeAgent", "UnknownDriver"] },

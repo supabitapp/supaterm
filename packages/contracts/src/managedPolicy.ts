@@ -78,6 +78,8 @@ export const ManagedPolicyLimits = Schema.Struct({
   clients: Schema.optionalKey(Schema.NonEmptyArray(ManagedPolicyClient)),
   /** `false` turns the Encrypted Relay off: no device pairs or connects through a relay. */
   relay: Schema.optionalKey(Schema.Boolean),
+  /** `false` stops the desktop app importing cookies from other browsers on this machine. */
+  browserCookieImport: Schema.optionalKey(Schema.Boolean),
   /** `false` turns the preview tunnel off: no client reaches this machine's loopback ports. */
   previewTunnel: Schema.optionalKey(Schema.Boolean),
   providers: Schema.optionalKey(ManagedProviderLimits),
@@ -91,6 +93,7 @@ export const ManagedPolicySummaryLimits = Schema.Struct({
   clients: Schema.optionalKey(Schema.NonEmptyArray(ManagedPolicyClient)),
   /** `false` also when `clients` leaves out `remote`, since the relay is remote access. */
   relay: Schema.optionalKey(Schema.Boolean),
+  browserCookieImport: Schema.optionalKey(Schema.Boolean),
   previewTunnel: Schema.optionalKey(Schema.Boolean),
   providers: Schema.optionalKey(
     Schema.Struct({
@@ -160,7 +163,7 @@ export function isManagedSettingPath(
 }
 
 /** The one shape users see when policy refuses something: "Example Corp's policy does not allow the Encrypted Relay." */
-function managedPolicyDeniedMessage(organization: string, capability: string): string {
+export function managedPolicyDeniedMessage(organization: string, capability: string): string {
   return `${organization}'s policy does not allow ${capability}.`;
 }
 
@@ -204,6 +207,7 @@ export function clampManagedRuntimeMode(
 const CAPABILITY_LABELS = {
   remoteClients: "connecting from other devices",
   relay: "the Encrypted Relay",
+  browserCookieImport: "importing browser cookies",
   previewTunnel: "opening this machine's local servers on other devices",
 } as const;
 
