@@ -28,7 +28,13 @@ const settings = Schema.decodeSync(ServerSettings)({
     bitbucket: { accessToken: personal("op://bb") },
   },
   easDeviceHosts: [
-    { kind: "eas", id: "eas", label: "Expo Simulators", accessToken: personal("op://expo") },
+    {
+      kind: "eas",
+      id: "eas",
+      label: "Expo Simulators",
+      accessToken: "",
+      accessTokenSecret: personal("op://expo"),
+    },
   ],
 });
 

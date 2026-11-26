@@ -8,6 +8,7 @@ import {
   AuthAccessReadScope,
   ServerSettingsPatch,
   ProviderInstanceMutation,
+  changesProjectScripts,
   requiredScopesForServerSettingsPatch,
   type SavedProjectScripts,
   requiredScopesForProjectMutation,
@@ -261,7 +262,8 @@ const SettingsUpdate = Schema.Struct({
   providerInstanceMutation: Schema.optionalKey(ProviderInstanceMutation),
 });
 
-const decodeSettingsUpdate = Schema.decodeUnknownSync(SettingsUpdate);
+// Middleware receives the payload already decoded, so it is checked against the decoded shape.
+const decodeSettingsUpdate = Schema.decodeUnknownSync(Schema.toType(SettingsUpdate));
 const decodeAssetCreateUrlInput = Schema.decodeUnknownSync(AssetCreateUrlInput);
 
 const requiredScopesForSettingsUpdate = (
@@ -348,6 +350,14 @@ const requiredScopesForRpcCall = (
     ? [...scopes, AuthProvidersManageScope]
     : scopes;
 };
+
+/** The socket checks a stale snapshot, so the write repeats this under its lock. */
+export const authorizeProjectScripts =
+  (scopes: ReadonlyArray<AuthEnvironmentScope>, patch: ServerSettingsPatch) =>
+  (saved: SavedProjectScripts) =>
+    scopes.includes(AuthOrchestrationOperateScope) || !changesProjectScripts(patch, saved)
+      ? Effect.void
+      : Effect.fail(rpcAuthorizationError(AuthOrchestrationOperateScope));
 
 /** Without `readSaved`, any project script a settings patch carries needs `orchestration:operate`. */
 export const layer = <E = never>(

@@ -22,7 +22,10 @@ script itself, on worktree creation and on done, so saving one needs
 `orchestration:operate` on top of `settings:write`, whether it arrives in a
 settings patch or a project update. Clients resend a project's whole override
 entry when they change any of its settings, so the server compares a patch's
-scripts with the saved ones and charges only for a change.
+scripts with the saved ones and charges only for a change. Dropping a project's
+override is a change, because the project then runs the environment's scripts.
+The socket's check reads settings before the write takes its lock, so the write
+repeats the comparison against the settings it replaces.
 
 The access read model contains pairing metadata, never recoverable pairing
 secrets. Only the creation response returns the raw credential. Otherwise read

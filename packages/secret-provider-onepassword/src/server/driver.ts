@@ -28,21 +28,6 @@ const runOnePassword = Effect.fn("OnePasswordDriver.runOnePassword")(function* (
 // A secret is passed on verbatim; surrounding whitespace can be part of it.
 const nonEmpty = (value: string) => (value.trim().length > 0 ? value : undefined);
 
-const readOne = Effect.fn("OnePasswordDriver.readOne")(function* (
-  account: OnePasswordAccount,
-  reference: string,
-) {
-  const result = yield* runOnePassword(["read", `--account=${account}`, "--no-newline", reference]);
-  if (result.code !== 0) {
-    yield* Effect.logWarning("Could not read secret from 1Password", {
-      stage: "read",
-      exitCode: result.code,
-    });
-    return undefined;
-  }
-  return nonEmpty(result.stdout);
-});
-
 // One `op inject` costs one unlock for every reference in the template. `op` ignores piped stdin
 // from Node, so the template goes through a temp file. A random separator after every reference
 // keeps one secret from shifting the others, and leaves any trailing newline outside the values.
@@ -75,6 +60,10 @@ const readTogether = Effect.fn("OnePasswordDriver.readTogether")(function* (
   }
   return values.map(nonEmpty);
 }, Effect.scoped);
+
+// Process arguments show in process listings and diagnostics, so even one reference is templated.
+const readOne = (account: OnePasswordAccount, reference: string) =>
+  readTogether(account, [reference]).pipe(Effect.map((values) => values?.[0]));
 
 const recover = <A, E extends { readonly _tag: string }, R>(
   stage: "read" | "inject",

@@ -2653,9 +2653,17 @@ export const layerWsRpc = (
                 )
               : undefined;
             const nextPatch = { ...patch, ...(deviceHosts ? { deviceHosts } : {}) };
+            const authorize = RpcAuthorization.authorizeProjectScripts(
+              currentSession.scopes,
+              nextPatch,
+            );
             const settings = yield* providerInstanceMutation === undefined
-              ? serverSettings.updateSettings(nextPatch)
-              : serverSettings.updateProviderInstance(providerInstanceMutation, nextPatch);
+              ? serverSettings.updateSettings(nextPatch, authorize)
+              : serverSettings.updateProviderInstance(
+                  providerInstanceMutation,
+                  nextPatch,
+                  authorize,
+                );
             return ServerSettings.redactServerSettingsForClient(settings, settingsClient);
           }),
         [WS_METHODS.serverDiscoverSourceControl]: () => sourceControlDiscovery.discover,
@@ -2997,7 +3005,6 @@ export const layerWsRpc = (
             if (
               input.resource._tag === "attachment" ||
               input.resource._tag === "native-app-icon" ||
-              input.resource._tag === "environment-theme-background" ||
               input.resource._tag === "tool-output-image" ||
               input.resource._tag === SOURCE_CONTROL_MEDIA_ASSET ||
               // A network path is served only from the thread's project, looked up below.
@@ -3006,6 +3013,12 @@ export const layerWsRpc = (
                 !isNetworkPath(input.resource.path))
             ) {
               return yield* issueAssetUrl({ resource: input.resource });
+            }
+            if (input.resource._tag === "environment-theme-background") {
+              return yield* issueAssetUrl({
+                resource: input.resource,
+                publishedThemes: yield* environmentTheme.current,
+              });
             }
             if (input.resource._tag === "draft-workspace-file") {
               return yield* issueAssetUrl({

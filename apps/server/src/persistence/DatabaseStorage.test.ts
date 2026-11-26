@@ -182,8 +182,9 @@ it.effect("shows a failed pruning backup until a later pass backs up", () =>
     const path = yield* Path.Path;
     const config = yield* ServerConfig.ServerConfig;
     const backupPath = DatabaseMaintenance.pruneBackupPath(path, config.dbPath);
-    // A directory in its place fails the backup's final rename.
-    yield* fs.makeDirectory(path.join(backupPath, "occupied"), { recursive: true });
+    // A directory where the copy is written fails the backup before it starts.
+    const partialPath = `${backupPath}.partial`;
+    yield* fs.makeDirectory(path.join(partialPath, "occupied"), { recursive: true });
     yield* Effect.gen(function* () {
       const storage = yield* DatabaseStorage.DatabaseStorage;
       const nextFailure = (shown: boolean) =>
@@ -198,7 +199,7 @@ it.effect("shows a failed pruning backup until a later pass backs up", () =>
       yield* TestClock.adjust(minute);
       assert.deepEqual(yield* nextFailure(true), { _tag: "Failed" });
 
-      yield* fs.remove(backupPath, { recursive: true });
+      yield* fs.remove(partialPath, { recursive: true });
       yield* TestClock.adjust("6 hours");
       assert.isUndefined(yield* nextFailure(false));
       assert.isTrue(yield* fs.exists(backupPath));

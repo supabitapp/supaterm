@@ -37,6 +37,7 @@ import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import { assetFileResponse } from "../http.ts";
 import { ASSET_ROUTE_PREFIX, issueAssetUrl, readMcpAppHtml, resolveAsset } from "./AssetAccess.ts";
 import * as NativeAppIconResolver from "./NativeAppIconResolver.ts";
+import { readPublishedThemes } from "../environmentTheme.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 import { fakeSourceControlDriverInstance } from "@supaterm/source-control-testing/fakeSourceControlDriver";
@@ -226,28 +227,46 @@ describe("AssetAccess", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  it.effect("serves the background image published beside an environment theme", () =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const { environmentThemesDir } = yield* ServerConfig.ServerConfig;
-      yield* fs.makeDirectory(environmentThemesDir, { recursive: true });
-      const imagePath = `${environmentThemesDir}/frieren.png`;
-      yield* fs.writeFile(imagePath, screenshotPng);
-      const result = yield* issueAssetUrl({
-        resource: { _tag: "environment-theme-background", themeId: "frieren" },
-      });
-      const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
-      const separator = suffix.indexOf("/");
-      const token = suffix.slice(0, separator);
-      const asset = yield* resolveAsset(token, suffix.slice(separator + 1));
-      expect(asset).toMatchObject({ kind: "file", path: yield* fs.realPath(imagePath) });
-      if (asset?.kind !== "file") return;
-      const response = yield* assetFileResponse(asset);
-      expect(response.headers["content-type"]).toBe("image/png");
+  it.effect(
+    "serves a published theme's background image, and only the file it was issued for",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const { environmentThemesDir } = yield* ServerConfig.ServerConfig;
+        yield* fs.makeDirectory(environmentThemesDir, { recursive: true });
+        const imagePath = `${environmentThemesDir}/frieren.png`;
+        yield* fs.writeFile(imagePath, screenshotPng);
+        const resource = { _tag: "environment-theme-background", themeId: "frieren" } as const;
+        const unpublished = yield* issueAssetUrl({ resource }).pipe(Effect.flip);
+        expect(unpublished._tag).toBe("AssetWorkspaceAssetNotFoundError");
 
-      yield* fs.remove(imagePath);
-      expect(yield* resolveAsset(token, suffix.slice(separator + 1))).toBeNull();
-    }).pipe(Effect.scoped, Effect.provide(layerTest)),
+        yield* fs.writeFileString(
+          `${environmentThemesDir}/frieren.json`,
+          JSON.stringify({
+            name: "Frieren",
+            appearance: "dark",
+            canvas: "#1a1b26",
+            accent: "#7aa2f7",
+          }),
+        );
+        const publishedThemes = yield* readPublishedThemes(environmentThemesDir);
+        const result = yield* issueAssetUrl({ resource, publishedThemes });
+        const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+        const separator = suffix.indexOf("/");
+        const token = suffix.slice(0, separator);
+        const asset = yield* resolveAsset(token, suffix.slice(separator + 1));
+        expect(asset).toMatchObject({ kind: "file", path: yield* fs.realPath(imagePath) });
+        if (asset?.kind !== "file") return;
+        const response = yield* assetFileResponse(asset);
+        expect(response.headers["content-type"]).toBe("image/png");
+
+        const replacementPath = `${environmentThemesDir}/replacement.png`;
+        yield* fs.writeFile(replacementPath, screenshotPng);
+        yield* fs.rename(replacementPath, imagePath);
+        expect(yield* resolveAsset(token, suffix.slice(separator + 1))).toBeNull();
+        const stale = yield* issueAssetUrl({ resource, publishedThemes }).pipe(Effect.flip);
+        expect(stale._tag).toBe("AssetWorkspaceAssetNotFoundError");
+      }).pipe(Effect.scoped, Effect.provide(layerTest)),
   );
 
   it.effect("issues exact URLs for media and browser documents outside the workspace", () =>

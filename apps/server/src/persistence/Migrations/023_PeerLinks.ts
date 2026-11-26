@@ -23,17 +23,23 @@ export default Effect.gen(function* () {
     )
   `;
 
-  // Keep this predicate aligned with ProjectionStore's remote task reads.
-  yield* sql`
-    CREATE INDEX IF NOT EXISTS orchestration_v2_projection_subagents_remote_idx
-    ON orchestration_v2_projection_subagents(thread_id, subagent_id)
-    WHERE origin = 'app_owned'
-      AND child_thread_id IS NULL
-      AND CASE WHEN json_valid(payload_json)
-        THEN json_type(payload_json, '$.remoteChild') = 'object'
-          OR json_type(payload_json, '$.remoteLaunch') = 'object'
-        ELSE 0 END
+  // Released builds read remote tasks through this index by name, with this predicate. The
+  // predicate fails on an unreadable payload, so a database holding one goes without it.
+  const unreadable = yield* sql`
+    SELECT 1 FROM orchestration_v2_projection_subagents WHERE NOT json_valid(payload_json) LIMIT 1
   `;
+  if (unreadable.length === 0) {
+    yield* sql`
+      CREATE INDEX IF NOT EXISTS orchestration_v2_projection_subagents_remote_idx
+      ON orchestration_v2_projection_subagents(thread_id, subagent_id)
+      WHERE origin = 'app_owned'
+        AND child_thread_id IS NULL
+        AND (
+          json_type(payload_json, '$.remoteChild') = 'object'
+          OR json_type(payload_json, '$.remoteLaunch') = 'object'
+        )
+    `;
+  }
 
   // Keep this predicate aligned with ProjectionStore's waiting link card query.
   yield* sql`

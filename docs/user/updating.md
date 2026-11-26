@@ -48,6 +48,12 @@ A background service cannot move to an older release remotely. When Stable is
 older than its Nightly, run `supaterm update --channel stable --allow-downgrade` on
 that machine.
 
+`--allow-downgrade`, like installing an older desktop app by hand, skips the
+database check below. The older release opens the database but drops what it
+does not know from any thread it changes, even by opening it: linked issues and
+the notice that a rewind left some repositories unrestored. Updating again does
+not bring them back.
+
 A switch is blocked for a machine whose database already has changes the
 target release does not support, or when Supaterm cannot confirm that it does.
 The dialog says why: update a machine on its current track first when its

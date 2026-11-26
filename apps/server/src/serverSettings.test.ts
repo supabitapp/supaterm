@@ -52,6 +52,9 @@ const decodeOlderClientProviderEnvironment = Schema.decodeUnknownEffect(
     }),
   ),
 );
+const decodeOlderServerEasDeviceHosts = Schema.decodeUnknownEffect(
+  Schema.Array(Schema.Struct({ accessToken: Schema.String })),
+);
 const decodeServerSettings = Schema.decodeUnknownEffect(ServerSettings);
 const decodeServerSettingsJson = Schema.decodeUnknownEffect(Schema.fromJsonString(ServerSettings));
 const decodeServerSettingsPatch = Schema.decodeUnknownEffect(ServerSettingsPatch);
@@ -1688,6 +1691,10 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
             },
           },
         });
+        // A server from before references decodes the whole file and this token as a string.
+        yield* decodeOlderServerEasDeviceHosts(
+          JSON.parse(yield* fileSystem.readFileString(serverConfig.settingsPath)).easDeviceHosts,
+        );
         const legacy = ServerSettingsModule.redactServerSettingsForClient(withProviders, {
           secretReferences: false,
         });

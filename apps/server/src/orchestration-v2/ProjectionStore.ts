@@ -2363,9 +2363,9 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
     // query must filter on the same status list as the index of migration 001.
     const LIVE_NODES_INDEX = sql.literal("INDEXED BY orchestration_v2_projection_nodes_live_idx");
     const REMOTE_TASKS_INDEX = sql.literal(
-      "INDEXED BY orchestration_v2_projection_subagents_remote_idx",
+      "INDEXED BY orchestration_v2_projection_subagents_remote_json_idx",
     );
-    // The predicate of that index in migrations 023 and 036; every remote task read filters on it.
+    // The predicate of that index in migration 036; every remote task read filters on it.
     const remoteTask = (row: Statement.Fragment) => sql`(
       ${row}.origin = 'app_owned'
       AND ${row}.child_thread_id IS NULL

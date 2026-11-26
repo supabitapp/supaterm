@@ -1754,24 +1754,41 @@ export type SavedProjectScripts = Pick<
 
 /**
  * The host runs saved project scripts, some without anyone asking: on worktree creation and on
- * done. Clients resend a project's whole override entry, so scripts equal to `saved` change nothing.
+ * done. Clients resend a project's whole override entry, so scripts equal to `saved` change
+ * nothing, while dropping a project's override brings the environment's scripts back for it.
  */
-function changesProjectScripts(
+export function changesProjectScripts(
   patch: ServerSettingsPatch,
   saved: SavedProjectScripts | undefined,
 ): boolean {
-  const changes = (
+  const differs = (
     next: ReadonlyArray<ProjectScript> | undefined,
     current: ReadonlyArray<ProjectScript> | undefined,
-  ) => next !== undefined && (current === undefined || !sameProjectScripts(next, current));
+  ) =>
+    next === undefined || current === undefined
+      ? next !== current
+      : !sameProjectScripts(next, current);
+  const overrides = patch.projectSettingsOverrides ?? {};
+  if (saved === undefined) {
+    return (
+      patch.defaultProjectScripts !== undefined ||
+      Object.values(overrides).some((entry) => entry?.defaultProjectScripts !== undefined)
+    );
+  }
+  const removals = patch.projectSettingsOverrideRemovals ?? {};
   return (
-    changes(patch.defaultProjectScripts, saved?.defaultProjectScripts) ||
-    Object.entries(patch.projectSettingsOverrides ?? {}).some(([projectId, overrides]) =>
-      changes(
-        overrides?.defaultProjectScripts,
-        saved?.projectSettingsOverrides[projectId as ProjectId]?.defaultProjectScripts,
-      ),
-    )
+    (patch.defaultProjectScripts !== undefined &&
+      differs(patch.defaultProjectScripts, saved.defaultProjectScripts)) ||
+    [...new Set([...Object.keys(overrides), ...Object.keys(removals)])].some((key) => {
+      const projectId = key as ProjectId;
+      const current = saved.projectSettingsOverrides[projectId]?.defaultProjectScripts;
+      const next = removals[projectId]?.includes("defaultProjectScripts")
+        ? undefined
+        : projectId in overrides
+          ? overrides[projectId]?.defaultProjectScripts
+          : current;
+      return differs(next, current);
+    })
   );
 }
 
