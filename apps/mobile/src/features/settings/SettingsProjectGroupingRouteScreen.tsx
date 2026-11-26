@@ -16,6 +16,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { NewThreadSettingsSection } from "./ThreadSettingsSections";
+import { LanguageSettingsSection } from "./SettingsLanguageRouteScreen";
 
 const GROUPING_OPTIONS: ReadonlyArray<{
   readonly mode: SidebarProjectGroupingMode;
@@ -58,6 +59,7 @@ export function SettingsProjectGroupingRouteScreen() {
         contentContainerClassName="gap-3 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
+        <LanguageSettingsSection />
         <SettingsSection title="Thread grouping">
           {THREAD_GROUPING_OPTIONS.map((option, index) => (
             <SettingsChoiceRow
