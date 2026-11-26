@@ -172,6 +172,16 @@ const localRemoteShellLayer = (home: string) =>
     }),
   );
 
+const freeLoopbackPort = Effect.callback<number>((resume) => {
+  const server = NodeNet.createServer();
+  server.listen(0, "127.0.0.1", () => {
+    const address = server.address();
+    server.close(() =>
+      resume(Effect.succeed(typeof address === "object" && address ? address.port : 0)),
+    );
+  });
+});
+
 describe("ssh tunnel scripts", () => {
   it.live("distinguishes an incompatible remote Node from a missing executable", () =>
     Effect.gen(function* () {
@@ -1340,6 +1350,18 @@ child.on("exit", (code) => process.exit(code ?? 1));`,
           { alias: "devbox", hostname: "devbox", username: null, port: null },
           { alias: "devbox-tailnet", hostname: "devbox-tailnet", username: null, port: null },
         ];
+        // Copies of this test running at once would all pick the default port, and a fake
+        // server that loses it leaves its launch waiting on another copy's server.
+        for (const target of targets) {
+          const stateDir = path.join(
+            home,
+            ".supaterm",
+            "ssh-launch",
+            yield* remoteStateKey(target),
+          );
+          yield* fs.makeDirectory(stateDir, { recursive: true });
+          yield* fs.writeFileString(path.join(stateDir, "port"), `${yield* freeLoopbackPort}\n`);
+        }
 
         const launches = yield* Effect.forEach(
           targets,
@@ -1799,16 +1821,6 @@ const canBind = (port) =>
       return false;
     }
   };
-
-  const freeLoopbackPort = Effect.callback<number>((resume) => {
-    const server = NodeNet.createServer();
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      server.close(() =>
-        resume(Effect.succeed(typeof address === "object" && address ? address.port : 0)),
-      );
-    });
-  });
 
   const runScript = (home: string, args: ReadonlyArray<string>) =>
     Effect.gen(function* () {

@@ -33,6 +33,7 @@ import * as TestClock from "effect/testing/TestClock";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 import { sourceControlHostSecretName } from "./sourceControl/sourceControlHostSecrets.ts";
 import * as ServerConfig from "./config.ts";
+import { settleFileWatches } from "./fileWatches.testkit.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import { writeFileStringAtomically } from "@supaterm/shared/atomicWrite";
 import * as ServerSettingsModule from "./serverSettings.ts";
@@ -2221,8 +2222,10 @@ it.live("reloads a symlinked settings file after its target directory is replace
     );
     yield* fs.remove(config.settingsPath, { force: true });
     yield* fs.symlink(path.join(active, "settings.json"), config.settingsPath);
+    yield* settleFileWatches;
     yield* service.start;
     const changes = yield* service.subscribeChanges;
+    yield* settleFileWatches;
 
     yield* fs.writeFileString(
       path.join(restored, "settings.json"),
@@ -2236,6 +2239,7 @@ it.live("reloads a symlinked settings file after its target directory is replace
       Stream.runHead,
     );
     assert.isTrue(Option.isSome(restoredSettings));
+    yield* settleFileWatches;
 
     yield* fs.writeFileString(
       path.join(active, "settings.json"),

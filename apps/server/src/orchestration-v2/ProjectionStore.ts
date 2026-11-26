@@ -2365,14 +2365,14 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
     const REMOTE_TASKS_INDEX = sql.literal(
       "INDEXED BY orchestration_v2_projection_subagents_remote_idx",
     );
-    // The predicate of that index in migration 023; every remote task read filters on it.
+    // The predicate of that index in migrations 023 and 036; every remote task read filters on it.
     const remoteTask = (row: Statement.Fragment) => sql`(
       ${row}.origin = 'app_owned'
       AND ${row}.child_thread_id IS NULL
-      AND (
-        json_type(${row}.payload_json, '$.remoteChild') = 'object'
-        OR json_type(${row}.payload_json, '$.remoteLaunch') = 'object'
-      )
+      AND CASE WHEN json_valid(${row}.payload_json)
+        THEN json_type(${row}.payload_json, '$.remoteChild') = 'object'
+          OR json_type(${row}.payload_json, '$.remoteLaunch') = 'object'
+        ELSE 0 END
     )`;
 
     // An ended task whose completion was acknowledged, delivered or disposed, outside an active run.

@@ -19,6 +19,7 @@ import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "./config.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
+import { settleFileWatches } from "./fileWatches.testkit.ts";
 import { ServerSettingsService } from "./serverSettings.ts";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 
@@ -73,6 +74,7 @@ const withEnvironmentThemes = <A, E>(
     for (const [filename, contents] of Object.entries(seeds)) {
       yield* fs.writeFileString(path.join(themesDir, filename), contents);
     }
+    yield* settleFileWatches;
 
     return yield* body.pipe(
       Effect.provide(
@@ -194,6 +196,7 @@ describe("environment theme", () => {
 
         yield* fs.rename(restored, environmentThemesDir);
         assert.deepEqual(yield* Queue.take(snapshots), ["Shared Light"]);
+        yield* settleFileWatches;
 
         yield* fs.writeFileString(
           path.join(environmentThemesDir, "nightfall.json"),
@@ -237,6 +240,7 @@ describe("environment theme", () => {
             path.join(restored, "nightfall.json"),
             encodeThemeFile(NIGHTFALL_THEME),
           );
+          yield* settleFileWatches;
 
           const snapshots = yield* service.streamChanges.pipe(
             Stream.map((themes) => themes.map((theme) => theme.name)),
@@ -254,6 +258,7 @@ describe("environment theme", () => {
             ),
             ["Shared Light"],
           );
+          yield* settleFileWatches;
 
           yield* fs.writeFileString(
             path.join(target, "nightfall.json"),
@@ -265,6 +270,7 @@ describe("environment theme", () => {
           assert.deepEqual(yield* Queue.take(snapshots), []);
           yield* fs.rename(restored, target);
           assert.deepEqual(yield* Queue.take(snapshots), ["Nightfall"]);
+          yield* settleFileWatches;
 
           yield* fs.writeFileString(
             path.join(target, "shared-light.json"),
@@ -285,6 +291,7 @@ describe("environment theme", () => {
           assert.deepEqual(yield* Queue.take(snapshots), []);
           yield* fs.rename(restoredParent, targetParent);
           assert.deepEqual(yield* Queue.take(snapshots), ["Shared Light"]);
+          yield* settleFileWatches;
 
           yield* fs.writeFileString(
             path.join(target, "nightfall.json"),
@@ -317,6 +324,7 @@ describe("environment theme", () => {
               encodeThemeFile(SHARED_THEME),
             );
           }
+          yield* settleFileWatches;
 
           const snapshots = yield* service.streamChanges.pipe(
             Stream.map((themes) => themes.map((theme) => theme.name)),
@@ -338,6 +346,7 @@ describe("environment theme", () => {
           assert.deepEqual(yield* Queue.take(snapshots), []);
           yield* fs.rename(restored, active);
           assert.deepEqual(yield* Queue.take(snapshots), ["Shared Light"]);
+          yield* settleFileWatches;
 
           yield* fs.writeFileString(
             path.join(fixture, "active-previous", "shared", "themes", "nightfall.json"),
@@ -352,8 +361,7 @@ describe("environment theme", () => {
       ),
   );
 
-  // With probes held, only a watch event can publish; macOS FSEvents can drop it under load.
-  it.live.skipIf(!symlinksSupported || HostProcess.Platform.defaultValue() === "darwin")(
+  it.live.skipIf(!symlinksSupported)(
     "publishes themes when a linked theme tree vanishes after listing and returns between probes",
     () =>
       Effect.gen(function* () {
@@ -379,6 +387,7 @@ describe("environment theme", () => {
               path.join(target, "shared-light.json"),
               encodeThemeFile(SHARED_THEME),
             );
+            yield* settleFileWatches;
 
             const snapshots = yield* service.streamChanges.pipe(
               Stream.map((themes) => themes.map((theme) => theme.name)),
@@ -399,14 +408,11 @@ describe("environment theme", () => {
             // The next listing succeeds, then the tree moves before its files are opened.
             moveAfterListing = Effect.orDie(fs.rename(active, previous));
             holdProbes = true;
-            yield* fs.writeFileString(
-              path.join(target, "nightfall.json"),
-              encodeThemeFile(NIGHTFALL_THEME),
-            );
+            yield* service.current;
             assert.deepEqual(yield* Queue.take(snapshots), []);
             yield* fs.rename(previous, active);
             yield* Deferred.succeed(resumeProbes, undefined);
-            assert.deepEqual(yield* Queue.take(snapshots), ["Nightfall", "Shared Light"]);
+            assert.deepEqual(yield* Queue.take(snapshots), ["Shared Light"]);
           }),
           {
             wrapFileSystem: (fs) =>
@@ -433,8 +439,7 @@ describe("environment theme", () => {
       }),
   );
 
-  // Needs inotify's event when a watched directory's ancestor moves; macOS FSEvents send none.
-  it.live.skipIf(!symlinksSupported || HostProcess.Platform.defaultValue() === "darwin")(
+  it.live.skipIf(!symlinksSupported)(
     "publishes themes when a linked theme directory's original grandparent is restored between probes",
     () =>
       Effect.gen(function* () {
@@ -459,6 +464,7 @@ describe("environment theme", () => {
               path.join(target, "shared-light.json"),
               encodeThemeFile(SHARED_THEME),
             );
+            yield* settleFileWatches;
 
             const snapshots = yield* service.streamChanges.pipe(
               Stream.map((themes) => themes.map((theme) => theme.name)),
@@ -478,14 +484,12 @@ describe("environment theme", () => {
 
             holdProbes = true;
             yield* fs.rename(active, previous);
-            yield* fs.writeFileString(
-              path.join(previous, "shared", "themes", "nightfall.json"),
-              encodeThemeFile(NIGHTFALL_THEME),
-            );
+            // FSEvents report nothing inside a moved ancestor, so a read is what sees the tree gone.
+            yield* service.current;
             assert.deepEqual(yield* Queue.take(snapshots), []);
             yield* fs.rename(previous, active);
             yield* Deferred.succeed(resumeProbes, undefined);
-            assert.deepEqual(yield* Queue.take(snapshots), ["Nightfall", "Shared Light"]);
+            assert.deepEqual(yield* Queue.take(snapshots), ["Shared Light"]);
           }),
           {
             wrapFileSystem: (fs) =>
