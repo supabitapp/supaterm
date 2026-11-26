@@ -541,19 +541,19 @@ function ThreadRouteContent(
     if (messageJump?.key === jump.key && messageJump.fromSearch) return;
     if (failure === "history-error") {
       Dialog.alert(
-        "Could not load the pinned message",
-        "Check the connection, then select the pin again.",
+        gt("Could not load the pinned message"),
+        gt("Check the connection, then select the pin again."),
       );
       return;
     }
     const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
     Dialog.alert(
-      "Pinned message not found",
-      "It may have been reverted.",
+      gt("Pinned message not found"),
+      gt("It may have been reverted."),
       pin && canOperateThread
         ? [
-            { text: "Keep", style: "cancel" },
-            { text: "Unpin", style: "destructive", onPress: () => unpinMessage(pin) },
+            { text: gt("Keep", { $context: "keeps the pin" }), style: "cancel" },
+            { text: gt("Unpin"), style: "destructive", onPress: () => unpinMessage(pin) },
           ]
         : undefined,
     );

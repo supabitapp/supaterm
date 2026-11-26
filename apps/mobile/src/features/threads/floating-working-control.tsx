@@ -182,7 +182,9 @@ export function FloatingWorkingControl(props: {
     hasQueue
       ? {
           onPress: props.onOpenQueue,
-          accessibilityLabel: `Open queue, ${props.queuedCount} messages`,
+          accessibilityLabel: gt("{count, plural, other {Open queue, {count} messages}}", {
+            count: props.queuedCount,
+          }),
         }
       : null,
     agents !== null
@@ -192,10 +194,10 @@ export function FloatingWorkingControl(props: {
         }
       : null,
     props.devicePreview !== null
-      ? { onPress: props.devicePreview.onPress, accessibilityLabel: "View devices" }
+      ? { onPress: props.devicePreview.onPress, accessibilityLabel: gt("View devices") }
       : null,
     props.browserPreview !== null
-      ? { onPress: props.browserPreview.onPress, accessibilityLabel: "View browser" }
+      ? { onPress: props.browserPreview.onPress, accessibilityLabel: gt("View browser") }
       : null,
   ].filter((action) => action !== null);
   const statusInteractive =
@@ -325,7 +327,9 @@ export function FloatingWorkingControl(props: {
       {hasQueue ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Open queue, ${props.queuedCount} messages`}
+          accessibilityLabel={gt("{count, plural, other {Open queue, {count} messages}}", {
+            count: props.queuedCount,
+          })}
           accessibilityHint={gt("Opens queued messages to send now, edit, or remove")}
           onPress={props.onOpenQueue}
           onLayout={(event) => setQueueWidth(settleWidth(event.nativeEvent.layout.width))}

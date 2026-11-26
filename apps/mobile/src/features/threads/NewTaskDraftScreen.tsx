@@ -97,7 +97,7 @@ import { appAtomRegistry } from "../../state/atom-registry";
 import { mobilePreferencesAtom } from "../../state/preferences";
 
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, useMessages, Var } from "gt-react-native";
 
 const HEADING_PROJECT_SLOT = "\uE000";
 
@@ -163,6 +163,7 @@ export function NewTaskDraftScreen(props: {
   readonly incomingShareId?: string;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const [creationMetadata] = useState(makeTurnCommandMetadata);
   const projects = useProjects();
   const flow = useNewTaskFlow();
@@ -547,12 +548,15 @@ export function NewTaskDraftScreen(props: {
       (flow.workspaceMode === "worktree" ? flow.defaultBaseBranchName : null),
     currentCheckoutBranch: flow.currentCheckoutBranchName,
   });
-  const selectedBranchLabel = resolveNewTaskBranchLabel({
-    branchName: selectedBranchName,
-    startFromOrigin: flow.startFromOrigin,
-    workspaceMode: flow.workspaceMode,
-    pullRequestReference: flow.pullRequestReference,
-  });
+  const selectedBranchLabel = resolveNewTaskBranchLabel(
+    {
+      branchName: selectedBranchName,
+      startFromOrigin: flow.startFromOrigin,
+      workspaceMode: flow.workspaceMode,
+      pullRequestReference: flow.pullRequestReference,
+    },
+    messages,
+  );
   const workspaceLabel = resolveNewTaskWorkspaceLabel({
     workspaceMode: flow.workspaceMode,
     worktreePath: flow.selectedWorktreePath,

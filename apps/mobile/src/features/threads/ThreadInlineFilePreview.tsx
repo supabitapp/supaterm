@@ -47,8 +47,9 @@ function FileCardHeader(props: PreviewProps) {
           {props.source.name}
         </Text>
         <Text className="text-xs text-foreground-muted" numberOfLines={1}>
-          Audio
-          {props.sizeBytes !== undefined ? ` · ${formatAttachmentSize(props.sizeBytes)}` : ""}
+          {props.sizeBytes !== undefined
+            ? gt("Audio · {size}", { size: formatAttachmentSize(props.sizeBytes) })
+            : gt("Audio")}
         </Text>
       </View>
       <SymbolView name="chevron.right" size={12} tintColorClassName="accent-foreground-muted" />

@@ -3,6 +3,7 @@ import type { QueuedThreadRun } from "@supaterm/client-runtime/state/thread-work
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import type { ChatAttachment, EnvironmentId } from "@supaterm/contracts";
 import { Image } from "expo-image";
+import { T, useGT } from "gt-react-native";
 import { useRef } from "react";
 import { type AccessibilityActionEvent, Pressable, View } from "react-native";
 
@@ -33,13 +34,14 @@ export function ThreadQueueMessage(props: {
   readonly onAction: (action: QueueMessageAction) => void;
   readonly onPressPreview: (source: FilePreviewSource) => void;
 }) {
+  const gt = useGT();
   const touchRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const actions = [
     ...(props.canPromoteToSteer || props.canSendNow
       ? [
           {
             id: "steer",
-            title: "Send now",
+            title: gt("Send now"),
             attributes: { disabled: !props.controls.canSend },
             image: "arrow.up",
           },
@@ -47,20 +49,20 @@ export function ThreadQueueMessage(props: {
       : []),
     {
       id: "edit",
-      title: "Edit",
+      title: gt("Edit", { $context: "verb, edits the queued message" }),
       attributes: { disabled: !props.controls.canEdit },
       image: "pencil",
     },
     {
       id: "remove",
-      title: "Remove",
+      title: gt("Remove", { $context: "verb, removes the queued message" }),
       attributes: { disabled: !props.controls.canDismiss, destructive: true },
     },
   ];
   const accessibilityProps = {
     accessibilityRole: "button" as const,
     accessibilityLabel: props.title,
-    accessibilityHint: "Opens this message in the composer. Touch and hold for more actions.",
+    accessibilityHint: gt("Opens this message in the composer. Touch and hold for more actions."),
     accessibilityState: { disabled: !props.controls.canOpen },
     accessibilityActions: actions.flatMap((action) =>
       action.attributes.disabled ? [] : [{ name: action.id, label: action.title }],
@@ -104,7 +106,9 @@ export function ThreadQueueMessage(props: {
         className="min-h-16 gap-2 px-3 py-4 active:opacity-70"
       >
         {props.controls.isEditing ? (
-          <Text className="text-xs text-foreground-muted">Editing in composer</Text>
+          <Text className="text-xs text-foreground-muted">
+            <T>Editing in composer</T>
+          </Text>
         ) : null}
         {props.message ? (
           <QueuedRunSender environmentId={props.environmentId} message={props.message} />
@@ -127,6 +131,7 @@ function QueuedRunSender(props: {
   readonly environmentId: EnvironmentId;
   readonly message: NonNullable<QueuedThreadRun["message"]>;
 }) {
+  const gt = useGT();
   const { attribution, scheduledTaskId } = resolveUserMessagePresentation(props.message);
   const senderThreadId = attribution === "agent" ? props.message.senderThreadId : undefined;
   const linkedSender = attribution === "agent" ? props.message.linkedSender : undefined;
@@ -143,15 +148,16 @@ function QueuedRunSender(props: {
       ? {
           icon: "calendar.badge.clock" as const,
           label:
-            tasks.data?.tasks.find((task) => task.id === scheduledTaskId)?.title ?? "Automation",
+            tasks.data?.tasks.find((task) => task.id === scheduledTaskId)?.title ??
+            gt("Automation"),
         }
       : attribution === "agent"
         ? {
             icon: "bubble.left.and.bubble.right" as const,
-            label: senderShell?.title.trim() || linkedSender?.title.trim() || "Agent",
+            label: senderShell?.title.trim() || linkedSender?.title.trim() || gt("Agent"),
           }
         : attribution === "supaterm"
-          ? { icon: null, label: "Sent by Supaterm" }
+          ? { icon: null, label: gt("Sent by Supaterm") }
           : null;
   if (sender === null) return null;
   return (
@@ -243,13 +249,14 @@ function QueueAttachmentThumbnail(props: {
   readonly attachment: ChatAttachment;
   readonly onPress: () => void;
 }) {
+  const gt = useGT();
   const resource = queueAttachmentResource(props.attachment);
   const url = useAssetUrl(props.environmentId, resource);
   return (
     // Its own press target, so tapping an image previews it instead of editing the message.
     <Pressable
       accessibilityRole="imagebutton"
-      accessibilityLabel={`Open ${props.attachment.name}`}
+      accessibilityLabel={gt("Open {name}", { name: props.attachment.name })}
       hitSlop={6}
       onPress={props.onPress}
       className="active:opacity-70"

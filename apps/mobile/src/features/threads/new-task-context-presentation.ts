@@ -4,6 +4,9 @@ import { resolveSendEnvMode } from "@supaterm/shared/projectSettings";
 import type { ComposerDraftWorkspaceSelection } from "../../state/use-composer-drafts";
 import { msg } from "gt-react-native";
 
+import { m, type MessageResolver } from "../../i18n/messages";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
+
 type WorkspaceMode = "local" | "worktree";
 
 export function resolveNewTaskWorkspaceSelection(input: {
@@ -85,18 +88,32 @@ export function resolveNewTaskLocalWorkspaceSelection(input: {
   };
 }
 
-export function resolveNewTaskBranchLabel(input: {
-  readonly branchName: string | null;
-  readonly startFromOrigin: boolean;
-  readonly workspaceMode: WorkspaceMode;
-  readonly pullRequestReference?: string;
-}): string {
+export function resolveNewTaskBranchLabel(
+  input: {
+    readonly branchName: string | null;
+    readonly startFromOrigin: boolean;
+    readonly workspaceMode: WorkspaceMode;
+    readonly pullRequestReference?: string;
+  },
+  resolve: MessageResolver = m,
+): string {
   if (input.workspaceMode === "worktree" && input.pullRequestReference) {
     const parsed = sourceControlClients.parseChangeRequestUrl(input.pullRequestReference);
-    if (parsed) return `From ${parsed.definition.changeRequest.shortLabel} #${parsed.link.number}`;
+    if (parsed)
+      return resolve(
+        msg(
+          "{term, select, mr {From MR #{number}} cr {From change request #{number}} other {From PR #{number}}}",
+          {
+            term: changeRequestTermKind(parsed.definition.changeRequest),
+            number: parsed.link.number,
+          },
+        ),
+      );
   }
   if (!input.branchName) {
-    return input.workspaceMode === "worktree" ? "Default branch" : msg("Choose branch");
+    return input.workspaceMode === "worktree"
+      ? resolve(msg("Default branch"))
+      : resolve(msg("Choose branch"));
   }
 
   if (input.workspaceMode === "local") {
@@ -104,7 +121,9 @@ export function resolveNewTaskBranchLabel(input: {
   }
 
   // Only the server can determine a local branch's configured remote.
-  return input.startFromOrigin ? `From ${input.branchName} (remote)` : `From ${input.branchName}`;
+  return input.startFromOrigin
+    ? resolve(msg("From {branchName} (remote)", { branchName: input.branchName }))
+    : resolve(msg("From {branchName}", { branchName: input.branchName }));
 }
 
 export function shouldCheckoutNewTaskBranch(input: {

@@ -51,7 +51,7 @@ import {
 } from "./threadListV2";
 import { useThreadListNow } from "./use-thread-list-now";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 const keyOf = (thread: EnvironmentThreadShell) => scopedThreadKey(thread.environmentId, thread.id);
 type Section = "pinned" | "active" | "snoozed" | "done";
@@ -185,6 +185,7 @@ function DragHandle(props: DragHandleProps) {
 
 function ThreadArrangementSheet(props: { onClose: () => void }) {
   const gt = useGT();
+  const m = useMessages();
   const { appearance } = useAppearancePreferences();
   const { fontScale } = useWindowDimensions();
   const { rowHeight, headerHeight } = deriveThreadArrangementSizing({
@@ -467,7 +468,7 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                           label: string;
                         }>((section) => {
                           if (section === item.section) return [];
-                          const label = threadDragAction(item.section, section);
+                          const label = threadDragAction(item.section, section, m);
                           if (!label) return [];
                           if (section === "done") return loaded ? [{ name: section, label }] : [];
                           if (section === "active")
@@ -601,6 +602,7 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                         {threadDragAction(
                           visiblePreview.sourceSection,
                           visiblePreview.destination.section,
+                          m,
                         )}
                       </Text>
                     ) : null}

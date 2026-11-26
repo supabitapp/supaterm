@@ -1,5 +1,6 @@
 import { useIsFocused, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { useGT } from "gt-react-native";
 import { type ReactNode } from "react";
 import { View } from "react-native";
 
@@ -25,6 +26,7 @@ export type ThreadInspectorPresentation =
 export function ThreadInspectorHeader(
   props: ThreadInspectorPresentation & { readonly title: string; readonly subtitle?: string },
 ) {
+  const gt = useGT();
   if ("onMaximize" in props) {
     return (
       <AppBar
@@ -32,7 +34,7 @@ export function ThreadInspectorHeader(
         subtitle={props.subtitle}
         actions={[
           {
-            accessibilityLabel: "Maximize thread",
+            accessibilityLabel: gt("Maximize thread"),
             icon: "arrow.up.left.and.arrow.down.right",
             onPress: props.onMaximize,
           },
@@ -45,7 +47,7 @@ export function ThreadInspectorHeader(
       title={props.title}
       subtitle={props.subtitle}
       onClose={props.onClose}
-      accessibilityLabel="Close thread"
+      accessibilityLabel={gt("Close thread")}
     />
   );
 }

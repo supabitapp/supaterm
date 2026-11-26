@@ -135,7 +135,7 @@ import { isSameRepository, resolveEnvironmentProjectMatch } from "./new-task-pro
 import { resolveDefaultWorktreeBaseBranch } from "../../lib/worktree-base-branch";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
 import { m } from "../../i18n/messages";
-import { msg } from "gt-react-native";
+import { msg, useGT } from "gt-react-native";
 
 type WorkspaceMode = "local" | "worktree";
 
@@ -171,8 +171,8 @@ function canMoveEditedPendingTask(
     return true;
   }
   Dialog.alert(
-    "Messages are queued behind this task",
-    "They wait on this machine, so the task stays here until they send.",
+    m(msg("Messages are queued behind this task")),
+    m(msg("They wait on this machine, so the task stays here until they send.")),
   );
   return false;
 }
@@ -330,6 +330,7 @@ function useNewTaskFlowValue(
   route: NewTaskFlowRoute | undefined,
   instance: { readonly owner: boolean; readonly served: boolean; readonly active: boolean },
 ): NewTaskFlowContextValue {
+  const gt = useGT();
   const projects = useProjects();
   const threads = useThreadShells();
   const { savedConnectionsById } = useSavedRemoteConnections();
@@ -449,7 +450,7 @@ function useNewTaskFlowValue(
     return {
       environmentId: editingPendingTask.environmentId,
       id: creation.projectId,
-      title: creation.projectTitle ?? "Unknown project",
+      title: creation.projectTitle ?? gt("Unknown project"),
       workspaceRoot: creation.projectCwd ?? "",
       repositoryIdentity: null,
       defaultModelSelection: editingPendingTask.modelSelection ?? null,

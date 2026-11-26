@@ -19,7 +19,7 @@ import { useSelectedThreadGitActions } from "../../../state/use-selected-thread-
 import { useSelectedThreadGitState } from "../../../state/use-selected-thread-git-state";
 import { useSelectedThreadWorktree } from "../../../state/use-selected-thread-worktree";
 import { vcsEnvironment } from "../../../state/vcs";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 type GitCommitSheetProps = StaticScreenProps<
   {
@@ -119,8 +119,11 @@ export function GitCommitSheet(props: GitCommitSheetProps) {
               <T>Changed files</T>
             </Text>
             <Text className="text-xs text-foreground-muted">
-              {selectedFiles.length} of {allFiles.length} selected · +
-              {formatDiffCount(selectedInsertions)} −{formatDiffCount(selectedDeletions)}
+              <T>
+                <Var>{selectedFiles.length}</Var> of <Var>{allFiles.length}</Var> selected · +
+                <Var>{formatDiffCount(selectedInsertions)}</Var> −
+                <Var>{formatDiffCount(selectedDeletions)}</Var>
+              </T>
             </Text>
           </View>
           {allFiles.length > 0 ? (

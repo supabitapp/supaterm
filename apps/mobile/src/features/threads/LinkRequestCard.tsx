@@ -41,7 +41,7 @@ import { SettingsSection } from "../settings/components/SettingsSection";
 import { Button } from "../../components/ui/Button";
 import { Sheet } from "../../components/ui/Sheet";
 import { LINK_ACCESS_CHOICES, linkAccessLabel } from "./thread-settings-options";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, useMessages, Var } from "gt-react-native";
 
 const LINK_SYMBOL: AppSymbolName = { ios: "link", android: "desktop_windows" };
 
@@ -58,9 +58,10 @@ export function LinkRequestCard(props: {
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
   readonly iconColor: ColorValue;
 }) {
+  const m = useMessages();
   const { item, visibility } = props.projectedItem;
   if (item.type !== "link_request") return null;
-  const display = linkRequestDisplay(item, visibility, linkAccessLabel);
+  const display = linkRequestDisplay(item, visibility, (access) => linkAccessLabel(access, m));
   if (display.kind === "pending") {
     return <PendingLinkRequest environmentId={props.environmentId} item={item} />;
   }
@@ -177,6 +178,7 @@ function LinkRequestSheet(props: {
   readonly onClose: () => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const { item } = props;
   const insets = useSafeAreaInsets();
   const pickMachine = picksMachine(item);
@@ -417,8 +419,8 @@ function LinkRequestSheet(props: {
               {LINK_ACCESS_CHOICES.map((choice, index) => (
                 <SettingsChoiceRow
                   key={choice.access}
-                  label={choice.label}
-                  description={choice.description}
+                  label={m(choice.label)}
+                  description={m(choice.description)}
                   selected={choice.access === access}
                   separated={index > 0}
                   disabled={busy}

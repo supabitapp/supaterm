@@ -160,6 +160,7 @@ function ProviderHeader(props: {
   readonly modelCount: number;
   readonly onToggle: () => void;
 }) {
+  const gt = useGT();
   const content = (
     <>
       {props.nested ? null : (
@@ -201,7 +202,13 @@ function ProviderHeader(props: {
   if (props.collapsible) {
     return (
       <Pressable
-        accessibilityLabel={`${props.label}, ${props.modelCount} models`}
+        accessibilityLabel={gt(
+          "{provider}, {count, plural, one {{count} model} other {{count} models}}",
+          {
+            provider: props.label,
+            count: props.modelCount,
+          },
+        )}
         accessibilityRole="button"
         accessibilityState={{ expanded: !props.collapsed }}
         className="mx-4 mt-1 flex-row items-center gap-2 rounded-xl px-1 pt-2 active:opacity-60"
@@ -989,7 +996,7 @@ function ThreadSettingsOptionsItem(props: {
                     />
                     {descriptor.options.length > sliderOptions.choices.length ? (
                       <DisclosureRow
-                        label="All choices"
+                        label={gt("All choices")}
                         value={undefined}
                         onPress={() =>
                           props.onOpenSubmenu({ kind: "descriptor", id: descriptor.id })

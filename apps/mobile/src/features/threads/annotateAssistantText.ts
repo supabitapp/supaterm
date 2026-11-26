@@ -6,12 +6,14 @@ import {
   type TurnItemId,
 } from "@supaterm/contracts";
 import * as Haptics from "expo-haptics";
+import { msg } from "gt-react-native";
 
 import { promptAssistantAnnotation } from "../../components/assistantAnnotationPrompt";
 import * as Dialog from "../../components/ui/Dialog";
 import { assistantCitationFromSelection } from "../../lib/assistantAnnotation";
 import type { MarkdownTextSelection } from "../../native/SelectableMarkdownText.types";
 import { addDraftQuote } from "../../state/annotationDrafts";
+import { m } from "../../i18n/messages";
 
 export function annotateAssistantText(input: {
   readonly source: {
@@ -26,8 +28,12 @@ export function annotateAssistantText(input: {
   if (citation === "empty") return;
   if (citation === "too-long") {
     Dialog.alert(
-      "Selection is too long",
-      `Annotate up to ${ASSISTANT_CITATION_MAX_TEXT_LENGTH.toLocaleString()} characters at a time.`,
+      m(msg("Selection is too long")),
+      m(
+        msg("Annotate up to {count} characters at a time.", {
+          count: ASSISTANT_CITATION_MAX_TEXT_LENGTH.toLocaleString(),
+        }),
+      ),
     );
     return;
   }

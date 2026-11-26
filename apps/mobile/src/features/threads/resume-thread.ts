@@ -69,6 +69,7 @@ export async function resumeThread<E>(input: {
         message: {
           messageId: input.messageId,
           role: "user",
+          // oxlint-disable-next-line supaterm/no-untranslated-copy -- prompt sent to the agent
           text: "Continue where you left off.",
           attachments: [],
         },

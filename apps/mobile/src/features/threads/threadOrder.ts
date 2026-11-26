@@ -2,6 +2,9 @@ import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shel
 import { activeThreadSortKey, planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
 import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
 import type { EnvironmentId } from "@supaterm/contracts";
+import { msg } from "gt-react-native";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export type ThreadMoveDestination =
   | "up"
@@ -184,12 +187,16 @@ export function canMoveThreadToActive(source: ThreadDragSection, loaded: boolean
   return loaded && source !== "active";
 }
 
-export function threadDragAction(source: ThreadDragSection, destination: ThreadDragSection) {
+export function threadDragAction(
+  source: ThreadDragSection,
+  destination: ThreadDragSection,
+  resolve: MessageResolver = m,
+) {
   if (destination === "snoozed") return null;
-  if (destination === "done") return source === "done" ? null : "Mark as Done";
-  if (source === destination) return "Reorder";
-  if (destination === "pinned") return "Pin";
-  if (source === "pinned") return "Unpin";
-  if (source === "done") return "Reopen";
-  return "Unsnooze";
+  if (destination === "done") return source === "done" ? null : resolve(msg("Mark as Done"));
+  if (source === destination) return resolve(msg("Reorder", { $context: "verb, thread action" }));
+  if (destination === "pinned") return resolve(msg("Pin", { $context: "verb, thread action" }));
+  if (source === "pinned") return resolve(msg("Unpin", { $context: "verb, thread action" }));
+  if (source === "done") return resolve(msg("Reopen", { $context: "verb, thread action" }));
+  return resolve(msg("Unsnooze", { $context: "verb, thread action" }));
 }

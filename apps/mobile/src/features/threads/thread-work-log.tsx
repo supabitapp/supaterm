@@ -933,7 +933,9 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
             : opensMcpSignIn
               ? gt("Opens the sign-in. Long press to copy.")
               : canExpand
-                ? `Double tap to ${expanded ? "hide" : "show"} full details. Long press to copy.`
+                ? expanded
+                  ? gt("Double tap to hide full details. Long press to copy.")
+                  : gt("Double tap to show full details. Long press to copy.")
                 : gt("Long press to copy.")
         }
         accessibilityState={canExpand ? { expanded } : undefined}
@@ -1096,7 +1098,10 @@ export function ThreadWorkGroupToggle(props: {
   readonly thought?: string | undefined;
   readonly onToggle: () => void;
 }) {
-  const statusLabel = props.hasFailure ? `${props.summary}, tool call failed` : props.summary;
+  const gt = useGT();
+  const statusLabel = props.hasFailure
+    ? gt("{preview}, tool call failed", { preview: props.summary })
+    : props.summary;
   const accessibilityLabel = props.thought ? `${props.thought} ${statusLabel}` : statusLabel;
   const icon =
     props.summaryToolIcon ??
@@ -1131,7 +1136,17 @@ export function ThreadWorkGroupToggle(props: {
             accessibilityRole="button"
             accessibilityState={{ expanded: props.expanded }}
             accessibilityLabel={accessibilityLabel}
-            accessibilityHint={`Double tap to ${props.expanded ? "hide" : "show"} ${props.hiddenCount} tool ${props.hiddenCount === 1 ? "call" : "calls"}.`}
+            accessibilityHint={
+              props.expanded
+                ? gt(
+                    "{count, plural, one {Double tap to hide {count} tool call.} other {Double tap to hide {count} tool calls.}}",
+                    { count: props.hiddenCount },
+                  )
+                : gt(
+                    "{count, plural, one {Double tap to show {count} tool call.} other {Double tap to show {count} tool calls.}}",
+                    { count: props.hiddenCount },
+                  )
+            }
             onPress={() => {
               void Haptics.selectionAsync();
               props.onToggle();

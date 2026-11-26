@@ -109,7 +109,17 @@ export function ModelRowContent(
       </Pressable>
       {props.onToggleHidden ? (
         <Pressable
-          accessibilityLabel={`${props.option.isHidden ? "Show" : "Hide"} model: ${props.option.providerLabel}, ${props.option.label}`}
+          accessibilityLabel={
+            props.option.isHidden
+              ? gt("Show model: {provider}, {model}", {
+                  provider: props.option.providerLabel,
+                  model: props.option.label,
+                })
+              : gt("Hide model: {provider}, {model}", {
+                  provider: props.option.providerLabel,
+                  model: props.option.label,
+                })
+          }
           accessibilityRole="button"
           accessibilityState={{ disabled: props.hiddenUpdatePending === true }}
           className="min-h-[44px] min-w-[44px] items-center justify-center android:min-h-[48px] android:min-w-[48px]"
@@ -125,9 +135,17 @@ export function ModelRowContent(
         </Pressable>
       ) : null}
       <Pressable
-        accessibilityLabel={`${props.isFavorite ? "Remove from" : "Add to"} favorites: ${
-          props.option.providerLabel
-        }, ${props.option.label}`}
+        accessibilityLabel={
+          props.isFavorite
+            ? gt("Remove from favorites: {provider}, {model}", {
+                provider: props.option.providerLabel,
+                model: props.option.label,
+              })
+            : gt("Add to favorites: {provider}, {model}", {
+                provider: props.option.providerLabel,
+                model: props.option.label,
+              })
+        }
         accessibilityRole="button"
         accessibilityState={{ disabled: !props.favoritesLoaded, selected: props.isFavorite }}
         className="min-h-[44px] min-w-[44px] items-center justify-center android:min-h-[48px] android:min-w-[48px]"
