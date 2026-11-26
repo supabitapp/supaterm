@@ -565,6 +565,8 @@ export interface DesktopWslState {
   distros: readonly DesktopWslDistro[];
   // Always null in wsl-only mode, which falls back to Windows with a dialog.
   preflightError: string | null;
+  /** Why a managed policy keeps an installed WSL off. */
+  managedPolicyReason?: string;
 }
 
 export const DesktopWslStateSchema = Schema.Struct({
@@ -574,6 +576,7 @@ export const DesktopWslStateSchema = Schema.Struct({
   wslOnly: Schema.Boolean,
   distros: Schema.Array(DesktopWslDistroSchema),
   preflightError: Schema.NullOr(Schema.String),
+  managedPolicyReason: Schema.optionalKey(Schema.String),
 });
 
 export type DesktopPreviewNavStatus =

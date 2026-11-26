@@ -61,6 +61,9 @@ Make the policy file writable only by administrators.
   Run `gpupdate /target:computer /force` and restart Supaterm.
 - **Windows registry**: set `Policy` (`REG_SZ`) to the whole policy as single-line JSON. Do not
   combine it with values from the Group Policy template.
+- **WSL**: a server inside WSL reads `/etc/supaterm/policy.json` in its distro, not the Windows
+  policy, so the desktop app on a Windows machine with a policy does not run its WSL backend. A
+  server you start yourself inside WSL needs the policy file in that distro.
 
 ## Check what the server loaded
 
@@ -260,8 +263,7 @@ same values can stay: they succeed without changing anything.
 
 ## What a policy does not cover
 
-- **The desktop app's own controls.** Importing cookies from other browsers and the desktop app's
-  WSL environment are not managed yet.
+- **The desktop app's own controls.** Importing cookies from other browsers is not managed yet.
 - **Provider CLIs.** Agents run through each provider's own CLI, which reads its own configuration,
   such as `~/.claude`, and which a user can also run outside Supaterm. Restrict those CLIs with their
   own managed configuration, such as Claude Code's managed settings.

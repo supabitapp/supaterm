@@ -975,21 +975,26 @@ function ConnectionsSettingsContent({
       return (
         <SettingsRow
           {...searchableSetting("wsl-backend")}
-          description="WSL is unavailable, so Windows is running instead. Turn WSL off to clear this preference."
+          description={
+            desktopWslState.managedPolicyReason ??
+            "WSL is unavailable, so Windows is running instead. Turn WSL off to clear this preference."
+          }
           status={
             desktopWslError ? (
               <span className="block text-destructive">{desktopWslError}</span>
             ) : null
           }
           control={
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={isUpdatingWslBackend}
-              onClick={() => handleSelectWslMode(BACKEND_VALUE_WSL_OFF)}
-            >
-              Switch to Windows
-            </Button>
+            desktopWslState.enabled || desktopWslState.wslOnly ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isUpdatingWslBackend}
+                onClick={() => handleSelectWslMode(BACKEND_VALUE_WSL_OFF)}
+              >
+                Switch to Windows
+              </Button>
+            ) : null
           }
         />
       );

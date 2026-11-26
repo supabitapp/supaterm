@@ -2,6 +2,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
@@ -12,10 +13,14 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { afterAll, expect } from "vite-plus/test";
 import * as NodeChildProcess from "node:child_process";
 
+import { ManagedPolicyFileError } from "@supaterm/shared/managedPolicyFile";
+
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
+import * as DesktopManagedPolicy from "../app/DesktopManagedPolicy.ts";
 import {
   DesktopWslEnvironment,
   layer as layerDesktopWslEnvironment,
+  resolveAvailability,
   buildWslRuntimeInstallScript,
   buildWslRuntimePruneScript,
   buildWslRuntimeProbeScript,
@@ -479,6 +484,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         Layer.provide(
           Layer.mergeAll(
             layerFakeWslExe(home),
+            DesktopManagedPolicy.layerTest(),
             Layer.effect(
               DesktopEnvironment.DesktopEnvironment,
               Effect.map(
@@ -613,6 +619,46 @@ describe("windowsToWslPathImpl", () => {
         "-u",
         "C:/a$b & c;(d)",
       ]);
+    }),
+  );
+});
+
+// Path.layer joins with POSIX separators here, so the test windir is a POSIX path.
+const WSL_EXE = "/windows/System32/wsl.exe";
+
+const availability = (
+  policy?: Parameters<typeof DesktopManagedPolicy.layerTest>[0],
+  wslExe = WSL_EXE,
+) =>
+  resolveAvailability("win32", "/windows").pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        FileSystem.layerNoop({ exists: (path) => Effect.succeed(path === wslExe) }),
+        Path.layer,
+        DesktopManagedPolicy.layerTest(policy),
+      ),
+    ),
+  );
+
+describe("resolveAvailability", () => {
+  it.effect("turns WSL off on a machine with a managed policy, even an invalid one", () =>
+    Effect.gen(function* () {
+      const managed = { schemaVersion: 1, organization: "Example Corp" } as const;
+      assert.deepEqual(yield* availability(), { _tag: "Available" });
+      assert.deepEqual(yield* availability(managed), {
+        _tag: "Managed",
+        reason: "Example Corp manages Supaterm on this machine, so the WSL backend is off.",
+      });
+      assert.deepEqual(
+        yield* availability(new ManagedPolicyFileError({ path: "/test", reason: "bad JSON" })),
+        {
+          _tag: "Managed",
+          reason:
+            "The WSL backend is off because Supaterm cannot use this machine's managed policy.",
+        },
+      );
+      // Without WSL installed the policy is not the reason it is off.
+      assert.deepEqual(yield* availability(managed, "/elsewhere/wsl.exe"), { _tag: "Missing" });
     }),
   );
 });
