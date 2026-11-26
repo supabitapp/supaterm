@@ -1223,6 +1223,7 @@
   "38baeebc3b47b857": "La compactación no está disponible para este proveedor",
   "d35c2d635ba3a859": "Compactar no está disponible ahora",
   "6b1c0d7732da6648": "No se pudo compactar el contexto.",
+  "bbbce20ad5d6790d": "{count, plural, one {{count} en cola} other {{count} en cola}}",
   "a06eb47a82969918": "Subagente",
   "86860f420c3af36a": "Preparando la máquina",
   "36232b4aa998700b": "Volviendo atrás en la conversación",

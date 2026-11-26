@@ -1223,6 +1223,7 @@
   "38baeebc3b47b857": "Compaction is unavailable for this provider",
   "d35c2d635ba3a859": "Compacting is unavailable right now",
   "6b1c0d7732da6648": "Failed to compact context.",
+  "bbbce20ad5d6790d": "{count, plural, one {{count} queued} other {{count} queued}}",
   "a06eb47a82969918": "Subagent",
   "86860f420c3af36a": "Preparing machine",
   "36232b4aa998700b": "Rewinding conversation",
