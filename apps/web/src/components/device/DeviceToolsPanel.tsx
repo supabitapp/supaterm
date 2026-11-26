@@ -20,7 +20,7 @@ import { Toggle, ToggleGroup } from "~/components/ui/toggle-group";
 import { cn } from "~/lib/utils";
 import type { DeviceControls } from "./useDeviceControls";
 import { deviceEventLogAtom } from "./deviceHubAtoms";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const TEXT_SIZES: ReadonlyArray<{ value: DeviceTextSize; label: string }> = [
   { value: "small", label: msg("Small") },
@@ -70,11 +70,15 @@ const ANDROID_PERMISSIONS: ReadonlyArray<{ value: DevicePermission; label: strin
 ];
 
 const LOCATION_PRESETS = [
-  { label: "San Francisco", latitude: 37.7749, longitude: -122.4194 },
-  { label: "New York", latitude: 40.7128, longitude: -74.006 },
-  { label: "London", latitude: 51.5074, longitude: -0.1278 },
-  { label: "Stockholm", latitude: 59.3293, longitude: 18.0686 },
-  { label: "Tokyo", latitude: 35.6762, longitude: 139.6503 },
+  {
+    label: msg("San Francisco", { $context: "city name" }),
+    latitude: 37.7749,
+    longitude: -122.4194,
+  },
+  { label: msg("New York", { $context: "city name" }), latitude: 40.7128, longitude: -74.006 },
+  { label: msg("London", { $context: "city name" }), latitude: 51.5074, longitude: -0.1278 },
+  { label: msg("Stockholm", { $context: "city name" }), latitude: 59.3293, longitude: 18.0686 },
+  { label: msg("Tokyo", { $context: "city name" }), latitude: 35.6762, longitude: 139.6503 },
 ] as const;
 
 export function DeviceToolsPanel(props: {
@@ -213,7 +217,9 @@ export function DeviceToolsPanel(props: {
                     }
                   }}
                 >
-                  <Toggle value="clear">Clear</Toggle>
+                  <Toggle value="clear">
+                    <T context="Liquid Glass style">Clear</T>
+                  </Toggle>
                   <Toggle value="tinted">
                     <T context="Liquid Glass style">Tinted</T>
                   </Toggle>
@@ -466,6 +472,7 @@ function LocationSection(props: {
   readonly onClear: () => Promise<unknown>;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const parsed = { latitude: Number(latitude), longitude: Number(longitude) };
@@ -520,7 +527,7 @@ function LocationSection(props: {
           <SelectPopup align="start" alignItemWithTrigger={false}>
             {LOCATION_PRESETS.map((preset) => (
               <SelectItem key={preset.label} value={preset.label}>
-                {preset.label}
+                {m(preset.label)}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -544,7 +551,7 @@ function LocationSection(props: {
               void props.onClear();
             }}
           >
-            Clear
+            <T context="verb, clears the location">Clear</T>
           </Button>
         ) : null}
       </div>
@@ -630,7 +637,7 @@ function EventLogSection(props: {
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger className="flex w-full items-center gap-1.5 border-b px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">
-        Event log
+        <T>Event log</T>
         <ChevronDownIcon
           className={cn("ml-auto size-3.5 transition-transform", open && "rotate-180")}
         />

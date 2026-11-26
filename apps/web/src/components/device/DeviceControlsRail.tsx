@@ -139,7 +139,11 @@ export function DeviceControlsRail(props: {
             <RailDivider />
             <RailButton
               tooltipSide={popupSide}
-              label={`Switch device to ${nextAppearance} mode`}
+              label={
+                nextAppearance === "light"
+                  ? gt("Switch device to light mode")
+                  : gt("Switch device to dark mode")
+              }
               disabled={controls.disabled || !settings?.appearance}
               onClick={() => void controls.act({ type: "setAppearance", value: nextAppearance })}
             >
@@ -224,16 +228,16 @@ export function DeviceControlsRail(props: {
           <MenuPopup side={popupSide} align="end">
             <MenuItem onClick={props.onFloat}>
               <PictureInPictureIcon />
-              Float device over chat
+              <T>Float device over chat</T>
             </MenuItem>
             <MenuItem onClick={props.onClose}>
               <XIcon />
-              Close device panel
+              <T>Close device panel</T>
             </MenuItem>
             <MenuSeparator />
             <MenuItem variant="destructive" {...confirm.bind("power-off", props.onPowerOff)}>
               <PowerIcon />
-              {confirm.armed === "power-off" ? "Confirm power off" : gt("Power off device")}
+              {confirm.armed === "power-off" ? gt("Confirm power off") : gt("Power off device")}
             </MenuItem>
           </MenuPopup>
         </Menu>

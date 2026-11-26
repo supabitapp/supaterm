@@ -1,5 +1,6 @@
 import type { DevicePlatformAvailability } from "@supaterm/contracts";
 import { CheckIcon, MinusIcon } from "@supaterm/icons";
+import { useGT } from "gt-react";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 
 export function DeviceHostAvailability({
@@ -7,6 +8,7 @@ export function DeviceHostAvailability({
 }: {
   platforms: ReadonlyArray<DevicePlatformAvailability>;
 }) {
+  const gt = useGT();
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
       {platforms.map((platform) => (
@@ -17,12 +19,19 @@ export function DeviceHostAvailability({
             ) : (
               <MinusIcon className="size-3" />
             )}
-            {platform.platform === "ios" ? "iOS" : "Android"}{" "}
-            {platform.available ? "available" : "unavailable"}
+            {platform.available
+              ? gt("{platform} available", {
+                  platform: platform.platform === "ios" ? "iOS" : "Android",
+                })
+              : gt("{platform} unavailable", {
+                  platform: platform.platform === "ios" ? "iOS" : "Android",
+                })}
           </TooltipTrigger>
           <TooltipPopup>
             {platform.reason ??
-              (platform.platform === "ios" ? "iOS available" : "Android available")}
+              gt("{platform} available", {
+                platform: platform.platform === "ios" ? "iOS" : "Android",
+              })}
           </TooltipPopup>
         </Tooltip>
       ))}

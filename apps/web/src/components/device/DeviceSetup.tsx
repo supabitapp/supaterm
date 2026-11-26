@@ -15,7 +15,8 @@ import { deviceEnvironment, deviceHostProbeAtom, NO_DEVICE_PROBE_ATOM } from "~/
 import { useAtomCommand } from "~/state/use-atom-command";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { cn } from "~/lib/utils";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 const platformName = (platform: DevicePlatform) => (platform === "ios" ? "iOS" : "Android");
 
@@ -86,13 +87,18 @@ export function DeviceHostDiagnostics(props: {
   );
 }
 
-export function platformSetupStatus(state: DeviceServiceState, platform: DevicePlatform) {
+/** Components pass `useMessages()` so the message follows a language switch. */
+export function platformSetupStatus(
+  state: DeviceServiceState,
+  platform: DevicePlatform,
+  resolve: MessageResolver = m,
+) {
   const hasDevices = state.devices.some((device) => device.platform === platform);
   if (platform === "android" && !hasDevices && isAndroidDiscoveryUncertain(state)) {
     return {
       ready: false,
-      message: msg(
-        "The Android device list may be incomplete. Check the device host and try again.",
+      message: resolve(
+        msg("The Android device list may be incomplete. Check the device host and try again."),
       ),
     };
   }
@@ -107,7 +113,9 @@ export function platformSetupStatus(state: DeviceServiceState, platform: DeviceP
   if (supportingHosts.length === 0) {
     return {
       ready: false,
-      message: availabilities[0]?.reason ?? `${platformName(platform)} support was not detected.`,
+      message:
+        availabilities[0]?.reason ??
+        resolve(msg("{platform} support was not detected.", { platform: platformName(platform) })),
     };
   }
   const readyHosts = supportingHosts.filter(
@@ -123,33 +131,51 @@ export function platformSetupStatus(state: DeviceServiceState, platform: DeviceP
     ) {
       return {
         ready: false,
-        message: `No ${platformName(platform)} devices were listed because device discovery reported a problem.`,
+        message: resolve(
+          msg("No {platform} devices were listed because device discovery reported a problem.", {
+            platform: platformName(platform),
+          }),
+        ),
       };
     }
     return {
       ready: false,
       message:
         platform === "ios"
-          ? msg(
-              "Xcode is installed, but no iOS Simulator is available. Install a runtime in Xcode Settings → Components.",
+          ? resolve(
+              msg(
+                "Xcode is installed, but no iOS Simulator is available. Install a runtime in Xcode Settings → Components.",
+              ),
             )
-          : msg(
-              "The Android SDK is installed, but no virtual device exists. Create one in Android Studio → Device Manager.",
+          : resolve(
+              msg(
+                "The Android SDK is installed, but no virtual device exists. Create one in Android Studio → Device Manager.",
+              ),
             ),
     };
   }
   const remoteHost = supportingHosts.every((host) => host.kind !== "local")
     ? supportingHosts[0]
     : undefined;
-  const location = remoteHost ? ` on ${remoteHost.label}` : "";
+  const host = remoteHost?.label;
   return {
     ready: true,
     message:
       remoteHost?.kind === "eas"
-        ? `${remoteHost.label} starts ${platform === "ios" ? "iOS Simulators" : "Android emulators"} in the cloud with Expo Simulators.`
+        ? platform === "ios"
+          ? resolve(
+              msg("{host} starts iOS Simulators in the cloud with Expo Simulators.", { host }),
+            )
+          : resolve(
+              msg("{host} starts Android emulators in the cloud with Expo Simulators.", { host }),
+            )
         : platform === "ios"
-          ? `Xcode and iOS Simulator are available${location}.`
-          : `The Android SDK and Emulator are available${location}.`,
+          ? host
+            ? resolve(msg("Xcode and iOS Simulator are available on {host}.", { host }))
+            : resolve(msg("Xcode and iOS Simulator are available."))
+          : host
+            ? resolve(msg("The Android SDK and Emulator are available on {host}.", { host }))
+            : resolve(msg("The Android SDK and Emulator are available.")),
   };
 }
 
@@ -264,7 +290,7 @@ export function DeviceSetup(props: {
             </div>
             <AgentDeviceSetupStatus state={props.state} pending={pending === "agent"} />
             <p className="text-xs text-muted-foreground">
-              Turn this off to keep manual device controls without giving agents access.
+              <T>Turn this off to keep manual device controls without giving agents access.</T>
             </p>
           </section>
         ) : null}
@@ -344,10 +370,11 @@ function DevicePlatformSetup(props: {
   readonly onCheck: () => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   return (
     <div className="space-y-3">
-      <PlatformStatus platform="iOS" status={platformSetupStatus(props.state, "ios")} />
-      <PlatformStatus platform="Android" status={platformSetupStatus(props.state, "android")} />
+      <PlatformStatus platform="iOS" status={platformSetupStatus(props.state, "ios", m)} />
+      <PlatformStatus platform="Android" status={platformSetupStatus(props.state, "android", m)} />
       <DeviceHostDiagnostics hosts={props.state.hosts} hostStatuses={props.state.hostStatuses} />
       <p className="text-xs text-muted-foreground">
         <T>You can use either platform. Fixing a missing platform does not block the other one.</T>
@@ -394,7 +421,7 @@ export function AgentDeviceSetupStatus(props: {
     return (
       <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
         <CheckIcon className="size-3 text-success" />
-        Agent tools are ready.
+        <T>Agent tools are ready.</T>
       </p>
     );
   }
