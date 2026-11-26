@@ -38,6 +38,7 @@ import { Spinner } from "./ui/spinner";
 import { toastManager } from "./ui/toast";
 import { isImeComposing } from "~/lib/imeComposition";
 import { useGT } from "gt-react";
+import { changeRequestTermKind } from "./pullRequest/changeRequestTerm";
 
 interface PullRequestThreadDialogProps {
   open: boolean;
@@ -98,6 +99,7 @@ export function PullRequestThreadDialog({
   );
   const sourceControlPresentation = getSourceControlPresentation(gitStatus?.sourceControlProvider);
   const terminology = sourceControlPresentation.terminology;
+  const term = changeRequestTermKind(terminology);
   const SourceControlIcon = sourceControlPresentation.Icon;
 
   const parsedReference = parsePullRequestReference(reference);
@@ -163,7 +165,10 @@ export function PullRequestThreadDialog({
           message:
             error instanceof Error
               ? error.message
-              : `Failed to prepare ${terminology.singular} thread.`,
+              : gt(
+                  "Failed to prepare {term, select, mr {merge request} cr {change request} other {pull request}} thread.",
+                  { term },
+                ),
         });
       }
       return;
@@ -211,21 +216,34 @@ export function PullRequestThreadDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <SourceControlIcon className="me-2 size-4" />
-            Checkout {terminology.singular}
+            {gt(
+              "Checkout {term, select, mr {merge request} cr {change request} other {pull request}}",
+              { term },
+            )}
           </DialogTitle>
           <DialogDescription>
-            Resolve a {sourceControlPresentation.providerName} {terminology.singular}, then create
-            the draft thread in the main repo or in a dedicated worktree.
+            {gt(
+              "Resolve a {provider} {term, select, mr {merge request} cr {change request} other {pull request}}, then create the draft thread in the main repo or in a dedicated worktree.",
+              { provider: sourceControlPresentation.providerName, term },
+            )}
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
           <label className="grid gap-1.5">
             <span className="text-xs font-medium text-foreground capitalize">
-              {terminology.singular}
+              {gt("{term, select, mr {merge request} cr {change request} other {pull request}}", {
+                term,
+                $context: "field label, capitalized by CSS",
+              })}
             </span>
             <Input
               ref={referenceInputRef}
-              placeholder={`${terminology.shortLabel} URL, checkout command, or #42`}
+              placeholder={gt(
+                "{term, select, mr {MR} cr {change request} other {PR}} URL, checkout command, or #42",
+                {
+                  term,
+                },
+              )}
               value={reference}
               onChange={(event) => {
                 setReferenceDirty(true);
@@ -271,7 +289,10 @@ export function PullRequestThreadDialog({
           {isResolving ? (
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
               <Spinner size="sm" />
-              Resolving {terminology.singular}...
+              {gt(
+                "Resolving {term, select, mr {merge request} cr {change request} other {pull request}}...",
+                { term },
+              )}
             </div>
           ) : null}
 
