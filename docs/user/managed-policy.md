@@ -1,12 +1,13 @@
 # Managed policy
 
-A managed policy lets an administrator set defaults, lock settings, and restrict what Supaterm can
-do for everyone on a machine: the broadest permission mode, which clients may connect, the
-Encrypted Relay, the preview tunnel, importing browser cookies, which providers run, and how
-Supaterm updates. The Supaterm server on that machine enforces the policy for every client that
-connects to it, whether desktop, web, or mobile, and the desktop app applies it to its own updates,
-network access, WSL backend, and cookie import. Clients show "Managed by <organization>" on the
-controls it locks.
+A managed policy lets an administrator set defaults, lock settings, and limit what Supaterm can do
+for everyone on a machine.
+
+It covers the broadest permission mode, which clients may connect, the Encrypted Relay, the preview
+tunnel, importing browser cookies, which providers run, and how Supaterm updates. The Supaterm
+server on that machine enforces the policy for every client that connects to it, whether desktop,
+web, or mobile, and the desktop app applies it to its own updates, network access, WSL backend, and
+cookie import. Clients show "Managed by <organization>" on the controls it locks.
 
 ## Roll out a policy
 
