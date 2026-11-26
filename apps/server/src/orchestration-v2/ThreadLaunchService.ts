@@ -257,7 +257,10 @@ export class ThreadLaunchService extends Context.Service<
       | TaskFolderError
     >;
     /** True only when the project's folder is known to hold no Git repository a worktree could use. */
-    readonly isNonGitProject: (projectId: ProjectId) => Effect.Effect<boolean>;
+    readonly isNonGitProject: (
+      projectId: ProjectId,
+      repositories?: ReadonlyArray<{ readonly path: string }>,
+    ) => Effect.Effect<boolean>;
     readonly retryPreparation: (
       input: ThreadLaunchPreparationInput,
     ) => Effect.Effect<
@@ -488,7 +491,7 @@ const make = Effect.gen(function* () {
 
   const isNonGitProject: ThreadLaunchService["Service"]["isNonGitProject"] = Effect.fn(
     "ThreadLaunchService.isNonGitProject",
-  )(function* (projectId) {
+  )(function* (projectId, repositories) {
     const project = yield* projects
       .getById(projectId)
       .pipe(Effect.orElseSucceed(() => Option.none()));
@@ -498,8 +501,9 @@ const make = Effect.gen(function* () {
       .isGitRepository(project.value.workspaceRoot)
       .pipe(Effect.orElseSucceed(() => true));
     if (rootIsRepository) return false;
-    // A plain folder holding repositories still gets a worktree, as a task folder.
-    return yield* taskFolders.plan({ projectId }).pipe(
+    // A plain folder holding repositories still gets a worktree, as a task folder. Named
+    // repositories that are gone fail the plan, so the choice is kept rather than dropped.
+    return yield* taskFolders.plan({ projectId, repositories }).pipe(
       Effect.map((plan) => plan === null),
       Effect.orElseSucceed(() => false),
     );

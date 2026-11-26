@@ -1131,7 +1131,10 @@ export const layer = Layer.effect(
       const workspaceStrategy: ScheduledTask["workspaceStrategy"] =
         input.workspaceStrategy.type === "worktree" &&
         ((yield* managedFolders.isScratchProject(input.projectId)) ||
-          (yield* threadLaunch.isNonGitProject(input.projectId)))
+          (yield* threadLaunch.isNonGitProject(
+            input.projectId,
+            input.workspaceStrategy.repositories,
+          )))
           ? { type: "root" }
           : input.workspaceStrategy;
       const schedule: ScheduledTask["schedule"] =
