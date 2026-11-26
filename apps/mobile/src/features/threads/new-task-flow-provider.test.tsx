@@ -79,7 +79,7 @@ vi.mock("../../state/entities", () => ({
   useServerConfigs: () => configs,
 }));
 vi.mock("../../state/peerLinks", () => ({ useLinkedEnvironments: () => new Map() }));
-vi.mock("../../state/filesystem", () => ({ filesystemEnvironment: {} }));
+vi.mock("../../state/filesystem", () => ({ filesystemEnvironment: { listFolders: () => null } }));
 vi.mock("../../state/projects", () => ({
   projectEnvironment: { openScratch: transport.openScratchCommand, readFile: () => null },
 }));
@@ -543,6 +543,30 @@ describe("pending task editor dismissal", () => {
     expect(flow.editingPendingTask?.messageId).toBe(pendingTask.messageId);
     expect(flow.prompt).toBe("");
   });
+});
+
+it("keeps a queued worktree task's repositories through an edit", async () => {
+  const repositories = ["/repo/first/api", "/repo/first/web"];
+  const worktreeTask: QueuedThreadMessage = {
+    ...pendingTask,
+    creation: { ...pendingTask.creation!, workspaceMode: "worktree", repositories },
+  };
+  appAtomRegistry.set(projectsAtom, [
+    { ...repositoryProject, trackedFolders: [{ path: "/repo/first", name: "first" }] },
+  ]);
+  appAtomRegistry.set(queueAtom, { queued: [worktreeTask] });
+  await act(() => pushDraftRoute({ pendingTaskId: worktreeTask.messageId }));
+  await act(() => flow.setPrompt("Changed prompt"));
+  await act(() => pushDraftRoute());
+
+  expect(transport.editorWrite).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: expect.objectContaining({
+        text: "Changed prompt",
+        creation: expect.objectContaining({ workspaceMode: "worktree", repositories }),
+      }),
+    }),
+  );
 });
 
 it("keeps the draft on a project the screen picks as it mounts", async () => {

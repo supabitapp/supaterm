@@ -546,7 +546,7 @@ function useNewTaskFlowValue(
   const knownIsGitRepo = projectGitStatus.data?.isRepo ?? projectBranches.data?.isRepo ?? null;
   const isGitRepo = knownIsGitRepo ?? true;
   const { choices: worktreeRepositoryChoices, tracksGitRepositories } =
-    useWorktreeRepositoryChoices(instance.served ? selectedProject : null);
+    useWorktreeRepositoryChoices(selectedProject, instance.served);
   const projectSettings = projectDefaults.projectSettings;
   const canChooseWorkspace = !isScratchDraft;
   const defaultWorkspaceMode: WorkspaceMode = projectDefaults.defaultWorkspaceMode;
