@@ -55,12 +55,12 @@ function environmentSupportsAutoMarkDoneOptOut(
 
 type ThreadListAction = "archive" | "unarchive" | "delete" | "mark-done" | "reopen";
 
-const ACTION_VERBS: Record<ThreadListAction, string> = {
-  archive: "archived",
-  unarchive: "unarchived",
-  delete: "deleted",
-  "mark-done": "marked as Done",
-  reopen: "reopened",
+const ACTION_FAILURES: Record<ThreadListAction, string> = {
+  archive: msg("The thread could not be archived."),
+  unarchive: msg("The thread could not be unarchived."),
+  delete: msg("The thread could not be deleted."),
+  "mark-done": msg("The thread could not be marked as Done."),
+  reopen: msg("The thread could not be reopened."),
 };
 
 function actionFailureMessage(action: ThreadListAction, cause: Cause.Cause<unknown>): string {
@@ -68,7 +68,7 @@ function actionFailureMessage(action: ThreadListAction, cause: Cause.Cause<unkno
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
-  return `The thread could not be ${ACTION_VERBS[action]}.`;
+  return m(ACTION_FAILURES[action]);
 }
 
 function selectionHaptic(): void {
@@ -78,7 +78,7 @@ function selectionHaptic(): void {
 function actionFailureTitle(action: ThreadListAction): string {
   if (action === "archive") return m(msg("Could not archive thread"));
   if (action === "unarchive") return m(msg("Could not unarchive thread"));
-  if (action === "mark-done") return "Could not mark thread as Done";
+  if (action === "mark-done") return m(msg("Could not mark thread as Done"));
   if (action === "reopen") return m(msg("Could not reopen thread"));
   return m(msg("Could not delete thread"));
 }
@@ -135,7 +135,7 @@ function useThreadActionExecutor(
       ) {
         Dialog.alert(
           actionFailureTitle(action),
-          "This environment is still connecting. Try again once it is connected.",
+          m(msg("This environment is still connecting. Try again once it is connected.")),
         );
         return false;
       }
@@ -556,8 +556,12 @@ export function useThreadListActions(): {
   const setThreadAutoMarkDone = async (thread: EnvironmentThreadShell, enabled: boolean) => {
     if (!environmentSupportsAutoMarkDoneOptOut(thread.environmentId)) {
       Dialog.alert(
-        "Could not update automatic completion",
-        "This environment's server does not support turning automatic completion off per thread yet. Update the server to use it.",
+        m(msg("Could not update automatic completion")),
+        m(
+          msg(
+            "This environment's server does not support turning automatic completion off per thread yet. Update the server to use it.",
+          ),
+        ),
       );
       return false;
     }
@@ -569,10 +573,10 @@ export function useThreadListActions(): {
     if (result._tag === "Failure") {
       const error = Cause.squash(result.cause);
       Dialog.alert(
-        "Could not update automatic completion",
+        m(msg("Could not update automatic completion")),
         error instanceof Error && error.message.trim().length > 0
           ? error.message
-          : "The automatic completion setting could not be changed.",
+          : m(msg("The automatic completion setting could not be changed.")),
       );
       return false;
     }
@@ -710,7 +714,7 @@ export function useThreadListActions(): {
     if (!configs.has(thread.environmentId) || !connectedEnvironmentIds.has(thread.environmentId)) {
       Dialog.alert(
         m(msg("Could not move thread")),
-        "Connect to this environment to arrange its threads.",
+        m(msg("Connect to this environment to arrange its threads.")),
       );
       return false;
     }

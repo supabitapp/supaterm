@@ -7,6 +7,7 @@ import * as Order from "effect/Order";
 import type { AppBarMenuItem } from "../../components/ui/AppBar.types";
 import type { WorkspaceEnvironment } from "../../state/workspaceModel";
 import { msg } from "gt-react-native";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export interface HomeListFilterMenuEnvironment {
   readonly environmentId: EnvironmentId;
@@ -69,12 +70,15 @@ export interface HomeListFilterMenuInput {
   readonly onHideOfflineEnvironmentsChange: (hide: boolean) => void;
 }
 
-export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeListFilterMenu {
+export function buildHomeListFilterMenu(
+  props: HomeListFilterMenuInput,
+  resolve: MessageResolver = m,
+): HomeListFilterMenu {
   const items: Array<HomeListFilterMenuAction | HomeListFilterMenuSubmenu> = [];
 
   items.push({
     type: "submenu",
-    title: "Grouping",
+    title: resolve(msg("Grouping", { $context: "filter menu heading" })),
     items: THREAD_GROUPING_OPTIONS.map((option) => ({
       type: "action",
       id: `grouping:${option.value}`,
@@ -86,13 +90,13 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
 
   items.push({
     type: "submenu",
-    title: "Environment",
+    title: resolve(msg("Environment", { $context: "filter menu heading" })),
     items: [
       {
         type: "action",
         id: "environment:all",
-        title: msg("All environments"),
-        subtitle: msg("Show threads from every environment"),
+        title: resolve(msg("All environments")),
+        subtitle: resolve(msg("Show threads from every environment")),
         state: props.selectedEnvironmentId === null ? "on" : "off",
         onPress: () => props.onEnvironmentChange(null),
       },
@@ -109,7 +113,7 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
       {
         type: "action",
         id: "environment:hide-offline",
-        title: "Hide offline environments",
+        title: resolve(msg("Hide offline environments")),
         state: props.hideOfflineEnvironments ? "on" : "off",
         onPress: () => props.onHideOfflineEnvironmentsChange(!props.hideOfflineEnvironments),
       },
@@ -119,13 +123,13 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
   if (props.projects.length > 0) {
     items.push({
       type: "submenu",
-      title: "Project",
+      title: resolve(msg("Project", { $context: "filter menu heading" })),
       items: [
         {
           type: "action",
           id: "project:all",
-          title: msg("All projects"),
-          subtitle: msg("Show threads from every project"),
+          title: resolve(msg("All projects")),
+          subtitle: resolve(msg("Show threads from every project")),
           state: props.selectedProjectKey === null ? "on" : "off",
           onPress: () => props.onProjectChange(null),
         },
@@ -144,20 +148,23 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
     items.push({
       type: "action",
       id: "reset",
-      title: "Reset filters",
+      title: resolve(msg("Reset filters")),
       onPress: props.onResetScope,
     });
   }
 
   return {
-    title: "Thread list options",
+    title: resolve(msg("Thread list options")),
     items,
   };
 }
 
 /** The thread list options as an `AppBar` menu, for the workspace list header. */
-export function buildHomeListFilterMenuItems(props: HomeListFilterMenuInput): AppBarMenuItem[] {
-  return buildHomeListFilterMenu(props).items.map((item) =>
+export function buildHomeListFilterMenuItems(
+  props: HomeListFilterMenuInput,
+  resolve: MessageResolver = m,
+): AppBarMenuItem[] {
+  return buildHomeListFilterMenu(props, resolve).items.map((item) =>
     item.type === "submenu"
       ? {
           id: item.title,
