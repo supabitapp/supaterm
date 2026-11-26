@@ -63,6 +63,8 @@ type SecretFieldsMapper = (
   name: SecretSlotName,
 ) => Record<string, unknown>;
 type ProviderEnvironment = NonNullable<ProviderInstanceConfig["environment"]>;
+const environmentSecretName = (instanceId: string, variableName: string) =>
+  `provider-env-${encode(instanceId)}-${encode(variableName)}`;
 
 export function mapSettingsSecrets(
   settings: ServerSettings,
@@ -95,7 +97,7 @@ export function mapSettingsSecrets(
       // A secret reference is not itself secret; storage sees the value cleared.
       const reference = typeof variable.value === "string" ? undefined : variable.value;
       const result = map({
-        secretName: `provider-env-${encode(instanceId)}-${encode(variable.name)}`,
+        secretName: environmentSecretName(instanceId, variable.name),
         kind: "environment",
         value: typeof variable.value === "string" ? variable.value : "",
         redacted: reference === undefined && variable.valueRedacted === true,
@@ -143,6 +145,21 @@ export function mapSettingsSecretValues(
     }
     return next;
   });
+}
+
+/** Maps each provider environment variable with the secret name of its slot. */
+export function mapProviderEnvironmentVariables(
+  settings: ServerSettings,
+  map: (variable: ProviderEnvironment[number], secretName: string) => ProviderEnvironment[number],
+): ServerSettings {
+  return mapSecretFieldGroups(
+    settings,
+    (fields) => fields,
+    (instanceId, environment) =>
+      environment.map((variable) =>
+        map(variable, environmentSecretName(instanceId, variable.name)),
+      ),
+  );
 }
 
 function mapSecretFieldGroups(

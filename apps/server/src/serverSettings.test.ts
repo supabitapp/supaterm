@@ -7,7 +7,7 @@ import {
   ProjectId,
   ProjectScript,
   ProviderDriverKind,
-  type ProviderInstanceEnvironment,
+  ProviderInstanceEnvironment,
   ProviderInstanceId,
   resolveProviderInstanceEnabled,
   SecretProviderId,
@@ -39,6 +39,18 @@ import * as ServerSettingsModule from "./serverSettings.ts";
 import { SECRET_REDACTED } from "./settingsSecrets.ts";
 import { resolveProviderInstanceTerminalEnvironment } from "./terminal/Manager.ts";
 
+const encodeProviderEnvironment = Schema.encodeEffect(ProviderInstanceEnvironment);
+const decodeProviderEnvironment = Schema.decodeUnknownEffect(ProviderInstanceEnvironment);
+const decodeOlderClientProviderEnvironment = Schema.decodeUnknownEffect(
+  Schema.Array(
+    Schema.Struct({
+      name: Schema.String,
+      value: Schema.String,
+      sensitive: Schema.Boolean,
+      valueRedacted: Schema.optionalKey(Schema.Boolean),
+    }),
+  ),
+);
 const decodeServerSettings = Schema.decodeUnknownEffect(ServerSettings);
 const decodeServerSettingsJson = Schema.decodeUnknownEffect(Schema.fromJsonString(ServerSettings));
 const decodeServerSettingsPatch = Schema.decodeUnknownEffect(ServerSettingsPatch);
@@ -1643,6 +1655,10 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           provider: SecretProviderId.make("personal"),
           reference: "op://Private/Expo/token",
         };
+        const environmentReference = {
+          provider: SecretProviderId.make("personal"),
+          reference: "op://Private/OpenCode/env",
+        };
         const antigravity = ProviderInstanceId.make("antigravity");
         const openCode = ProviderInstanceId.make("opencode");
         const withProviders = yield* serverSettings.updateSettings({
@@ -1665,6 +1681,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
             [openCode]: {
               driver: ProviderDriverKind.make("opencode"),
               config: { serverUrl: "http://127.0.0.1:4096", serverPassword: openCodeReference },
+              environment: [
+                { name: "OPENCODE_TOKEN", value: environmentReference, sensitive: true },
+              ],
             },
           },
         });
@@ -1678,11 +1697,28 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           settings.providerInstances[id]?.config as Record<string, unknown> | undefined;
         assert.equal(configOf(legacy, antigravity)?.apiKey, SECRET_REDACTED);
         assert.equal(configOf(legacy, openCode)?.serverPassword, SECRET_REDACTED);
+        // Older clients decode a variable without its reference and resend the whole instance.
+        const resentEnvironment = yield* encodeProviderEnvironment(
+          legacy.providerInstances[openCode]?.environment ?? [],
+        ).pipe(
+          Effect.flatMap(decodeOlderClientProviderEnvironment),
+          Effect.flatMap(decodeProviderEnvironment),
+        );
         const echoed = yield* serverSettings.updateSettings({
           sourceControlHosts: legacy.sourceControlHosts,
           easDeviceHosts: legacy.easDeviceHosts,
-          providerInstances: legacy.providerInstances,
+          providerInstances: {
+            ...legacy.providerInstances,
+            [openCode]: {
+              ...legacy.providerInstances[openCode]!,
+              displayName: "Renamed",
+              environment: resentEnvironment,
+            },
+          },
         });
+        assert.deepEqual(echoed.providerInstances[openCode]?.environment, [
+          { name: "OPENCODE_TOKEN", value: environmentReference, sensitive: true },
+        ]);
         assert.deepEqual(echoed.easDeviceHosts[0]?.accessToken, easReference);
         assert.deepEqual(configOf(echoed, antigravity)?.apiKey, antigravityReference);
         assert.deepEqual(configOf(echoed, openCode)?.serverPassword, openCodeReference);

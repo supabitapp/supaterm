@@ -49,6 +49,7 @@ import { watchDirectoryReplacements } from "./watchDirectoryReplacements.ts";
 
 import {
   mapSettingsSecrets,
+  mapProviderEnvironmentVariables,
   mapSettingsSecretValues,
   withoutRemovedSecretProviderReferences,
   SECRET_REDACTED,
@@ -142,11 +143,18 @@ export function redactServerSettingsForClient(
       ? { value: "", redacted: secret.redacted || secret.value.length > 0 }
       : { value: secret.value, redacted: false },
   );
-  // Older clients decode secret fields as strings and fail on a reference, so they see a saved secret.
+  // Older clients decode secret fields as strings and fail on a reference, so they see a saved
+  // secret. They drop a variable's reference and would resend its empty value as a cleared one.
   const shaped = client.secretReferences
     ? redacted
-    : mapSettingsSecretValues(redacted, (value) =>
-        isSecretReference(value) ? SECRET_REDACTED : value,
+    : mapProviderEnvironmentVariables(
+        mapSettingsSecretValues(redacted, (value) =>
+          isSecretReference(value) ? SECRET_REDACTED : value,
+        ),
+        (variable) =>
+          typeof variable.value === "string"
+            ? variable
+            : { name: variable.name, value: "", sensitive: true, valueRedacted: true },
       );
   return { ...shaped, secretProviders: withoutUnknownSecretProviderConfigs(shaped) };
 }
@@ -158,9 +166,21 @@ function withEchoedSecretReferences(current: ServerSettings, next: ServerSetting
     if (isSecretReference(value)) references.set(secretName, value);
     return value;
   });
+  mapProviderEnvironmentVariables(current, (variable, secretName) => {
+    if (typeof variable.value !== "string") references.set(secretName, variable.value);
+    return variable;
+  });
   if (references.size === 0) return next;
-  return mapSettingsSecretValues(next, (value, secretName) =>
-    value === SECRET_REDACTED ? (references.get(secretName) ?? value) : value,
+  return mapProviderEnvironmentVariables(
+    mapSettingsSecretValues(next, (value, secretName) =>
+      value === SECRET_REDACTED ? (references.get(secretName) ?? value) : value,
+    ),
+    (variable, secretName) => {
+      const reference = variable.valueRedacted === true ? references.get(secretName) : undefined;
+      return reference === undefined
+        ? variable
+        : { name: variable.name, value: reference, sensitive: true };
+    },
   );
 }
 
