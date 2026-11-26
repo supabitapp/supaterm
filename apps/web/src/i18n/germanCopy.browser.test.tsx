@@ -1,5 +1,7 @@
+import { RegistryContext } from "@effect/atom-react";
 import { EnvironmentId } from "@supaterm/contracts";
 import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
+import { AtomRegistry } from "effect/reactivity";
 import { getReactI18nCache, GTProvider, initializeGTSPA, msg } from "gt-react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vite-plus/test";
@@ -8,6 +10,9 @@ import { page } from "vite-plus/test/browser";
 import { render } from "../../test/render";
 import { summarizePullRequestChecks } from "../components/pullRequest/pullRequestPresentation";
 import { SidebarSnoozeButton } from "../components/sidebar/SidebarSnoozeButton";
+import { SidebarThreadUndoNotice } from "../components/sidebar/SidebarThreadUndoNotice";
+import { useThreadUndoNotice } from "../hooks/showThreadUndoNotice";
+import { primaryServerKeybindingsAtom } from "../state/server";
 import { formatWorkingDurationLabel } from "@supaterm/client-runtime/state/thread-timing";
 import { m, setActiveLocale } from "./messages";
 import de from "./translations/de.json";
@@ -73,5 +78,21 @@ describe("German catalog", () => {
     );
     await expect.element(page.getByRole("menuitem", { name: /^In 1 Stunde/ })).toBeVisible();
     await expect.element(page.getByRole("menuitem", { name: /^Morgen/ })).toBeVisible();
+  });
+
+  it("summarizes the sidebar undo notice in German", async () => {
+    using _locale = await inGerman();
+    useThreadUndoNotice.setState({ notice: { action: "Snoozed", count: 2, undo: async () => {} } });
+    using _notice = { [Symbol.dispose]: () => useThreadUndoNotice.setState({ notice: null }) };
+    const registry = AtomRegistry.make({ initialValues: [[primaryServerKeybindingsAtom, []]] });
+    using _registry = { [Symbol.dispose]: () => registry.dispose() };
+    await using screen = await render(
+      <RegistryContext.Provider value={registry}>
+        <German>
+          <SidebarThreadUndoNotice />
+        </German>
+      </RegistryContext.Provider>,
+    );
+    await expect.element(screen.getByText("2 zurückgestellt,")).toBeVisible();
   });
 });
