@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@supaterm/contracts";
 import { ClockIcon } from "@supaterm/icons";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 import { useClientSettings } from "~/hooks/useSettings";
 
@@ -21,10 +21,11 @@ export function SidebarSnoozeButton({
   environmentId: EnvironmentId;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   // Resolve relative presets when the menu opens, rather than when the row mounts.
   // oxlint-disable-next-line react/purity -- The compiler holds the opening moment's presets while the menu stays open.
-  const presets = open ? resolveSnoozePresets(new Date(), timestampFormat, environmentId) : [];
+  const presets = open ? resolveSnoozePresets(new Date(), timestampFormat, environmentId, m) : [];
   return (
     <Menu open={open} onOpenChange={onOpenChange}>
       <Tooltip>

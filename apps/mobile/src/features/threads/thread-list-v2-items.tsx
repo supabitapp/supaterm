@@ -1056,12 +1056,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const snoozePresets = useMemo(
     () =>
       swipeActions.secondary === "snooze"
-        ? resolveSnoozePresets(
-            snoozePresetClock.now,
-            props.snoozePresets ? { presets: props.snoozePresets } : {},
-          )
+        ? resolveSnoozePresets(snoozePresetClock.now, {
+            ...(props.snoozePresets ? { presets: props.snoozePresets } : {}),
+            resolve: m,
+          })
         : ([] as const),
-    [props.snoozePresets, snoozePresetClock.now, swipeActions.secondary],
+    [m, props.snoozePresets, snoozePresetClock.now, swipeActions.secondary],
   );
   const snoozePresetActions = useMemo<MenuAction[]>(
     () => [

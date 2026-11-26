@@ -2,6 +2,7 @@ import { getReactI18nCache, msg } from "gt-react-native";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { discussionCommentCountLabel } from "../features/pull-requests/pullRequestDiffComments";
+import { resolveThreadListV2SnoozeMenuSelection } from "../features/threads/threadListV2";
 import { relativeTime } from "../lib/time";
 import { m, setActiveLocale } from "./messages";
 import de from "./translations/de.json";
@@ -47,5 +48,16 @@ describe("German catalog", () => {
     const now = Date.parse("2026-11-26T12:00:00Z");
     expect(relativeTime("2026-10-28T12:00:00Z", now, m)).toBe("29 T.");
     expect(discussionCommentCountLabel(3, m)).toBe("3 Kommentare");
+  });
+
+  it("labels a picked snooze preset in German", () => {
+    using _locale = inGerman();
+    const selection = resolveThreadListV2SnoozeMenuSelection({
+      event: "snooze:after:60",
+      displayedPresets: [],
+      now: new Date("2026-11-26T12:00:00Z"),
+      presets: undefined,
+    });
+    expect(selection._tag === "selected" && selection.preset.label).toBe("In 1 Stunde");
   });
 });
