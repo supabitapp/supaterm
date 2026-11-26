@@ -33,6 +33,8 @@ import {
 import "./pdfViewer.css";
 import { msg, useGT } from "gt-react";
 import { m } from "~/i18n/messages";
+import { thrownErrorMessage } from "@supaterm/client-runtime/errors";
+import { previewErrorText } from "./previewFailureMessages";
 
 const MAX_PAGES = 2000;
 const MAX_FIND_TEXT = 4 * 1024 * 1024;
@@ -157,7 +159,7 @@ function PdfPage(props: {
       await Promise.all([shown, layer.render(), linkedOrNone]);
     })().catch((cause: unknown) => {
       if (!cancelled)
-        onError(cause instanceof Error ? cause.message : m(msg("This PDF page could not render.")));
+        onError(thrownErrorMessage(cause, m) ?? m(msg("This PDF page could not render.")));
     });
     return () => {
       cancelled = true;
@@ -322,7 +324,7 @@ export default function PdfViewer(props: {
       })
       .catch((cause: unknown) => {
         if (!disposed && !controller.signal.aborted)
-          setError(cause instanceof Error ? cause.message : m(msg("Unable to open PDF.")));
+          setError(previewErrorText(cause, m(msg("Unable to open PDF."))));
       })
       .finally(() => clearTimeout(timeout));
     return () => {
@@ -459,9 +461,7 @@ export default function PdfViewer(props: {
       })()
         .catch((cause: unknown) => {
           if (!cancelled)
-            setFindError(
-              cause instanceof Error ? cause.message : m(msg("Could not search this PDF.")),
-            );
+            setFindError(thrownErrorMessage(cause, m) ?? m(msg("Could not search this PDF.")));
         })
         .finally(() => {
           if (!cancelled) setFinding(false);
@@ -476,7 +476,15 @@ export default function PdfViewer(props: {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-1 border-b border-border/60 px-2 py-1 text-xs">
         <span className="mr-auto px-1 tabular-nums" aria-live="polite">
-          {pdf ? `${current + 1} / ${pdf.numPages} page${pdf.numPages === 1 ? "" : "s"}` : "PDF"}
+          {pdf
+            ? gt(
+                "{count, plural, one {{current} / {count} page} other {{current} / {count} pages}}",
+                {
+                  count: pdf.numPages,
+                  current: String(current + 1),
+                },
+              )
+            : "PDF"}
         </span>
         <FileSurfaceAction
           label={gt("Previous page")}

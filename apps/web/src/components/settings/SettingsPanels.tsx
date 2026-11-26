@@ -531,7 +531,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       ? [gt("Keep awake while agents work")]
       : []),
     ...(settings.pruneEventHistory !== DEFAULT_UNIFIED_SETTINGS.pruneEventHistory
-      ? ["Delete history older than a day"]
+      ? [gt("Delete history older than a day")]
       : []),
     ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
       ? [gt("New thread mode")]
@@ -2156,7 +2156,10 @@ export function MaintenanceSettingsPanel() {
         />
       </SettingsSection>
 
-      <SettingsSection id="history" title={gt("History")}>
+      <SettingsSection
+        id="history"
+        title={gt("History", { $context: "settings section, stored event history" })}
+      >
         <SettingsRow
           serverScoped
           settingKeys={["pruneEventHistory"]}

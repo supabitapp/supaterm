@@ -5,14 +5,11 @@ import { useClientSettings } from "~/hooks/useSettings";
 import { FileSurfaceFailure, FileSurfaceLoading, FileSurfaceNotice } from "./fileSurfaceChrome";
 import { PREVIEW_PAGE_ROWS, type TextPreviewResult } from "./largeTextProtocol";
 import VirtualTablePreview from "./VirtualTablePreview";
-import { msg, T } from "gt-react";
+import { msg, T, useGT } from "gt-react";
 import { m } from "~/i18n/messages";
+import { previewFailureText } from "./previewFailureMessages";
 
 const FIRST_SCREEN_BYTES = 16 * 1024;
-
-function countLabel(count: number, noun: string) {
-  return `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`;
-}
 
 function firstScreen(text: string, delimiter: "," | "\t" | null, complete: boolean) {
   if (!text || text.includes("\0")) return [];
@@ -77,6 +74,7 @@ export default function LargeTextViewer(props: {
   /** A preview's own wrap toggle; omitted follows the word wrap setting. */
   readonly wordWrap?: boolean;
 }) {
+  const gt = useGT();
   const [initial] = useState(() => {
     const cached = props.src === undefined ? undefined : recentFirstScreens.get(props.src);
     return cached ? firstScreenState(cached.text, props.delimiter, cached.complete) : null;
@@ -121,9 +119,9 @@ export default function LargeTextViewer(props: {
           copyPending.current?.resolve(result.text);
           copyPending.current = null;
         } else if (result.type === "error") {
-          copyPending.current?.reject(new Error(result.message));
+          copyPending.current?.reject(new Error(previewFailureText(result)));
           copyPending.current = null;
-          if (result.operation !== "copy") setError(result.message);
+          if (result.operation !== "copy") setError(previewFailureText(result));
         } else if (result.type === "meta") {
           indexed = true;
           if (prefetched) {
@@ -250,6 +248,8 @@ export default function LargeTextViewer(props: {
     );
   if (!meta || (meta.count > 0 && !pages.has(0))) return <FileSurfaceLoading />;
   const header = props.delimiter ? pages.get(0)?.[0] : undefined;
+  const rowCount = Math.max(0, meta.count - 1);
+  const columnCount = meta.count ? meta.columns : 0;
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <div
@@ -260,10 +260,19 @@ export default function LargeTextViewer(props: {
         {!meta.complete
           ? null
           : props.delimiter
-            ? `${countLabel(Math.max(0, meta.count - 1), "row")} · ${countLabel(meta.count ? meta.columns : 0, "column")}`
-            : countLabel(meta.count, "line")}
+            ? `${gt("{count, plural, one {{formatted} row} other {{formatted} rows}}", {
+                count: rowCount,
+                formatted: rowCount.toLocaleString(),
+              })} · ${gt("{count, plural, one {{formatted} column} other {{formatted} columns}}", {
+                count: columnCount,
+                formatted: columnCount.toLocaleString(),
+              })}`
+            : gt("{count, plural, one {{formatted} line} other {{formatted} lines}}", {
+                count: meta.count,
+                formatted: meta.count.toLocaleString(),
+              })}
         {meta.complete && meta.sizeBytes !== undefined
-          ? ` · ${meta.sizeBytes === 0 ? "0 bytes" : formatAttachmentSize(meta.sizeBytes)}`
+          ? ` · ${meta.sizeBytes === 0 ? gt("0 bytes") : formatAttachmentSize(meta.sizeBytes)}`
           : null}
       </div>
       {!meta.complete ? (

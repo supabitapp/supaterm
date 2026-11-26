@@ -1,8 +1,5 @@
 import { resolvePullRequestDetailChecks } from "@supaterm/client-runtime/pull-request-checks";
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { PullRequestChangeBreakdownRows } from "../pullRequest/PullRequestChangeBreakdownStat";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
@@ -61,7 +58,6 @@ import {
   resolvePullRequestMergeMethod,
   allowedPullRequestMergeMethods,
   canPerformPullRequestAction,
-  PULL_REQUEST_MERGE_METHOD_LABELS,
   resolvePullRequestMenuActions,
   resolveThreadPanelPullRequestAction,
 } from "../pullRequest/pullRequestDetail.logic";
@@ -263,9 +259,15 @@ export function ThreadDetailsPrRow({
     setLastSelectedMergeMethod(method);
   };
   const autoMergeArmed = detail?.state === "open" && detail.autoMergeEnabled === true;
-  const armedAutoMergeLabel = detail?.autoMergeMethod
-    ? `Auto-merge (${PULL_REQUEST_MERGE_METHOD_LABELS[detail.autoMergeMethod].toLowerCase()})`
-    : "Auto-merge";
+  const armedAutoMergeLabel = gt(
+    "{method, select, merge {Auto-merge (merge) enabled} squash {Auto-merge (squash and merge) enabled} rebase {Auto-merge (rebase and merge) enabled} fastForward {Auto-merge (fast-forward merge) enabled} other {Auto-merge enabled}}",
+    {
+      method:
+        detail?.autoMergeMethod === "fast-forward"
+          ? "fastForward"
+          : (detail?.autoMergeMethod ?? "none"),
+    },
+  );
 
   const startInNewThread = (kind: HandoffKind) => {
     if (detail === null) return;
@@ -342,9 +344,26 @@ export function ThreadDetailsPrRow({
       : null)
   )?.label.toLowerCase();
   const accessibleTitle = (detail?.title ?? pr?.title)?.trim();
-  const openAriaLabel = `${capitalizeTerm(terminology.singular)} #${number}${
-    stateLabel ? `, ${stateLabel}` : ""
-  }${accessibleTitle ? `: ${accessibleTitle}` : ""}`;
+  const openAriaLabel =
+    stateLabel && accessibleTitle
+      ? gt(
+          "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}, {state}: {title}",
+          { term, number, state: stateLabel, title: accessibleTitle },
+        )
+      : stateLabel
+        ? gt(
+            "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}, {state}",
+            { term, number, state: stateLabel },
+          )
+        : accessibleTitle
+          ? gt(
+              "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}: {title}",
+              { term, number, title: accessibleTitle },
+            )
+          : gt(
+              "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}",
+              { term, number },
+            );
 
   // Everything the host reported, at a glance. The row stays one line; the tooltip is where the
   // rest of the answer lives — styled like the sidebar's thread tooltip, title above icon-led
@@ -352,7 +371,11 @@ export function ThreadDetailsPrRow({
   const rowTooltip =
     detail === null || statePresentation === null ? (
       <TooltipPopup side="top">
-        {status?.tooltip ?? `${capitalizeTerm(terminology.singular)} #${number}`}
+        {status?.tooltip ??
+          gt(
+            "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number}",
+            { term, number },
+          )}
       </TooltipPopup>
     ) : (
       <TooltipPopup
@@ -400,9 +423,7 @@ export function ThreadDetailsPrRow({
             {autoMergeArmed ? (
               <div className="flex min-w-0 items-center gap-2">
                 <PullRequestGlyph.merged aria-hidden className="size-3 shrink-0 text-info" />
-                <div className="min-w-0 truncate text-foreground/75">
-                  {armedAutoMergeLabel} enabled
-                </div>
+                <div className="min-w-0 truncate text-foreground/75">{armedAutoMergeLabel}</div>
               </div>
             ) : null}
             {detail.isDraft && conflicting ? (
@@ -548,7 +569,7 @@ export function ThreadDetailsPrRow({
       {autoMergeArmed ? (
         <PullRequestGlyph.merged
           role="img"
-          aria-label={`${armedAutoMergeLabel} enabled`}
+          aria-label={armedAutoMergeLabel}
           className="size-3.5 shrink-0 text-info"
         />
       ) : null}

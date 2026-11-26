@@ -28,14 +28,28 @@ import { PreviewImage } from "./PreviewImage";
 import { readBinaryPreview } from "./readBinaryPreview";
 import { msg, T, useGT } from "gt-react";
 import { m } from "~/i18n/messages";
+import { previewErrorText, previewFailureText } from "./previewFailureMessages";
 
 const SourcePreview = lazy(() => import("./ReadOnlySourcePreview"));
 type Archive = Extract<BinaryWorkerResult, { type: "archive" }>;
 type Database = Extract<BinaryWorkerResult, { type: "sqlite" }>;
 type Rows = Extract<BinaryWorkerResult, { type: "rows" }>;
 
-const countLabel = (count: number, one: string, many: string) =>
-  `${count.toLocaleString()} ${count === 1 ? one : many}`;
+const rowsLabel = (count: number, gt: ReturnType<typeof useGT>) =>
+  gt("{count, plural, one {{formatted} row} other {{formatted} rows}}", {
+    count,
+    formatted: count.toLocaleString(),
+  });
+const columnsLabel = (count: number, gt: ReturnType<typeof useGT>) =>
+  gt("{count, plural, one {{formatted} column} other {{formatted} columns}}", {
+    count,
+    formatted: count.toLocaleString(),
+  });
+const entriesLabel = (count: number, gt: ReturnType<typeof useGT>) =>
+  gt("{count, plural, one {{formatted} entry} other {{formatted} entries}}", {
+    count,
+    formatted: count.toLocaleString(),
+  });
 
 function ArchiveFile(props: { readonly path: string; readonly bytes: Uint8Array<ArrayBuffer> }) {
   const gt = useGT();
@@ -139,7 +153,7 @@ export default function BinaryViewer(props: {
       if (timerRef.current) clearTimeout(timerRef.current);
       const result = event.data;
       setBusy(false);
-      if (result.type === "error") setError(result.message);
+      if (result.type === "error") setError(previewFailureText(result));
       else if (result.type === "archive") setArchive(result);
       else if (result.type === "entry") setEntry(result);
       else if (result.type === "rows") setRows(result);
@@ -160,7 +174,7 @@ export default function BinaryViewer(props: {
         }
       })
       .catch((cause: unknown) =>
-        fail(cause instanceof Error ? cause.message : "Could not read this file."),
+        fail(previewErrorText(cause, m(msg("Could not read this file.")))),
       );
     return () => {
       controller.abort();
@@ -222,7 +236,7 @@ export default function BinaryViewer(props: {
             {selectedPath ?? (folder || gt("Archive contents"))}
           </span>
           <span className="shrink-0 text-muted-foreground">
-            {countLabel(archive.entries.length, "entry", "entries")}
+            {entriesLabel(archive.entries.length, gt)}
             {sizeBytes !== null ? ` · ${formatAttachmentSize(sizeBytes)}` : ""}
           </span>
         </div>
@@ -244,13 +258,13 @@ export default function BinaryViewer(props: {
                   size="xs"
                 >
                   <SelectValue>
-                    {table.name} ({countLabel(table.count, "row", "rows")})
+                    {table.name} ({rowsLabel(table.count, gt)})
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup>
                   {database.tables.map((item) => (
                     <SelectItem key={item.name} value={item.name}>
-                      {item.name} ({countLabel(item.count, "row", "rows")})
+                      {item.name} ({rowsLabel(item.count, gt)})
                     </SelectItem>
                   ))}
                 </SelectPopup>
@@ -284,8 +298,8 @@ export default function BinaryViewer(props: {
             className="border-b border-border/60 px-3 py-2 text-xs text-muted-foreground tabular-nums"
             role="status"
           >
-            {countLabel(table.count, "row", "rows")} ·{" "}
-            {rows ? countLabel(rows.columns.length, "column", "columns") : gt("… columns")}
+            {rowsLabel(table.count, gt)} ·{" "}
+            {rows ? columnsLabel(rows.columns.length, gt) : gt("… columns")}
             {sizeBytes !== null ? ` · ${formatAttachmentSize(sizeBytes)}` : ""}
           </div>
           <FileSurfaceNotice>

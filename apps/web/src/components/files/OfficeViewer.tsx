@@ -18,6 +18,8 @@ import { FileSurfaceAction, FileSurfaceLoading, FileSurfaceNotice } from "./file
 import { OFFICE_PREVIEW_MAX_BYTES, type OfficeWorkerResult } from "./officePreviewProtocol";
 import { msg, T, useGT } from "gt-react";
 import { m } from "~/i18n/messages";
+import { thrownErrorMessage } from "@supaterm/client-runtime/errors";
+import { previewFailureText } from "./previewFailureMessages";
 
 const DocumentPages = lazy(() => import("./DocumentPages"));
 const NotebookPreview = lazy(() => import("./NotebookPreview"));
@@ -118,7 +120,7 @@ function ExtendedOfficeViewer(props: {
     worker.addEventListener("message", (event: MessageEvent<OfficeWorkerResult>) => {
       if (controller.signal.aborted) return;
       const result = event.data;
-      if (result.type === "error") fail(result.message);
+      if (result.type === "error") fail(previewFailureText(result));
       else if (result.type === "document") {
         if (timerRef.current) clearTimeout(timerRef.current);
         setDocument(result);
@@ -149,7 +151,7 @@ function ExtendedOfficeViewer(props: {
         }
       })
       .catch((cause: unknown) =>
-        fail(cause instanceof Error ? cause.message : "Could not read this file."),
+        fail(thrownErrorMessage(cause, m) ?? m(msg("Could not read this file."))),
       );
     return () => {
       controller.abort();
@@ -197,6 +199,13 @@ function ExtendedOfficeViewer(props: {
           : gt("{count, plural, one {{count} page} other {{count} pages}}", {
               count: documentCount,
             });
+  const sheetName = (index: number) =>
+    workbook?.sheets[index]?.name ?? gt("Sheet {number}", { number: String(index + 1) });
+  const pageTitle = (index: number) =>
+    previewDocument?.pages[index]?.title ??
+    (navigation === "chapter"
+      ? gt("Chapter {number}", { number: String(index + 1) })
+      : gt("Page {number}", { number: String(index + 1) }));
   const previousLabel = {
     sheet: gt("Previous sheet"),
     page: gt("Previous page"),
@@ -232,12 +241,12 @@ function ExtendedOfficeViewer(props: {
                   aria-label={gt("Sheet", { $context: "noun, spreadsheet sheet picker" })}
                   size="xs"
                 >
-                  <SelectValue>{sheet?.name}</SelectValue>
+                  <SelectValue>{sheet ? sheetName(page) : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectPopup>
                   {workbook.sheets.map((item, index) => (
                     <SelectItem key={index} value={index}>
-                      {item.name}
+                      {item.name ?? sheetName(index)}
                     </SelectItem>
                   ))}
                 </SelectPopup>
@@ -255,12 +264,12 @@ function ExtendedOfficeViewer(props: {
                   aria-label={gt("Chapter", { $context: "noun, book chapter picker" })}
                   size="xs"
                 >
-                  <SelectValue>{documentPage?.title}</SelectValue>
+                  <SelectValue>{documentPage ? pageTitle(page) : undefined}</SelectValue>
                 </SelectTrigger>
                 <SelectPopup>
                   {previewDocument.pages.map((item, index) => (
                     <SelectItem key={index} value={index}>
-                      {item.title}
+                      {item.title ?? pageTitle(index)}
                     </SelectItem>
                   ))}
                 </SelectPopup>
@@ -312,7 +321,7 @@ function ExtendedOfficeViewer(props: {
           <Suspense fallback={<FileSurfaceLoading />}>
             <DocumentPages
               html={documentPage.html}
-              name={`${props.name}: ${documentPage.title}`}
+              name={`${props.name}: ${pageTitle(page)}`}
               details={`${documentDetails}${fileSize !== undefined ? ` · ${fileSize === 0 ? "0 bytes" : formatAttachmentSize(fileSize)}` : ""}`}
             />
           </Suspense>
@@ -337,7 +346,7 @@ function ExtendedOfficeViewer(props: {
           ) : (
             <VirtualTablePreview
               key={page}
-              name={`${props.name}: ${sheet.name}`}
+              name={`${props.name}: ${sheetName(page)}`}
               count={sheet.rowCount}
               columns={sheet.columns}
               getRows={(index) => (index === 0 ? sheet.rows : sheetPages.get(`${page}:${index}`))}
