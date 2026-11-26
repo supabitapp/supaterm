@@ -2051,6 +2051,7 @@ const make = Effect.gen(function* () {
       workspaceRoot: string | null;
       scopeId: string | null;
       cwd: string | null;
+      repositoryPath: string | null;
     }>`
       WITH RECURSIVE retained_checkpoint_threads(thread_id) AS (
         SELECT thread_id FROM orchestration_v2_projection_threads WHERE deleted_at IS NULL
@@ -2063,7 +2064,8 @@ const make = Effect.gen(function* () {
       SELECT t.thread_id AS "threadId",
         json_extract(t.payload_json, '$.worktreePath') AS "worktreePath",
         p.workspace_root AS "workspaceRoot", s.scope_id AS "scopeId",
-        json_extract(s.payload_json, '$.cwd') AS cwd
+        json_extract(s.payload_json, '$.cwd') AS cwd,
+        json_extract(s.payload_json, '$.repositoryPath') AS "repositoryPath"
       FROM orchestration_v2_projection_threads t
       LEFT JOIN projection_projects p ON p.project_id = t.project_id
       LEFT JOIN orchestration_v2_projection_checkpoint_scopes s ON s.thread_id = t.thread_id
@@ -2088,7 +2090,7 @@ const make = Effect.gen(function* () {
         );
       }
       // A worktree may already be gone; its refs live in the shared repository.
-      for (const cwd of [row.cwd, row.worktreePath, row.workspaceRoot]) {
+      for (const cwd of [row.cwd, row.repositoryPath, row.worktreePath, row.workspaceRoot]) {
         if (cwd === null) continue;
         const key = path.resolve(cwd);
         const owned = targets.get(key) ?? new Set<string>();
