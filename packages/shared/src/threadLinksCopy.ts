@@ -1,8 +1,8 @@
 import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
-import { mFallback, msg } from "gt-i18n";
-import type { MFunctionType } from "gt-i18n/types";
 
 import { relabelThreadLinks as relabelThreadLinksWith, type ThreadLink } from "./threadLinks.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 /** @public */
 export function unknownThreadLinkLabel(

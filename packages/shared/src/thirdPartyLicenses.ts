@@ -1,3 +1,4 @@
+import { msg } from "gt-i18n";
 export interface ThirdPartyLicenseEntry {
   readonly bundles: ReadonlyArray<string>;
   readonly kind: "custom" | "package";
@@ -98,13 +99,13 @@ export function filterThirdPartyLicenseEntries(
 
 const BUNDLE_LABELS: Readonly<Record<string, string>> = {
   android: "Android",
-  assets: "Assets",
-  desktop: "Desktop",
-  "device-tools": "Device tools",
+  assets: msg("Assets"),
+  desktop: msg("Desktop"),
+  "device-tools": msg("Device tools"),
   ios: "iOS",
-  mobile: "Mobile",
-  server: "Server",
-  web: "Web",
+  mobile: msg("Mobile"),
+  server: msg("Server"),
+  web: msg("Web"),
 };
 
 export function formatLicenseBundles(bundles: ReadonlyArray<string>): string {

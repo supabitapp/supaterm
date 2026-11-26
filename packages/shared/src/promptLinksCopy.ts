@@ -1,6 +1,3 @@
-import { mFallback, msg } from "gt-i18n";
-import type { MFunctionType } from "gt-i18n/types";
-
 import {
   type LinkedPrompt,
   type NewThreadLink,
@@ -10,6 +7,8 @@ import {
   type PromptLinkError,
   type PromptLinkResult,
 } from "./promptLinks.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 function promptLinkErrorMessage(error: PromptLinkError, resolve: MFunctionType): string {
   switch (error) {

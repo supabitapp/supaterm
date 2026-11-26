@@ -1,7 +1,6 @@
+import { describeDynamicToolTitle, searchToolLabelParts } from "./toolActivity.ts";
 import { mFallback, msg } from "gt-i18n";
 import type { MFunctionType } from "gt-i18n/types";
-
-import { describeDynamicToolTitle, searchToolLabelParts } from "./toolActivity.ts";
 
 /** @public */
 export function dynamicToolTitle(

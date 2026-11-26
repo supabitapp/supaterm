@@ -1,7 +1,6 @@
+import type { CodexArtifactTemplateKind } from "./codexArtifactTemplates.ts";
 import { mFallback, msg } from "gt-i18n";
 import type { MFunctionType } from "gt-i18n/types";
-
-import type { CodexArtifactTemplateKind } from "./codexArtifactTemplates.ts";
 
 const PRESENTATION_LABEL_BY_KIND = {
   document: msg("Document template"),

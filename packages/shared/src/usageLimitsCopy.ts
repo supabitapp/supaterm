@@ -4,8 +4,6 @@ import type {
   ServerProviderUsageLimits,
   ServerProviderUsageWindow,
 } from "@supaterm/contracts";
-import { mFallback, msg } from "gt-i18n";
-import type { MFunctionType } from "gt-i18n/types";
 
 import {
   collectExternalUsageLinks as collectExternalUsageLinksWith,
@@ -16,6 +14,8 @@ import {
   type ResetCreditChoice,
   resetCountdown,
 } from "./usageLimits.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
