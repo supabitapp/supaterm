@@ -256,7 +256,7 @@ export class ThreadLaunchService extends Context.Service<
       | ThreadLaunchNotRepositoryError
       | TaskFolderError
     >;
-    /** True only when the project's folder is known not to be a Git repository. */
+    /** True only when the project's folder is known to hold no Git repository a worktree could use. */
     readonly isNonGitProject: (projectId: ProjectId) => Effect.Effect<boolean>;
     readonly retryPreparation: (
       input: ThreadLaunchPreparationInput,
@@ -494,8 +494,13 @@ const make = Effect.gen(function* () {
       .pipe(Effect.orElseSucceed(() => Option.none()));
     if (Option.isNone(project)) return false;
     // Unlike `git.repositoryRoot`, this fails on a repository Git cannot read, which is not "no repository".
-    return yield* checkpointStore.isGitRepository(project.value.workspaceRoot).pipe(
-      Effect.map((isRepository) => !isRepository),
+    const rootIsRepository = yield* checkpointStore
+      .isGitRepository(project.value.workspaceRoot)
+      .pipe(Effect.orElseSucceed(() => true));
+    if (rootIsRepository) return false;
+    // A plain folder holding repositories still gets a worktree, as a task folder.
+    return yield* taskFolders.plan({ projectId }).pipe(
+      Effect.map((plan) => plan === null),
       Effect.orElseSucceed(() => false),
     );
   });
