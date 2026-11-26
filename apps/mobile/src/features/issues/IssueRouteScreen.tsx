@@ -114,7 +114,7 @@ function IssueStateControl(props: {
       accessibilityRole={moves.length ? "button" : undefined}
       accessibilityLabel={gt("Issue state, {state}", { state: status.label })}
       disabled={!moves.length || props.busy}
-      className="min-h-11 flex-row items-center gap-1.5 active:opacity-70"
+      className="min-h-[44px] flex-row items-center gap-1.5 active:opacity-70"
     >
       <SymbolView name={status.icon} size={14} tintColorClassName={status.tint} />
       <Text className={`text-xs font-supaterm-medium ${status.text}`}>{status.label}</Text>
