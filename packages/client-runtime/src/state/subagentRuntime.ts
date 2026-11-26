@@ -8,6 +8,8 @@ import type {
   OrchestrationV2TurnItem,
 } from "@supaterm/contracts";
 import { isOrchestrationV2WorkActive, isProviderNativeSubagentThread } from "@supaterm/contracts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type RuntimeSubagentStatus =
   | "pending"
@@ -97,8 +99,12 @@ export function isLiveSubagentTurnItem(item: OrchestrationV2TurnItem): boolean {
   return item.type === "subagent" && isOrchestrationV2WorkActive(item.status);
 }
 
-export function waitingOnSubagentsLabel(count: number): string {
-  return count === 1 ? "Waiting on a subagent" : `Waiting on ${count} subagents`;
+export function waitingOnSubagentsLabel(count: number, resolve: MFunctionType = mFallback): string {
+  return resolve(
+    msg("{count, plural, =1 {Waiting on a subagent} other {Waiting on {count} subagents}}", {
+      count,
+    }),
+  );
 }
 
 export interface SubagentWorkflowGroup {

@@ -57,7 +57,8 @@ import {
 } from "./models.ts";
 import { commandDisplayText } from "../work-log/commandLabel.ts";
 import { formatSubagentDisplayTitle } from "./subagentDisplay.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 // Preparing runs show their workspace setup instead.
 const PROVIDER_STARTING_RUN_STATUSES = new Set(["starting", "running"]);
@@ -118,19 +119,19 @@ function latestMatchingRun(
 function providerStartingPhase(phase: string | undefined, provider: string) {
   switch (phase) {
     case "plugins":
-      return `Loading ${provider} plugins`;
+      return msg("Loading {provider} plugins", { provider });
     case "mcp":
-      return `Starting ${provider} MCP servers`;
+      return msg("Starting {provider} MCP servers", { provider });
     case "hooks":
-      return `Loading ${provider} hooks`;
+      return msg("Loading {provider} hooks", { provider });
     case "skills":
-      return `Loading ${provider} rules and skills`;
+      return msg("Loading {provider} rules and skills", { provider });
     case "resume":
-      return `Resuming ${provider} session`;
+      return msg("Resuming {provider} session", { provider });
     case "connecting":
-      return `Connecting to ${provider}`;
+      return msg("Connecting to {provider}", { provider });
     default:
-      return `Starting ${provider}`;
+      return msg("Starting {provider}", { provider });
   }
 }
 
@@ -145,8 +146,11 @@ function presentProviderStarting(input: {
 }): Pick<ThreadRunSummary, "providerStartingLabel" | "providerStarting"> {
   const name = input.driver === undefined ? undefined : PROVIDER_DISPLAY_NAMES[input.driver];
   return {
-    providerStartingLabel:
-      name === undefined ? "Starting" : providerStartingPhase(input.phase, name),
+    providerStartingLabel: mFallback(
+      name === undefined
+        ? msg("Starting", { $context: "a provider is launching" })
+        : providerStartingPhase(input.phase, name),
+    ),
     ...(input.driver === undefined
       ? {}
       : { providerStarting: { instanceId: input.instanceId, driver: input.driver } }),
@@ -396,9 +400,10 @@ const SUBAGENT_STATUS_LABELS: Record<OrchestrationV2ExecutionNode["status"], str
 export function formatProviderSubagentStatus(
   status: ProviderSubagentStatus | null,
   nowMs: number,
+  resolve: MFunctionType = mFallback,
 ): string {
-  if (status === null) return "Starting";
-  const label = SUBAGENT_STATUS_LABELS[status.status];
+  if (status === null) return resolve(msg("Starting"));
+  const label = resolve(SUBAGENT_STATUS_LABELS[status.status]);
   const live = isOrchestrationV2WorkActive(status.status);
   if (!live && status.status !== "completed") return label;
   const start = status.startedAt === null ? Number.NaN : Date.parse(status.startedAt);
@@ -409,7 +414,9 @@ export function formatProviderSubagentStatus(
       : Date.parse(status.completedAt);
   if (!Number.isFinite(start) || !Number.isFinite(end)) return label;
   const elapsed = formatDuration(Math.max(1_000, Math.floor((end - start) / 1_000) * 1_000));
-  return live ? `${label} ${elapsed}` : `${label} in ${elapsed}`;
+  return live
+    ? resolve(msg("{label} {elapsed}", { label, elapsed }))
+    : resolve(msg("{label} in {elapsed}", { label, elapsed }));
 }
 
 /** The run a manual continuation resumes; the server holds the queue until it does. */

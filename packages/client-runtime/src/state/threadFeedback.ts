@@ -5,7 +5,8 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "./runtime.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 type CodexFeedbackSubmissionDetails = {
   readonly id: MessageId;
@@ -29,20 +30,23 @@ export function parseCodexFeedbackCommand(text: string): { readonly reason?: str
   return reason ? { reason } : {};
 }
 
-export function codexFeedbackNotice(submission: CodexFeedbackSubmission) {
+export function codexFeedbackNotice(
+  submission: CodexFeedbackSubmission,
+  resolve: MFunctionType = mFallback,
+) {
   switch (submission.status) {
     case "interrupted":
       return null;
     case "uploading":
-      return { title: msg("Sending feedback to OpenAI..."), description: undefined };
+      return { title: resolve(msg("Sending feedback to OpenAI...")), description: undefined };
     case "sent":
       return {
-        title: msg("Feedback sent to OpenAI"),
-        description: `Thread ID: ${submission.feedbackId}`,
+        title: resolve(msg("Feedback sent to OpenAI")),
+        description: resolve(msg("Thread ID: {feedbackId}", { feedbackId: submission.feedbackId })),
       };
     case "failed":
       return {
-        title: msg("Could not send feedback to OpenAI"),
+        title: resolve(msg("Could not send feedback to OpenAI")),
         description: submission.errorMessage,
       };
   }
