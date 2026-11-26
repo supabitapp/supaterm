@@ -12,7 +12,7 @@ import {
   sideChatBringBackBlockedReason,
 } from "@supaterm/client-runtime/state/thread-workflows";
 import { AuthOrchestrationOperateScope, type ThreadId } from "@supaterm/contracts";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, Var, useMessages } from "gt-react-native";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -59,6 +59,7 @@ export function SideChatActionsRow(props: {
   readonly thread: EnvironmentThreadShell;
   readonly parentThreadId: ThreadId;
 }) {
+  const messages = useMessages();
   const { thread, parentThreadId } = props;
   const gt = useGT();
   const navigation = useNavigation();
@@ -72,11 +73,14 @@ export function SideChatActionsRow(props: {
   const promote = useAtomCommand(threadEnvironment.promoteSideChat, { reportFailure: false });
   const deleteThread = useAtomCommand(threadEnvironment.delete, { reportFailure: false });
   const [busy, setBusy] = useState(false);
-  const bringBackBlockedReason = sideChatBringBackBlockedReason({
-    canOperate,
-    parentRuntime: parent?.runtime,
-    mergeRun,
-  });
+  const bringBackBlockedReason = sideChatBringBackBlockedReason(
+    {
+      canOperate,
+      parentRuntime: parent?.runtime,
+      mergeRun,
+    },
+    messages,
+  );
 
   const run = async (
     failureTitle: string,

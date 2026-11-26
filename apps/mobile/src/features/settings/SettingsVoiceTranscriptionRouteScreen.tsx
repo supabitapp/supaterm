@@ -89,7 +89,7 @@ function EnvironmentTranscriptionSection(props: {
   if (!config) return null;
 
   const chosen = config.settings.transcriptionProviderInstanceId;
-  const source = resolveVoiceTranscriptionSource(config);
+  const source = resolveVoiceTranscriptionSource(config, m);
   const candidates = config.providers.filter((provider) => provider.transcription !== undefined);
   const automatic = automaticTranscriptionProvider(candidates);
   const note =

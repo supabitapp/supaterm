@@ -1451,7 +1451,7 @@ export function PullRequestDetailPanel({
     showsDisableAutoMerge: false,
   };
   const statePresentation = detail
-    ? resolvePullRequestState({ state: detail.state, isDraft: detail.isDraft })
+    ? resolvePullRequestState({ state: detail.state, isDraft: detail.isDraft }, resolve)
     : null;
   const showsDeleteBranch = detail !== null && canDeletePullRequestBranch(detail);
   const environmentConnected = environments.some(
@@ -1463,7 +1463,7 @@ export function PullRequestDetailPanel({
   const checksSummary = checksStale
     ? checksState === null
       ? "No checks reported"
-      : pullRequestChecksStatePresentation(checksState).label
+      : pullRequestChecksStatePresentation(checksState, resolve).label
     : detail
       ? summarizePullRequestChecks(detail.checks)
       : null;
@@ -2039,6 +2039,8 @@ export function PullRequestDetailPanel({
                     url: unavailableHostUrl,
                     openLabel: openOnHostLabel(
                       sourceControlClients.get(repositoryIdentity?.provider),
+                      undefined,
+                      resolve,
                     ),
                   },
                 }

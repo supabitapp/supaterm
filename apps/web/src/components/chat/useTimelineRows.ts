@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from "react";
 import { TIMELINE_ROW_EXIT_MS } from "./TimelineRowExit";
 import type { HandoffTimelineRun } from "./V2LifecycleRow";
+import { useLocale, useMessages } from "gt-react";
 
 const EMPTY_TIMELINE_RUNS: ReadonlyArray<HandoffTimelineRun> = [];
 
@@ -47,19 +48,25 @@ export function useIncrementalTimelineRows(
   identity: string,
   input: MessagesTimelineRowsInput,
 ): MessagesTimelineRow[] {
+  // Keyed on the locale: without a GTProvider, useMessages() returns a new function every render.
+  const locale = useLocale();
+  const resolve = useMessages();
   const [state, setState] = useState(() => ({
     identity,
     input,
-    projection: deriveMessagesTimelineRowsWithState(input),
+    locale,
+    projection: deriveMessagesTimelineRowsWithState(input, null, resolve),
   }));
-  if (state.identity === identity && sameRowsInput(state.input, input)) {
+  const reusable = state.identity === identity && state.locale === locale;
+  if (reusable && sameRowsInput(state.input, input)) {
     return state.projection.rows;
   }
   const projection = deriveMessagesTimelineRowsWithState(
     input,
-    state.identity === identity ? state.projection : null,
+    reusable ? state.projection : null,
+    resolve,
   );
-  setState({ identity, input, projection });
+  setState({ identity, input, locale, projection });
   return projection.rows;
 }
 

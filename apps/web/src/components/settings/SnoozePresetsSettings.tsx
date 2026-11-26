@@ -35,7 +35,7 @@ import {
   useScopedSettingsMixed,
   useUpdateScopedSettings,
 } from "./useScopedSettings";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 const UNIT_MINUTES = { minutes: 1, hours: 60, days: 24 * 60 } as const;
 type DurationUnit = keyof typeof UNIT_MINUTES;
@@ -234,6 +234,7 @@ function SnoozePresetList(props: {
   onAdd: () => void;
   onMarkDone: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const nowMinute = useNowMinute();
   const now = new Date(`${nowMinute}Z`);
@@ -242,7 +243,7 @@ function SnoozePresetList(props: {
   const seenIds = new Set<string>();
   const seenWakes = new Set<string>();
   const previews = props.presets.map((preset) => {
-    const resolved = resolveSnoozePreset(preset, now, formatTime);
+    const resolved = resolveSnoozePreset(preset, now, formatTime, messages);
     if (resolved === null) return { tone: "muted", text: gt("Passed for today") } as const;
     if (seenIds.has(resolved.id)) {
       return { tone: "muted", text: gt("Duplicate of an option above") } as const;

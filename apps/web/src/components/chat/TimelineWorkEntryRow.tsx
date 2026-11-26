@@ -78,7 +78,7 @@ import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { SubagentNotificationLink } from "./V2LifecycleRow";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 export function useThreadReadTarget(entry: TimelineWorkEntry, environmentId: EnvironmentId) {
   const rawThreadId = threadReadTargetId(entry);
@@ -217,6 +217,7 @@ export function ViewedImagesTimelineRow({
 }
 
 function WorkEntryLogRow(props: WorkEntryRowProps) {
+  const messages = useMessages();
   const gt = useGT();
   const { workEntry, workspaceRoot, displayLabel } = props;
   const ctx = use(TimelineRowCtx);
@@ -355,7 +356,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
     : "";
   const display =
     displayLabel === undefined
-      ? workEntryDisplay(workEntry, workspaceRoot)
+      ? workEntryDisplay(workEntry, workspaceRoot, messages)
       : { text: displayLabel };
   const showsReasoningHeading = isReasoning && expanded;
   const previewText = showsReasoningHeading

@@ -12,13 +12,14 @@ import {
   resolveSubagentRowPresentation,
   resolveSubagentStopTarget,
 } from "./threadAgentsPresentation";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 export function SubagentStopButton(props: {
   readonly environmentId: EnvironmentId;
   readonly subagent: OrchestrationV2Subagent;
   readonly className?: string;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const target = resolveSubagentStopTarget(props.subagent);
   const canStop = useAtomValue(
@@ -32,7 +33,8 @@ export function SubagentStopButton(props: {
 
   const workflow = target.kind === "workflow";
   const label =
-    props.subagent.workflow?.name ?? resolveSubagentRowPresentation(props.subagent).title;
+    props.subagent.workflow?.name ??
+    resolveSubagentRowPresentation(props.subagent, false, messages).title;
   const stop = async () => {
     setStopping(true);
     const result = await (

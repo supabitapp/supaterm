@@ -780,6 +780,7 @@ function PullRequestSurfaceIcon({
   environmentId: EnvironmentId | null;
   seed: PullRequestTabStatusSeed | undefined;
 }) {
+  const messages = useMessages();
   const resolvedEnvironmentId =
     (surface.environmentId as EnvironmentId | undefined) ?? environmentId;
   const projects = useProjects();
@@ -822,10 +823,13 @@ function PullRequestSurfaceIcon({
   if (status === null) {
     return <PullRequestGlyph.pullRequest className="size-3 shrink-0 text-muted-foreground" />;
   }
-  const presentation = resolvePullRequestState({
-    state: status.state,
-    isDraft: status.isDraft ?? detail?.isDraft ?? seed?.isDraft ?? false,
-  });
+  const presentation = resolvePullRequestState(
+    {
+      state: status.state,
+      isDraft: status.isDraft ?? detail?.isDraft ?? seed?.isDraft ?? false,
+    },
+    messages,
+  );
   return <presentation.Icon className={cn("size-3 shrink-0", presentation.toneClassName)} />;
 }
 

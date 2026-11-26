@@ -20,7 +20,7 @@ import {
   ComboboxTrigger,
 } from "../ui/combobox";
 import { PierreEntryIcon } from "./PierreEntryIcon";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 function LanguageIcon(props: { language: string; theme: "light" | "dark" }) {
   const fileName = props.language ? syntheticFileNameForLanguageId(props.language) : "file.txt";
@@ -35,6 +35,7 @@ export function ComposerCodeBlockLanguagePicker(props: {
   disabled: boolean;
   onChange: (language: string) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [query, setQuery] = useState("");
   const current = codeLanguageEntry(props.language)?.id ?? props.language;
@@ -73,13 +74,13 @@ export function ComposerCodeBlockLanguagePicker(props: {
               size="xs"
               disabled={props.disabled}
               aria-label={gt("Code language: {language}", {
-                language: codeLanguageLabel(props.language),
+                language: codeLanguageLabel(props.language, messages),
               })}
             />
           }
         >
           <LanguageIcon language={current} theme={props.theme} />
-          <span className="max-w-40 truncate">{codeLanguageLabel(props.language)}</span>
+          <span className="max-w-40 truncate">{codeLanguageLabel(props.language, messages)}</span>
           <ChevronDownIcon className="opacity-60" />
         </ComboboxTrigger>
         <ComboboxPopup align="start" className="w-56">

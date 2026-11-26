@@ -1222,6 +1222,7 @@ function UsageEnvironmentFilter({
   readonly contractMismatches: MergedUsage["contractMismatches"];
   readonly onOpenModelPrices: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const allSelected = selectedEnvironmentIds === null;
   const label = allSelected
@@ -1281,7 +1282,7 @@ function UsageEnvironmentFilter({
                     : progress.phase === "stale"
                       ? gt("Refreshing…")
                       : progress.phase === "partway"
-                        ? updatingProvidersLabel(progress.providers, providerLabel)
+                        ? updatingProvidersLabel(progress.providers, providerLabel, messages)
                         : "Ready";
           return (
             <MenuCheckboxItem

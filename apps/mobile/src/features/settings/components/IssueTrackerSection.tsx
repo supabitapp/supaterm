@@ -34,7 +34,7 @@ import type { SettingsTarget } from "../settings-environment-filter";
 import { SettingsProviderRow } from "./SettingsProviderRow";
 import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 const UNBOUND = "";
 const ThemedSvg = withUniwind(Svg);
@@ -75,6 +75,7 @@ function EnvironmentTrackers(props: {
   readonly environment: SettingsTarget;
   readonly title: string;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const { environmentId } = props.environment;
@@ -106,7 +107,7 @@ function EnvironmentTrackers(props: {
               ? `${tracker.displayName} · ${tracker.workspace}`
               : tracker.displayName
           }
-          description={issueTrackerSummary(tracker, issueTrackerBindings(query.data))}
+          description={issueTrackerSummary(tracker, issueTrackerBindings(query.data), messages)}
           ready={tracker.connected && tracker.account !== null}
           separated={index > 0}
           onPress={() =>

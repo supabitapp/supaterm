@@ -958,11 +958,14 @@ function TaskForm({
           {draft.workspace === "worktree" ? (
             <PickerRow
               label={gt("Base branch")}
-              value={resolveNewTaskBranchLabel({
-                branchName: automaticBaseRefLoading ? null : worktreeBaseRef,
-                startFromOrigin: draft.startFromOrigin,
-                workspaceMode: "worktree",
-              })}
+              value={resolveNewTaskBranchLabel(
+                {
+                  branchName: automaticBaseRefLoading ? null : worktreeBaseRef,
+                  startFromOrigin: draft.startFromOrigin,
+                  workspaceMode: "worktree",
+                },
+                m,
+              )}
               borderTop
               disabled={!draft.projectId || saving || dictationPending || environmentUnavailable}
               onPress={() => navigation.navigate("SettingsScheduledTaskBranch")}

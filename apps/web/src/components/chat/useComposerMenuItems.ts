@@ -56,7 +56,7 @@ import {
 import type { ComposerCommandItem } from "./ComposerCommandMenu";
 import { searchSlashCommandItems } from "./composerSlashCommandSearch";
 import { getDisplayModelName } from "./providerIconUtils";
-import { useGT } from "gt-react";
+import { useGT, useMessages } from "gt-react";
 
 const COMPOSER_PULL_REQUEST_LIST_LIMIT = 99;
 const COMPOSER_PULL_REQUEST_RESULT_LIMIT = 12;
@@ -124,6 +124,7 @@ export function useComposerMenuItems({
   readonly showSkillsInSlashMenu: boolean;
   readonly workspaceSkillsScanning: boolean;
 }) {
+  const resolveMessage = useMessages();
   const gt = useGT();
   // Thread mentions rank by recency as of when the composer mounted.
   const [now] = useState(() => Date.now());
@@ -221,24 +222,30 @@ export function useComposerMenuItems({
     if (!composerTrigger) return [];
     if (composerTrigger.kind === "path") {
       return [
-        ...matchComposerThreadItems({
-          shells: environmentThreadShells,
-          environmentId,
-          linkedEnvironments,
-          excludeThreadId: activeThreadId,
-          query: composerTrigger.query,
-          now,
-        }),
+        ...matchComposerThreadItems(
+          {
+            shells: environmentThreadShells,
+            environmentId,
+            linkedEnvironments,
+            excludeThreadId: activeThreadId,
+            query: composerTrigger.query,
+            now,
+          },
+          resolveMessage,
+        ),
         ...(offersMachines
-          ? matchComposerEnvironmentItems({
-              environments: environmentIdentities.map((identity) => ({
-                ...identity,
-                machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
-              })),
-              linkedEnvironments,
-              environmentId,
-              query: composerTrigger.query,
-            })
+          ? matchComposerEnvironmentItems(
+              {
+                environments: environmentIdentities.map((identity) => ({
+                  ...identity,
+                  machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
+                })),
+                linkedEnvironments,
+                environmentId,
+                query: composerTrigger.query,
+              },
+              resolveMessage,
+            )
           : []),
         ...matchComposerModelItems(
           composerModelCandidates(providerInstanceEntries, modelOptionsByInstance),

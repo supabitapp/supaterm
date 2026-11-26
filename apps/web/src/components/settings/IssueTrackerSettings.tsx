@@ -34,7 +34,7 @@ import { Skeleton } from "../ui/skeleton";
 import { SecretInput } from "./SecretInput";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 type TrackerIcon = ElementType<{ className?: string }>;
 
@@ -121,6 +121,7 @@ function TrackerRow({
   readonly refreshFailed: boolean;
   readonly canAddAccount: boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const Icon = TRACKER_ICONS[tracker.tracker];
   const canEdit = useAtomValue(issueTrackerEnvironment.connect.permissionAtom(environmentId));
@@ -149,7 +150,7 @@ function TrackerRow({
 
   const inputId = `issue-tracker-${tracker.tracker}-${tracker.accountId ?? ""}-${environmentId}`;
   const usable = tracker.connected && tracker.account !== null;
-  const summary = issueTrackerSummary(tracker, bindings);
+  const summary = issueTrackerSummary(tracker, bindings, messages);
 
   return (
     <div className="first:rounded-t-xl last:rounded-b-xl transition-colors hover:bg-muted/20">

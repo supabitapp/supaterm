@@ -180,6 +180,7 @@ function useZipArchive(input: {
   readonly sizeBytes: number;
   readonly refresh: () => Promise<string | null>;
 }) {
+  const messages = useMessages();
   const [state, setState] = useState<ArchiveState>({
     status: "loading",
     receivedBytes: 0,
@@ -212,11 +213,14 @@ function useZipArchive(input: {
         setState({
           status: "loading",
           receivedBytes,
-          timeLeft: zipDownloadTimeLeft({
-            receivedBytes,
-            totalBytes: sizeBytes,
-            elapsedMs: Date.now() - startedAt,
-          }),
+          timeLeft: zipDownloadTimeLeft(
+            {
+              receivedBytes,
+              totalBytes: sizeBytes,
+              elapsedMs: Date.now() - startedAt,
+            },
+            messages,
+          ),
         }),
       );
       abort.signal.throwIfAborted();
@@ -234,7 +238,7 @@ function useZipArchive(input: {
       });
     return () => abort.abort();
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Retry must reload the archive.
-  }, [uri, isLocal, sizeBytes, revision]);
+  }, [uri, isLocal, sizeBytes, revision, messages]);
   return {
     state,
     retry: () => setRevision((value) => value + 1),

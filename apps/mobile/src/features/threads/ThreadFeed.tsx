@@ -2851,8 +2851,9 @@ function UserMessageContent(props: UserMessageContentProps) {
 }
 
 function UserMessageMarkdownContent(props: UserMessageContentProps) {
+  const messages = useMessages();
   const text = props.text;
-  const segments = parseReviewCommentMessageSegments(text);
+  const segments = parseReviewCommentMessageSegments(text, messages);
   const hasReviewComment = segments.some((segment) => segment.kind === "review-comment");
   const contextClipboardFragment = props.context
     ? (encodeComposerContextFragment({

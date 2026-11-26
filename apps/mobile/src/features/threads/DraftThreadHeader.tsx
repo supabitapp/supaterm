@@ -14,7 +14,8 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { vcsActionManager, vcsEnvironment } from "../../state/vcs";
 import { useVcsActionState } from "../../state/use-vcs-action-state";
 import { ThreadHeader } from "./ThreadHeader";
-import { useGT } from "gt-react-native";
+import { vcsActionLabelText } from "@supaterm/client-runtime/state/vcs";
+import { useGT, useMessages } from "gt-react-native";
 
 export function DraftThreadHeader(props: {
   readonly thread: EnvironmentThreadShell;
@@ -22,6 +23,7 @@ export function DraftThreadHeader(props: {
   readonly cwd: string | null;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const navigation = useNavigation();
   const environmentId = props.thread.environmentId;
   const canReadFiles = useEnvironmentScope(environmentId, AuthFilesystemReadScope);
@@ -60,7 +62,7 @@ export function DraftThreadHeader(props: {
         tracksRepositories: (props.project.trackedFolders?.length ?? 0) > 0,
         currentBranch: props.thread.branch,
         gitStatus: status.data,
-        gitOperationLabel: progress.currentLabel,
+        gitOperationLabel: vcsActionLabelText(progress, messages),
         canOpenTerminal: false,
         canOperateTerminal: false,
         canOpenFiles: canReadFiles && props.cwd !== null,

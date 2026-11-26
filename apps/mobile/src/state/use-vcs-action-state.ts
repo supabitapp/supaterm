@@ -1,6 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { ScopedThreadRef } from "@supaterm/contracts";
-import { type VcsActionState, type VcsActionTarget } from "@supaterm/client-runtime/state/vcs";
+import {
+  type VcsActionState,
+  type VcsActionTarget,
+  vcsActionLabelText,
+} from "@supaterm/client-runtime/state/vcs";
 import { Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
 import { msg, useMessages } from "gt-react-native";
@@ -149,7 +153,7 @@ export function useGitActionProgress(
       );
     return {
       phase: "running",
-      label: actionState.currentLabel,
+      label: vcsActionLabelText(actionState, resolve),
       description,
     };
   }

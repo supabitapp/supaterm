@@ -23,7 +23,7 @@ import { Label } from "./ui/label";
 import { Menu, MenuItem, MenuItemLabel, MenuPopup, MenuSeparator, MenuTrigger } from "./ui/menu";
 import { toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 export interface SavedView<Preferences> {
   readonly id: string;
@@ -58,6 +58,7 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
   preferences: Preferences;
   onApply: (preferences: Preferences) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [views, setViews] = useLocalStorage(kind.storageKey, kind.empty, kind.schema);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
     { list },
   );
   const modified = selectedView !== undefined && !kind.matches(selectedView, preferences);
-  const nameError = editor ? savedViewNameError(editor.name, views, editor.id) : null;
+  const nameError = editor ? savedViewNameError(editor.name, views, editor.id, messages) : null;
 
   function persist(
     update: (current: ReadonlyArray<SavedView<Stored>>) => ReadonlyArray<SavedView<Stored>>,

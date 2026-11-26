@@ -63,7 +63,7 @@ import {
   issueStatus,
   useIssueAccess,
 } from "./issuePresentation";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, Var, useMessages } from "gt-react-native";
 
 type IssueAccess = NonNullable<ReturnType<typeof useIssueAccess>>;
 
@@ -245,6 +245,7 @@ function LinkedPullRequests(props: {
   readonly params: IssueParams;
   readonly links: ReadonlyArray<IssueLinkedPullRequest>;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   // Only a git host's tracker shares its host with the change request it links.
@@ -255,7 +256,7 @@ function LinkedPullRequests(props: {
         <T>Linked pull requests</T>
       </PullRequestSectionHeading>
       {props.links.map((link) => {
-        const status = pullRequestStatus(link);
+        const status = pullRequestStatus(link, messages);
         return (
           <Pressable
             key={`${link.repository}#${link.number}`}

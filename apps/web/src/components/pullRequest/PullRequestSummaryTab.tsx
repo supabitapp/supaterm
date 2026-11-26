@@ -104,7 +104,7 @@ import {
   stepPullRequestEdit,
   type PullRequestEditorView,
 } from "./PullRequestSummaryTab.logic";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 import { changeRequestTermKind } from "./changeRequestTerm";
 import { m } from "~/i18n/messages";
 
@@ -497,6 +497,7 @@ export function PullRequestSummaryTab({
   onRefresh: () => void;
   onRefreshChecks?: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const fixFindingLabel = requestedFixFindingLabel ?? gt("Fix in a thread");
   const fixCheckLabel =
@@ -912,8 +913,8 @@ export function PullRequestSummaryTab({
                               />
                               <span className="sr-only">
                                 {entry.stale
-                                  ? pullRequestReviewOutcomeStaleLabel(entry.outcome)
-                                  : pullRequestReviewOutcomeLabel(entry.outcome)}
+                                  ? pullRequestReviewOutcomeStaleLabel(entry.outcome, messages)
+                                  : pullRequestReviewOutcomeLabel(entry.outcome, messages)}
                               </span>
                             </>
                           ) : null}
@@ -922,8 +923,8 @@ export function PullRequestSummaryTab({
                           {entry.outcome
                             ? `${named}: ${
                                 entry.stale
-                                  ? pullRequestReviewOutcomeStaleLabel(entry.outcome)
-                                  : pullRequestReviewOutcomeLabel(entry.outcome)
+                                  ? pullRequestReviewOutcomeStaleLabel(entry.outcome, messages)
+                                  : pullRequestReviewOutcomeLabel(entry.outcome, messages)
                               }`
                             : named}
                         </TooltipPopup>
@@ -1069,10 +1070,14 @@ export function PullRequestSummaryTab({
                       <TooltipTrigger render={<span className="mt-0.5 shrink-0" />}>
                         <PullRequestCheckStatusIcon status={check.status} />
                       </TooltipTrigger>
-                      <TooltipPopup side="top">{pullRequestCheckStatusLabel(check)}</TooltipPopup>
+                      <TooltipPopup side="top">
+                        {pullRequestCheckStatusLabel(check, messages)}
+                      </TooltipPopup>
                     </Tooltip>
                     <span className="min-w-0 flex-1 wrap-anywhere">{check.name}</span>
-                    <span className="sr-only">: {pullRequestCheckStatusLabel(check)}</span>
+                    <span className="sr-only">
+                      : {pullRequestCheckStatusLabel(check, messages)}
+                    </span>
                   </button>
                   {onFixFinding && failing ? (
                     <Button

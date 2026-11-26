@@ -41,7 +41,7 @@ import { Input } from "../ui/input";
 import { Radio, RadioGroup } from "../ui/radio-group";
 import { WizardFooter, WizardHeader, WizardPanel, WizardPopup, WizardSteps } from "../ui/wizard";
 import { WorkLogRow } from "./WorkLog";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 /** Whether the agent left the machine for the user to pick. */
 const picksMachine = (item: LinkRequestItem) =>
@@ -57,11 +57,13 @@ export function LinkRequestCard(props: {
   readonly item: LinkRequestItem;
   readonly visibility: OrchestrationV2ProjectedTurnItem["visibility"];
 }) {
+  const messages = useMessages();
   const { item } = props;
   const display = linkRequestDisplay(
     item,
     props.visibility,
     (access: AuthMcpClientAccess) => accessConfig[access].label,
+    messages,
   );
   if (display.kind === "answered" || display.kind === "pending-elsewhere") {
     const Icon =

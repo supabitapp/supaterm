@@ -292,6 +292,7 @@ export function resolveWorkEntryToolPresentation(
     "label" | "toolTitle" | "toolData" | "toolLifecycleStatus" | "structuredPayload"
   >,
   fallbackStatus?: "inProgress" | "completed",
+  resolve: MFunctionType = mFallback,
 ) {
   const definition = resolveSupatermMcpToolDefinition(
     workEntryToolName(entry),
@@ -304,6 +305,7 @@ export function resolveWorkEntryToolPresentation(
       ? "failed"
       : status,
     entry.toolData,
+    resolve,
   );
 }
 

@@ -40,7 +40,7 @@ import {
   useUpdateEverythingRun,
 } from "./updateEverythingRun";
 import { type ReportLocalUpdateError, useUpdateEverything } from "./useUpdateEverything";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 import { m } from "../../i18n/messages";
 
 type SidebarUpdatePopoverChangeDetails = Parameters<
@@ -166,6 +166,7 @@ export function SidebarUpdatePill() {
 }
 
 function SidebarUpdateControl() {
+  const messages = useMessages();
   const gt = useGT();
   const liveState = useDesktopUpdateState();
   // Update checks stay hidden: hold the last state that wasn't a check in progress.
@@ -198,7 +199,7 @@ function SidebarUpdateControl() {
   const tooltip = runsEverything
     ? everything.summary
     : state
-      ? getDesktopUpdateButtonTooltip(state)
+      ? getDesktopUpdateButtonTooltip(state, messages)
       : "Update available";
   const isInteractionDisabled =
     (!runsEverything && isDesktopUpdateButtonDisabled(state)) ||
@@ -243,7 +244,7 @@ function SidebarUpdateControl() {
     let confirmed = false;
     try {
       confirmed = await ensureLocalApi().dialogs.confirm(
-        getDesktopUpdateInstallConfirmationMessage(state),
+        getDesktopUpdateInstallConfirmationMessage(state, messages),
         { initialFocus: "confirm" },
       );
     } catch (error) {

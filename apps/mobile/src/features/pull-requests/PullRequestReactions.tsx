@@ -28,7 +28,7 @@ import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff"
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import * as Haptics from "expo-haptics";
-import { useGT, T } from "gt-react-native";
+import { T, useGT, useLocale, useMessages } from "gt-react-native";
 
 const EMPTY_PENDING: ReadonlyMap<PullRequestReactionContent, PendingPullRequestReaction> =
   new Map();
@@ -42,6 +42,8 @@ export function ReactionPills(props: {
   readonly onChanged?: () => void;
 }) {
   const gt = useGT();
+  const messages = useMessages();
+  const locale = useLocale();
   // Keyed by what the host last reported, so a refresh that lands the change drops the overlay.
   const [pending, setPending] = useState({ signature: "", values: EMPTY_PENDING });
   const signature = pullRequestReactionsSignature(props.reactions);
@@ -70,7 +72,7 @@ export function ReactionPills(props: {
         <Pressable
           key={reaction.content}
           accessibilityRole="button"
-          accessibilityLabel={pullRequestReactionTooltip(reaction)}
+          accessibilityLabel={pullRequestReactionTooltip(reaction, messages, locale)}
           accessibilityState={{ selected: reaction.viewerHasReacted, disabled: !props.canReact }}
           disabled={!props.canReact}
           onPress={() => void toggle(reaction.content, !reaction.viewerHasReacted)}
@@ -92,7 +94,7 @@ export function ReactionPills(props: {
           accessibilityLabel={gt("Add a reaction")}
           actions={PULL_REQUEST_REACTION_ORDER.map((content) => ({
             id: content,
-            title: `${pullRequestReactionEmoji(content)}  ${pullRequestReactionName(content)}`,
+            title: `${pullRequestReactionEmoji(content)}  ${pullRequestReactionName(content, messages)}`,
             state: shown.some(
               (reaction) => reaction.content === content && reaction.viewerHasReacted,
             )

@@ -35,7 +35,7 @@ export function resolveComposerVoiceEngine(input: {
     };
   }
   const config = appAtomRegistry.get(serverEnvironment.configValueAtom(environmentId));
-  const source = config === null ? null : resolveVoiceTranscriptionSource(config);
+  const source = config === null ? null : resolveVoiceTranscriptionSource(config, m);
   if (source?.status === "unavailable") return { status: "unavailable", message: source.message };
   const language = systemVoiceLanguage();
   const transcriber = createEnvironmentVoiceTranscriber({

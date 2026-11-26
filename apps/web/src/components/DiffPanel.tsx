@@ -134,7 +134,7 @@ import {
   type TurnDiffSection,
 } from "@supaterm/client-runtime/state/thread-repositories";
 import { useOpenLink } from "../browser/useOpenLink";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 type DiffThemeType = "light" | "dark";
 const AUTOMATIC_BASE_REF = "__automatic_base_ref__";
@@ -266,6 +266,7 @@ export default function DiffPanel({
   workspaceMutationId,
   visible,
 }: DiffPanelProps) {
+  const messages = useMessages();
   const gt = useGT();
   const resolvedTheme = useRenderedAppearance();
   const settings = useClientSettings((settings) => ({
@@ -582,7 +583,7 @@ export default function DiffPanel({
 
   const toolCallPreview =
     toolCallSelection && toolCallItem?.type === "file_change"
-      ? toolCallDiff(toolCallItem, activeCwd)
+      ? toolCallDiff(toolCallItem, activeCwd, messages)
       : null;
   const turnSections =
     selectedTurn && activeCheckpointDiff.data

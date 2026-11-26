@@ -69,7 +69,7 @@ import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { searchableSetting } from "./settingsSearch";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 // Console log labels for the atom commands.
 export const UNLINK_COMMAND_LABEL = "unlink environment";
@@ -216,6 +216,7 @@ function LinkedEnvironmentRow({
   /** What this client calls the linked environment. */
   readonly label: string;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const nowMinute = useNowMinute();
   const health = peerLinkHealth(link, DateTime.makeUnsafe(nowMinute));
@@ -246,7 +247,7 @@ function LinkedEnvironmentRow({
       failureToast("Could not forget the link", squashAtomCommandFailure(result));
     }
   };
-  const status = peerLinkHealthText(health);
+  const status = peerLinkHealthText(health, messages);
   return (
     <div className={cn(ITEM_ROW_CLASSNAME, "pl-8 sm:pl-10")}>
       <div className={ITEM_ROW_INNER_CLASSNAME}>

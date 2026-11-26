@@ -4,6 +4,7 @@ import {
 } from "@supaterm/client-runtime/device/stream";
 
 import type { DeviceStreamConfiguration } from "./device-stream-document";
+import { m } from "../../i18n/messages";
 
 declare global {
   interface Window {
@@ -130,24 +131,29 @@ export function start(configuration: DeviceStreamConfiguration) {
   const unauthorized = () => {
     if (activeClient === client) post({ type: "unauthorized" });
   };
-  const client = createDeviceStreamClient(configuration, canvas, {
-    onStatus: reportStatus,
-    onScreen: layout,
-    onMjpegFallback: () => {
-      canvas.style.display = "none";
-      image.style.display = "block";
+  const client = createDeviceStreamClient(
+    configuration,
+    canvas,
+    {
+      onStatus: reportStatus,
+      onScreen: layout,
+      onMjpegFallback: () => {
+        canvas.style.display = "none";
+        image.style.display = "block";
+      },
+      onCanvasVideo: () => {
+        image.style.display = "none";
+        canvas.style.display = "";
+      },
+      onUnauthorized: unauthorized,
+      onInputConnected: (connected) => {
+        inputConnected = connected;
+        inputStatus.style.display = streaming && !connected ? "block" : "none";
+        post({ type: "input", connected });
+      },
     },
-    onCanvasVideo: () => {
-      image.style.display = "none";
-      canvas.style.display = "";
-    },
-    onUnauthorized: unauthorized,
-    onInputConnected: (connected) => {
-      inputConnected = connected;
-      inputStatus.style.display = streaming && !connected ? "block" : "none";
-      post({ type: "input", connected });
-    },
-  });
+    m,
+  );
   activeClient = client;
   client.setMjpegImage(image);
   const touch = (event: PointerEvent, phase: "begin" | "move" | "end") => {

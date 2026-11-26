@@ -969,10 +969,13 @@ function buildThreadListV2ShelfLayout(
     grouping === "status"
       ? null
       : collapseThreadGroups(
-          groupInboxThreadsByProject({
-            threads: [...active, ...working],
-            projects: input.groupingProjects ?? [],
-          }),
+          groupInboxThreadsByProject(
+            {
+              threads: [...active, ...working],
+              projects: input.groupingProjects ?? [],
+            },
+            m,
+          ),
           new Set(input.collapsedGroups),
           isSelected,
         );

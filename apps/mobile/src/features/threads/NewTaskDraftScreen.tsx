@@ -1038,7 +1038,7 @@ export function NewTaskDraftScreen(props: {
         canOperateThread={canOperate}
         selectedThread={thread}
         contentPresentation={{ kind: "ready" }}
-        screenTone={connectionTone(connectionState)}
+        screenTone={connectionTone(connectionState, messages)}
         connectionError={environmentRuntime?.connectionError ?? null}
         environmentLabel={selectedEnvironmentLabel}
         feedbackSubmissions={[]}

@@ -8,7 +8,7 @@ import type { PullRequestParams } from "./usePullRequestDiff";
 import type { PullRequestStackState } from "./usePullRequestStack";
 import { pullRequestListReviewStatus } from "./pullRequestList";
 import { PullRequestGlyph } from "./pullRequestGlyphs";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 export function PullRequestOverviewLoading({
   summary,
@@ -19,11 +19,15 @@ export function PullRequestOverviewLoading({
   readonly params: PullRequestParams;
   readonly stack: PullRequestStackState;
 }) {
+  const messages = useMessages();
   const gt = useGT();
-  const review = pullRequestListReviewStatus({
-    reviewDecision: summary.reviewDecision ?? undefined,
-    viewerReviewRequested: "viewerReviewRequested" in summary && summary.viewerReviewRequested,
-  });
+  const review = pullRequestListReviewStatus(
+    {
+      reviewDecision: summary.reviewDecision ?? undefined,
+      viewerReviewRequested: "viewerReviewRequested" in summary && summary.viewerReviewRequested,
+    },
+    messages,
+  );
   const conflicting = summary.mergeability === "conflicting";
   const clean = summary.mergeability === "mergeable";
   return (

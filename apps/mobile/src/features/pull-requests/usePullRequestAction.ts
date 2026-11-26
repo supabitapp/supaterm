@@ -16,8 +16,9 @@ import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 export function usePullRequestAction(params: PullRequestParams, pr: PullRequestDetail | null) {
+  const messages = useMessages();
   const gt = useGT();
   const target = pullRequestTarget(params);
   const permissions = usePullRequestPermissions(params, pr);
@@ -79,7 +80,7 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
     const terminology = sourceControlClients.get(pr?.provider).changeRequest;
     confirm(
       "close",
-      pullRequestActionLabel("close", terminology),
+      pullRequestActionLabel("close", terminology, messages),
       `Close this ${terminology.singular} without merging its changes?`,
     );
   };

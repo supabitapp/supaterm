@@ -130,7 +130,7 @@ function TelemetryExportForm() {
   const [checks, setChecks] = useState<Partial<Record<SignalKey, EndpointCheck>>>(() =>
     Object.fromEntries(
       SIGNALS.flatMap((descriptor) => {
-        const url = runningOverride(running, descriptor)?.url ?? saved[descriptor.key];
+        const url = runningOverride(running, descriptor, messages)?.url ?? saved[descriptor.key];
         return isHttpUrl(url) ? [[descriptor.key, { url, result: null }]] : [];
       }),
     ),
@@ -315,7 +315,7 @@ function TelemetryExportForm() {
                 if (!canCheck) return;
                 for (const descriptor of SIGNALS) {
                   const { key, signal } = descriptor;
-                  if (runningOverride(running, descriptor)) continue;
+                  if (runningOverride(running, descriptor, messages)) continue;
                   if (checks[key]?.url !== saved[key]) checkEndpoint(key, signal, saved[key]);
                 }
               }}

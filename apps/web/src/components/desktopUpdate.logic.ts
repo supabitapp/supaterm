@@ -168,8 +168,8 @@ export function getDesktopUpdateButtonTooltip(
       msg(
         "This {build} build ignores {track} releases. Review the update track in Settings to finish the switch.",
         {
-          build: channelSwitchLabel(buildChannel),
-          track: channelSwitchLabel(state.channel),
+          build: channelSwitchLabel(buildChannel, resolve),
+          track: channelSwitchLabel(state.channel, resolve),
         },
       ),
     );

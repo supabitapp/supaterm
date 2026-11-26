@@ -22,7 +22,7 @@ import {
 } from "./ReadOnlyComposerBar";
 import { ReadOnlyThreadTimeline } from "./ReadOnlyThreadTimeline";
 import { toastManager } from "../ui/toast";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 /**
  * Stands where a composer would: the thread takes no messages from here. `action` is the one way
@@ -79,6 +79,7 @@ export function LinkedThreadPane(props: {
   /** Whether the tab is showing; the stream runs only while it is. */
   readonly visible: boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { surface, panelRef } = props;
   const via = useEnvironment(surface.viaEnvironmentId)?.label ?? "this environment";
@@ -145,7 +146,7 @@ export function LinkedThreadPane(props: {
       </span>
     </Button>
   );
-  const failure = error === null ? null : linkedThreadFailure(error, { via, label });
+  const failure = error === null ? null : linkedThreadFailure(error, { via, label }, messages);
   const retryAction = failure?.retryable ? (
     <AlertAction>
       <Button size="sm" variant="outline" onClick={retry}>

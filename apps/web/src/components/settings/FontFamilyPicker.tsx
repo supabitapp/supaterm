@@ -20,7 +20,7 @@ import {
 } from "../ui/combobox";
 import { SelectButton } from "../ui/select";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 const DEFAULT_FONT_VALUE = "__default__";
 
@@ -105,6 +105,7 @@ export function FontFamilyPicker({
   initialOpen?: boolean;
   onSelect: (family: string) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -139,7 +140,7 @@ export function FontFamilyPicker({
   const items = (() => {
     const trimmedQuery = query.trim().toLowerCase();
     const matchesQuery = (family: string) =>
-      fontFamilyLabel(family).toLowerCase().includes(trimmedQuery);
+      fontFamilyLabel(family, messages).toLowerCase().includes(trimmedQuery);
     const result: string[] = [];
     if (trimmedQuery.length === 0) result.push(DEFAULT_FONT_VALUE);
     if (!requireMonospace && matchesQuery(SYSTEM_SANS_FONT_FAMILY)) {
@@ -178,7 +179,7 @@ export function FontFamilyPicker({
             className="min-w-0 truncate"
             style={{ fontFamily: cssFontFamilies(family) ?? undefined }}
           >
-            {fontFamilyLabel(family)}
+            {fontFamilyLabel(family, messages)}
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
             {isDefault ? (
@@ -215,7 +216,7 @@ export function FontFamilyPicker({
       }}
     >
       <ComboboxTrigger aria-label={ariaLabel} render={<SelectButton size="sm" />}>
-        {fontFamilyLabel(selectedFamily.length === 0 ? defaultFamily : selectedFamily)}
+        {fontFamilyLabel(selectedFamily.length === 0 ? defaultFamily : selectedFamily, messages)}
       </ComboboxTrigger>
       <ComboboxPopup align="end" className="flex w-72 flex-col">
         <ComboboxSearchInput

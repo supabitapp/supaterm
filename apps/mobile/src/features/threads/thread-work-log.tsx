@@ -886,7 +886,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
   // A sign-in notice opens its sheet instead; a nested button would be out of VoiceOver's reach.
   const canExpand = row.canExpand && notifiedSubagentThreadId === undefined && !opensMcpSignIn;
   const reasoning = row.projectedItem.item.type === "reasoning" ? row.projectedItem.item : null;
-  const toolPresentation = resolveWorkEntryToolPresentation(row.workEntry);
+  const toolPresentation = resolveWorkEntryToolPresentation(row.workEntry, undefined, messages);
   const previewText = row.groupStandIn?.label ?? workEntryRowLabel(row.workEntry, false, messages);
   const answerPreview = row.workEntry.questionAnswer
     ? getQuestionAnswerPreview(row.workEntry.questionAnswer)
@@ -1198,7 +1198,8 @@ export function ThreadThinkingRow(props: {
   /** The starting provider, whose logo replaces the thinking icon. */
   readonly providerStartingDriver?: string | undefined;
 }) {
-  const label = props.providerStartingLabel ?? props.label ?? "Thinking";
+  const gt = useGT();
+  const label = props.providerStartingLabel ?? props.label ?? gt("Thinking");
   const driver = props.providerStartingDriver;
   return (
     <View

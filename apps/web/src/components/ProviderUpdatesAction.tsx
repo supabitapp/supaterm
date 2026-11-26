@@ -19,7 +19,7 @@ import {
 import { Button } from "./ui/button";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 // `refreshModels` always drops the server's hour-long latest-version cache. `modelCatalogOnly`
 // drops it only when the model manifest changed.
@@ -70,6 +70,7 @@ export function useCheckProviderUpdates() {
 }
 
 export function useProviderUpdates() {
+  const messages = useMessages();
   const { environments } = useEnvironments();
   const manageableIds = useEnvironmentsWithScope(environments, AuthProvidersManageScope);
   const providersByEnvironment = useEnvironmentProviders();
@@ -107,7 +108,7 @@ export function useProviderUpdates() {
         })),
       ),
     );
-    const view = quiet ? null : getProviderUpdateRunToastView(runs);
+    const view = quiet ? null : getProviderUpdateRunToastView(runs, messages);
     if (view) {
       toastManager.add(stackedThreadToast(view));
     }

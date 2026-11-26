@@ -23,7 +23,6 @@ import * as EnvironmentRegistry from "../connection/registry.ts";
 import type { ConnectionRoute } from "../connection/catalog.ts";
 import { mapRemoteEnvironmentError } from "../connection/errors.ts";
 import {
-  connectionRouteLatencyLabel,
   measureConnectionRouteLatency,
   type ConnectionRouteLatency,
 } from "../connection/routeLatency.ts";
@@ -328,17 +327,13 @@ function makeEnvironmentSessionAtoms<R, E>(
           `environment-route-latency:${route.target.environmentId}:${connectionRouteId(route.target)}`,
         ),
       );
-    const labelAtom = Atom.make((get) => {
+    const latencyAtom = Atom.make((get): ConnectionRouteLatency | null => {
       const result = get(resultAtom);
-      return connectionRouteLatencyLabel(
-        result.waiting || result._tag === "Initial"
-          ? null
-          : AsyncResult.getOrElse(result, (): ConnectionRouteLatency => ({
-              status: "unreachable",
-            })),
-      );
+      return result.waiting || result._tag === "Initial"
+        ? null
+        : AsyncResult.getOrElse(result, (): ConnectionRouteLatency => ({ status: "unreachable" }));
     });
-    return { resultAtom, labelAtom };
+    return { resultAtom, latencyAtom };
   });
 
   const relayGatewayAtom = runtime.atom(Effect.serviceOption(RelayGateway));

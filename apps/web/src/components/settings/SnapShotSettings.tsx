@@ -262,7 +262,7 @@ export function SnapShotSettings() {
   const shortcutStatus = recording
     ? gt("Press your shortcut. Esc cancels.")
     : candidateConflict
-      ? `Supaterm already uses this for "${commandLabel(candidateConflict)}".`
+      ? `Supaterm already uses this for "${commandLabel(candidateConflict, messages)}".`
       : shortcutCheck.status === "checking"
         ? gt("Checking shortcut…")
         : shortcutCheck.availability

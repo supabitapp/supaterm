@@ -274,7 +274,7 @@ import {
   useSidebarDrafts,
 } from "./sidebar/SidebarDraftBlock";
 import { m } from "../i18n/messages";
-import { msg, useGT, T } from "gt-react";
+import { msg, useGT, T, useMessages } from "gt-react";
 
 function sameSidebarProviderEntries(
   left: ReadonlyMap<string, SidebarProviderEntry>,
@@ -914,6 +914,7 @@ function readRouteThreadKey(router: AnyRouter): string | null {
 }
 
 export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReveal }) {
+  const messages = useMessages();
   const gt = useGT();
   const {
     projects,
@@ -2526,11 +2527,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           projectByKey.get(`${session.environmentId}:${session.projectId}`)?.workspaceRoot;
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
-            buildDraftActionMenuItems({
-              hasPath: Boolean(workspacePath),
-              hasBranch: Boolean(session.branch),
-              hasProject: projectGroup != null,
-            }),
+            buildDraftActionMenuItems(
+              {
+                hasPath: Boolean(workspacePath),
+                hasBranch: Boolean(session.branch),
+                hasProject: projectGroup != null,
+              },
+              messages,
+            ),
             position,
             source,
           ),
@@ -2598,36 +2602,40 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ) ?? null;
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
-            buildThreadActionMenuItems({
-              canOperate: readEnvironmentScope(
-                threadRef.environmentId,
-                AuthOrchestrationOperateScope,
-              ),
-              branch: thread.branch ?? null,
-              // An archived project is not a filter choice.
-              projectFilter:
-                threadProjectGroup && !threadProjectGroup.archived
-                  ? {
-                      label: threadProjectGroup.displayName,
-                      isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
-                    }
-                  : null,
-              isPinned,
-              isDone,
-              autoMarkDoneEnabled: thread.autoMarkDoneDisabledAt == null,
-              isSnoozed,
-              canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
-              isRegeneratingTitle,
-              isRunning: !threadRuntimeCanArchive(thread.runtime),
-              hasCompletedRun: thread.latestRun?.completedAt != null,
-              canTurnIntoProject: canTurnThreadIntoProject(threadRef),
-              projectPinned:
-                threadProjectGroup && canPinProjectGroup(threadProjectGroup)
-                  ? threadProjectGroup.pinned
-                  : null,
-              snoozePresets,
-              canOpenBeside: routeTarget !== null && routeThreadKey !== scopedThreadKey(threadRef),
-            }),
+            buildThreadActionMenuItems(
+              {
+                canOperate: readEnvironmentScope(
+                  threadRef.environmentId,
+                  AuthOrchestrationOperateScope,
+                ),
+                branch: thread.branch ?? null,
+                // An archived project is not a filter choice.
+                projectFilter:
+                  threadProjectGroup && !threadProjectGroup.archived
+                    ? {
+                        label: threadProjectGroup.displayName,
+                        isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
+                      }
+                    : null,
+                isPinned,
+                isDone,
+                autoMarkDoneEnabled: thread.autoMarkDoneDisabledAt == null,
+                isSnoozed,
+                canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
+                isRegeneratingTitle,
+                isRunning: !threadRuntimeCanArchive(thread.runtime),
+                hasCompletedRun: thread.latestRun?.completedAt != null,
+                canTurnIntoProject: canTurnThreadIntoProject(threadRef),
+                projectPinned:
+                  threadProjectGroup && canPinProjectGroup(threadProjectGroup)
+                    ? threadProjectGroup.pinned
+                    : null,
+                snoozePresets,
+                canOpenBeside:
+                  routeTarget !== null && routeThreadKey !== scopedThreadKey(threadRef),
+              },
+              messages,
+            ),
             position,
             source,
           ),

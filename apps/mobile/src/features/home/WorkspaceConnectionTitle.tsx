@@ -10,13 +10,14 @@ import {
   workspaceConnectionStatusPresentation,
   type WorkspaceConnectionStatusPresentation,
 } from "./workspace-connection-status";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 const FADE_IN_MS = 250;
 
 function useDelayedConnectionStatus(): WorkspaceConnectionStatusPresentation | null {
+  const messages = useMessages();
   const { state } = useWorkspaceState();
-  const presentation = workspaceConnectionStatusPresentation(state);
+  const presentation = workspaceConnectionStatusPresentation(state, messages);
   const visible = useConnectionStatusVisibility(
     "workspace",
     presentation !== null,

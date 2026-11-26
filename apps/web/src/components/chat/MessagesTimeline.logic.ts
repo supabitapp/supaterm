@@ -105,7 +105,7 @@ function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
 function singleToolCallLabel(entry: WorkLogEntry, resolve: MessageResolver): string {
   if (entry.itemType === "reasoning")
     return entry.detail?.trim().replace(/\s+/g, " ") || msg("Thought");
-  const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed");
+  const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed", resolve);
   if (toolPresentation) return toolPresentation.displayName;
   const item = entry.structuredPayload;
   const title =
@@ -168,7 +168,7 @@ export function workEntryDisplay(
     const thought = entry.detail?.trim().replace(/\s+/g, " ");
     return { text: thought || entry.label };
   }
-  const toolPresentation = resolveWorkEntryToolPresentation(entry);
+  const toolPresentation = resolveWorkEntryToolPresentation(entry, undefined, resolve);
   if (toolPresentation) return { text: toolPresentation.displayName };
   if (entry.command?.trim()) return { text: commandDisplayText(entry.command) };
   const commandless = commandlessCommandLabel(
@@ -281,10 +281,14 @@ export function liveWorkEntryLabel(
       (status === "inProgress" ? msg("Thinking") : msg("Thought"))
     );
   }
-  const toolPresentation = resolveWorkEntryToolPresentation({
-    ...entry,
-    toolLifecycleStatus: status,
-  });
+  const toolPresentation = resolveWorkEntryToolPresentation(
+    {
+      ...entry,
+      toolLifecycleStatus: status,
+    },
+    undefined,
+    m,
+  );
   if (toolPresentation) return toolPresentation.displayName;
   const command = entry.command?.trim();
   if (command) {
@@ -2166,7 +2170,7 @@ export function deriveMessagesTimelineRows(
             groupDisclosure: null,
             displayLabel:
               toolGroupAction(singleEntry) === "edit"
-                ? summarizeToolGroup(visibleGroupedEntries).summary
+                ? summarizeToolGroup(visibleGroupedEntries, resolve).summary
                 : singleToolCallLabel(singleEntry, resolve),
           });
         } else {
@@ -2202,7 +2206,7 @@ export function deriveMessagesTimelineRows(
             summary:
               singleEntry !== null && !workLogEntryIsToolLike(singleEntry)
                 ? singleEntry.label
-                : summarizeToolGroup(visibleGroupedEntries).summary,
+                : summarizeToolGroup(visibleGroupedEntries, resolve).summary,
             summaryKind,
             ...(groupToolSurface ? { toolSurface: groupToolSurface } : {}),
             ...(groupToolIcon ? { toolIcon: groupToolIcon } : {}),
@@ -2428,7 +2432,7 @@ export function deriveMessagesTimelineRows(
         id: LIVE_ACTIVITY_ROW_ID,
         createdAt: input.activeTurnStartedAt ?? null,
         active,
-        ...(waitingOn > 0 ? { label: waitingOnSubagentsLabel(waitingOn) } : {}),
+        ...(waitingOn > 0 ? { label: waitingOnSubagentsLabel(waitingOn, resolve) } : {}),
       });
     }
   }

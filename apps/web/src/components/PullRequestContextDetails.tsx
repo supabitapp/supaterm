@@ -8,9 +8,11 @@ import {
 import { cn } from "~/lib/utils";
 
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
+import { useMessages } from "gt-react";
 
 export function PullRequestContextDetails({ metadata }: { metadata: PullRequestContextMetadata }) {
-  const state = resolvePullRequestState(metadata);
+  const messages = useMessages();
+  const state = resolvePullRequestState(metadata, messages);
   // A context chip carries the change request's URL alone, so the URL names its host.
   const { singular } = (
     sourceControlClients.findByChangeRequestUrl(metadata.url) ?? sourceControlClients.get(undefined)

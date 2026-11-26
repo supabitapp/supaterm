@@ -24,6 +24,7 @@ import { randomUUID } from "../lib/utils";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentServerConfigsAtom } from "./server";
 import { readPreparedConnection } from "./session";
+import { useMessages } from "gt-react";
 
 const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
 
@@ -114,6 +115,7 @@ export function environmentStreamsDictation(environmentId: EnvironmentId): boole
 export function useVoiceTranscriptionSource(
   environmentId: EnvironmentId,
 ): VoiceTranscriptionSource | null {
+  const messages = useMessages();
   const config = useAtomValue(environmentServerConfigsAtom).get(environmentId);
-  return config ? resolveVoiceTranscriptionSource(config) : null;
+  return config ? resolveVoiceTranscriptionSource(config, messages) : null;
 }

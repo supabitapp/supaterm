@@ -905,7 +905,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       })
     : null;
   const pr = useThreadPr(thread);
-  const prBadgeLabel = pr ? resolveThreadPrBadgeAction(pr).accessibilityLabel : null;
+  const prBadgeLabel = pr ? resolveThreadPrBadgeAction(pr, m).accessibilityLabel : null;
   const handleOpenPullRequests = useCallback(() => {
     if (pr) onOpenThreadPullRequests(thread, pr);
   }, [onOpenThreadPullRequests, pr, thread]);
@@ -1607,7 +1607,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
                   ? PullRequestGlyph.stack
                   : pr.state === null
                     ? PullRequestGlyph.pullRequest
-                    : pullRequestStatus({ state: pr.state, isDraft: pr.isDraft }).icon
+                    : pullRequestStatus({ state: pr.state, isDraft: pr.isDraft }, m).icon
               }
               size={12}
               tintColorClassName={

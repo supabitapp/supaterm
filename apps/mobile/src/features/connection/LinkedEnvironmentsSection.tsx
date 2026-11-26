@@ -16,7 +16,7 @@ import { AuthAccessReadScope, type EnvironmentId, type PeerLinkSummary } from "@
 import * as DateTime from "effect/DateTime";
 import { AsyncResult } from "effect/reactivity";
 import { useCallback, useContext, useMemo, useState } from "react";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, Var, useMessages } from "gt-react-native";
 import { AppState, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
@@ -183,6 +183,7 @@ function LinkedEnvironmentRow(props: {
   /** What this client calls the linked environment. */
   readonly label: string;
 }) {
+  const messages = useMessages();
   const { environmentId, link, health, label } = props;
   const gt = useGT();
   const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: "unlink environment" });
@@ -210,7 +211,7 @@ function LinkedEnvironmentRow(props: {
         </Text>
         <Text className="text-xs text-foreground-muted">
           <T>
-            Agents here work there · <Var>{linkAccessLabel(link.access)}</Var>
+            Agents here work there · <Var>{linkAccessLabel(link.access, messages)}</Var>
           </T>
         </Text>
         <Text
@@ -221,7 +222,7 @@ function LinkedEnvironmentRow(props: {
           }
           numberOfLines={2}
         >
-          {peerLinkHealthText(health)}
+          {peerLinkHealthText(health, messages)}
         </Text>
       </View>
       {canUnlink ? (

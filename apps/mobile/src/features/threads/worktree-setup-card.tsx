@@ -2,10 +2,10 @@ import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
 import { Button } from "../../components/ui/Button";
 import {
   WORKTREE_SETUP_STAGE_ORDER,
-  worktreeSetupStageLabel,
   type WorktreeSetupSnapshot,
   type WorktreeSetupStage,
 } from "@supaterm/contracts";
+import { worktreeSetupStageLabel } from "@supaterm/client-runtime/contract-labels";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import { useEffect } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
@@ -401,8 +401,8 @@ function StageRow({
   const m = useMessages();
   const label =
     stage.id === "setup-script"
-      ? (scriptName ?? worktreeSetupStageLabel(stage.id))
-      : worktreeSetupStageLabel(stage.id);
+      ? (scriptName ?? worktreeSetupStageLabel(stage.id, m))
+      : worktreeSetupStageLabel(stage.id, m);
   const detail =
     stage.status === "pending"
       ? null

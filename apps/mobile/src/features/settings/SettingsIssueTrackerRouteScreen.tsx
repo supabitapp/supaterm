@@ -6,7 +6,7 @@ import {
   issueTrackerSummary,
 } from "@supaterm/client-runtime/state/issue-trackers";
 import { AuthSettingsWriteScope, type EnvironmentId } from "@supaterm/contracts";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 import type { ReactNode } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -71,6 +71,7 @@ export function SettingsIssueTrackerRouteScreen({
   readonly tracker: string;
   readonly accountId?: string;
 }>) {
+  const messages = useMessages();
   const gt = useGT();
   const { environmentId } = route.params;
   const { environment, canWrite } = useDetailEnvironment(environmentId);
@@ -96,7 +97,7 @@ export function SettingsIssueTrackerRouteScreen({
       ) : (
         <>
           <Text selectable className="px-2 text-sm text-foreground-muted">
-            {issueTrackerSummary(tracker, issueTrackerBindings(query.data))}
+            {issueTrackerSummary(tracker, issueTrackerBindings(query.data), messages)}
           </Text>
           <SettingsSection title={tracker.credential.label}>
             <IssueTrackerCredentialForm

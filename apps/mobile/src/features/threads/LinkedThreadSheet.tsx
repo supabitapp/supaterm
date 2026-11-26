@@ -281,7 +281,7 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
   const { view, error, retry } = useLinkedThreadView(target, focused && appActive);
   const projection = view?.thread.projection ?? null;
   const label = target.label;
-  const failure = error === null ? null : linkedThreadFailure(error, { via, label });
+  const failure = error === null ? null : linkedThreadFailure(error, { via, label }, m);
   const [feedCache] = useState(() => createThreadFeedCache());
   const feed =
     projection === null

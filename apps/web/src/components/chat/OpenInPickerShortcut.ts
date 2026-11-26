@@ -10,7 +10,7 @@ import { shellEnvironment } from "../../state/shell";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { m } from "../../i18n/messages";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
 
 /** Marks an OpenInPicker's primary button as the target of `editor.openFavorite`. */
 export const OPEN_FAVORITE_EDITOR_ATTRIBUTE = "data-open-favorite-editor";
@@ -47,6 +47,7 @@ export function useOpenFavoriteEditorShortcut({
   availableEditors: ReadonlyArray<EditorId>;
   openInCwd: string | null;
 }) {
+  const messages = useMessages();
   const openInEditorMutation = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
   const remote = useRemoteOpenState(environmentId);
   const remoteCapableEditors = useRemoteCapableEditors();
@@ -61,7 +62,7 @@ export function useOpenFavoriteEditorShortcut({
   );
   const openFavorite = useEffectEvent((repeat: boolean) => {
     if (repeat || !openInCwd || !preferredEditor) return false;
-    const label = editorLabelForPlatform(preferredEditor, navigator.platform);
+    const label = editorLabelForPlatform(preferredEditor, navigator.platform, messages);
     if (remote.mode === "remote-links") {
       const url = buildRemoteOpenUrl({
         editor: preferredEditor,

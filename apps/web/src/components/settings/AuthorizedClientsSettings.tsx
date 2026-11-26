@@ -56,7 +56,7 @@ import type { EnvironmentPresentation } from "~/state/environments";
 import { UseInAnotherAppDialog } from "../mcp/UseInAnotherAppDialog";
 import { ConnectionStatusDot } from "../ConnectionStatusDot";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 function AccessScopeSummary({
   scopes,
@@ -190,6 +190,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
   onRevoke,
   canRevoke,
 }: PairingLinkListRowProps) {
+  const messages = useMessages();
   const gt = useGT();
   const { endpoints, pairingHints } = resolvePairingLinkRoutes(
     advertisedEndpoints,
@@ -329,7 +330,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
           <p className="text-xs text-muted-foreground">
             <Tooltip>
               <TooltipTrigger render={<span />}>
-                {formatExpiresInLabel(pairingLink.expiresAt, nowMs)}
+                {formatExpiresInLabel(pairingLink.expiresAt, nowMs, messages)}
               </TooltipTrigger>
               <TooltipPopup side="top">{expiresAbsolute}</TooltipPopup>
             </Tooltip>

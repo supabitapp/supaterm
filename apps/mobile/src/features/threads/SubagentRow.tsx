@@ -19,6 +19,7 @@ import {
   resolveSubagentRowPresentation,
   type SubagentRowPresentation,
 } from "./threadAgentsPresentation";
+import { useMessages } from "gt-react-native";
 
 type SubagentRowSubagent = Pick<
   OrchestrationV2Subagent,
@@ -43,7 +44,12 @@ export function SubagentRow(props: {
   /** The task runs in a linked environment this app is connected to. */
   readonly canOpenRemote?: boolean;
 }) {
-  const presentation = resolveSubagentRowPresentation(props.subagent, props.canOpenRemote);
+  const messages = useMessages();
+  const presentation = resolveSubagentRowPresentation(
+    props.subagent,
+    props.canOpenRemote,
+    messages,
+  );
   const detail = subagentCardDetail(presentation.detail);
   return (
     <View className="flex-row gap-3">
@@ -89,6 +95,7 @@ function SubagentMetadata(props: {
   readonly subagent: SubagentRowSubagent;
   readonly presentation: Pick<SubagentRowPresentation, "statusLabel" | "tone" | "runsOn">;
 }) {
+  const messages = useMessages();
   const { environmentId, subagent, presentation } = props;
   // A task in a linked environment runs a provider instance of that environment.
   const providers =
@@ -109,15 +116,18 @@ function SubagentMetadata(props: {
   );
   const childProject = useProject(child ? scopeProjectRef(environmentId, child.projectId) : null);
   const selection = subagent.modelSelection;
-  const { modelLabel, modelSlug, workspace } = resolveSubagentMetadata({
-    model: subagent.model,
-    modelSelection: selection,
-    provider,
-    parentThread: parent,
-    childThread: child,
-    parentProject,
-    childProject,
-  });
+  const { modelLabel, modelSlug, workspace } = resolveSubagentMetadata(
+    {
+      model: subagent.model,
+      modelSelection: selection,
+      provider,
+      parentThread: parent,
+      childThread: child,
+      parentProject,
+      childProject,
+    },
+    messages,
+  );
   const instance = provider ? describeProviderInstance(provider, providers) : null;
   const effort = formatSubagentEffort({ modelSlug, modelSelection: selection, provider });
   const modelText = effort ? `${modelLabel} · ${effort}` : modelLabel;

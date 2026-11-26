@@ -78,7 +78,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import { environmentThreadDetails } from "../../state/threads";
 import { openSideChatBeside } from "../../chatPanes/actions";
-import { msg, useGT } from "gt-react";
+import { msg, useGT, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
 
 const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
@@ -135,6 +135,7 @@ interface ThreadLifecycleInput {
  * banners, opening related threads, and standalone slash commands.
  */
 export function useThreadLifecycle(input: ThreadLifecycleInput) {
+  const messages = useMessages();
   const gt = useGT();
   const {
     environmentId,
@@ -572,20 +573,23 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         })
       : null;
   const backgroundWorkNow = activeThread
-    ? backgroundWorkNowItem({
-        environmentId: activeThread.environmentId,
-        threadId: activeThread.id,
-        projectId: activeThread.projectId,
-        pullRequests: activeThread.pullRequests,
-        tasks: activeBackgroundTasks,
-        turnItems,
-        outputHandle: backgroundTaskOutputHandle,
-        // Interrupt stops the active run first, not this work; the composer owns that Stop.
-        stopDisabled: runIsLive || !canOperateThread || isStoppingBackgroundWork,
-        stopping: isStoppingBackgroundWork,
-        onStop: handleStopBackgroundWorkStable,
-        onOpenThread: onOpenRelatedThreadStable,
-      })
+    ? backgroundWorkNowItem(
+        {
+          environmentId: activeThread.environmentId,
+          threadId: activeThread.id,
+          projectId: activeThread.projectId,
+          pullRequests: activeThread.pullRequests,
+          tasks: activeBackgroundTasks,
+          turnItems,
+          outputHandle: backgroundTaskOutputHandle,
+          // Interrupt stops the active run first, not this work; the composer owns that Stop.
+          stopDisabled: runIsLive || !canOperateThread || isStoppingBackgroundWork,
+          stopping: isStoppingBackgroundWork,
+          onStop: handleStopBackgroundWorkStable,
+          onOpenThread: onOpenRelatedThreadStable,
+        },
+        messages,
+      )
     : null;
   // Done, snoozed, and woke are thread state, so each gets a quiet line after the last message
   // instead of a banner. Dismissing a wake acknowledges it like the sidebar pill does. Memoized

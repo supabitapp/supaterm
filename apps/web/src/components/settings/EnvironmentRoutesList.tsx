@@ -29,6 +29,8 @@ import {
   isLearned,
   pendingRouteOrder,
   usableRoutes,
+  connectionRouteLatencyLabel,
+  type ConnectionRouteLatency,
 } from "@supaterm/client-runtime/connection";
 import { GripVerticalIcon, LockIcon, PlusIcon, RefreshCwIcon, XIcon } from "@supaterm/icons";
 import { useContext, useState } from "react";
@@ -41,7 +43,7 @@ import { environmentSession, usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 /**
  * The ways this client reaches one saved machine, preferred first. Drag to
@@ -162,7 +164,7 @@ export function EnvironmentRoutesList({
   );
 }
 
-const NO_LATENCY = Atom.make("");
+const NO_LATENCY = Atom.make<ConnectionRouteLatency | null>(null);
 
 function SortableRouteRow({
   route,
@@ -182,13 +184,15 @@ function SortableRouteRow({
   readonly onRemove: () => void;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const id = connectionRouteId(route.target);
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
   // A route a connect skips has no speed worth measuring.
-  const latency = useAtomValue(
-    unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
+  const measured = useAtomValue(
+    unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).latencyAtom,
   );
+  const latency = unused ? "" : connectionRouteLatencyLabel(measured, messages);
   const transport = useAtomValue(environmentSession.relayRouteTransportAtom(route));
   const {
     attributes,

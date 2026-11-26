@@ -7,6 +7,7 @@ import {
 } from "@supaterm/client-runtime/state/peerLinks";
 import type { AuthMcpClientAccess, EnvironmentId, PeerLinkSummary } from "@supaterm/contracts";
 import type * as DateTime from "effect/DateTime";
+import { m } from "~/i18n/messages";
 
 export const LINK_OFF = "off";
 export type LinkChoice = AuthMcpClientAccess | typeof LINK_OFF;
@@ -85,7 +86,7 @@ export function linkPermissionRow(input: {
   const healthNote =
     health === null || (health.kind === "reachable" && health.expiresInDays === null)
       ? null
-      : peerLinkHealthText(health);
+      : peerLinkHealthText(health, m);
   const routeNote =
     grant?._tag === "Through"
       ? `${grant.intermediary.label} links to ${input.targetLabel} at full access, so it gets the pairing code.`

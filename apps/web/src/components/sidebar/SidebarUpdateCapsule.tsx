@@ -24,7 +24,7 @@ import {
   postponeUpdateRestart,
   retryFailedUpdateRunServers,
 } from "./updateEverythingRun";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 function useNow(intervalMs: number | null): number {
   const step = intervalMs ?? 60_000;
@@ -82,13 +82,14 @@ export function SidebarUpdateCapsule({
   readonly icon: ReactNode;
   readonly onRestart?: () => Promise<void>;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const machines = useUpdateRunMachineViews(run, current);
   const hasActiveMachine = machines.some(
     ({ status }) => status !== "done" && status !== "failed" && status !== "waiting",
   );
   const now = useNow(run.phase === "countdown" ? 1_000 : hasActiveMachine ? 30_000 : null);
-  const view = describeUpdateCapsule(run, machines, local, now);
+  const view = describeUpdateCapsule(run, machines, local, now, messages);
   const updateServer = useServerUpdate();
   const failed = machines.some(({ status }) => status === "failed");
   const settled = !hasActiveMachine && run.localVersion === null;
@@ -207,7 +208,7 @@ export function SidebarUpdateCapsule({
                 >
                   {RUN_STATUS_LABELS[status]}
                   {status !== "done" && status !== "failed" && status !== "waiting"
-                    ? ` ${formatUpdateElapsed(now - machine.startedAt)}`
+                    ? ` ${formatUpdateElapsed(now - machine.startedAt, messages)}`
                     : ""}
                 </span>
               </div>

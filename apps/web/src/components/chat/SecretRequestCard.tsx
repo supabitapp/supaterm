@@ -45,15 +45,16 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { WorkLogRow } from "./WorkLog";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 export function SecretRequestCard(props: {
   readonly environmentId: EnvironmentId;
   readonly item: SecretRequestItem;
   readonly visibility: OrchestrationV2ProjectedTurnItem["visibility"];
 }) {
+  const messages = useMessages();
   const { item } = props;
-  const display = secretRequestDisplay(item, props.visibility);
+  const display = secretRequestDisplay(item, props.visibility, messages);
   if (display.kind === "expired") {
     return (
       <div

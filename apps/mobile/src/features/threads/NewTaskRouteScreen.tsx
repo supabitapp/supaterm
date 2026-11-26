@@ -43,7 +43,7 @@ import {
   resolveNewTaskScratchOption,
 } from "./new-task-project-selection";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 type NewTaskRouteParams = {
   readonly incomingShareId?: string | string[];
@@ -98,6 +98,7 @@ function NewTaskHeader(props: {
 }
 
 export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRouteParams | undefined>) {
+  const messages = useMessages();
   const gt = useGT();
   const projects = useProjects();
   const [searchText, setSearchText] = useState("");
@@ -123,7 +124,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
         : `Choose a project for the ${incomingShare.attachments.length} ${incomingShare.attachments.every((attachment) => attachment.type === "image") ? "images" : "files"} you shared`
     : null;
   const screenTitle = incomingShare ? "Start a task" : "Choose project";
-  const projectEmptyState = resolveNewTaskProjectEmptyState(catalogState.phase);
+  const projectEmptyState = resolveNewTaskProjectEmptyState(catalogState.phase, messages);
   const hasReadyEnvironment = catalogState.phase.type === "connected";
   const serverConfigs = useServerConfigs();
   const listScopes = pickableProjectGroups(projectScopes).filter(

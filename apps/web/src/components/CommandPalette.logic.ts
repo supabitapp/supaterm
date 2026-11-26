@@ -865,7 +865,7 @@ export function remoteProjectInputPlaceholder(
 export function buildPaletteRemoteSourceReadiness(
   discovery: SourceControlDiscoveryResult | null,
 ): AddProjectRemoteSourceReadiness {
-  const readiness = buildAddProjectRemoteSourceReadiness(discovery);
+  const readiness = buildAddProjectRemoteSourceReadiness(discovery, m);
   return (source) => {
     const entry = readiness(source);
     return entry.hint === null

@@ -11,13 +11,14 @@ import {
   workspaceListFilterMenu,
   type WorkspaceListHeaderProps,
 } from "./WorkspaceListHeader.types";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 export function WorkspaceListHeader(props: WorkspaceListHeaderProps) {
+  const messages = useMessages();
   return props.sidebar ? (
     <SidebarColumnHeader {...props} sidebar={props.sidebar} />
   ) : (
-    <WorkspaceHeaderActions filterMenu={workspaceListFilterMenu(props.filter)} />
+    <WorkspaceHeaderActions filterMenu={workspaceListFilterMenu(props.filter, messages)} />
   );
 }
 

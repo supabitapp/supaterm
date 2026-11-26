@@ -19,6 +19,7 @@ import {
   type PullRequestDiffPage,
   type WithheldFileLoad,
 } from "./pullRequestDiffPages";
+import { useMessages, useLocale } from "gt-react-native";
 
 export type PullRequestParams = {
   readonly environmentId: string;
@@ -126,6 +127,8 @@ export function usePullRequestDiff(
   params: PullRequestDiffParams,
   terminology: ChangeRequestTerminology,
 ) {
+  const messages = useMessages();
+  const locale = useLocale();
   const reference = pullRequestTarget(params);
   const target = {
     ...reference,
@@ -191,8 +194,8 @@ export function usePullRequestDiff(
     );
   });
   const pagesParsed = useMemo(
-    () => getCachedPullRequestDiffPages(pages, key, terminology),
-    [key, pages, terminology],
+    () => getCachedPullRequestDiffPages(pages, key, terminology, messages, locale),
+    [key, pages, terminology, messages, locale],
   );
   // The server says whether a withheld file can be read alone; GitHub may refuse the whole diff.
   const withheldFilesReadable = pages[0]?.result.withheldFilesReadable === true;

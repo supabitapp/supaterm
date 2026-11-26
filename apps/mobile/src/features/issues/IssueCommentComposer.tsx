@@ -9,7 +9,7 @@ import { ComposerDictationStartAction } from "../voice-input/ComposerDictationCo
 import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 const COMPOSER_BOTTOM_GUTTER = 8;
 
@@ -32,6 +32,7 @@ export function IssueCommentComposer(props: {
   readonly onHeightChange: (height: number) => void;
   readonly onFocusChange: (focused: boolean) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [draft, setDraft] = useState("");
   // Read by dictation and by send after an await, when the render's `draft` may be stale.
@@ -52,7 +53,11 @@ export function IssueCommentComposer(props: {
     environmentId: props.environmentId,
     context: { projectId: props.projectId },
   });
-  const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
+  const presentation = resolveVoiceComposerPresentation(
+    voice.state,
+    voice.elapsedSeconds,
+    messages,
+  );
   const showsDictation = presentation.statusLabel !== null;
   const canSend =
     props.blocked === null && !props.posting && !voice.blocksSubmission && draft.trim().length > 0;

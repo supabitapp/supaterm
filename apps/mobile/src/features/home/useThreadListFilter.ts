@@ -15,8 +15,10 @@ import {
   resolveHomeProjectFilterScope,
   sortHomeProjectScopes,
 } from "./homeThreadList";
+import { useMessages } from "gt-react-native";
 
 export function useThreadListFilter(visible: boolean) {
+  const messages = useMessages();
   const threads = useLaunchingThreads(
     useAtomValueWhileVisible(steadyNavigationThreadShellsAtom, visible),
   );
@@ -64,19 +66,22 @@ export function useThreadListFilter(visible: boolean) {
     resolveHomeProjectFilterScope(projectScopes, projects, listOptions)?.key ?? null;
   const filter: WorkspaceListHeaderProps["filter"] = {
     customized: selectedEnvironmentId !== null || selectedProjectKey !== null,
-    items: buildHomeListFilterMenuItems({
-      grouping: listOptions.threadGrouping,
-      onGroupingChange: setThreadGrouping,
-      environments,
-      projects: projectFilterOptions,
-      selectedEnvironmentId,
-      selectedProjectKey,
-      onEnvironmentChange: setSelectedEnvironmentId,
-      onProjectChange: setSelectedProjectKey,
-      onResetScope: resetScope,
-      hideOfflineEnvironments: listOptions.hideOfflineEnvironments,
-      onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
-    }),
+    items: buildHomeListFilterMenuItems(
+      {
+        grouping: listOptions.threadGrouping,
+        onGroupingChange: setThreadGrouping,
+        environments,
+        projects: projectFilterOptions,
+        selectedEnvironmentId,
+        selectedProjectKey,
+        onEnvironmentChange: setSelectedEnvironmentId,
+        onProjectChange: setSelectedProjectKey,
+        onResetScope: resetScope,
+        hideOfflineEnvironments: listOptions.hideOfflineEnvironments,
+        onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
+      },
+      messages,
+    ),
   };
   return { threads, listOptions, projects, environments, selectedProjectKey, filter };
 }

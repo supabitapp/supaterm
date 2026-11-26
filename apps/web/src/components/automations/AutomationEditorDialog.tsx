@@ -478,7 +478,8 @@ export function AutomationEditorDialog({
     }
     const schedule = scheduleFromDraft(draft);
     if (schedule === null) {
-      for (const error of scheduleDraftErrors(draft)) reportFailure(error.title, error.description);
+      for (const error of scheduleDraftErrors(draft, m))
+        reportFailure(error.title, error.description);
       return;
     }
     if (

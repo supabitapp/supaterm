@@ -221,7 +221,7 @@ import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-scroll-position
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
 import { useGlobalVoiceInput } from "../voice-input/VoiceInputProvider";
 import type { OrchestrationV2ProviderSession } from "@supaterm/contracts";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 export interface ThreadDetailScreenProps {
   readonly header?: React.ReactNode;
@@ -468,6 +468,7 @@ function ThreadDetailBody(
     >;
   },
 ) {
+  const resolveMessage = useMessages();
   const gt = useGT();
   const selectedThreadDetailRef: ScopedThreadRef | null = props.draftMode
     ? null
@@ -579,7 +580,7 @@ function ThreadDetailBody(
   });
   const composerError = useAtomValue(threadComposerErrorsAtom)[selectedThreadKey]?.message ?? null;
   const toolCallVisibility = useAtomValue(toolCallVisibilityAtom);
-  const agentsSegment = resolveSubagentPillSegment(turnSubagents);
+  const agentsSegment = resolveSubagentPillSegment(turnSubagents, resolveMessage);
   const defaultComposerEditorRef = useRef<ComposerEditorHandle>(null);
   const composerEditorRef = props.draftMode?.editorRef ?? defaultComposerEditorRef;
   const isProviderSubagent = isProviderNativeSubagentThread(props.selectedThread.source);
@@ -957,10 +958,13 @@ function ThreadDetailBody(
       if (props.worktreeSetup || preparingWorktreeInFeed) return null;
       return {
         kind: "preparing",
-        label: pendingThreadCreationLabel({
-          connected: props.connectionStateLabel === "connected",
-          preparingWorktree: props.creationState.preparingWorktree,
-        }),
+        label: pendingThreadCreationLabel(
+          {
+            connected: props.connectionStateLabel === "connected",
+            preparingWorktree: props.creationState.preparingWorktree,
+          },
+          resolveMessage,
+        ),
       };
     }
     if (props.creationState?.kind === "failed") {

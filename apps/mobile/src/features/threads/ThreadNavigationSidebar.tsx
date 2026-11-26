@@ -87,7 +87,7 @@ import {
 } from "./threadListV2";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 /** The sidebar list: flat v2 rows with queued tasks spliced in, plus a
     done "Show more" pager row. */
@@ -123,6 +123,7 @@ export function ThreadNavigationSidebar(props: ThreadNavigationSidebarProps) {
 }
 
 function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
+  const resolveMessage = useMessages();
   const gt = useGT();
   const workspace = useWorkspaceTabs();
   const [initialScrollOffset] = useState(() => workspace?.getScrollOffset("threads") ?? 0);
@@ -590,19 +591,22 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
       }}
       filter={{
         customized: options.selectedEnvironmentId !== null || selectedProjectKey !== null,
-        items: buildHomeListFilterMenuItems({
-          grouping: options.threadGrouping,
-          onGroupingChange: setThreadGrouping,
-          environments,
-          projects: projectFilterOptions,
-          selectedEnvironmentId: options.selectedEnvironmentId,
-          selectedProjectKey,
-          onEnvironmentChange: setSelectedEnvironmentId,
-          onProjectChange: setSelectedProjectKey,
-          onResetScope: resetScope,
-          hideOfflineEnvironments: options.hideOfflineEnvironments,
-          onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
-        }),
+        items: buildHomeListFilterMenuItems(
+          {
+            grouping: options.threadGrouping,
+            onGroupingChange: setThreadGrouping,
+            environments,
+            projects: projectFilterOptions,
+            selectedEnvironmentId: options.selectedEnvironmentId,
+            selectedProjectKey,
+            onEnvironmentChange: setSelectedEnvironmentId,
+            onProjectChange: setSelectedProjectKey,
+            onResetScope: resetScope,
+            hideOfflineEnvironments: options.hideOfflineEnvironments,
+            onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
+          },
+          resolveMessage,
+        ),
       }}
       sidebar={{
         width: props.width,

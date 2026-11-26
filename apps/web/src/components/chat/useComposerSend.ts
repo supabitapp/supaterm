@@ -109,7 +109,7 @@ import type { useUsageLimitsPanel } from "./useUsageLimitsPanel";
 import type { useWorktreeSetup } from "./useWorktreeSetup";
 import type { useDraftEnvironmentRouting } from "./useDraftEnvironmentRouting";
 import type { useTimelineFollow } from "./useTimelineFollow";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
 
 type PendingThreadRequests = ReturnType<typeof usePendingThreadRequests>;
@@ -205,6 +205,7 @@ interface ComposerSendInput {
  * redirects pending approvals declines them before it enqueues.
  */
 export function useComposerSend(input: ComposerSendInput) {
+  const resolveMessage = useMessages();
   const {
     environmentId,
     routeThreadKey,
@@ -746,6 +747,7 @@ export function useComposerSend(input: ComposerSendInput) {
         const toastCopy = buildExpiredTerminalContextToastCopy(
           expiredTerminalContextCount,
           "empty",
+          resolveMessage,
         );
         toastManager.add(
           stackedThreadToast({

@@ -212,7 +212,7 @@ export function workflowMemberMetadata(
   provider: Pick<ServerProvider, "driver" | "models"> | undefined,
 ) {
   const model = member.model?.trim()
-    ? resolveSubagentMetadata({ model: member.model, provider }).modelLabel
+    ? resolveSubagentMetadata({ model: member.model, provider }, m).modelLabel
     : null;
   const slug = provider
     ? resolveSelectableModel(provider.driver, member.model, provider.models)

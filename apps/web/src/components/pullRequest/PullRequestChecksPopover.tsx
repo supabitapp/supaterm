@@ -26,7 +26,7 @@ import {
   pullRequestChecksStatePresentation,
   summarizePullRequestChecks,
 } from "./pullRequestPresentation";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
 
 // Fetch only on open to avoid per-row requests.
@@ -63,6 +63,7 @@ function ChecksBody({
   checks: ReadonlyArray<PullRequestCheck>;
   threadRef: ScopedThreadRef | null;
 }) {
+  const messages = useMessages();
   const openLink = useOpenLink(threadRef);
   const { attention, running, completed } = groupPullRequestChecks(checks);
   const orderedChecks = [...attention, ...running, ...completed];
@@ -111,13 +112,13 @@ function ChecksBody({
                 >
                   <PullRequestCheckStatusIcon status={check.status} />
                   <span className="min-w-0 flex-1 truncate">{check.name}</span>
-                  <span className="sr-only">: {pullRequestCheckStatusLabel(check)}</span>
+                  <span className="sr-only">: {pullRequestCheckStatusLabel(check, messages)}</span>
                 </TooltipTrigger>
                 <TooltipPopup side="top">
                   <div className="flex flex-col gap-1">
                     <span>{check.name}</span>
                     <span className="text-muted-foreground">
-                      {pullRequestCheckStatusLabel(check)}
+                      {pullRequestCheckStatusLabel(check, messages)}
                     </span>
                     {check.description ? <span>{check.description}</span> : null}
                   </div>
@@ -152,8 +153,9 @@ export function PullRequestChecksPopover({
   className?: string;
   render?: React.ReactElement;
 }) {
+  const messages = useMessages();
   const gt = useGT();
-  const presentation = pullRequestChecksStatePresentation(checksState);
+  const presentation = pullRequestChecksStatePresentation(checksState, messages);
   const summary = checks === undefined || stale ? null : summarizePullRequestChecks(checks);
   return (
     <Popover>

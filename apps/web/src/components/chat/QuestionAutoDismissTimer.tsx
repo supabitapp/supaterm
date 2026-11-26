@@ -1,9 +1,10 @@
-import { useGT } from "gt-react";
+import { useGT, useMessages } from "gt-react";
 import { memo, useEffect, useState } from "react";
 import { userInputCountdown } from "@supaterm/client-runtime/user-input-countdown";
 import { cn } from "~/lib/utils";
 
 function useUserInputCountdown(deadline: string) {
+  const messages = useMessages();
   const [now, setNow] = useState(Date.now);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- interval timer and visibilitychange listener tick the countdown until the deadline passes
   useEffect(() => {
@@ -20,7 +21,7 @@ function useUserInputCountdown(deadline: string) {
       document.removeEventListener("visibilitychange", tick);
     };
   }, [deadline]);
-  return userInputCountdown(deadline, now);
+  return userInputCountdown(deadline, now, messages);
 }
 
 export const QuestionAutoDismissCountdown = memo(function QuestionAutoDismissCountdown({

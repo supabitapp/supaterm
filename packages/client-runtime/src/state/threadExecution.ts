@@ -143,14 +143,18 @@ function presentProviderStarting(input: {
   readonly instanceId: ProviderInstanceId;
   readonly driver: ProviderDriverKind | undefined;
   readonly phase?: string | undefined;
-}): Pick<ThreadRunSummary, "providerStartingLabel" | "providerStarting"> {
+}): Pick<
+  ThreadRunSummary,
+  "providerStartingLabel" | "providerStartingLabelMsg" | "providerStarting"
+> {
   const name = input.driver === undefined ? undefined : PROVIDER_DISPLAY_NAMES[input.driver];
+  const label =
+    name === undefined
+      ? msg("Starting", { $context: "a provider is launching" })
+      : providerStartingPhase(input.phase, name);
   return {
-    providerStartingLabel: mFallback(
-      name === undefined
-        ? msg("Starting", { $context: "a provider is launching" })
-        : providerStartingPhase(input.phase, name),
-    ),
+    providerStartingLabel: mFallback(label),
+    providerStartingLabelMsg: label,
     ...(input.driver === undefined
       ? {}
       : { providerStarting: { instanceId: input.instanceId, driver: input.driver } }),

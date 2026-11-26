@@ -61,7 +61,7 @@ export function LinkRequestCard(props: {
   const m = useMessages();
   const { item, visibility } = props.projectedItem;
   if (item.type !== "link_request") return null;
-  const display = linkRequestDisplay(item, visibility, (access) => linkAccessLabel(access, m));
+  const display = linkRequestDisplay(item, visibility, (access) => linkAccessLabel(access, m), m);
   if (display.kind === "pending") {
     return <PendingLinkRequest environmentId={props.environmentId} item={item} />;
   }

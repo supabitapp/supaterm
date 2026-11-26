@@ -18,7 +18,7 @@ import { useProjectFilePickerQuery } from "../files/projectFilesQueryState";
 import { CommandDialog, CommandDialogPopup, CommandFooterAction } from "../ui/command";
 import { toastManager } from "../ui/toast";
 import { ProjectFaviconThumbnail } from "./ProjectFaviconThumbnail";
-import { useGT, msg } from "gt-react";
+import { useGT, msg, useMessages } from "gt-react";
 
 function emptyMessage(query: string, error: string | null, isPending: boolean): string {
   if (error) return error;
@@ -39,6 +39,7 @@ export function ProjectFaviconPickerDialog(props: {
   readonly open: boolean;
   readonly projectName: string;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [query, setQuery] = useState("");
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export function ProjectFaviconPickerDialog(props: {
   const { onPickExternal: pickExternal, onSelect } = props;
   const fileManagerName = getLocalFileManagerName(
     typeof navigator === "undefined" ? "" : navigator.platform,
+    messages,
   );
   const items: CommandPaletteActionItem[] = getProjectFilePickerMatches(
     result.entries,

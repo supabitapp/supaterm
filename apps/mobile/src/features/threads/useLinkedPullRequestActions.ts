@@ -32,7 +32,7 @@ import type { EnvironmentRuntimeState } from "../../state/remote-runtime-types";
 import { useEnvironmentScope } from "../../state/session";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 type MenuAction = MenuProps["actions"][number];
 
@@ -41,6 +41,7 @@ export function useLinkedPullRequestActions(input: {
   readonly project: EnvironmentProject | null;
   readonly runtime: EnvironmentRuntimeState | null;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { thread, project, runtime } = input;
   const terminology = sourceControlClients.get(project?.repositoryIdentity?.provider).changeRequest;
@@ -112,11 +113,14 @@ export function useLinkedPullRequestActions(input: {
       initialValue: "",
       confirmText: gt("Link", { $context: "verb, confirms linking a pull request" }),
       onConfirm: (reference) => {
-        const resolved = resolveLinkPullRequestInput({
-          reference,
-          project: pullRequestLinkProject(project?.repositoryIdentity),
-          hasProject: () => true,
-        });
+        const resolved = resolveLinkPullRequestInput(
+          {
+            reference,
+            project: pullRequestLinkProject(project?.repositoryIdentity),
+            hasProject: () => true,
+          },
+          messages,
+        );
         if (resolved === null) {
           Dialog.alert(
             gt(

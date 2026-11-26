@@ -28,7 +28,7 @@ import {
   shownPatchIndices,
 } from "../pull-requests/pullRequestFileFilters";
 import { useHideTestFilesPreference } from "../pull-requests/usePullRequestFileFilter";
-import { msg } from "gt-react-native";
+import { msg, useMessages } from "gt-react-native";
 
 const EMPTY_INLINE_REVIEW_COMMENTS = Object.freeze([]);
 const NO_REVIEW_FILES: ReadonlyArray<ReviewRenderableFile> = Object.freeze([]);
@@ -141,6 +141,7 @@ export function useReviewDiffData(input: {
   /** Shows one folder of a turn's patch; `folders` lists every folder, NUL-separated. */
   readonly repositoryFilter: { readonly folder: string; readonly folders: string } | null;
 }) {
+  const messages = useMessages();
   const { draftMessage, draftContext, selectedSection, threadKey } = input;
   const selectedSectionId = selectedSection?.id ?? null;
   const source = selectedSection?.source;
@@ -266,7 +267,7 @@ export function useReviewDiffData(input: {
     () => formatHeaderDiffSummary(parsedDiff, selectedSection?.files),
     [parsedDiff, selectedSection?.files],
   );
-  const inlineReviewComments = parseReviewInlineComments(draftMessage, draftContext);
+  const inlineReviewComments = parseReviewInlineComments(draftMessage, draftContext, messages);
   const selectedSectionInlineComments = useMemo(() => {
     if (!selectedSectionId || inlineReviewComments.length === 0) {
       return EMPTY_INLINE_REVIEW_COMMENTS;

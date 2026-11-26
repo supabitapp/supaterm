@@ -49,7 +49,7 @@ import {
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useComposerMenuState } from "./useComposerMenuState";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 type OpenInOption = EditorIconOption & { label: string };
 
@@ -92,6 +92,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   displayMode?: "toolbar" | "panel";
   fileManagerAction?: FileManagerAction;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const isPanel = displayMode === "panel";
   const ActionGroup = isPanel ? "div" : Group;
@@ -286,7 +287,7 @@ export const OpenInPicker = memo(function OpenInPicker({
                 : {})}
               onClick={() => {
                 if (!preferredEditor) return;
-                const label = editorLabelForPlatform(preferredEditor, navigator.platform);
+                const label = editorLabelForPlatform(preferredEditor, navigator.platform, messages);
                 void openInEditor(preferredEditor).then((opened) => {
                   if (opened) announce(gt("Opened in {editor}", { editor: label }));
                 });

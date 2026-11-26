@@ -42,7 +42,7 @@ import {
   searchableSetting,
 } from "./settingsSearch";
 import { isImeComposing } from "~/lib/imeComposition";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
   const gt = useGT();
@@ -358,6 +358,7 @@ function FontFamilySettingsRow({
     onChange: (v: number) => void;
   };
 }) {
+  const messages = useMessages();
   const trimmed = value.trim();
   const [draft, setDraft] = useState(value);
   const [draftSettled, setDraftSettled] = useState(true);
@@ -473,7 +474,7 @@ function FontFamilySettingsRow({
             setDraftSettled(true);
           }
         }}
-        placeholder={fontFamilyLabel(defaultFamily)}
+        placeholder={fontFamilyLabel(defaultFamily, messages)}
         spellCheck={false}
         value={draft}
       />

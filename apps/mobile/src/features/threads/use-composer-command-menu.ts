@@ -67,7 +67,7 @@ import {
 } from "../../state/queries";
 import type { ComposerCommandItem } from "./ComposerCommandPopover";
 import { matchesCommandMenuSkillQuery } from "./composerCommandMenuSkillSearch";
-import { useGT, msg } from "gt-react-native";
+import { useGT, msg, useMessages } from "gt-react-native";
 
 const idleWorkspaceSnapshotRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(undefined).pipe(
   Atom.withLabel("mobile:provider-workspace-snapshot-refresh:idle"),
@@ -275,6 +275,7 @@ export function useComposerCommandMenu({
   /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
   readonly onFreshSession?: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [localSelection, setLocalSelection] = useState(() => ({
     ownerKey,
@@ -490,22 +491,28 @@ export function useComposerCommandMenu({
 
     if (trigger.kind === "path") {
       const threadItems = environmentId
-        ? matchComposerThreadItems({
-            shells: threadShells,
-            environmentId,
-            linkedEnvironments,
-            excludeThreadId: currentThreadId,
-            query: trigger.query,
-            now,
-          })
+        ? matchComposerThreadItems(
+            {
+              shells: threadShells,
+              environmentId,
+              linkedEnvironments,
+              excludeThreadId: currentThreadId,
+              query: trigger.query,
+              now,
+            },
+            messages,
+          )
         : [];
       const environmentItems = environmentId
-        ? matchComposerEnvironmentItems({
-            environments,
-            linkedEnvironments,
-            environmentId,
-            query: trigger.query,
-          })
+        ? matchComposerEnvironmentItems(
+            {
+              environments,
+              linkedEnvironments,
+              environmentId,
+              query: trigger.query,
+            },
+            messages,
+          )
         : [];
       return [
         ...threadItems,

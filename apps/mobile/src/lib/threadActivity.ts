@@ -279,6 +279,7 @@ export interface ThreadFeedLatestRun {
   readonly completedAt: string | null;
   readonly turnEnded?: boolean;
   readonly providerStartingLabel?: string;
+  readonly providerStartingLabelMsg?: string;
   readonly providerStarting?: { readonly driver: string };
 }
 
@@ -310,7 +311,7 @@ export function workEntryRowDisplay(
           ? resolve(msg("Thinking"))
           : resolve(msg("Thought")),
     };
-  const presentation = resolveWorkEntryToolPresentation(entry);
+  const presentation = resolveWorkEntryToolPresentation(entry, undefined, resolve);
   if (presentation) return { text: presentation.displayName };
   if (entry.command?.trim())
     return { text: compactWorkEntryText(commandDisplayText(entry.command)) };
@@ -649,7 +650,7 @@ function itemSummary(
 ): string {
   if (item.type === "notification") return item.summary;
   if (item.type === "system_notice") return item.message;
-  if (item.type === "compaction") return contextCompactionLabel(item);
+  if (item.type === "compaction") return contextCompactionLabel(item, resolve);
   const title =
     (item.type === "dynamic_tool"
       ? dynamicToolTitle(item.toolName, item.input, item.title, resolve)
@@ -953,7 +954,7 @@ function singleToolCallLabel(activity: ThreadFeedActivity, expanded: boolean): s
     return expanded
       ? msg("Thought")
       : compactWorkEntryText(activity.workEntry.detail ?? "") || msg("Thought");
-  const presentation = resolveWorkEntryToolPresentation(activity.workEntry, "completed");
+  const presentation = resolveWorkEntryToolPresentation(activity.workEntry, "completed", m);
   if (presentation) return presentation.displayName;
   const command = activity.workEntry.command?.trim();
   return command ? truncate(command, WORK_LOG_LABEL_MAX_LENGTH) : activity.summary;
@@ -1486,6 +1487,7 @@ function latestRunsEqual(left: ThreadFeedLatestRun | null, right: ThreadFeedLate
       left.completedAt === right.completedAt &&
       left.turnEnded === right.turnEnded &&
       left.providerStartingLabel === right.providerStartingLabel &&
+      left.providerStartingLabelMsg === right.providerStartingLabelMsg &&
       left.providerStarting?.driver === right.providerStarting?.driver)
   );
 }
@@ -1980,8 +1982,14 @@ export function deriveThreadFeedPresentation(
       thinkingRow(
         activeWorkStartedAt,
         activeRunId,
-        waitingOn > 0 ? waitingOnSubagentsLabel(waitingOn) : zen ? liveAnswerPreview(feed) : null,
-        latestRun?.providerStartingLabel,
+        waitingOn > 0
+          ? waitingOnSubagentsLabel(waitingOn, resolve)
+          : zen
+            ? liveAnswerPreview(feed)
+            : null,
+        latestRun?.providerStartingLabelMsg === undefined
+          ? latestRun?.providerStartingLabel
+          : resolve(latestRun.providerStartingLabelMsg),
         latestRun?.providerStarting?.driver,
       ),
     );
@@ -2270,7 +2278,10 @@ function appendToolGroupRows(
   const latestActivity = latestActiveActivity ?? activities.at(-1)!;
   const shimmer = activeTail && (active || latestActivity.status === "success");
   const singleActivity = activities.length === 1 ? latestActivity : null;
-  const groupSummary = summarizeToolGroup(activities.map((activity) => activity.workEntry));
+  const groupSummary = summarizeToolGroup(
+    activities.map((activity) => activity.workEntry),
+    m,
+  );
   const latestThought =
     live && !expanded
       ? activities.findLast(
@@ -2328,7 +2339,7 @@ function appendToolGroupRows(
     activities.findLast((activity) => activity.workEntry.toolIcon !== undefined)?.workEntry
       .toolIcon;
   const summaryToolIcon = live
-    ? resolveWorkEntryToolPresentation(latestActivity.workEntry)?.icon
+    ? resolveWorkEntryToolPresentation(latestActivity.workEntry, undefined, m)?.icon
     : undefined;
   result.push({
     type: "work-toggle",
@@ -2380,10 +2391,14 @@ function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boo
       activity.workEntry.detail?.trim() || (status === "inProgress" ? "Thinking" : "Thought"),
     );
   }
-  const presentation = resolveWorkEntryToolPresentation({
-    ...activity.workEntry,
-    toolLifecycleStatus: status,
-  });
+  const presentation = resolveWorkEntryToolPresentation(
+    {
+      ...activity.workEntry,
+      toolLifecycleStatus: status,
+    },
+    undefined,
+    m,
+  );
   if (presentation) return presentation.displayName;
   const command = activity.workEntry.command?.trim();
   if (command) {

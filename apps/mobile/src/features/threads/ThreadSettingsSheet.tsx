@@ -125,6 +125,7 @@ import {
 } from "./thread-settings-sheet-state";
 import { formatProviderUpdateRequiredNotice } from "@supaterm/client-runtime/providerUpdateRequiredModels";
 import { T, useGT } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const PRIMARY_PROVIDER_DRIVERS: ReadonlySet<string> = new Set([
   "claudeAgent",
@@ -886,7 +887,7 @@ function buildThreadSettingsCatalogItems(
     });
     const updateRequiredNotice =
       group.updateRequired && !session.favoritesOnly
-        ? formatProviderUpdateRequiredNotice(group.updateRequired, session.searchQuery)
+        ? formatProviderUpdateRequiredNotice(group.updateRequired, session.searchQuery, m)
         : null;
     if (visibleModels.length === 0 && !updateRequiredNotice) {
       return [];

@@ -21,7 +21,7 @@ import { cn } from "../../lib/cn";
 import { CompactVoiceWaveform, DictationElapsedTime } from "./ComposerDictationControl";
 import { useGlobalVoiceInput } from "./VoiceInputProvider";
 import { resolveVoiceComposerPresentation } from "./voiceInputPresentation";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 const PILL_HEIGHT = 36;
 const COLLAPSED_WIDTH = 64;
@@ -35,9 +35,14 @@ const MORPH_TIMING = {
 const ENTERING = FadeIn.duration(180).reduceMotion(ReduceMotion.System);
 
 export function GlobalVoiceInputControl(props: { readonly children: ReactNode }) {
+  const messages = useMessages();
   const voice = useGlobalVoiceInput();
   const [expanded, setExpanded] = useState(false);
-  const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
+  const presentation = resolveVoiceComposerPresentation(
+    voice.state,
+    voice.elapsedSeconds,
+    messages,
+  );
   const visible =
     presentation.statusLabel !== null &&
     !(voice.ownerKey && voice.focusedOwners.has(voice.ownerKey));
@@ -66,6 +71,7 @@ function EdgeDictationPill(props: {
   readonly expanded: boolean;
   readonly onExpandedChange: (expanded: boolean) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const voice = useGlobalVoiceInput();
   const insets = useSafeAreaInsets();
@@ -90,7 +96,11 @@ function EdgeDictationPill(props: {
       ? Math.max(insets.bottom, 16) + 16 + fabSize + 12
       : Math.max(insets.bottom, 12) + IOS_BOTTOM_CHROME_CLEARANCE;
 
-  const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
+  const presentation = resolveVoiceComposerPresentation(
+    voice.state,
+    voice.elapsedSeconds,
+    messages,
+  );
   const phase = voice.state.phase;
   const isError = phase === "error";
   const openSettings = isError && voice.state.errorAction === "settings";

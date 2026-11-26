@@ -124,7 +124,7 @@ import { enqueueVoiceThreadOutboxMessage } from "./thread-outbox-audio";
 import { dispatchingQueuedMessageIdsAtom, useThreadOutboxMessages } from "./use-thread-outbox";
 import { threadEnvironment } from "./threads";
 import { useAtomCommand } from "./use-atom-command";
-import { msg } from "gt-react-native";
+import { msg, useLocale, useMessages } from "gt-react-native";
 import { m } from "../i18n/messages";
 
 const EMPTY_QUEUE_WORKFLOW_ATOM = Atom.make<null>(null).pipe(
@@ -262,6 +262,8 @@ export function useThreadComposerState() {
   // cannot be an either/or with the loaded messages.
   const pendingCreationMessage = selectedThreadCreation?.message ?? null;
   const [feedCache] = useState(createThreadFeedCache);
+  const resolveMessage = useMessages();
+  const locale = useLocale();
   const selectedThreadFeed = (() => {
     const pendingCreation =
       pendingCreationMessage !== null &&
@@ -274,6 +276,8 @@ export function useThreadComposerState() {
         attempts: selectedThreadAttempts,
         nodes: selectedThreadNodes,
         cache: feedCache,
+        resolve: resolveMessage,
+        locale,
       }),
       pendingCreation.length > 0 ? pendingCreationMessage : null,
       selectedThreadQueuedMessages.some(

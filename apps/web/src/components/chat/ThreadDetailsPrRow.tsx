@@ -96,7 +96,7 @@ import {
   THREAD_DETAILS_PANEL_LINK_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 // A null checks response is settled; polling cannot find checks.
 const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
@@ -129,6 +129,7 @@ export function ThreadDetailsPrRow({
   onActed?: () => void;
   onStopWatching?: (() => void) | undefined;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const serverConfigs = useServerConfigs();
   const supportsPullRequests = serverConfigs.has(environmentId);
@@ -313,10 +314,13 @@ export function ThreadDetailsPrRow({
   const statePresentation =
     detail === null
       ? null
-      : resolvePullRequestState({
-          state: detail.state,
-          isDraft: detail.isDraft,
-        });
+      : resolvePullRequestState(
+          {
+            state: detail.state,
+            isDraft: detail.isDraft,
+          },
+          messages,
+        );
   const icon = statePresentation ? (
     <statePresentation.Icon
       aria-hidden
@@ -333,7 +337,9 @@ export function ThreadDetailsPrRow({
 
   const stateLabel = (
     statePresentation ??
-    (pr ? resolvePullRequestState({ state: pr.state, isDraft: pr.isDraft === true }) : null)
+    (pr
+      ? resolvePullRequestState({ state: pr.state, isDraft: pr.isDraft === true }, messages)
+      : null)
   )?.label.toLowerCase();
   const accessibleTitle = (detail?.title ?? pr?.title)?.trim();
   const openAriaLabel = `${capitalizeTerm(terminology.singular)} #${number}${
@@ -647,7 +653,7 @@ export function ThreadDetailsPrRow({
             />
             <MenuItem onClick={() => void readLocalApi()?.shell.openExternal(detail.url)}>
               <ArrowUpRightIcon className="size-3.5" />
-              {openOnHostLabel(sourceControlClients.get(detail.provider))}
+              {openOnHostLabel(sourceControlClients.get(detail.provider), undefined, messages)}
             </MenuItem>
             {canClose ? (
               <>

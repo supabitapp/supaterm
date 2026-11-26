@@ -157,6 +157,7 @@ export function usePullRequestListActions(
     const label = pullRequestActionLabel(
       supported,
       sourceControlClients.get(entry.provider).changeRequest,
+      m,
     );
     Dialog.alert(`${label}?`, `#${entry.number} · ${entry.title}`, [
       { text: gt("Cancel"), style: "cancel" },

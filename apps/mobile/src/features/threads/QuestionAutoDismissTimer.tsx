@@ -3,8 +3,10 @@ import { AppState, Pressable, type PressableProps } from "react-native";
 import { userInputCountdown } from "@supaterm/client-runtime/user-input-countdown";
 import { AppText as Text } from "../../components/ui/AppText";
 import { cn } from "../../lib/cn";
+import { useMessages } from "gt-react-native";
 
 function useUserInputCountdown(deadline: string | null) {
+  const messages = useMessages();
   const [now, setNow] = useState(Date.now);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ticks the countdown clock each second until the deadline and on AppState resume, starting before paint
   useLayoutEffect(() => {
@@ -24,7 +26,7 @@ function useUserInputCountdown(deadline: string | null) {
       subscription.remove();
     };
   }, [deadline]);
-  return userInputCountdown(deadline, now);
+  return userInputCountdown(deadline, now, messages);
 }
 
 export function QuestionAutoDismissToggle({

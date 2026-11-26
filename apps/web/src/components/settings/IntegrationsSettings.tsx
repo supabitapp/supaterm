@@ -865,6 +865,7 @@ function DeviceIntegrationControls({
   enabled: boolean;
   agentAccessEnabled: boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const canConfigure = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
   const { state, loaded } = useDeviceState(environmentId);
@@ -1046,12 +1047,12 @@ function DeviceIntegrationControls({
                   <PlatformStatus
                     compact
                     platform="iOS"
-                    status={platformSetupStatus(state, "ios")}
+                    status={platformSetupStatus(state, "ios", messages)}
                   />
                   <PlatformStatus
                     compact
                     platform="Android"
-                    status={platformSetupStatus(state, "android")}
+                    status={platformSetupStatus(state, "android", messages)}
                   />
                 </div>
                 {/* Remote hosts report their own warnings in the device host list below. */}

@@ -176,6 +176,7 @@ const CommandRow = memo(function CommandRow(props: {
   readonly isLast: boolean;
   readonly isCommandMenuSkill: boolean;
 }) {
+  const messages = useMessages();
   const iconName = itemIcon(props.item);
 
   return (
@@ -193,7 +194,7 @@ const CommandRow = memo(function CommandRow(props: {
           size={14}
           tintColorClassName={
             props.item.type === "pull-request"
-              ? pullRequestStatus(props.item.pullRequest).tint
+              ? pullRequestStatus(props.item.pullRequest, messages).tint
               : "accent-icon-subtle"
           }
           type="monochrome"

@@ -370,6 +370,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
   /** The owning popup moves focus here when it opens (its `initialFocus`). */
   searchInputRef: RefObject<HTMLInputElement | null>;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const {
     searchInputRef,
@@ -825,7 +826,9 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     const shown = isSearching
       ? matchesLockedProvider(entry)
       : entry.instanceId === selectedEntry?.instanceId;
-    const notice = shown ? formatProviderUpdateRequiredNotice(entry.snapshot, searchQuery) : null;
+    const notice = shown
+      ? formatProviderUpdateRequiredNotice(entry.snapshot, searchQuery, messages)
+      : null;
     return notice
       ? [
           {

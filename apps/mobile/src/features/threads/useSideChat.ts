@@ -16,7 +16,7 @@ import {
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
-import { msg } from "gt-react-native";
+import { msg, useMessages } from "gt-react-native";
 import { useRef } from "react";
 
 import * as Dialog from "../../components/ui/Dialog";
@@ -49,6 +49,7 @@ export function useSideChatDisabledReason(
   environmentId: EnvironmentId | null,
   parent: EnvironmentThreadShell | null,
 ): string | null {
+  const messages = useMessages();
   const serverConfig = useEnvironmentServerConfig(environmentId);
   const canOperate = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const worktreePending = useAtomValue(
@@ -58,20 +59,23 @@ export function useSideChatDisabledReason(
           scopeThreadRef(parent.environmentId, parent.id),
         ),
   );
-  return sideChatStartBlockedReason({
-    parent:
-      parent === null
-        ? { kind: "draft", sideChat: false }
-        : {
-            kind: "thread",
-            lineage: parent.lineage,
-            deletedAt: parent.deletedAt,
-            worktreePending,
-          },
-    canOperate,
-    supported:
-      serverConfig === null ? null : serverConfig.environment.capabilities.sideChats === true,
-  });
+  return sideChatStartBlockedReason(
+    {
+      parent:
+        parent === null
+          ? { kind: "draft", sideChat: false }
+          : {
+              kind: "thread",
+              lineage: parent.lineage,
+              deletedAt: parent.deletedAt,
+              worktreePending,
+            },
+      canOperate,
+      supported:
+        serverConfig === null ? null : serverConfig.environment.capabilities.sideChats === true,
+    },
+    messages,
+  );
 }
 
 /** The attachments and context `/side` carries from the parent's composer. */

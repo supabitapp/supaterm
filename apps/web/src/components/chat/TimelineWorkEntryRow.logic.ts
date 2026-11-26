@@ -8,6 +8,7 @@ import {
 } from "@supaterm/client-runtime/work-log/presentation";
 import { isJavaScriptReplTool } from "@supaterm/shared/toolActivity";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
+import { m } from "~/i18n/messages";
 
 export function toolGroupSummaryIconName(
   kind: Extract<TimelineRow, { kind: "work-toggle" }>["summaryKind"],
@@ -183,7 +184,7 @@ export function workEntryIconName(workEntry: TimelineWorkEntry): WorkEntryIconNa
     isJavaScriptReplTool(workEntry.structuredPayload.toolName)
   )
     return "code";
-  const toolPresentation = resolveWorkEntryToolPresentation(workEntry);
+  const toolPresentation = resolveWorkEntryToolPresentation(workEntry, undefined, m);
   if (toolPresentation) return toolPresentation.icon;
   const action = toolGroupAction(workEntry);
   if (action !== "other") return toolGroupSummaryIconName(action);

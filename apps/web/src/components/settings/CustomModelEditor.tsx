@@ -22,7 +22,7 @@ import {
   emptyEditorDescriptor,
   validateDraft,
 } from "./customModelEditor.logic";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 const CUSTOM_ID_VALUE = "__custom__";
 const START_FROM_NONE = "__none__";
@@ -46,6 +46,7 @@ export function CustomModelEditor({
   onCancel,
   onDraftChange,
 }: CustomModelEditorProps) {
+  const messages = useMessages();
   const gt = useGT();
   const [draft, setDraft] = useState<CustomModelDraft>(() =>
     draftFromDefinition(entry, driverKind),
@@ -131,7 +132,7 @@ export function CustomModelEditor({
   };
 
   const handleSave = () => {
-    const problem = validateDraft(draft);
+    const problem = validateDraft(draft, messages);
     if (problem) {
       setError(problem);
       return;

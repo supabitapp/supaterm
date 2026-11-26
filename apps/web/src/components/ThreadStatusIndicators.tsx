@@ -58,7 +58,7 @@ import {
 } from "./pullRequest/pullRequestIcons";
 import { showPullRequestLinkContextMenu } from "./pullRequest/pullRequestLinkContextMenu";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
-import { useGT, msg } from "gt-react";
+import { useGT, msg, useMessages } from "gt-react";
 import { m, type MessageResolver } from "~/i18n/messages";
 import { changeRequestTermKind, type ChangeRequestTermKind } from "./pullRequest/changeRequestTerm";
 
@@ -344,7 +344,11 @@ export function ThreadPullRequestBadgeControl({
   onOpenList: () => void;
   onOpenPullRequest: (event: MouseEvent<HTMLElement>, url?: string) => void;
 }) {
-  const presentation = resolveThreadPullRequestBadgePresentation({ badge, number, url, status });
+  const messages = useMessages();
+  const presentation = resolveThreadPullRequestBadgePresentation(
+    { badge, number, url, status },
+    messages,
+  );
   if (presentation === null) return null;
   return (
     <PullRequestBadge
@@ -477,6 +481,7 @@ export function ThreadPullRequestsMiniList({
   pullRequests: ReadonlyArray<ThreadPullRequestLink>;
   onOpenPullRequest?: (event: MouseEvent<HTMLAnchorElement>, url: string) => void;
 }) {
+  const messages = useMessages();
   const lines = pipe(
     visibleThreadPullRequests(pullRequests),
     resolveThreadPullRequestChains,
@@ -490,7 +495,10 @@ export function ThreadPullRequestsMiniList({
         const presentation =
           snapshot === null
             ? null
-            : resolvePullRequestState({ state: snapshot.state, isDraft: snapshot.isDraft });
+            : resolvePullRequestState(
+                { state: snapshot.state, isDraft: snapshot.isDraft },
+                messages,
+              );
         return (
           <ThreadPullRequestMiniListItem
             key={`${line.link.host}/${line.link.repository}#${line.link.number}`}
@@ -594,7 +602,8 @@ export function ChangeRequestStatusIcon({
   readonly isDraft?: boolean | undefined;
   readonly className?: string | undefined;
 }) {
-  const presentation = resolvePullRequestState({ state, isDraft });
+  const messages = useMessages();
+  const presentation = resolvePullRequestState({ state, isDraft }, messages);
   return <presentation.Icon className={className} />;
 }
 
@@ -953,6 +962,7 @@ export function ThreadSearchPullRequestNumber({
   enabled?: boolean;
   done?: boolean;
 }) {
+  const messages = useMessages();
   const matched = pullRequestMatchesSearchQuery(thread, query);
   const linked = useLinkedThreadPullRequest(
     thread.environmentId,
@@ -970,12 +980,15 @@ export function ThreadSearchPullRequestNumber({
     pullRequestMatchesSearchQuery({ branchPullRequest: thread.branchPullRequest }, query)
       ? thread.branchPullRequest
       : null);
-  const presentation = resolveThreadPullRequestBadgePresentation({
-    badge,
-    number: pr?.number ?? stored?.number,
-    url: pr?.url ?? stored?.url,
-    status: prStatusIndicator(pr, linked?.sourceControlProvider),
-  });
+  const presentation = resolveThreadPullRequestBadgePresentation(
+    {
+      badge,
+      number: pr?.number ?? stored?.number,
+      url: pr?.url ?? stored?.url,
+      status: prStatusIndicator(pr, linked?.sourceControlProvider),
+    },
+    messages,
+  );
   if (presentation === null) return null;
   const aggregate = badge !== null && (badge.kind === "stack" || badge.others > 0);
   const state = aggregate

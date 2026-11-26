@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
 
 /**
@@ -69,6 +69,7 @@ function LinkPullRequestDialog({
   projectId,
   onOpenChange,
 }: LinkPullRequestDialogProps) {
+  const messages = useMessages();
   const gt = useGT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [reference, setReference] = useState("");
@@ -93,11 +94,14 @@ function LinkPullRequestDialog({
     }
   }
 
-  const resolved = resolveLinkPullRequestInput({
-    reference,
-    project: ownProject,
-    hasProject: (reference) => linking.canLink(reference.url),
-  });
+  const resolved = resolveLinkPullRequestInput(
+    {
+      reference,
+      project: ownProject,
+      hasProject: (reference) => linking.canLink(reference.url),
+    },
+    messages,
+  );
 
   const submit = async () => {
     setDirty(true);

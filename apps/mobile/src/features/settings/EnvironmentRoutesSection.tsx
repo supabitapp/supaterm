@@ -13,6 +13,8 @@ import {
   isLearned,
   pendingRouteOrder,
   usableRoutes,
+  connectionRouteLatencyLabel,
+  type ConnectionRouteLatency,
 } from "@supaterm/client-runtime/connection";
 import { type EnvironmentId, sessionGrantsScope } from "@supaterm/contracts";
 import {
@@ -40,7 +42,7 @@ import { SettingsDragHandle } from "./components/SettingsDragHandle";
 import { SettingsSection } from "./components/SettingsSection";
 import { T, useGT, useMessages } from "gt-react-native";
 
-const NO_LATENCY = Atom.make("");
+const NO_LATENCY = Atom.make<ConnectionRouteLatency | null>(null);
 
 const ICON_SIZE = Platform.OS === "android" ? 24 : 22;
 const REMOVE_SIZE = 20;
@@ -279,14 +281,16 @@ function RouteRow(props: {
   readonly onStep: (direction: "up" | "down") => void;
   readonly onRemove: (() => void) | undefined;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { route, lifted, offset } = props;
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
   // A route a connect skips has no speed worth measuring.
-  const latency = useAtomValue(
-    props.unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
+  const measured = useAtomValue(
+    props.unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).latencyAtom,
   );
+  const latency = props.unused ? "" : connectionRouteLatencyLabel(measured, messages);
   const direct = useAtomValue(environmentSession.relayRouteTransportAtom(route)) === "direct";
   const refusedHint =
     props.refused && address !== null
@@ -331,12 +335,12 @@ function RouteRow(props: {
         accessibilityLabel={[
           label,
           address,
-          isLearned(route) ? "Found automatically" : null,
-          props.inUse ? "In use" : null,
-          direct ? "Direct, encrypted" : null,
-          props.unused ? "Not used" : `Latency: ${latency}`,
-          props.refused ? "Sign-in refused" : null,
-          `Route ${props.position} of ${props.count}`,
+          isLearned(route) ? gt("Found automatically") : null,
+          props.inUse ? gt("In use") : null,
+          direct ? gt("Direct, encrypted") : null,
+          props.unused ? gt("Not used") : gt("Latency: {latency}", { latency }),
+          props.refused ? gt("Sign-in refused") : null,
+          gt("Route {position} of {count}", { position: props.position, count: props.count }),
           refusedHint,
         ]
           .filter((part) => part !== null)
@@ -366,7 +370,11 @@ function RouteRow(props: {
               {label}
             </Text>
             {props.inUse ? (
-              <StatusPill {...connectionTone("connected")} label={gt("In use")} size="compact" />
+              <StatusPill
+                {...connectionTone("connected", messages)}
+                label={gt("In use")}
+                size="compact"
+              />
             ) : null}
             {direct ? (
               <Text className="shrink-0 text-sm text-foreground-muted">
@@ -375,14 +383,14 @@ function RouteRow(props: {
             ) : null}
             {props.unused ? (
               <StatusPill
-                {...connectionTone("unsupported")}
+                {...connectionTone("unsupported", messages)}
                 label={gt("Not used", { $context: "connection route status" })}
                 size="compact"
               />
             ) : null}
             {props.refused ? (
               <StatusPill
-                {...connectionTone("error")}
+                {...connectionTone("error", messages)}
                 label={gt("Sign-in refused")}
                 size="compact"
               />

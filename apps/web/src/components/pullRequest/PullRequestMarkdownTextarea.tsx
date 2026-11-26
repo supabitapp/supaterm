@@ -99,7 +99,7 @@ function ReferenceStateIcon({ candidate }: { candidate: PullRequestReferenceCand
   const m = useMessages();
   const presentation =
     candidate.kind === "change-request"
-      ? resolvePullRequestState({ state: candidate.state, isDraft: false })
+      ? resolvePullRequestState({ state: candidate.state, isDraft: false }, m)
       : candidate.state === "open"
         ? {
             label: m(msg("Open issue")),

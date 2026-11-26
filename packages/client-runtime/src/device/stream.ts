@@ -1098,6 +1098,7 @@ export function createDeviceStreamClient(
           onMjpegFallback: () => {},
           onUnauthorized: handleUnauthorized,
         },
+        resolve,
       );
     });
     for (const panel of panelClients) panel.start();

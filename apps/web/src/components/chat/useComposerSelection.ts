@@ -31,6 +31,7 @@ import {
   deriveLockedProvider,
   makeModelDisabledReason,
 } from "../ChatView.logic";
+import { useMessages } from "gt-react";
 
 interface ComposerSelectionInput {
   readonly environmentId: EnvironmentId;
@@ -56,6 +57,7 @@ interface ComposerSelectionInput {
  * and where a new thread runs (local or a new worktree, from the remote's tip or not).
  */
 export function useComposerSelection(input: ComposerSelectionInput) {
+  const messages = useMessages();
   const {
     environmentId,
     composerDraftTarget,
@@ -114,6 +116,7 @@ export function useComposerSelection(input: ComposerSelectionInput) {
           currentProviderInstanceId: runtimeProviderInstanceId,
         }
       : null,
+    messages,
   );
 
   const onProviderModelSelect = (

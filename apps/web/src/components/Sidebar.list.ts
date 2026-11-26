@@ -17,6 +17,7 @@ import {
   type SidebarListItem,
   type SidebarSection,
 } from "./Sidebar.logic";
+import { m } from "~/i18n/messages";
 
 type ThreadIdentity = Pick<EnvironmentThreadShell, "environmentId" | "id">;
 
@@ -51,10 +52,13 @@ export function buildSidebarInboxItems(input: SidebarInboxInput): SidebarListIte
     ];
   }
   const workingKeys = new Set(input.working.map(threadShellKey));
-  const groups = groupInboxThreadsByProject({
-    threads: [...input.active, ...input.working],
-    projects: input.projects,
-  });
+  const groups = groupInboxThreadsByProject(
+    {
+      threads: [...input.active, ...input.working],
+      projects: input.projects,
+    },
+    m,
+  );
   return collapseThreadGroups(
     groups,
     input.collapsedGroups,

@@ -94,6 +94,8 @@ export interface ThreadRunSummary {
    * instead of "Thinking".
    */
   readonly providerStartingLabel?: string;
+  /** `providerStartingLabel` as a `msg()` string; display sites resolve this one. */
+  readonly providerStartingLabelMsg?: string;
   /** The starting provider, so clients can show its logo beside the label. */
   readonly providerStarting?: {
     readonly instanceId: ProviderInstanceId;

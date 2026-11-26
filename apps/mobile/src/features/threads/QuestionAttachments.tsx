@@ -40,7 +40,7 @@ import { ComposerDictationStartAction } from "../voice-input/ComposerDictationCo
 import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 export function QuestionAttachments(props: {
   requestId: string;
   question: UserInputQuestion;
@@ -51,6 +51,7 @@ export function QuestionAttachments(props: {
   onInputFocusChange?: ((focused: boolean) => void) | undefined;
   onStartDictation: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { selectedThread } = useThreadSelection();
   const navigation = useNavigation();
@@ -175,7 +176,11 @@ export function QuestionAttachments(props: {
   const { environmentId, id: threadId } = selectedThread;
   const capabilities = configs.get(environmentId)?.environment.capabilities;
   const canAttach = capabilities !== undefined;
-  const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
+  const presentation = resolveVoiceComposerPresentation(
+    voice.state,
+    voice.elapsedSeconds,
+    messages,
+  );
   const showsDictation = presentation.statusLabel !== null;
   const attachments = drafts[key]?.attachments ?? [];
   const pick = async (kind: "media" | "files") => {

@@ -1,6 +1,6 @@
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { useNavigation } from "@react-navigation/native";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 
 import * as Dialog from "../../components/ui/Dialog";
@@ -12,11 +12,12 @@ import {
 
 /** Called once per thread list so virtualized rows share one stable handler. */
 export function useOpenThreadPullRequests() {
+  const messages = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const navigateToPullRequest = useNavigateToPullRequest();
   return (thread: EnvironmentThreadShell, pr: ThreadPrPresentation) => {
-    if (resolveThreadPrBadgeAction(pr).kind === "list") {
+    if (resolveThreadPrBadgeAction(pr, messages).kind === "list") {
       navigation.navigate("ThreadPullRequests", {
         environmentId: String(thread.environmentId),
         threadId: String(thread.id),

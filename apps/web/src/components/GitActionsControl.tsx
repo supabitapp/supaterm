@@ -1068,7 +1068,7 @@ function CheckoutGitActionsControl({
     : quickAction.disabled
       ? (quickAction.hint ?? gt("This action is currently unavailable."))
       : null;
-  const gitActionProgress = resolveGitActionProgressPresentation(vcsActionState);
+  const gitActionProgress = resolveGitActionProgressPresentation(vcsActionState, messages);
   // A fresh draft or a thread with no turns hides the actions and diff rows until there is work.
   const quietEmptyDraft =
     quietUntilWork &&
