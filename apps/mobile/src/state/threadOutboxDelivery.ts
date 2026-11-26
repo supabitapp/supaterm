@@ -269,7 +269,6 @@ const storage = <A>(
     catch: (cause) => new ThreadOutboxStorageError({ operation, messageId, cause }),
   });
 
-/** The head was not handled; back off and try it again. */
 class OutboxDeliveryStepError extends Schema.TaggedError<OutboxDeliveryStepError>()(
   "OutboxDeliveryStepError",
   { step: Schema.Literals(["voice-upload", "branch-resolution"]), cause: Schema.Defect() },
@@ -279,6 +278,7 @@ class OutboxDeliveryStepError extends Schema.TaggedError<OutboxDeliveryStepError
   }
 }
 
+/** The head was not handled; back off and try it again. */
 export class DeliveryRetry extends Schema.TaggedError<DeliveryRetry>()("DeliveryRetry", {}) {}
 
 const retryDelivery = Effect.fail(new DeliveryRetry());
