@@ -1,5 +1,4 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as HostProcess from "@supaterm/shared/HostProcess";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -8,10 +7,10 @@ import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 
+import { settleFileWatches } from "./fileWatches.testkit.ts";
 import { watchDirectoryPath } from "./watchDirectoryReplacements.ts";
 
-// The expected sequence follows Linux inotify; macOS FSEvents deliver extra parent events.
-it.live.skipIf(!symlinksSupported || HostProcess.Platform.defaultValue() === "darwin")(
+it.live.skipIf(!symlinksSupported)(
   "backs off stopped watches for an unchanged linked directory",
   () =>
     Effect.gen(function* () {
@@ -28,6 +27,7 @@ it.live.skipIf(!symlinksSupported || HostProcess.Platform.defaultValue() === "da
       const secondIdentity = yield* fs.stat(second);
       let identity = firstIdentity;
       const events = yield* Queue.unbounded<"probe" | "refresh">();
+      yield* settleFileWatches;
 
       // An ended child emits a final refresh, as it does when registration fails.
       yield* watchDirectoryPath(entry, Stream.succeed(undefined), Effect.succeed(false)).pipe(
@@ -84,6 +84,7 @@ it.live.skipIf(!symlinksSupported)(
       // Probe A, acquire A, probe B, swap back and acquire A, then B returns for the next probe.
       const identities = [a, a, b, a, b, b];
       const refreshes = yield* Queue.unbounded<void>();
+      yield* settleFileWatches;
 
       yield* watchDirectoryPath(
         entry,
