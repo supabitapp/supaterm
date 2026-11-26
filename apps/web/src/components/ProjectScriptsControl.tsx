@@ -129,12 +129,13 @@ export default function ProjectScriptsControl({
   const scriptsDenial = managedSettingDenial(
     [useManagedPolicy(environmentId)],
     ["defaultProjectScripts"],
+    messages,
   );
   const refusedByPolicy = () => {
     if (scriptsDenial === undefined) return false;
     toastManager.add({
       type: "warning",
-      title: "Project actions are managed",
+      title: gt("Project actions are managed"),
       description: scriptsDenial,
     });
     return true;

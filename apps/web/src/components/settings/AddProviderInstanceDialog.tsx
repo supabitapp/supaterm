@@ -210,7 +210,7 @@ export function AddProviderInstanceDialog({
 
   const driverOption = providerClients.get(driver) ?? DEFAULT_DRIVER_OPTION;
   // A policy that owns this driver's launch settings also rules out ChatGPT's own runtime.
-  const driverLocks = managedInstanceLocks(managedPolicy, driver);
+  const driverLocks = managedInstanceLocks(managedPolicy, driver, m);
   const isAcpRegistry = driver === ACP_REGISTRY_DRIVER_KIND;
   const showRegistrySearch =
     !createdInstanceId &&

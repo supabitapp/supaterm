@@ -4,8 +4,13 @@
  */
 import {
   type BrowserImportFailureReason,
+  isRuntimeModeAbove,
+  managedCapabilityDenial as contractsManagedCapabilityDenial,
+  managedUpdatesDenial as contractsManagedUpdatesDenial,
+  type ManagedPolicySummary,
   type ProjectCloneSnapshot,
   type ProjectCloneStage,
+  type RuntimeMode,
   type WorktreeSetupStageId,
   worktreeSetupStageLabel as contractsWorktreeSetupStageLabel,
 } from "@supaterm/contracts";
@@ -57,6 +62,128 @@ export function projectCloneProgressSummary(
   if (snapshot.stalled) parts.push(resolve(msg("Stalled", { $context: "git clone progress" })));
   else if (snapshot.detail) parts.push(snapshot.detail);
   return parts.join(" · ");
+}
+
+/** @public */
+export function managedUpdatesMessage(
+  organization: string,
+  resolve: MFunctionType = mFallback,
+): string {
+  return resolve(msg("{organization} manages Supaterm updates.", { organization }));
+}
+
+/** @public */
+export function managedNightlyDeniedMessage(
+  organization: string,
+  resolve: MFunctionType = mFallback,
+): string {
+  return resolve(
+    msg("{organization} manages Supaterm updates. Only stable releases can be installed.", {
+      organization,
+    }),
+  );
+}
+
+/** @public */
+export function managedUpdatesDenial(
+  summary: ManagedPolicySummary | undefined,
+  resolve: MFunctionType = mFallback,
+): string | undefined {
+  return summary !== undefined && contractsManagedUpdatesDenial(summary) !== undefined
+    ? managedUpdatesMessage(summary.organization, resolve)
+    : undefined;
+}
+
+/** @public */
+export function managedRuntimeModeCeilingMessage(
+  organization: string,
+  ceiling: RuntimeMode,
+  resolve: MFunctionType = mFallback,
+): string {
+  switch (ceiling) {
+    case "approval-required":
+      return resolve(msg("{organization} limits threads to Supervised.", { organization }));
+    case "auto-accept-edits":
+      return resolve(msg("{organization} limits threads to Auto-accept edits.", { organization }));
+    case "auto":
+      return resolve(msg("{organization} limits threads to Auto.", { organization }));
+    case "full-access":
+      return resolve(msg("{organization} limits threads to Full access.", { organization }));
+  }
+}
+
+/** @public */
+export function managedRuntimeModeDenial(
+  summary: ManagedPolicySummary | undefined,
+  mode: RuntimeMode,
+  resolve: MFunctionType = mFallback,
+): string | undefined {
+  const ceiling = summary?.limits?.maxRuntimeMode;
+  return summary !== undefined && ceiling !== undefined && isRuntimeModeAbove(mode, ceiling)
+    ? managedRuntimeModeCeilingMessage(summary.organization, ceiling, resolve)
+    : undefined;
+}
+
+export type ManagedCapability = Parameters<typeof contractsManagedCapabilityDenial>[1];
+
+function managedCapabilityDeniedMessage(
+  organization: string,
+  capability: ManagedCapability,
+  resolve: MFunctionType,
+): string {
+  switch (capability) {
+    case "remoteClients":
+      return resolve(
+        msg("{organization}'s policy does not allow connecting from other devices.", {
+          organization,
+        }),
+      );
+    case "relay":
+      return resolve(
+        msg("{organization}'s policy does not allow the Encrypted Relay.", { organization }),
+      );
+    case "browserCookieImport":
+      return resolve(
+        msg("{organization}'s policy does not allow importing browser cookies.", {
+          organization,
+        }),
+      );
+    case "previewTunnel":
+      return resolve(
+        msg(
+          "{organization}'s policy does not allow opening this machine's local servers on other devices.",
+          { organization },
+        ),
+      );
+  }
+}
+
+/** @public */
+export function managedCapabilityDenial(
+  summary: ManagedPolicySummary | undefined,
+  capability: ManagedCapability,
+  resolve: MFunctionType = mFallback,
+): string | undefined {
+  return summary !== undefined &&
+    contractsManagedCapabilityDenial(summary, capability) !== undefined
+    ? managedCapabilityDeniedMessage(summary.organization, capability, resolve)
+    : undefined;
+}
+
+/** The contracts `disallowedProviderMessage` English, as translatable sentences. */
+export function disallowedProviderMessage(
+  organization: string | undefined,
+  label: string,
+  resolve: MFunctionType = mFallback,
+): string {
+  return organization === undefined
+    ? resolve(msg("Your organization policy does not allow the {label} provider.", { label }))
+    : resolve(
+        msg("{organization}''s policy does not allow the {label} provider.", {
+          organization,
+          label,
+        }),
+      );
 }
 
 const BROWSER_IMPORT_FAILURE_MESSAGES: Record<BrowserImportFailureReason, string> = {

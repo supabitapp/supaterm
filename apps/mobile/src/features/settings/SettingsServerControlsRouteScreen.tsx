@@ -46,7 +46,7 @@ import {
   type ScopedMobileSettingsTarget,
 } from "./settings-scoped-server";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
-import { msg, T, useGT, useMessages } from "gt-react-native";
+import { msg, T, useGT, useMessages, Var } from "gt-react-native";
 
 type SettingsPage = "threads" | "source-control" | "worktrees" | "maintenance";
 
@@ -250,14 +250,16 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
     });
   };
   const disabled = !canWriteSettings || pendingWrites > 0 || !hasConnectedSelection;
-  const managed = (...keys: string[]) => managedSettingReason(targets, ...keys);
+  const managed = (...keys: string[]) => managedSettingReason(targets, keys, m);
+  // A locked row keeps its explanation and says who manages it.
   const managedSubtitle = (key: string, subtitle: string) => {
     const reason = managed(key);
-    return reason === undefined ? subtitle : `${subtitle} ${reason}`;
+    return reason === undefined ? subtitle : gt("{subtitle} {reason}", { subtitle, reason });
   };
   const runtimeModeChoices = withManagedRuntimeModeLimits(
     RUNTIME_MODE_CHOICES,
     targets.map((target) => target.environment.serverConfig.managedPolicy),
+    m,
   );
   const disabledFor = (key: string) =>
     disabled ||
@@ -678,7 +680,10 @@ function ManagedPolicyNotice(props: { readonly targets: readonly ScopedMobileSet
   if (organizations.length === 0) return null;
   return (
     <Text className="px-2 text-sm text-foreground-muted android:px-4">
-      Some settings are managed by {organizations.join(", ")} and cannot be changed here.
+      <T>
+        Some settings are managed by <Var>{organizations.join(", ")}</Var> and cannot be changed
+        here.
+      </T>
     </Text>
   );
 }

@@ -1,5 +1,6 @@
 import { BuildingIcon } from "@supaterm/icons";
 import type { ManagedPolicySummary } from "@supaterm/contracts";
+import { T, Var } from "gt-react";
 import type { ReactNode } from "react";
 
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
@@ -52,7 +53,9 @@ export function ManagedNotice({ children }: { children: ReactNode }) {
 export function ManagedByOrganization({ policy }: { policy: ManagedPolicySummary }) {
   return (
     <ManagedNotice>
-      This environment is managed by {policy.organization}.
+      <T>
+        This environment is managed by <Var>{policy.organization}</Var>.
+      </T>
       {policy.supportUrl ? (
         <>
           {" "}
@@ -62,7 +65,7 @@ export function ManagedByOrganization({ policy }: { policy: ManagedPolicySummary
             rel="noreferrer"
             className="text-foreground underline underline-offset-2"
           >
-            Get help
+            <T>Get help</T>
           </a>
         </>
       ) : null}

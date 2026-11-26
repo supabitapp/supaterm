@@ -1,11 +1,11 @@
 import {
   clampManagedRuntimeMode,
-  managedRuntimeModeDenial,
   type AuthMcpClientAccess,
   type ManagedPolicySummary,
   type ProviderOptionDescriptor,
   type RuntimeMode,
 } from "@supaterm/contracts";
+import { managedRuntimeModeDenial } from "@supaterm/client-runtime/contract-labels";
 import { firstManagedDenial } from "@supaterm/client-runtime/managed-policy";
 import { msg } from "gt-react-native";
 
@@ -86,10 +86,11 @@ export type RuntimeModeChoice = (typeof RUNTIME_MODE_CHOICES)[number] & {
 export function withManagedRuntimeModeLimits(
   choices: ReadonlyArray<RuntimeModeChoice>,
   policies: ReadonlyArray<ManagedPolicySummary | undefined>,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<RuntimeModeChoice> {
   return choices.map((choice) => {
     const reason = firstManagedDenial(policies, (policy) =>
-      managedRuntimeModeDenial(policy, choice.mode),
+      managedRuntimeModeDenial(policy, choice.mode, resolve),
     );
     return reason === undefined ? choice : { ...choice, disabledReason: reason };
   });
@@ -119,8 +120,9 @@ export function managedRuntimeModeSwitch(
   policy: ManagedPolicySummary | undefined,
   runtimeMode: RuntimeMode,
   supportedRuntimeModes: ReadonlyArray<RuntimeMode> | undefined,
+  resolve: MessageResolver = m,
 ): { readonly denial: string; readonly target: RuntimeModeChoice | undefined } | undefined {
-  const denial = managedRuntimeModeDenial(policy, runtimeMode);
+  const denial = managedRuntimeModeDenial(policy, runtimeMode, resolve);
   if (denial === undefined) return undefined;
   const choices = runtimeModeChoicesForSupportedModes(supportedRuntimeModes);
   const target = clampManagedRuntimeMode(

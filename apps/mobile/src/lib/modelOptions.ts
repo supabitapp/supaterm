@@ -12,11 +12,11 @@ import type {
   ServerConfig as SupatermServerConfig,
 } from "@supaterm/contracts";
 import {
-  disallowedProviderMessage,
   isManagedDriverAllowed,
   isProviderDriverKind,
   resolveProjectProviderInstanceEnabled,
 } from "@supaterm/contracts";
+import { disallowedProviderMessage } from "@supaterm/client-runtime/contract-labels";
 import {
   buildExplicitProviderOptionSelectionsFromDescriptors,
   getProviderOptionDescriptors,
@@ -216,8 +216,12 @@ export function describeUnavailableModelSelection(
       instanceId: selection.instanceId,
     });
     return {
-      title: "Provider not allowed",
-      detail: `${disallowedProviderMessage(config?.managedPolicy?.organization, label)} Choose another model.`,
+      title: m(msg("Provider not allowed")),
+      detail: m(
+        msg("{message} Choose another model.", {
+          message: disallowedProviderMessage(config?.managedPolicy?.organization, label, m),
+        }),
+      ),
     };
   }
   return isDisabledForProject(config, provider, selection.instanceId, projectId)

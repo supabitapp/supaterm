@@ -35,8 +35,8 @@ import {
   type BrowserImportSource,
   type PreviewAppearancePreference,
   type PreviewViewportSetting,
-  managedCapabilityDenial,
 } from "@supaterm/contracts";
+import { managedCapabilityDenial } from "@supaterm/client-runtime/contract-labels";
 import { isValidSearchUrlTemplate } from "@supaterm/shared/preview";
 import { PREVIEW_VIEWPORT_PRESETS } from "@supaterm/shared/previewViewport";
 import { EllipsisVerticalIcon, PlusIcon } from "@supaterm/icons";
@@ -1279,6 +1279,7 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
   const cookieImportDenial = managedCapabilityDenial(
     usePrimaryManagedPolicy(),
     "browserCookieImport",
+    messages,
   );
   const [sources, setSources] = useState<ReadonlyArray<BrowserImportSource> | null>(null);
   const [importSession, setImportSession] = useState<{

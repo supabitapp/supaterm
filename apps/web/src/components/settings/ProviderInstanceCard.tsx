@@ -19,7 +19,6 @@ import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { useState, type ReactElement, type ReactNode } from "react";
 import {
-  disallowedProviderMessage,
   isManagedDriverAllowed,
   isProviderDriverKind,
   resolveProviderInstanceEnabled,
@@ -55,6 +54,7 @@ import { Switch } from "../ui/switch";
 import { ManagedControl, ManagedNotice } from "../ManagedPolicy";
 import { useManagedPolicy } from "../../state/managedPolicy";
 import { managedInstanceLocks } from "@supaterm/client-runtime/managed-policy";
+import { disallowedProviderMessage } from "@supaterm/client-runtime/contract-labels";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type {
@@ -863,12 +863,13 @@ export function ProviderInstanceCard({
     instance.displayName?.trim() || driverOption?.label || String(instance.driver);
   const accentColor = normalizeProviderAccentColor(instance.accentColor);
   const managedPolicy = useManagedPolicy(environmentId);
-  const instanceLocks = managedInstanceLocks(managedPolicy, instance.driver);
+  const instanceLocks = managedInstanceLocks(managedPolicy, instance.driver, m);
   const managedDriverReason = isManagedDriverAllowed(managedPolicy, instance.driver)
     ? undefined
     : disallowedProviderMessage(
         managedPolicy?.organization,
         driverOption?.label ?? String(instance.driver),
+        m,
       );
   const { copyToClipboard } = useCopyToClipboard<{ providerName: string }>({
     onCopy: ({ providerName }) => {

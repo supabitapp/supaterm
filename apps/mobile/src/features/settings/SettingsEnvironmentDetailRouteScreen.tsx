@@ -4,10 +4,10 @@ import { useNavigation, type StaticScreenProps } from "@react-navigation/native"
 import {
   AuthProvidersManageScope,
   AuthOrchestrationReadScope,
-  managedUpdatesDenial,
   type EnvironmentId,
   type ServerProvider,
 } from "@supaterm/contracts";
+import { managedUpdatesDenial } from "@supaterm/client-runtime/contract-labels";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { sessionPermissionsUnavailableMessage } from "@supaterm/shared/authScopeOptions";
 import * as Cause from "effect/Cause";
@@ -99,7 +99,7 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
   const capabilities = config?.environment.capabilities;
   const managedPolicy = config?.managedPolicy;
   const supportUrl = managedPolicy?.supportUrl;
-  const updatesDenial = managedUpdatesDenial(managedPolicy);
+  const updatesDenial = managedUpdatesDenial(managedPolicy, messages);
   async function run(label: string, action: () => Promise<void>) {
     if (pendingRef.current) return;
     pendingRef.current = true;

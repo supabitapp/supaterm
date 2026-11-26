@@ -1,9 +1,9 @@
 import {
   DEFAULT_SERVER_SETTINGS,
-  managedRuntimeModeDenial,
   type ModelSelection,
   type WorktreeSubmodules,
 } from "@supaterm/contracts";
+import { managedRuntimeModeDenial } from "@supaterm/client-runtime/contract-labels";
 import { createModelSelection, pickModelSelection } from "@supaterm/shared/model";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { useNavigate } from "@tanstack/react-router";
@@ -403,7 +403,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                       connectedEnvironments.map(
                         (environment) => environment.serverConfig?.managedPolicy,
                       ),
-                      (policy) => managedRuntimeModeDenial(policy, mode),
+                      (policy) => managedRuntimeModeDenial(policy, mode, messages),
                     );
                     return (
                       <SelectItem

@@ -6,10 +6,10 @@ import {
   type AuthPairingCredentialResult,
   type AdvertisedEndpoint,
   type EnvironmentId,
-  managedCapabilityDenial,
   type RelayConnectionInfo,
   type ServerSettings,
 } from "@supaterm/contracts";
+import { managedCapabilityDenial } from "@supaterm/client-runtime/contract-labels";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { useInlineConfirm } from "../../hooks/useInlineConfirm";
 import { cn } from "../../lib/utils";
@@ -663,8 +663,13 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
   mcpEnvironment,
 }: AuthorizedClientsHeaderActionProps) {
   const gt = useGT();
+  const messages = useMessages();
   const hasOtherClients = clientSessions?.some((clientSession) => !clientSession.current) ?? false;
-  const pairingDenial = managedCapabilityDenial(useManagedPolicy(environmentId), "remoteClients");
+  const pairingDenial = managedCapabilityDenial(
+    useManagedPolicy(environmentId),
+    "remoteClients",
+    messages,
+  );
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {mcpEnvironment ? <UseInAnotherAppDialog environment={mcpEnvironment} /> : null}
@@ -686,7 +691,7 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
         <ManagedControl reason={pairingDenial}>
           <Button size="xs" disabled>
             <PlusIcon aria-hidden />
-            Add device
+            <T>Add device</T>
           </Button>
         </ManagedControl>
       ) : (
@@ -796,6 +801,7 @@ export const AdvertisedEndpointListRow = memo(function AdvertisedEndpointListRow
   isUpdatingTailscaleServe,
 }: AdvertisedEndpointListRowProps) {
   const gt = useGT();
+  const messages = useMessages();
   const isAvailable = endpoint.status === "available";
   const needsTailscaleSetup = isTailscaleHttpsEndpoint(endpoint) && endpoint.status !== "available";
   const canDisableTailscaleServe =
@@ -803,7 +809,11 @@ export const AdvertisedEndpointListRow = memo(function AdvertisedEndpointListRow
   const shouldShowEndpointUrl = !needsTailscaleSetup;
   const endpointAddress = relayName(endpoint.httpBaseUrl) ?? endpoint.httpBaseUrl;
   // These rows belong to this desktop's own backend, whose policy the primary environment reports.
-  const remoteDenial = managedCapabilityDenial(usePrimaryManagedPolicy(), "remoteClients");
+  const remoteDenial = managedCapabilityDenial(
+    usePrimaryManagedPolicy(),
+    "remoteClients",
+    messages,
+  );
   return (
     <div className={endpointRowClassName(isAvailable)}>
       {isDefault ? (

@@ -94,9 +94,10 @@ function EnvironmentTranscriptionSection(props: {
     config.providers,
     config.managedPolicy,
     chosen,
+    m,
   );
   const settingsTargets = resolveMobileSettingsTargets([target], null);
-  const managed = managedSettingReason(settingsTargets, "transcriptionProviderInstanceId");
+  const managed = managedSettingReason(settingsTargets, ["transcriptionProviderInstanceId"], m);
   const disabled = !canWrite || saving || managed !== undefined;
   const note =
     candidates.length === 0

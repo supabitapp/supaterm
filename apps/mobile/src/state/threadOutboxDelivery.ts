@@ -17,13 +17,13 @@ import {
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
-  managedRuntimeModeDenial,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   TranscriptionError,
   type EnvironmentId,
   type MessageId,
   type ModelSelection,
 } from "@supaterm/contracts";
+import { managedRuntimeModeDenial } from "@supaterm/client-runtime/contract-labels";
 import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { buildTemporaryWorktreeBranchName } from "@supaterm/shared/git";
@@ -1047,6 +1047,7 @@ export function createThreadOutboxDelivery(): {
     const runtimeModeDenial = managedRuntimeModeDenial(
       serverConfig.managedPolicy,
       settings.runtimeMode,
+      m,
     );
     if (runtimeModeDenial !== undefined) {
       if (queuedMessage.voice) {
@@ -1266,6 +1267,7 @@ export function createThreadOutboxDelivery(): {
     const runtimeModeDenial = managedRuntimeModeDenial(
       serverConfig.managedPolicy,
       settings.runtimeMode,
+      m,
     );
     if (runtimeModeDenial !== undefined) {
       return yield* restoreQueuedMessage(queuedMessage, runtimeModeDenial);

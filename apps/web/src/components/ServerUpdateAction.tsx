@@ -114,12 +114,13 @@ export function useServerUpdate() {
       readManagedPolicy(environmentId),
       selfUpdate,
       targetVersion,
+      m,
     );
     if (denial !== undefined) {
       if (!quiet) {
         toastManager.add({
           type: "error",
-          title: `${serverLabel} not updated`,
+          title: m(msg("{serverLabel} not updated", { serverLabel })),
           description: denial,
         });
       }
@@ -194,6 +195,7 @@ export function ServerUpdatesAction({
   readonly targets: ReadonlyArray<ServerUpdateTarget>;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const update = useServerUpdate();
   const serverConfigs = useServerConfigs();
   const pending = useRef(false);
@@ -206,6 +208,7 @@ export function ServerUpdatesAction({
         serverConfigs.get(target.environmentId)?.managedPolicy,
         target.selfUpdate,
         target.targetVersion,
+        messages,
       ) === undefined &&
       !refusedCrossing(target, serverConfigs.get(target.environmentId)?.environment.serverVersion),
   );
@@ -297,12 +300,14 @@ export function ServerUpdateAction({
   appearance = "button",
 }: ServerUpdateTarget & UpdateButtonProps) {
   const gt = useGT();
+  const messages = useMessages();
   const isDesktopAppUpdate = selfUpdate === "desktop-managed";
   const serverVersion = useServerConfigs().get(environmentId)?.environment.serverVersion;
   const updatesDenial = serverUpdatePolicyDenial(
     useManagedPolicy(environmentId),
     selfUpdate,
     targetVersion,
+    messages,
   );
   const sessionStateAtom = environmentSession.sessionStateAtom(environmentId);
   const canUpdate = useAtomValue(sessionStateAtom, canUpdateServer);

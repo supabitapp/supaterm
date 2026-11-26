@@ -257,7 +257,7 @@ export function ConnectAgentSurface() {
                   key={option}
                   access={option}
                   selected={option === access}
-                  managedReason={accessCeilingReason(details, option)}
+                  managedReason={accessCeilingReason(details, option, messages)}
                 />
               ))}
             </RadioGroup>

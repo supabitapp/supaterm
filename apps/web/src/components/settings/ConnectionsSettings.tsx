@@ -16,9 +16,9 @@ import {
   type EnvironmentId,
   type RelayConnectionInfo,
   allowsPreviewTunnel,
-  managedCapabilityDenial,
   resolveEnvironmentMachineKind,
 } from "@supaterm/contracts";
+import { managedCapabilityDenial } from "@supaterm/client-runtime/contract-labels";
 import {
   isAtomCommandInterrupted,
   settlePromise,
@@ -751,11 +751,11 @@ function ConnectionsSettingsContent({
   const accessServerConfig = accessEnvironment?.serverConfig ?? null;
   const accessPolicy = accessServerConfig?.managedPolicy;
   // Turning remote access off stays possible; only the way in is managed.
-  const remoteClientsDenial = managedCapabilityDenial(accessPolicy, "remoteClients");
+  const remoteClientsDenial = managedCapabilityDenial(accessPolicy, "remoteClients", m);
   const relayActive = isPublicRelayActive(accessServerConfig?.settings, accessPolicy);
   const previewTunnelDenial =
-    managedCapabilityDenial(accessPolicy, "previewTunnel") ??
-    managedSettingDenial([accessPolicy], ["enablePreviewTunnel"]);
+    managedCapabilityDenial(accessPolicy, "previewTunnel", m) ??
+    managedSettingDenial([accessPolicy], ["enablePreviewTunnel"], m);
   const relayStatus = usePublicRelayStatus(accessEnvironmentId);
   const relayEndpointUrl =
     relayStatus?.state === "registered" ? relayStatus.relayEndpoint : undefined;

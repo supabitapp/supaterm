@@ -1,6 +1,8 @@
 import type { RuntimeMode } from "@supaterm/contracts";
 import { BuildingIcon } from "@supaterm/icons";
+import { T, Var } from "gt-react";
 
+import type { MessageResolver } from "~/i18n/messages";
 import { Button } from "../ui/button";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { runtimeModeConfig } from "./runtimeModeConfig";
@@ -10,6 +12,7 @@ export function managedRuntimeModeBannerItem(
   denial: string,
   fallback: RuntimeMode | undefined,
   onSwitch: (mode: RuntimeMode) => void,
+  resolve: MessageResolver,
 ): ComposerBannerStackItem {
   return {
     id: "managed-runtime-mode",
@@ -21,7 +24,9 @@ export function managedRuntimeModeBannerItem(
       : {
           actions: (
             <Button size="xs" variant="ghost" onClick={() => onSwitch(fallback)}>
-              Switch to {runtimeModeConfig[fallback].label}
+              <T>
+                Switch to <Var>{resolve(runtimeModeConfig[fallback].label)}</Var>
+              </T>
             </Button>
           ),
         }),

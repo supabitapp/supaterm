@@ -1058,6 +1058,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     useManagedPolicy(environmentId),
     supportedRuntimeModeOptions,
     runtimeMode,
+    m,
   );
   const compatibleRuntimeModeOptions = runtimeModeCeiling.options;
 
@@ -2646,6 +2647,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           runtimeModeCeiling.denial,
           runtimeModeCeiling.fallback,
           handleRuntimeModeChange,
+          m,
         );
   const policyBannerItems = runtimeModeCeilingBanner
     ? [...props.bannerItems, runtimeModeCeilingBanner]

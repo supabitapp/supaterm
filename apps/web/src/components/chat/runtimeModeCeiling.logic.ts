@@ -1,9 +1,11 @@
 import {
   clampManagedRuntimeMode,
-  managedRuntimeModeDenial,
   type ManagedPolicySummary,
   type RuntimeMode,
 } from "@supaterm/contracts";
+import { managedRuntimeModeDenial } from "@supaterm/client-runtime/contract-labels";
+
+import { m, type MessageResolver } from "~/i18n/messages";
 
 /**
  * The composer's modes under an administrator's ceiling: modes above it stay listed, disabled
@@ -14,6 +16,7 @@ export function capRuntimeModeOptions<Option extends { readonly mode: RuntimeMod
   policy: ManagedPolicySummary | undefined,
   options: ReadonlyArray<Option>,
   mode: RuntimeMode,
+  resolve: MessageResolver = m,
 ): {
   readonly options: ReadonlyArray<Option & { readonly disabledReason?: string }>;
   readonly denial: string | undefined;
@@ -22,10 +25,10 @@ export function capRuntimeModeOptions<Option extends { readonly mode: RuntimeMod
   if (policy?.limits?.maxRuntimeMode === undefined) {
     return { options, denial: undefined, fallback: undefined };
   }
-  const denial = managedRuntimeModeDenial(policy, mode);
+  const denial = managedRuntimeModeDenial(policy, mode, resolve);
   return {
     options: options.map((option) => {
-      const disabledReason = managedRuntimeModeDenial(policy, option.mode);
+      const disabledReason = managedRuntimeModeDenial(policy, option.mode, resolve);
       return disabledReason === undefined ? option : { ...option, disabledReason };
     }),
     denial,

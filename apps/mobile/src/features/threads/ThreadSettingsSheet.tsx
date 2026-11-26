@@ -126,7 +126,7 @@ import {
   visibleCatalogModels,
 } from "./thread-settings-sheet-state";
 import { formatProviderUpdateRequiredNotice } from "@supaterm/client-runtime/providerUpdateRequiredModels";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 const PRIMARY_PROVIDER_DRIVERS: ReadonlySet<string> = new Set([
@@ -375,6 +375,7 @@ function ThreadSettingsSessionProvider(
   props: ThreadSettingsSessionProps & { readonly children: ReactNode },
 ) {
   const gt = useGT();
+  const messages = useMessages();
   const registry = use(RegistryContext);
   const configs = useAtomValue(environmentServerConfigsAtom);
   const config = props.environmentId ? configs.get(props.environmentId) : undefined;
@@ -522,6 +523,7 @@ function ThreadSettingsSessionProvider(
   const runtimeModeChoices = withManagedRuntimeModeLimits(
     runtimeModeChoicesForSupportedModes(displayedModel?.supportedRuntimeModes),
     [config?.managedPolicy],
+    messages,
   );
   const compatibleRuntimeMode = compatibleRuntimeModeForChoices(
     props.runtimeMode,

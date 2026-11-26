@@ -36,7 +36,7 @@ import {
   type ProjectOverrideEntry,
   type ScopedSettingsPatch,
 } from "./scopedSettings";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
 import { m } from "../../i18n/messages";
 
 const readSettings = (environmentId: EnvironmentId) =>
@@ -187,10 +187,12 @@ export function useScopedSettingsWriteAllowed() {
 export function useManagedSettingDenial(paths: ReadonlyArray<string>): string | undefined {
   const context = useOptionalSettingsScope();
   const primaryPolicy = usePrimaryManagedPolicy();
+  const messages = useMessages();
   return managedSettingDenial(
     context
       ? context.connectedEnvironments.map((environment) => environment.serverConfig?.managedPolicy)
       : [primaryPolicy],
     paths,
+    messages,
   );
 }

@@ -1,4 +1,5 @@
 import type { ManagedPolicySummary, RuntimeMode } from "@supaterm/contracts";
+import { useGT, useMessages } from "gt-react-native";
 import { View } from "react-native";
 
 import { AppText } from "../../components/ui/AppText";
@@ -16,22 +17,25 @@ export function ManagedRuntimeModeNotice(props: {
   readonly supportedRuntimeModes: ReadonlyArray<RuntimeMode> | undefined;
   readonly policy: ManagedPolicySummary | undefined;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const draftSettings = useComposerDraftSettings(props.threadKey);
   const blocked = managedRuntimeModeSwitch(
     props.policy,
     draftSettings.runtimeMode ?? props.threadRuntimeMode,
     props.supportedRuntimeModes,
+    messages,
   );
   if (blocked === undefined) return null;
   const { denial, target } = blocked;
   return (
     <View className="gap-2 px-4 pb-3">
       <AppText textRole="footnote" className="text-foreground-muted">
-        {`${denial} Switch this thread's mode to continue.`}
+        {gt("{denial} Switch this thread's mode to continue.", { denial })}
       </AppText>
       {target === undefined ? null : (
         <Button
-          label={`Switch to ${target.label}`}
+          label={gt("Switch to {mode}", { mode: messages(target.label) })}
           onPress={() => updateComposerDraftSettings(props.threadKey, { runtimeMode: target.mode })}
         />
       )}

@@ -118,6 +118,7 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
   const codexLocks = managedInstanceLocks(
     useManagedPolicy(props.environmentId),
     ProviderDriverKind.make("codex"),
+    messages,
   );
   const chatGptDenial = codexLocks?.configKeys.has("setupMode") ? codexLocks.reason : undefined;
   const existingState = getOnboardingProviderState(props.provider);

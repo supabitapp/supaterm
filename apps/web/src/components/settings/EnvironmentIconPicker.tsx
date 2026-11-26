@@ -36,7 +36,9 @@ export function resolveEnvironmentIconPickerLock(
   if (input.operateAccess !== "granted") {
     return resolve(msg("Your session on this environment cannot change its settings."));
   }
-  return managedSettingDenial([input.serverConfig.managedPolicy], ["environmentIcon"]) ?? null;
+  return (
+    managedSettingDenial([input.serverConfig.managedPolicy], ["environmentIcon"], resolve) ?? null
+  );
 }
 
 export function EnvironmentIconMenu({

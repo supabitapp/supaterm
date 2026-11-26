@@ -7,12 +7,14 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import {
   type DesktopUpdateChannel,
-  managedUpdatesDenial,
-  managedUpdatesMessage,
   ProviderDriverKind,
   type ProviderInstanceId,
   type SidebarProjectGroupingMode,
 } from "@supaterm/contracts";
+import {
+  managedUpdatesDenial,
+  managedUpdatesMessage,
+} from "@supaterm/client-runtime/contract-labels";
 import {
   DEFAULT_UNIFIED_SETTINGS,
   type ResponseStreamingMode,
@@ -155,7 +157,9 @@ function AboutVersionSection() {
   const selectedUpdateChannel = updateState?.channel ?? "latest";
   // The desktop updates this machine, whose policy the primary environment reports.
   const primaryPolicy = usePrimaryManagedPolicy();
-  const updatesDenial = hasDesktopBridge ? managedUpdatesDenial(primaryPolicy) : undefined;
+  const updatesDenial = hasDesktopBridge
+    ? managedUpdatesDenial(primaryPolicy, messages)
+    : undefined;
   const nightlyDeniedBy =
     hasDesktopBridge && primaryPolicy?.limits?.updates?.allowNightly === false
       ? primaryPolicy.organization
@@ -314,11 +318,16 @@ function AboutVersionSection() {
           managed={updatesDenial}
           description={
             nightlyDeniedBy !== undefined ? (
-              `${managedUpdatesMessage(nightlyDeniedBy)} Nightly builds are not available${
-                selectedUpdateChannel === "nightly"
-                  ? "; switch to Stable to keep getting updates."
-                  : "."
-              }`
+              selectedUpdateChannel === "nightly" ? (
+                gt(
+                  "{policy} Nightly builds are not available; switch to Stable to keep getting updates.",
+                  { policy: managedUpdatesMessage(nightlyDeniedBy, messages) },
+                )
+              ) : (
+                gt("{policy} Nightly builds are not available.", {
+                  policy: managedUpdatesMessage(nightlyDeniedBy, messages),
+                })
+              )
             ) : unswitchedMachines > 0 ? (
               <>
                 {gt(

@@ -1,11 +1,11 @@
 import {
   type EnvironmentId,
-  managedCapabilityDenial,
   type ManagedPolicySummary,
   type RelayHostStatus,
   type ServerSettings,
   type ServerSettingsPatch,
 } from "@supaterm/contracts";
+import { managedCapabilityDenial } from "@supaterm/client-runtime/contract-labels";
 import { relayName } from "@supaterm/shared/relay/name";
 
 import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
@@ -78,7 +78,7 @@ export function PublicRelaySettings({
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const m = useMessages();
-  const relayDenial = managedCapabilityDenial(policy, "relay");
+  const relayDenial = managedCapabilityDenial(policy, "relay", m);
   const enabled = isPublicRelayActive(settings, policy);
   return (
     <SettingsRow
@@ -90,7 +90,7 @@ export function PublicRelaySettings({
           "Connect your other devices from anywhere with end-to-end encryption. Turn it on, then use Add device below.",
         )
       }
-      managed={relayDenial ?? managedSettingDenial([policy], ["publicRelayEnabled"])}
+      managed={relayDenial ?? managedSettingDenial([policy], ["publicRelayEnabled"], m)}
       control={
         <Switch
           aria-label={gt("Enable Encrypted Relay")}

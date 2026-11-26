@@ -4,11 +4,11 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
+import { AuthMcpClientAccess } from "@supaterm/contracts";
 import {
-  AuthMcpClientAccess,
   managedCapabilityDenial,
   managedRuntimeModeDenial,
-} from "@supaterm/contracts";
+} from "@supaterm/client-runtime/contract-labels";
 import { CheckIcon, CopyIcon, PlugIcon } from "@supaterm/icons";
 import { useState } from "react";
 
@@ -48,6 +48,7 @@ export function UseInAnotherAppDialog({
   readonly environment: EnvironmentPresentation;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const environmentId = environment.environmentId;
   const createPairingCredential = useAtomCommand(authEnvironment.createPairingCredential, {
     reportFailure: false,
@@ -64,9 +65,10 @@ export function UseInAnotherAppDialog({
   const [error, setError] = useState<string | null>(null);
   const policy = useManagedPolicy(environmentId);
   // The server refuses codes for any level when its policy keeps remote clients out.
-  const remoteDenial = managedCapabilityDenial(policy, "remoteClients");
+  const remoteDenial = managedCapabilityDenial(policy, "remoteClients", messages);
   const levelDenial = (level: AuthMcpClientAccess) =>
-    remoteDenial ?? (level === "read-only" ? undefined : managedRuntimeModeDenial(policy, level));
+    remoteDenial ??
+    (level === "read-only" ? undefined : managedRuntimeModeDenial(policy, level, messages));
 
   const mint = async () => {
     setPending(true);

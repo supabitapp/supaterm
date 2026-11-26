@@ -131,7 +131,11 @@ function describeOffer(offer: StartupRecoveryOffer): { text: string; action: str
       };
     case "ManagedPolicy":
       return {
-        text: "Your organization's managed policy stopped Supaterm from starting. Send the details below to your IT administrator.",
+        text: m(
+          msg(
+            "Your organization's managed policy stopped Supaterm from starting. Send the details below to your IT administrator.",
+          ),
+        ),
         action: "",
       };
   }

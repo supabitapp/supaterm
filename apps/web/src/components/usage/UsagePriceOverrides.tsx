@@ -2,6 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import {
   AuthSettingsWriteScope,
   type EnvironmentId,
+  type ManagedPolicySummary,
   sessionGrantsScope,
 } from "@supaterm/contracts";
 import { ChevronDownIcon, PlusIcon, RotateCcwIcon, XIcon } from "@supaterm/icons";
@@ -39,13 +40,20 @@ import {
   type UsagePriceDraft,
   type UsagePriceField,
 } from "./usagePriceTable";
-import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
+import { managedSettingLock } from "@supaterm/client-runtime/managed-policy";
 import {
   writeUsagePrices,
   type UsagePriceTarget,
   type UsagePriceWriteResult,
 } from "./usagePriceTargets";
 import { msg, T, useGT, Var, useMessages } from "gt-react";
+
+const managedByMsg = (policy: ManagedPolicySummary | undefined) => {
+  const lock = managedSettingLock([policy], ["usagePriceOverrides", "usageModelAliases"]);
+  return lock === undefined
+    ? null
+    : msg("Managed by {organization}.", { organization: lock.organization });
+};
 
 const priceTargetsAtom = Atom.make((get): readonly UsagePriceTarget[] =>
   [...get(environmentPresentations.presentationsAtom)].map(([environmentId, environment]) => {
@@ -76,10 +84,7 @@ const priceTargetsAtom = Atom.make((get): readonly UsagePriceTarget[] =>
               ? msg("Checking permissions…")
               : access === "denied"
                 ? msg("Read-only access")
-                : (managedSettingDenial(
-                    [environment.serverConfig?.managedPolicy],
-                    ["usagePriceOverrides", "usageModelAliases"],
-                  ) ?? null),
+                : managedByMsg(environment.serverConfig?.managedPolicy),
     };
   }),
 );

@@ -11,7 +11,7 @@ import { ProviderSettingsForm, deriveProviderSettingsFields } from "./ProviderSe
 import { useManagedPolicy } from "../../state/managedPolicy";
 import { managedByMessage, managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { useEnvironmentScope } from "../../state/session";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 export function SourceControlHostSettings({
   environmentId,
@@ -36,6 +36,7 @@ export function SourceControlHostSettings({
   const canWriteSettings = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
   const formDefinition = { settingsSchema: definition.settings };
   const hasSaved = Object.values(saved ?? {}).some((value) => value !== "");
+  const messages = useMessages();
   const policy = useManagedPolicy(environmentId);
   const lockedKeys = new Set(
     deriveProviderSettingsFields(formDefinition, saved ?? {})
@@ -48,7 +49,7 @@ export function SourceControlHostSettings({
   );
   const managed =
     policy !== undefined && lockedKeys.size > 0
-      ? { keys: lockedKeys, reason: managedByMessage(policy.organization) }
+      ? { keys: lockedKeys, reason: managedByMessage(policy.organization, messages) }
       : undefined;
 
   const save = async (fields: Record<string, unknown>) => {

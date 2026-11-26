@@ -103,7 +103,12 @@ export function collectServerUpdateTargets(
       continue;
     }
     const selfUpdate = resolveServerSelfUpdateCapability(config);
-    const managedDenial = serverUpdatePolicyDenial(config.managedPolicy, selfUpdate, targetVersion);
+    const managedDenial = serverUpdatePolicyDenial(
+      config.managedPolicy,
+      selfUpdate,
+      targetVersion,
+      resolve,
+    );
     if (managedDenial !== undefined) {
       skip(managedDenial);
       continue;
@@ -278,7 +283,7 @@ export function collectChannelSwitchTargets(
         !("skip" in move) &&
         move.selfUpdate === "desktop-managed" &&
         unavailableReason(machine, resolve) === null &&
-        managedServerUpdateDenial(config.managedPolicy, release.version) === undefined
+        managedServerUpdateDenial(config.managedPolicy, release.version, resolve) === undefined
       ) {
         targets.push({ ...target(move.selfUpdate, serverVersion), trackOnly: true });
       }
@@ -289,7 +294,7 @@ export function collectChannelSwitchTargets(
       skip(unavailable ?? resolve(msg("not connected")));
       continue;
     }
-    const managedDenial = managedServerUpdateDenial(config.managedPolicy, release.version);
+    const managedDenial = managedServerUpdateDenial(config.managedPolicy, release.version, resolve);
     if (managedDenial !== undefined) {
       skip(managedDenial);
       continue;

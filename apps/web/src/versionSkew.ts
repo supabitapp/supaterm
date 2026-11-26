@@ -127,10 +127,12 @@ export function serverUpdatePolicyDenial(
   policy: ManagedPolicySummary | undefined,
   selfUpdate: ServerSelfUpdateCapability | null,
   targetVersion: string,
+  resolve: MessageResolver = m,
 ): string | undefined {
   return managedServerUpdateDenial(
     policy,
     selfUpdate === "desktop-managed" ? undefined : targetVersion,
+    resolve,
   );
 }
 

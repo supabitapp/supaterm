@@ -1265,10 +1265,12 @@ function ProviderInstanceRow({
   readonly actions: ProviderInstanceRowActions;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   // A policy can lock a whole instance; it then reads like one this connection cannot change.
   const managedReason = managedSettingDenial(
     [useManagedPolicy(environmentId)],
     [`providerInstances.${instanceId}`],
+    messages,
   );
   const readOnly = readOnlyByAccess || managedReason !== undefined;
   const allProjects = useProjects();

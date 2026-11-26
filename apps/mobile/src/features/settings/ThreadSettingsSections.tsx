@@ -69,7 +69,7 @@ export function ThreadBehaviorSettingsRows(props: {
   );
 
   const disabledFor = (...keys: string[]) =>
-    disabled || managedSettingReason(displayTargets, ...keys) !== undefined;
+    disabled || managedSettingReason(displayTargets, keys) !== undefined;
   const afterDays = referenceSettings.sidebarAutoMarkDoneAfterDays;
 
   return (
