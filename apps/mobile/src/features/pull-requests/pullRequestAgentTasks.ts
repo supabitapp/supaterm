@@ -6,6 +6,9 @@ import type { MenuAction } from "@react-native-menu/menu";
 import type { PullRequestDetail, PullRequestLinkedThreadsResult } from "@supaterm/contracts";
 import { msg } from "gt-react-native";
 
+import { m, type MessageResolver } from "../../i18n/messages";
+import { changeRequestTermKind } from "./pullRequestActions";
+
 export type PullRequestAgentTask = "ask" | "explain" | "feedback" | "conflicts" | "watch";
 
 export function pullRequestAgentThread(
@@ -55,41 +58,56 @@ export function pullRequestAgentPrompt(
     case "ask":
       return "";
     case "explain":
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- prompt sent to the agent
       return `Explain this ${singular}. Read the diff and walk through its purpose, the changes, the risks, and what I should read closely before approving. Do not change any code.`;
     case "feedback":
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- prompt sent to the agent
       return `Address the actionable feedback and failing checks on this ${singular}. Fetch the latest review threads and check results, skip resolved feedback, and verify each finding before changing code. First confirm this thread is on the ${shortLabel}'s branch; if it isn't, prepare the ${shortLabel} in its own worktree. Keep the fixes focused and run the relevant checks.`;
     case "conflicts":
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- prompt sent to the agent
       return `Resolve this ${singular}'s conflicts with its base branch. First confirm this thread is on the ${shortLabel}'s branch; if it isn't, prepare the ${shortLabel} in its own worktree. Bring it up to date using this repository's convention, preserve the intent of both sides, and run the relevant checks before pushing.`;
     case "watch":
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- prompt sent to the agent
       return `Watch this ${singular} for check results, new feedback, and conflicts using Supaterm's pull request watch. End the turn once the watch is armed. When it wakes you, assess what changed and report what needs attention.`;
   }
 }
 
-export function pullRequestAgentActions(pr: PullRequestDetail, canWatch: boolean) {
-  const { shortLabel } = sourceControlClients.get(pr.provider).changeRequest;
+export function pullRequestAgentActions(
+  pr: PullRequestDetail,
+  canWatch: boolean,
+  resolve: MessageResolver = m,
+) {
+  const term = changeRequestTermKind(sourceControlClients.get(pr.provider).changeRequest);
   return [
     {
       task: "ask",
-      title: msg("Ask a question"),
+      title: resolve(msg("Ask a question")),
       icon: "bubble.left.and.text.bubble.right",
       disabled: false,
     },
-    { task: "explain", title: `Explain this ${shortLabel}`, icon: "book", disabled: false },
+    {
+      task: "explain",
+      title: resolve(
+        msg("Explain this {term, select, mr {MR} cr {change request} other {PR}}", { term }),
+      ),
+      icon: "book",
+      disabled: false,
+    },
     {
       task: "feedback",
-      title: msg("Address feedback"),
+      title: resolve(msg("Address feedback")),
       icon: "wrench.and.screwdriver",
       disabled: pr.state !== "open",
     },
     {
       task: "conflicts",
-      title: msg("Resolve conflicts"),
+      title: resolve(msg("Resolve conflicts")),
       icon: "arrow.triangle.branch",
       disabled: pr.state !== "open" || pr.mergeability !== "conflicting",
     },
     {
       task: "watch",
-      title: `Watch ${shortLabel}`,
+      title: resolve(msg("Watch {term, select, mr {MR} cr {change request} other {PR}}", { term })),
       icon: "eye",
       disabled: pr.state !== "open" || !canWatch,
     },
