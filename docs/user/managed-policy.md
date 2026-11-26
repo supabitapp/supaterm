@@ -205,18 +205,22 @@ empty.
 
 ### Updates
 
-`updates` covers updates of Supaterm itself:
+`updates` covers updates of Supaterm itself, in the desktop app and on the server:
 
 - `mode`: `auto` keeps the normal flow, where Supaterm checks for updates and installs one only
   when someone asks. `off` stops checks and installs, for machines that get Supaterm from a
   container image or device management.
-- `feedUrl`: `supaterm update`, and server updates started from another device, install from your
-  mirror instead of GitHub. Lay it out like a GitHub release: the update file for each platform
-  you run (`latest-mac.yml`, `latest-linux.yml`, `latest-linux-arm64.yml`, `latest.yml` for
-  Windows, and their `nightly` versions if you allow nightly) at the URL's root, and the
-  `supaterm-*` archives and `SHA256SUMS` under `v<version>/`. Publish only the versions you have
-  approved.
-- `allowNightly: false` makes the nightly channel unavailable.
+- `feedUrl`: the desktop app, `supaterm update`, and server updates started from another device
+  install from your mirror instead of GitHub. Lay it out like a GitHub release: the update file for
+  each platform you run (`latest-mac.yml`, `latest-linux.yml`, `latest-linux-arm64.yml`,
+  `latest.yml` for Windows) and the desktop installers they name at the URL's root, and the
+  `supaterm-*` archives and `SHA256SUMS` under `v<version>/`. Nightly builds update only from the
+  `nightly` versions of those update files. Publish only the versions you have approved.
+- `allowNightly: false` makes the nightly channel unavailable. A desktop app already on the
+  nightly channel stops updating until its user switches the update track to Stable.
+
+When the desktop app cannot use the policy, its own updates stay off until an administrator fixes
+the policy.
 
 Provider CLI updates follow the `enableProviderUpdateChecks` setting, not `updates`. Lock it to
 `false` to stop them. Supaterm then also stops downloading model catalog updates, so new models
@@ -256,8 +260,8 @@ same values can stay: they succeed without changing anything.
 
 ## What a policy does not cover
 
-- **The desktop app's own controls.** The desktop updater and its update channel, importing cookies
-  from other browsers, and the desktop app's WSL environment are not managed yet.
+- **The desktop app's own controls.** Importing cookies from other browsers and the desktop app's
+  WSL environment are not managed yet.
 - **Provider CLIs.** Agents run through each provider's own CLI, which reads its own configuration,
   such as `~/.claude`, and which a user can also run outside Supaterm. Restrict those CLIs with their
   own managed configuration, such as Claude Code's managed settings.
