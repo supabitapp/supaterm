@@ -11,7 +11,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { cn } from "../../lib/cn";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { NodeIcon } from "../../components/ui/NodeIcon";
-import { changeRequestTermKind } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 
 export function PullRequestReadStatus(props: {
   readonly pending: boolean;

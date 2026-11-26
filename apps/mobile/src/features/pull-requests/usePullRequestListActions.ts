@@ -14,10 +14,10 @@ import { composerPullRequests } from "../../state/pull-requests";
 import { useAtomCommand } from "../../state/use-atom-command";
 import {
   canPerformPullRequestAction,
-  changeRequestTermKind,
   openOnProviderLabel,
   pullRequestActionLabel,
 } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { scopedPullRequestListKey, type EnvironmentPullRequestListEntry } from "./pullRequestList";
 import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";

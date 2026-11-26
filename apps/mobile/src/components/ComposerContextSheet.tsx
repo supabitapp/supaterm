@@ -31,7 +31,7 @@ import { AppText as Text } from "./ui/AppText";
 import { Sheet } from "./ui/Sheet";
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { getMobileTerminalTheme } from "../features/terminal/terminalTheme";
-import { changeRequestTermKind } from "../features/pull-requests/pullRequestActions";
+import { changeRequestTermKind } from "../lib/changeRequestTerm";
 import { T, useGT, Var } from "gt-react-native";
 
 function ContextField(props: { label: string; value: string | null | undefined; code?: boolean }) {

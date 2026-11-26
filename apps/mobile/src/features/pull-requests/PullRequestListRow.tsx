@@ -30,7 +30,7 @@ import {
 } from "./pullRequestStatus";
 import { PullRequestGlyph } from "./pullRequestGlyphs";
 import { useGT, useMessages } from "gt-react-native";
-import { changeRequestTermKind } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 
 /** A label as list rows show it: small, tinted by its color, truncating. */
 export function ListRowLabel(props: {

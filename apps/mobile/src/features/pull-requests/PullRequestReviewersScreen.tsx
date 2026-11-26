@@ -7,7 +7,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { changeRequestTermKind } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import {
   hostReviewerQuery,
   reviewerCandidateView,

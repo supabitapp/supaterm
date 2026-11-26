@@ -21,10 +21,10 @@ import { composerPullRequests } from "../../state/pull-requests";
 import { useEnvironmentQuery } from "../../state/query";
 import {
   allowedUpdateMethods,
-  changeRequestTermKind,
   PR_ACTION_ICONS,
   pullRequestActionLabel,
 } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import {
   checkStatus,
   isFailingCheck,

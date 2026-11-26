@@ -13,6 +13,7 @@ import type { AppSymbolName } from "../../components/ui/AppSymbol";
 import { PullRequestGlyph } from "./pullRequestGlyphs";
 import { msg } from "gt-react-native";
 import { m, type MessageResolver } from "../../i18n/messages";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 
 type ActionDetail = Pick<
   PullRequestDetail,
@@ -47,17 +48,6 @@ export const MERGE_METHODS = {
     description: msg("Add the commits as they are. Needs the branch to contain the base."),
   },
 } as const satisfies Record<PullRequestMergeMethod, { title: string; description: string }>;
-
-/** Selects the noun in translated sentences, so each language writes the whole sentence per host term. */
-type ChangeRequestTermKind = "mr" | "cr" | "pr";
-
-export function changeRequestTermKind(
-  terminology: Pick<ChangeRequestTerminology, "singular">,
-): ChangeRequestTermKind {
-  if (terminology.singular === "merge request") return "mr";
-  if (terminology.singular === "change request") return "cr";
-  return "pr";
-}
 
 /** Select key for a merge method in translated sentences; ICU keys cannot contain "-". */
 export function mergeMethodKind(method: PullRequestMergeMethod | undefined) {

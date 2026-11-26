@@ -2,7 +2,7 @@ import { AsyncResult } from "effect/reactivity";
 import { useAtomRefresh } from "@effect/atom-react";
 import { StackActions, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { changeRequestTermKind } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { PullRequestReviewVerdict } from "@supaterm/contracts";
 import { useRef, useState } from "react";

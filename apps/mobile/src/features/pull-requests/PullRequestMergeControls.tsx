@@ -17,7 +17,6 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import {
   allowedMergeMethods,
   canPerformPullRequestAction,
-  changeRequestTermKind,
   mergeMethodKind,
   mergeUnavailableReason,
   MERGE_METHODS,
@@ -25,6 +24,7 @@ import {
   pullRequestActionLabel,
   resolveMergeMethod,
 } from "./pullRequestActions";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 import { pullRequestStackMerge, singlePullRequestMergeAllowed } from "./pullRequestStack";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestAction } from "./usePullRequestAction";
