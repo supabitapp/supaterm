@@ -28,14 +28,18 @@ import { ConnectionFormField } from "./ConnectionFormField";
 import { ConnectionStatusDot } from "./ConnectionStatusDot";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { environmentStatusText } from "./environmentStatusText";
-import { useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
+import type { MessageResolver } from "../../i18n/messages";
 
 // Store captures present remote-looking addresses over loopback fixtures on a busy CI host.
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 
-function connectionStatusLabel(environment: ConnectedEnvironmentSummary): string | null {
+function connectionStatusLabel(
+  environment: ConnectedEnvironmentSummary,
+  resolve: MessageResolver,
+): string | null {
   if (!environment.isEnabled && environment.connectionState !== "unsupported") {
-    return "Off";
+    return resolve(msg("Off", { $context: "environment is switched off" }));
   }
   return environmentStatusText({
     phase: environment.connectionState,
@@ -58,6 +62,7 @@ export function ConnectionEnvironmentRow(props: {
   ) => Promise<AtomCommandResult<unknown, unknown>>;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const [label, setLabel] = useState(props.environment.environmentLabel);
   const [url, setUrl] = useState(props.environment.displayUrl);
   const isRelayAddress = relayName(props.environment.displayUrl) !== null;
@@ -80,7 +85,7 @@ export function ConnectionEnvironmentRow(props: {
     presentation,
   );
   const enabled = props.environment.isEnabled && !unsupported;
-  const statusLabel = connectionStatusLabel(props.environment);
+  const statusLabel = connectionStatusLabel(props.environment, m);
   const statusTraceId = enabled ? props.environment.connectionErrorTraceId : null;
   const hasConnectionFailure = enabled && props.environment.connectionError !== null;
   const freeze =
@@ -251,7 +256,7 @@ export function ConnectionEnvironmentRow(props: {
             <View className="flex-row items-center justify-end gap-2">
               <View className="flex-1">
                 <Button
-                  label="Save"
+                  label={gt("Save")}
                   tone="primary"
                   fullWidth
                   onPress={() => {
@@ -286,7 +291,7 @@ export function ConnectionEnvironmentRow(props: {
                   type="monochrome"
                 />
                 <Text className="text-xs font-supaterm-bold tracking-[0.8px] uppercase text-primary-foreground">
-                  Save
+                  <T>Save</T>
                 </Text>
               </Pressable>
 

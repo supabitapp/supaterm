@@ -216,7 +216,7 @@ function PairingForm({
         linked
           ? gt("Connect to {environment}", { environment: linked.label })
           : routeFor
-            ? "Add route"
+            ? gt("Add route")
             : gt("Add environment")
       }
       actions={[
@@ -296,7 +296,10 @@ function PairingForm({
             >
               {pairingConnectionError ??
                 (linked
-                  ? `Create a pairing code on ${linked.label}, in its Settings → Sharing & access or with \`supaterm auth pairing create\`, and enter it here.`
+                  ? gt(
+                      "Create a pairing code on {environment}, in its Settings → Sharing & access or with `supaterm auth pairing create`, and enter it here.",
+                      { environment: linked.label },
+                    )
                   : gt(
                       "For machines on your local network or tailnet. The machine keeps its own provider credentials.",
                     ))}
@@ -397,7 +400,9 @@ function PairingScanCard(props: {
           )}
         </View>
         <Text className={cn("text-center text-sm", light ? "text-black/70" : "text-white/80")}>
-          Scan the code from supaterm pair or desktop Sharing & access settings
+          {gt("Scan the code from {command} or desktop Sharing & access settings", {
+            command: "supaterm pair",
+          })}
         </Text>
       </View>
     </Pressable>

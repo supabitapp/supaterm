@@ -16,6 +16,7 @@ import { AuthAccessReadScope, type EnvironmentId, type PeerLinkSummary } from "@
 import * as DateTime from "effect/DateTime";
 import { AsyncResult } from "effect/reactivity";
 import { useCallback, useContext, useMemo, useState } from "react";
+import { T, useGT, Var } from "gt-react-native";
 import { AppState, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
@@ -38,6 +39,7 @@ const alertFailure = (title: string, result: AtomCommandResult<unknown, unknown>
 };
 
 export function LinkedEnvironmentsSections() {
+  const gt = useGT();
   const { environments } = useEnvironments();
   const hosts = useMemo(
     () =>
@@ -53,8 +55,10 @@ export function LinkedEnvironmentsSections() {
   return (
     <View className="mt-5 gap-3">
       <SettingsSection
-        title="Linked environments"
-        footer="Agents on a machine can work on the machines it links to. Each link goes one way. To link one, mention the other machine with @ in a thread on the machine that sends the work, and answer the agent's request."
+        title={gt("Linked environments")}
+        footer={gt(
+          "Agents on a machine can work on the machines it links to. Each link goes one way. To link one, mention the other machine with @ in a thread on the machine that sends the work, and answer the agent's request.",
+        )}
       >
         {hosts.map((environment, index) => (
           <View
@@ -102,14 +106,19 @@ export function LinkedEnvironmentHost(props: {
   readonly incoming?: ReadonlyArray<string>;
 }) {
   const { environmentId } = props;
+  const gt = useGT();
   const canList = useEnvironmentScope(environmentId, AuthAccessReadScope);
   return (
     <>
       <ListRowLayout
         icon="link"
-        label={props.environmentLabel ?? "Agents here work on your other machines"}
+        label={props.environmentLabel ?? gt("Agents here work on your other machines")}
         {...(props.incoming && props.incoming.length > 0
-          ? { description: `Linked from ${props.incoming.join(", ")}.` }
+          ? {
+              description: gt("Linked from {environments}.", {
+                environments: props.incoming.join(", "),
+              }),
+            }
           : {})}
       />
       {canList ? <LinkedEnvironmentsList environmentId={environmentId} /> : null}
@@ -118,6 +127,7 @@ export function LinkedEnvironmentHost(props: {
 }
 
 function LinkedEnvironmentsList({ environmentId }: { readonly environmentId: EnvironmentId }) {
+  const gt = useGT();
   const listAtom = peerLinkEnvironment.list({ environmentId, input: {} });
   const links = useEnvironmentQuery(listAtom);
   const { environments } = useEnvironments();
@@ -138,8 +148,8 @@ function LinkedEnvironmentsList({ environmentId }: { readonly environmentId: Env
   );
   const now = DateTime.makeUnsafe(useNowMinuteMs());
   if (links.error)
-    return <ListNote title="Could not load linked environments" body={links.error} />;
-  if (!links.data) return <ListNote title="Loading linked environments…" />;
+    return <ListNote title={gt("Could not load linked environments")} body={links.error} />;
+  if (!links.data) return <ListNote title={gt("Loading linked environments…")} />;
   if (links.data.links.length === 0) return null;
   const labels = linkLabels({ links: links.data.links, environments });
   return links.data.links.map((link) => (
@@ -174,6 +184,7 @@ function LinkedEnvironmentRow(props: {
   readonly label: string;
 }) {
   const { environmentId, link, health, label } = props;
+  const gt = useGT();
   const unlink = useAtomCommand(peerLinkEnvironment.unlink, { label: "unlink environment" });
   const canUnlink = useAtomValue(peerLinkEnvironment.unlink.permissionAtom(environmentId));
   const [busy, setBusy] = useState(false);
@@ -183,11 +194,13 @@ function LinkedEnvironmentRow(props: {
     setBusy(false);
     if (result._tag === "Success" && result.value.removed && result.value.endedThere !== true) {
       Dialog.alert(
-        `${label} did not answer`,
-        `Revoke "Supaterm · …" in ${label}'s Sharing & access to end the session there too.`,
+        gt("{label} did not answer", { label }),
+        gt('Revoke "Supaterm · …" in {label}\'s Sharing & access to end the session there too.', {
+          label,
+        }),
       );
     }
-    alertFailure("Could not forget the link", result);
+    alertFailure(gt("Could not forget the link"), result);
   };
   return (
     <View className="flex-row items-center gap-3 border-t border-border-subtle py-4 pr-4 pl-12">
@@ -196,7 +209,9 @@ function LinkedEnvironmentRow(props: {
           {label}
         </Text>
         <Text className="text-xs text-foreground-muted">
-          Agents here work there · {linkAccessLabel(link.access)}
+          <T>
+            Agents here work there · <Var>{linkAccessLabel(link.access)}</Var>
+          </T>
         </Text>
         <Text
           className={
@@ -211,16 +226,19 @@ function LinkedEnvironmentRow(props: {
       </View>
       {canUnlink ? (
         <Button
-          label="Forget"
-          accessibilityLabel={`Forget ${label}`}
+          label={gt("Forget", { $context: "verb, removes a linked environment" })}
+          accessibilityLabel={gt("Forget {label}", { label })}
           tone="danger"
           size="compact"
           loading={busy}
           onPress={() =>
             Dialog.confirm({
-              title: `Forget ${label}?`,
-              message: `Agents here stop working there, and their session on ${label} ends too if it answers.`,
-              confirmText: "Forget",
+              title: gt("Forget {label}?", { label }),
+              message: gt(
+                "Agents here stop working there, and their session on {label} ends too if it answers.",
+                { label },
+              ),
+              confirmText: gt("Forget", { $context: "verb, removes a linked environment" }),
               destructive: true,
               onConfirm: () => void forget(),
             })

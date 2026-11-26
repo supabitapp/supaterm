@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@supaterm/contracts";
+import { T } from "gt-react-native";
 import type { ComponentProps } from "react";
 import { View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
@@ -52,8 +53,11 @@ export function LocalEnvironmentList({
             />
           </View>
           <Text className="text-center text-sm leading-normal text-foreground-muted">
-            No environments connected yet.{"\n"}Tap{" "}
-            <Text className="font-supaterm-bold text-foreground">+</Text> to add one.
+            <T>No environments connected yet.</T>
+            {"\n"}
+            <T>
+              Tap <Text className="font-supaterm-bold text-foreground">+</Text> to add one.
+            </T>
           </Text>
         </View>
       ) : null}

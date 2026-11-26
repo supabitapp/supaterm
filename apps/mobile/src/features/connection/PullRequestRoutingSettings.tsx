@@ -19,7 +19,7 @@ import { SettingsSection } from "../settings/components/SettingsSection";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { MotionPresence } from "../../components/ui/MotionPresence";
 import { showcaseEnvironmentDisplayUrl } from "../showcase/showcaseEnvironmentRows";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 
@@ -30,7 +30,7 @@ const options: ReadonlyArray<{
 }> = [
   {
     value: "off",
-    label: "Off",
+    label: msg("Off", { $context: "pull request routing permission" }),
     description: msg("Keep source control requests on this environment."),
   },
   {
@@ -49,6 +49,7 @@ const options: ReadonlyArray<{
 
 export function PullRequestRoutingSettings() {
   const gt = useGT();
+  const m = useMessages();
   const catalog = useAtomValue(environmentCatalog.catalogValueAtom);
   const permissions = useAtomValue(environmentCatalog.pullRequestRoutingPermissionsValueAtom);
   const update = useAtomCommand(environmentCatalog.setPullRequestRoutingPermission);
@@ -89,7 +90,7 @@ export function PullRequestRoutingSettings() {
                   ) : null}
                 </View>
                 <Text className="text-sm text-foreground-muted">
-                  {options.find((option) => option.value === selected)?.label}
+                  {m(options.find((option) => option.value === selected)?.label ?? "")}
                 </Text>
                 <DisclosureChevron
                   expanded={expanded === environmentId}
@@ -101,8 +102,8 @@ export function PullRequestRoutingSettings() {
                 {options.map((option) => (
                   <ListChoiceRow
                     key={option.value}
-                    label={option.label}
-                    description={option.description}
+                    label={m(option.label)}
+                    description={m(option.description)}
                     selected={selected === option.value}
                     disabled={disabled}
                     onPress={() => {
