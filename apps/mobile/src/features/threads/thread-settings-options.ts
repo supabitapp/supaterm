@@ -6,6 +6,7 @@ import {
   type ProviderOptionDescriptor,
   type RuntimeMode,
 } from "@supaterm/contracts";
+import { firstManagedDenial } from "@supaterm/client-runtime/managed-policy";
 
 /**
  * The slider holds reasoning levels only. Prompt-injected values (ultrathink and
@@ -79,9 +80,9 @@ export function withManagedRuntimeModeLimits(
   policies: ReadonlyArray<ManagedPolicySummary | undefined>,
 ): ReadonlyArray<RuntimeModeChoice> {
   return choices.map((choice) => {
-    const reason = policies
-      .map((policy) => managedRuntimeModeDenial(policy, choice.mode))
-      .find((denial) => denial !== undefined);
+    const reason = firstManagedDenial(policies, (policy) =>
+      managedRuntimeModeDenial(policy, choice.mode),
+    );
     return reason === undefined ? choice : { ...choice, disabledReason: reason };
   });
 }

@@ -119,16 +119,6 @@ function isDisabledForProject(
   return provider !== undefined && !isProviderEnabledForProject(config, provider, projectId);
 }
 
-function selectionDriver(
-  config: SupatermServerConfig | null | undefined,
-  instanceId: ModelSelection["instanceId"],
-): string | undefined {
-  return (
-    config?.providers.find((candidate) => candidate.instanceId === instanceId)?.driver ??
-    config?.settings?.providerInstances[instanceId]?.driver
-  );
-}
-
 function isDriverDisallowed(
   config: SupatermServerConfig | null | undefined,
   driver: string | undefined,
@@ -213,7 +203,8 @@ export function describeUnavailableModelSelection(
   const provider = config?.providers.find(
     (candidate) => candidate.instanceId === selection.instanceId,
   );
-  const driver = selectionDriver(config, selection.instanceId);
+  const driver =
+    provider?.driver ?? config?.settings?.providerInstances[selection.instanceId]?.driver;
   if (isDriverDisallowed(config, driver)) {
     const label = providerDisplayLabel({
       driver: driver ?? selection.instanceId,

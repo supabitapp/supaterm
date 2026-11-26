@@ -1,5 +1,4 @@
 import {
-  isManagedSettingPath,
   isNullableProjectSettingsOverride,
   PROJECT_SCOPED_SERVER_SETTING_KEYS,
   type EnvironmentId,
@@ -8,6 +7,7 @@ import {
   type ServerSettings,
   type ServerSettingsPatch,
 } from "@supaterm/contracts";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   clearProjectSettingsOverrides,
   projectSettingsOverridesForWrite,
@@ -27,10 +27,10 @@ export function managedSettingReason(
   targets: readonly ScopedMobileSettingsTarget[],
   ...paths: readonly string[]
 ): string | undefined {
-  const policy = targets
-    .map((target) => target.environment.serverConfig.managedPolicy)
-    .find((candidate) => paths.some((path) => isManagedSettingPath(candidate, path)));
-  return policy === undefined ? undefined : `Managed by ${policy.organization}.`;
+  return managedSettingDenial(
+    targets.map((target) => target.environment.serverConfig.managedPolicy),
+    paths,
+  );
 }
 
 export function resolveMobileSettingsTargets(
