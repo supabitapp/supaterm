@@ -15,16 +15,17 @@ A desktop sign-in asks for approval on that machine, which a remote user cannot 
 or headless server, sign `op` in with a [service account](./secrets-1password-service-account.md) or a
 [Connect server](./secrets-1password-connect.md) instead.
 
-To add one, open **Settings → Secrets**, select **Add provider**, and enter a name and the
-1Password account: the shorthand, sign-in address (without `https://`), or ID that
+To add one, open **Settings → Secrets** on web or desktop, select **Add provider**, and enter a
+name and the 1Password account: the shorthand, sign-in address (without `https://`), or ID that
 `op account list` shows. Secret providers belong to the environment you are connected to. Each
-environment keeps its own list.
+environment keeps its own list. The mobile app has no Secrets page; from your phone you can still
+answer an agent's secret request, as described below.
 
 ## Use a secret reference
 
-Credential fields in Settings, such as provider environment variables and credentials, source
-control tokens, and device host tokens, show a source picker next to the field once the environment
-has a secret provider. Pick **Value** to save the credential itself, or pick a secret provider and
+Credential fields in Settings on web and desktop, such as provider environment variables and
+credentials, source control tokens, and device host tokens, show a source picker next to the field
+once the environment has a secret provider. Pick **Value** to save the credential itself, or pick a secret provider and
 enter a reference such as `op://vault/item/field`. Copy the reference from 1Password with **Copy
 Secret Reference**. Select the check button next to a reference to read it now. If it reads,
 providers that use it start using the new value.
@@ -41,8 +42,8 @@ login.
 
 ## Remove a secret provider
 
-When you remove a secret provider in **Settings → Secrets**, Supaterm lists the fields that read
-from it. Removing it clears those fields, so set them again before you need them. The secrets in
+When you remove a secret provider in **Settings → Secrets** on web or desktop, Supaterm lists the
+fields that read from it. Removing it clears those fields, so set them again before you need them. The secrets in
 1Password are not touched.
 
 ## When an agent asks for a secret
