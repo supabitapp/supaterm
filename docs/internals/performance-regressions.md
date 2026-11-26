@@ -171,6 +171,11 @@ query's. Migration 020 scans the turn-item table once on first start; a message 
 is not valid JSON is left out of the index. Each message-item write re-parses the old and new
 payload for the index, so its cost grows with the payload.
 
+A read that names a partial index with `INDEXED BY` fails to prepare when the index's predicate
+no longer implies the query's, and released builds keep their read after a downgrade. To change
+such a predicate, create an index under a new name and leave the shipped one in place, as
+migration 036 does for remote tasks.
+
 Command palette results keep live VCS and linked pull-request queries leased to the visible
 viewport, including a small overscan region. Cached badges remain available while leases are
 released. Local Git status reads skip divergence calculations; callers that need ahead/behind

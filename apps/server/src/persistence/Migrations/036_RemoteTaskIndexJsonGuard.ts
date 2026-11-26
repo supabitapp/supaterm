@@ -4,11 +4,10 @@ import * as SqlClient from "effect/sql/SqlClient";
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
-  // Migration 23 now skips unreadable payloads; a partial index is only used when its predicate
-  // spells the read's condition, so rebuild the one it made before.
-  yield* sql`DROP INDEX IF EXISTS orchestration_v2_projection_subagents_remote_idx`;
+  // Remote task reads skip unreadable payloads. Migration 23's index stays as released builds
+  // name it, so this one takes its own name; keep the predicate aligned with ProjectionStore.
   yield* sql`
-    CREATE INDEX orchestration_v2_projection_subagents_remote_idx
+    CREATE INDEX IF NOT EXISTS orchestration_v2_projection_subagents_remote_json_idx
     ON orchestration_v2_projection_subagents(thread_id, subagent_id)
     WHERE origin = 'app_owned'
       AND child_thread_id IS NULL
