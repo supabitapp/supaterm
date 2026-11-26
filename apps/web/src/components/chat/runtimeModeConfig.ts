@@ -13,7 +13,7 @@ export const runtimeModeConfig: Record<
   { label: string; description: string; icon: IconComponent }
 > = {
   "approval-required": {
-    label: "Supervised",
+    label: msg("Supervised"),
     description: msg("Ask before commands and file changes."),
     icon: LockIcon,
   },
@@ -23,7 +23,7 @@ export const runtimeModeConfig: Record<
     icon: PenLineIcon,
   },
   auto: {
-    label: "Auto",
+    label: msg("Auto"),
     description: msg("Supported providers approve routine actions; others still ask."),
     icon: ShieldCheckIcon,
   },

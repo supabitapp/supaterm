@@ -13,7 +13,7 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerBanner } from "./ComposerBanner";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
-import { useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const SNIPPET_MAX_CHARS = 90;
 
@@ -189,7 +189,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
             onPointerDown={(event) => event.preventDefault()}
             onClick={onClose}
           >
-            Stash
+            {gt("Stash", { $context: "noun, saved prompts set aside for later" })}
             <ComposerBanner.Count>{entries.length}</ComposerBanner.Count>
           </button>
         </ComposerBanner.Content>
@@ -204,7 +204,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                     variant="outline"
                     className="z-10"
                     aria-disabled={sendAllBlockedReason !== null}
-                    aria-label={sendAllArmed ? "Confirm send all" : "Send all"}
+                    aria-label={sendAllArmed ? gt("Confirm send all") : gt("Send all")}
                     onPointerDown={(event) => event.preventDefault()}
                     {...(sendAllBlockedReason === null
                       ? sendAllConfirm.bind("send-all", onSendAll)
@@ -217,18 +217,21 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                 </InlineConfirmIcon>
                 <span className="inline-grid" aria-hidden>
                   <span className={cn("col-start-1 row-start-1", sendAllArmed && "invisible")}>
-                    Send all
+                    <T>Send all</T>
                   </span>
                   <span className={cn("col-start-1 row-start-1", !sendAllArmed && "invisible")}>
-                    Confirm
+                    <T context="button, confirms sending every stashed prompt">Confirm</T>
                   </span>
                 </span>
               </TooltipTrigger>
               <TooltipPopup>
                 {sendAllBlockedReason ??
                   (sendAllArmed
-                    ? `Click again to send ${entries.length === 1 ? "this prompt" : `all ${entries.length} prompts`}`
-                    : "Send each prompt as its own message, oldest first")}
+                    ? gt(
+                        "{count, plural, =1 {Click again to send this prompt} other {Click again to send all {count} prompts}}",
+                        { count: entries.length },
+                      )
+                    : gt("Send each prompt as its own message, oldest first"))}
               </TooltipPopup>
             </Tooltip>
           )}
@@ -241,10 +244,16 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
             <ComposerBanner.Row render={<li />}>
               <ComposerBanner.Icon />
               <ComposerBanner.Content className="text-muted-foreground">
-                Nothing stashed yet.
-                {stashShortcutLabel
-                  ? ` Press ${stashShortcutLabel} with a prompt in the composer to stash it.`
-                  : null}
+                <T>Nothing stashed yet.</T>
+                {stashShortcutLabel ? (
+                  <>
+                    {" "}
+                    <T>
+                      Press <Var>{stashShortcutLabel}</Var> with a prompt in the composer to stash
+                      it.
+                    </T>
+                  </>
+                ) : null}
               </ComposerBanner.Content>
             </ComposerBanner.Row>
           ) : (
@@ -326,7 +335,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                         className="z-10"
                         aria-label={
                           confirm.armed === entry.id
-                            ? "Confirm delete"
+                            ? gt("Confirm delete")
                             : gt("Delete stashed prompt")
                         }
                         onPointerDown={(event) => event.preventDefault()}

@@ -1,4 +1,6 @@
 import type { ProviderDriverKind, ProviderInstanceId } from "@supaterm/contracts";
+import { msg } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 import {
   resolveSelectableProviderInstanceEntry,
   type ProviderInstanceEntry,
@@ -43,13 +45,22 @@ export function hasAvailableCompactionProvider(input: {
 export function formatContextWindowCompactionMessage(
   modelDisplayName: string | null | undefined,
   autoCompactThreshold?: number | null,
+  resolve: MessageResolver = m,
 ): string {
   if (typeof autoCompactThreshold === "number" && autoCompactThreshold > 0) {
-    return `Compacts automatically at about ${autoCompactThreshold.toLocaleString("en-US")} tokens.`;
+    return resolve(
+      msg("Compacts automatically at about {tokens} tokens.", {
+        tokens: autoCompactThreshold.toLocaleString("en-US"),
+      }),
+    );
   }
   return modelDisplayName
-    ? `Context for ${modelDisplayName} compacts automatically when needed.`
-    : "Context compacts automatically when needed.";
+    ? resolve(
+        msg("Context for {model} compacts automatically when needed.", {
+          model: modelDisplayName,
+        }),
+      )
+    : resolve(msg("Context compacts automatically when needed."));
 }
 
 export function formatContextWindowCost(cost: {

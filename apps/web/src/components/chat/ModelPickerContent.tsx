@@ -75,7 +75,7 @@ import { providerModelKey, sortProviderModelItems } from "../../modelOrdering";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { hasRuntimeModelCatalog } from "../../providerModels";
 import { isImeComposing } from "~/lib/imeComposition";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 type ModelPickerItem = {
   slug: string;
@@ -223,6 +223,7 @@ function ModelPickerProviderNotices({
   onOpenProviderSetup: ((instanceId: ProviderInstanceId) => void) | undefined;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const navigate = useNavigate();
   return (
     <>
@@ -231,7 +232,7 @@ function ModelPickerProviderNotices({
           {setupEntries.map((entry) => (
             <div key={entry.instanceId} className="px-1 py-1.5 text-xs leading-snug">
               <p className="line-clamp-3 text-muted-foreground">
-                {getProviderStatusMessage(entry.snapshot)}
+                {getProviderStatusMessage(entry.snapshot, m)}
               </p>
               <InlineButton
                 className="mt-1"
@@ -1115,9 +1116,13 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                       className="group w-full cursor-pointer"
                     >
                       <div className="min-w-0 flex-1 text-left">
-                        <div className="text-xs font-medium leading-snug">Legacy models</div>
+                        <div className="text-xs font-medium leading-snug">
+                          <T>Legacy models</T>
+                        </div>
                         <div className="mt-1 text-xs font-normal leading-snug text-muted-foreground/70">
-                          {legacySection.legacyModels.length} models
+                          {gt("{count, plural, one {{count} models} other {{count} models}}", {
+                            count: legacySection.legacyModels.length,
+                          })}
                         </div>
                       </div>
                       <ChevronRightIcon

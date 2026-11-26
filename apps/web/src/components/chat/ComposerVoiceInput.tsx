@@ -1,3 +1,4 @@
+import { msg, T, useGT } from "gt-react";
 import { CircleAlertIcon, MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type PointerEvent, type ReactNode } from "react";
@@ -7,6 +8,7 @@ import { cn } from "~/lib/utils";
 import { formatVoiceDuration } from "~/voice/formatVoiceDuration";
 import type { ComposerVoiceInput } from "~/voice/useComposerVoiceInput";
 import { VOICE_LEVEL_HISTORY, type WebVoiceRecorder } from "~/voice/webVoiceRecorder";
+import { m, type MessageResolver } from "~/i18n/messages";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -25,17 +27,20 @@ export function ComposerVoiceButton(props: {
 }) {
   const { voice } = props;
   const { availability } = voice;
+  const gt = useGT();
   const navigate = useNavigate();
   const unavailable = availability.unavailableReason !== null;
-  const label = unavailable ? "Voice input unavailable" : "Voice input";
-  const shortcut = [props.shortcutLabel, props.holdKeyLabel && `hold ${props.holdKeyLabel}`]
-    .filter(Boolean)
-    .join(" or ");
+  const label = unavailable ? gt("Voice input unavailable") : gt("Voice input");
+  const hold = props.holdKeyLabel ? gt("hold {key}", { key: props.holdKeyLabel }) : null;
+  const shortcut =
+    props.shortcutLabel && hold
+      ? gt("{shortcut} or {hold}", { shortcut: props.shortcutLabel, hold })
+      : props.shortcutLabel || hold;
   const detail = unavailable
     ? availability.unavailableReason
     : availability.canReview
-      ? `Transcribed with ${availability.label}`
-      : "Records now; sends once the environment is reachable.";
+      ? gt("Transcribed with {model}", { model: availability.label })
+      : gt("Records now; sends once the environment is reachable.");
   return (
     <Tooltip>
       <TooltipTrigger
@@ -148,12 +153,13 @@ export function ComposerVoiceSession(props: {
   const { phase } = state;
   const capturing = phase === "preparing" || phase === "recording";
   const reviews = capturing && availability.canReview;
-  const sendLabel = availability.canSend ? "Send voice message" : "Transcribe and send";
+  const gt = useGT();
+  const sendLabel = availability.canSend ? gt("Send voice message") : gt("Transcribe and send");
   return (
     <>
       <div
         role="group"
-        aria-label="Voice input"
+        aria-label={gt("Voice input")}
         className={cn(
           "flex h-8 shrink-0 items-center gap-2 rounded-full bg-foreground/6 text-foreground text-sm",
           phase === "sending" ? "ps-3" : "ps-1",
@@ -162,7 +168,11 @@ export function ComposerVoiceSession(props: {
       >
         {phase === "sending" ? null : (
           <VoicePillButton
-            label={phase === "recording" ? "Discard" : "Cancel"}
+            label={
+              phase === "recording"
+                ? gt("Discard", { $context: "verb, discards the voice recording" })
+                : gt("Cancel", { $context: "verb, stops voice input" })
+            }
             shortcut={capturing ? "Esc" : null}
             onClick={voice.cancel}
           >
@@ -177,12 +187,12 @@ export function ComposerVoiceSession(props: {
         ) : (
           <span aria-live="polite" className="flex items-center gap-2 text-muted-foreground">
             {phase === "sending" ? <Spinner size="sm" /> : null}
-            {phase === "transcribing" ? "Transcribing…" : "Saving…"}
+            {phase === "transcribing" ? <T>Transcribing…</T> : <T>Saving…</T>}
           </span>
         )}
         {reviews ? (
           <VoicePillButton
-            label="Stop and review"
+            label={gt("Stop and review")}
             shortcut={props.shortcutLabel}
             disabled={phase !== "recording"}
             onClick={voice.stop}
@@ -209,17 +219,20 @@ export function ComposerVoiceSession(props: {
   );
 }
 
-export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBannerStackItem | null {
+export function composerVoiceBannerItem(
+  voice: ComposerVoiceInput,
+  resolve: MessageResolver = m,
+): ComposerBannerStackItem | null {
   const { state } = voice;
   if (state.phase !== "error") return null;
   return {
     id: "voice-input",
     variant: "error",
     icon: <CircleAlertIcon />,
-    title: state.error ?? "Voice input stopped.",
+    title: state.error ?? resolve(msg("Voice input stopped.")),
     description:
       state.errorAction === "settings" && !isElectron
-        ? "Allow microphone access for this site in your browser, then try again."
+        ? resolve(msg("Allow microphone access for this site in your browser, then try again."))
         : undefined,
     actions:
       state.errorAction === "settings" && isElectron ? (
@@ -228,14 +241,14 @@ export function composerVoiceBannerItem(voice: ComposerVoiceInput): ComposerBann
           variant="ghost"
           onClick={() => void window.desktopBridge?.openSystemSettings("microphone")}
         >
-          Open settings
+          <T>Open settings</T>
         </Button>
       ) : state.errorAction !== null ? (
         <Button size="xs" variant="ghost" onClick={voice.start}>
-          Record again
+          <T>Record again</T>
         </Button>
       ) : null,
-    dismissLabel: "Dismiss",
+    dismissLabel: resolve(msg("Dismiss")),
     onDismiss: voice.cancel,
   };
 }
