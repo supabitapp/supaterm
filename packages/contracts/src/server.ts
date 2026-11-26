@@ -27,6 +27,7 @@ import {
 } from "./keybindings.ts";
 import { EditorId, FileManagerRevealKind, RemoteOpenTarget } from "./editor.ts";
 import { ModelCapabilities, ProviderOptionDescriptor } from "./model.ts";
+import { ManagedPolicySummary } from "./managedPolicy.ts";
 import { RuntimeMode } from "./providerPolicy.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 import { ServerProviderUsageLimits } from "./providerUsageLimits.ts";
@@ -763,6 +764,8 @@ export const ServerConfig = Schema.Struct({
   tunnelEndpoints: Schema.optionalKey(ServerTunnelEndpoints),
   observability: ServerObservability,
   settings: ServerConfigSettings,
+  /** Present when an administrator's policy file manages this environment. */
+  managedPolicy: Schema.optionalKey(ManagedPolicySummary),
   shellResumeCompletionMarker: Schema.optionalKey(Schema.Boolean),
   /**
    * Changes whenever the server restarts. A client resumes its in-memory shell

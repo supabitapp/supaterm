@@ -91,6 +91,7 @@ export const EnvironmentOperationForbiddenReason = Schema.Literals([
   "current_session_revoke_not_allowed",
   "browser_request_not_allowed",
   "link_client_pairing_refused",
+  "managed_policy_refused",
 ]);
 export type EnvironmentOperationForbiddenReason = typeof EnvironmentOperationForbiddenReason.Type;
 
@@ -176,6 +177,8 @@ export class EnvironmentOperationForbiddenError extends Schema.TaggedError<Envir
     code: Schema.Literal("operation_forbidden"),
     reason: EnvironmentOperationForbiddenReason,
     traceId: TrimmedNonEmptyString,
+    /** For `managed_policy_refused`: the policy's own explanation, naming its organization. */
+    detail: Schema.optionalKey(Schema.String),
   },
   { httpApiStatus: 403 },
 ) {
@@ -184,6 +187,7 @@ export class EnvironmentOperationForbiddenError extends Schema.TaggedError<Envir
   }
 
   override get message(): string {
+    if (this.detail !== undefined) return this.detail;
     return `The environment refused this operation (${this.reason}).`;
   }
 }
@@ -257,6 +261,8 @@ const EnvironmentScopedOperationErrors = [
 ] as const;
 const EnvironmentPairingCredentialErrors = [
   EnvironmentRequestInvalidError,
+  // The managed policy does not allow remote clients or the relay.
+  EnvironmentOperationForbiddenError,
   ...EnvironmentScopedOperationErrors,
 ] as const;
 const EnvironmentSessionRevokeErrors = [
