@@ -21,17 +21,19 @@ const NO_TRACKED_FOLDERS: WorktreeRepositoryChoices = Object.freeze({
 
 /**
  * The tracked Git folders a new worktree thread of this project can take. A project that tracks
- * no folders asks the server nothing.
+ * no folders asks the server nothing, and neither does one whose choices are not `load`ed; its
+ * choices stay unknown.
  */
 export function useWorktreeRepositoryChoices(
   project: Pick<
     EnvironmentProject,
     "environmentId" | "id" | "workspaceRoot" | "trackedFolders"
   > | null,
+  load: boolean,
 ): WorktreeRepositoryChoices {
   const tracksFolders = (project?.trackedFolders?.length ?? 0) > 0;
   const folders = useEnvironmentQuery(
-    project !== null && tracksFolders
+    load && project !== null && tracksFolders
       ? filesystemEnvironment.listFolders({
           environmentId: project.environmentId,
           input: { projectId: project.id },

@@ -1033,8 +1033,10 @@ export function useComposerSend(input: ComposerSendInput) {
                 ...(worktreeRepositories ? { repositories: worktreeRepositories } : {}),
               }
             : undefined;
+          const worktreeBaseBranch =
+            multipleModelSelections === null ? baseBranchForWorktree : activeThreadBranch;
           const pendingWorktree =
-            worktree && !activeThreadBranch && !activeProjectIsScratch ? worktree : undefined;
+            worktree && !worktreeBaseBranch && !activeProjectIsScratch ? worktree : undefined;
           const bootstrap =
             isLocalDraftThread && forkSideChatFirst === null
               ? {
@@ -1049,11 +1051,11 @@ export function useComposerSend(input: ComposerSendInput) {
                       multipleModelSelections === null ? activeThread.worktreePath : null,
                     createdAt: activeThread.createdAt,
                   },
-                  ...(worktree && activeThreadBranch
+                  ...(worktree && worktreeBaseBranch
                     ? {
                         prepareWorktree: {
                           ...worktree,
-                          baseBranch: activeThreadBranch,
+                          baseBranch: worktreeBaseBranch,
                         },
                         runSetupScript: true,
                       }

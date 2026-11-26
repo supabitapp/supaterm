@@ -803,6 +803,58 @@ describe("checkpoint ref cleanup", () => {
     ),
   );
 
+  it.live("prunes a tracked repository's refs after its task-folder checkout is removed", () =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        const { service, fs, sql, command, addThread } = yield* checkpointCleanupFixture();
+        const git = yield* GitVcsDriver.GitVcsDriver;
+        const root = yield* fs
+          .makeTempDirectoryScoped({ prefix: "cleanup-tracked-" })
+          .pipe(Effect.flatMap(fs.realPath));
+        const tracked = `${root}/api`;
+        const checkout = `${root}/task`;
+        yield* fs.makeDirectory(tracked);
+        yield* command(tracked, ["init", "-b", "main"]);
+        yield* command(tracked, [
+          "-c",
+          "user.email=cleanup@example.test",
+          "-c",
+          "user.name=Cleanup test",
+          "commit",
+          "--allow-empty",
+          "-m",
+          "initial",
+        ]);
+        yield* command(tracked, ["worktree", "add", "-b", "task", checkout]);
+        yield* addThread("deleted", { deleted: true });
+        const scopeId = CheckpointScopeId.make("scope:deleted:repository");
+        yield* sql`INSERT INTO orchestration_v2_projection_checkpoint_scopes ${sql.insert({
+          scope_id: scopeId,
+          thread_id: "deleted",
+          node_id: "node:deleted",
+          kind: "manual",
+          ordinal_within_parent: 1,
+          advances_app_run_count: 0,
+          created_at: DateTime.formatIso(at(0)),
+          payload_json: JSON.stringify({ cwd: checkout, repositoryPath: tracked }),
+        })}`;
+        yield* command(checkout, [
+          "update-ref",
+          yield* checkpointRefForScopeOrdinal({ scopeId, ordinalWithinScope: 0 }),
+          "HEAD",
+        ]);
+        yield* command(tracked, ["worktree", "remove", checkout]);
+        yield* service.runNow;
+        const { stdout } = yield* git.execute({
+          operation: "cleanup-test.list-tracked-checkpoints",
+          cwd: tracked,
+          args: ["for-each-ref", "--format=%(refname)", "refs/supaterm/"],
+        });
+        expect(stdout.trim()).toBe("");
+      }).pipe(Effect.provide(Sqlite.layerMemory)),
+    ),
+  );
+
   it.live("keeps deleted fork ancestry while a live or archived descendant needs it", () =>
     runCleanupTest(
       Effect.gen(function* () {
