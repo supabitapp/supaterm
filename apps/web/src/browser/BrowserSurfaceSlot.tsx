@@ -1,8 +1,11 @@
-import { useLayoutEffect, useRef } from "react";
+import { createContext, use, useLayoutEffect, useRef } from "react";
 
 import { acquireBrowserSurface } from "./browserSurfaceStore";
 import { observeResize } from "../lib/observeResize";
 import { usePaneLayoutVersion } from "../chatPanes/paneScope";
+
+/** How high a desktop page stacks: it is a window-level layer, so one above the page sets its own. */
+export const BrowserSurfaceLayer = createContext(30);
 
 export function BrowserSurfaceSlot(props: {
   readonly tabId: string;
@@ -13,11 +16,12 @@ export function BrowserSurfaceSlot(props: {
   readonly className?: string;
   readonly fitSourceContent?: boolean;
 }) {
+  const layer = use(BrowserSurfaceLayer);
   const {
     tabId,
     visible,
     cornerRadius = 0,
-    zIndex = 30,
+    zIndex = layer,
     className,
     fitSourceContent = false,
   } = props;
