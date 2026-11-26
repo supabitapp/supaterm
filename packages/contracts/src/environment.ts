@@ -19,6 +19,8 @@ export const ORCHESTRATION_PROTOCOL_HEADER = "x-supaterm-orchestration-protocol"
 export const CLIENT_CAPABILITIES_QUERY_PARAM = "clientCapabilities";
 /** Secret fields may hold a secret provider reference instead of a string. */
 export const SETTINGS_SECRET_REFERENCES_CAPABILITY = "settingsSecretReferences";
+/** Ref names keep Unicode whitespace at their edges, which older clients trim off. */
+export const GIT_REF_NAMES_CAPABILITY = "gitRefNames";
 
 export const ExecutionEnvironmentPlatformOs = Schema.Literals([
   "darwin",
