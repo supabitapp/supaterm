@@ -2,6 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { connectionStatusTitle } from "@supaterm/client-runtime/connection";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { CircleAlertIcon, Clock3Icon, PlusIcon } from "@supaterm/icons";
+import { T, useGT } from "gt-react";
 import { type ReactNode, useState } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import type { EnvironmentId, ScheduledTask } from "@supaterm/contracts";
@@ -41,6 +42,7 @@ const route = getRouteApi("/_chat/automations");
  * scope narrows both the list and where a new automation can be created.
  */
 export function AutomationsPage() {
+  const gt = useGT();
   const search = route.useSearch();
   const navigate = route.useNavigate();
   const groups = useSettingsProjectGroups();
@@ -114,9 +116,11 @@ export function AutomationsPage() {
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none isolate">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
         <WorkspacePageHeader electron={isElectron}>
-          <WorkspaceBreadcrumb ariaLabel="Automations breadcrumb" className="min-w-0 flex-1">
+          <WorkspaceBreadcrumb ariaLabel={gt("Automations breadcrumb")} className="min-w-0 flex-1">
             <WorkspaceBreadcrumbItem current>
-              <h1>Automations</h1>
+              <h1>
+                <T>Automations</T>
+              </h1>
             </WorkspaceBreadcrumbItem>
           </WorkspaceBreadcrumb>
           <Button
@@ -125,14 +129,14 @@ export function AutomationsPage() {
             onClick={() => creationEnvironment && openForCreate(creationEnvironment.environmentId)}
           >
             <PlusIcon />
-            New automation
+            <T>New automation</T>
           </Button>
         </WorkspacePageHeader>
 
         <div className="topbar-scroll-fade scrollbar-gutter-both flex-1 overflow-y-auto">
           <WorkspacePageContainer width="wide">
             <ScopeSentence
-              lead="Showing automations for"
+              lead={gt("Showing automations for")}
               presentation="filters"
               value={search}
               scope={scope}
@@ -168,8 +172,12 @@ export function AutomationsPage() {
                   <EmptyMedia variant="icon">
                     <Clock3Icon />
                   </EmptyMedia>
-                  <EmptyTitle>No environments available</EmptyTitle>
-                  <EmptyDescription>Connect an environment to manage automations.</EmptyDescription>
+                  <EmptyTitle>
+                    <T>No environments available</T>
+                  </EmptyTitle>
+                  <EmptyDescription>
+                    <T>Connect an environment to manage automations.</T>
+                  </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             )}
@@ -255,6 +263,7 @@ function AutomationEnvironmentList({
   onCreate,
   onEdit,
 }: AutomationListProps & { readonly states: readonly AutomationEnvironmentState[] }) {
+  const gt = useGT();
   const environments = states.map((state) => state.environment);
   const loaded = states.flatMap(({ environment, connected, tasks, timeZone, error }) =>
     connected && error === null && tasks ? [{ environment, tasks, timeZone }] : [],
@@ -285,10 +294,10 @@ function AutomationEnvironmentList({
     }
   }
   const summaries = [
-    ["Not connected:", notConnected],
-    ["Loading automations on", loading],
-    ["Could not load automations:", failed],
-    ["No automations on", empty],
+    [notConnected, gt("Not connected: {environments}", { environments: notConnected.join(", ") })],
+    [loading, gt("Loading automations on {environments}", { environments: loading.join(", ") })],
+    [failed, gt("Could not load automations: {environments}", { environments: failed.join(", ") })],
+    [empty, gt("No automations on {environments}", { environments: empty.join(", ") })],
   ] as const;
 
   return (
@@ -310,17 +319,16 @@ function AutomationEnvironmentList({
       ) : loaded.length > 0 ? (
         <SettingsGroup>
           <NoAutomationsNotice
-            description="Schedule a prompt to keep work moving."
+            description={gt("Schedule a prompt to keep work moving.")}
             creationEnvironment={creationEnvironment}
             onCreate={onCreate}
           />
         </SettingsGroup>
       ) : null}
-      {summaries.map(([label, labels]) => {
+      {summaries.map(([labels, summary]) => {
         if (labels.length === 0) return null;
-        const summary = `${label} ${labels.join(", ")}`;
         return (
-          <Tooltip key={label}>
+          <Tooltip key={summary}>
             <TooltipTrigger
               render={<p className="truncate px-1 text-xs text-muted-foreground" role="status" />}
             >
@@ -343,6 +351,7 @@ function AutomationEnvironmentSection({
   onCreate,
   onEdit,
 }: AutomationListProps & { readonly state: AutomationEnvironmentState }) {
+  const gt = useGT();
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label={environment.label}>
       <h2 className="sr-only">{environment.label}</h2>
@@ -354,19 +363,23 @@ function AutomationEnvironmentSection({
       <SettingsGroup>
         {!connected ? (
           <AutomationNotice
-            title="Environment disconnected"
-            description={`Reconnect ${environment.label} to view its automations.`}
+            title={gt("Environment disconnected")}
+            description={gt("Reconnect {environment} to view its automations.", {
+              environment: environment.label,
+            })}
           />
         ) : error !== null ? (
-          <AutomationNotice title="Could not load automations" description={error} error />
+          <AutomationNotice title={gt("Could not load automations")} description={error} error />
         ) : !tasks ? (
-          <div role="status" aria-label="Loading automations">
-            <span className="sr-only">Loading automations…</span>
+          <div role="status" aria-label={gt("Loading automations")}>
+            <span className="sr-only">
+              <T>Loading automations…</T>
+            </span>
             <AutomationTableSkeleton />
           </div>
         ) : tasks.length === 0 ? (
           <NoAutomationsNotice
-            description="Schedule a prompt to keep work moving in this environment."
+            description={gt("Schedule a prompt to keep work moving in this environment.")}
             creationEnvironment={creationEnvironment}
             onCreate={onCreate}
           />
@@ -390,10 +403,11 @@ function AutomationEnvironmentSection({
 }
 
 function AutomationUnavailableNotice() {
+  const gt = useGT();
   return (
     <AutomationNotice
-      title="Automation unavailable"
-      description="This automation no longer exists or is outside the selected project."
+      title={gt("Automation unavailable")}
+      description={gt("This automation no longer exists or is outside the selected project.")}
     />
   );
 }
@@ -407,19 +421,22 @@ function NoAutomationsNotice({
   readonly creationEnvironment: EnvironmentPresentation | undefined;
   readonly onCreate: (environmentId: EnvironmentId) => void;
 }) {
+  const gt = useGT();
   return (
     <AutomationNotice
-      title="No automations yet"
+      title={gt("No automations yet")}
       description={description}
       action={
         creationEnvironment ? (
           <Button
             variant="outline"
-            aria-label={`Create automation on ${creationEnvironment.label}`}
+            aria-label={gt("Create automation on {environment}", {
+              environment: creationEnvironment.label,
+            })}
             onClick={() => onCreate(creationEnvironment.environmentId)}
           >
             <PlusIcon />
-            Create automation
+            <T>Create automation</T>
           </Button>
         ) : null
       }
