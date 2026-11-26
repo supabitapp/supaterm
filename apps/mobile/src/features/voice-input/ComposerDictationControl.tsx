@@ -433,7 +433,9 @@ export function ComposerDictationLeadingAction(props: {
   if (!action) return null;
   return (
     <SessionCapsuleButton
-      accessibilityLabel={action === "stop" ? "Stop dictation and review" : gt("Cancel dictation")}
+      accessibilityLabel={
+        action === "stop" ? gt("Stop dictation and review") : gt("Cancel dictation")
+      }
       icon={action === "stop" ? "stop.fill" : "xmark"}
       onPress={action === "stop" ? props.onStop : props.onCancel}
       variant="secondary"

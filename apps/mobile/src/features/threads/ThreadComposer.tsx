@@ -607,6 +607,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
+    messages,
   );
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const isExpanded =

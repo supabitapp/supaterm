@@ -1,4 +1,7 @@
 import type { VoiceInputState } from "@supaterm/client-runtime/voice-input";
+import { msg } from "gt-react-native";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export type VoiceComposerPresentation = {
   readonly leadingAction: "cancel" | "stop" | null;
@@ -12,6 +15,7 @@ export type VoiceComposerPresentation = {
 export function resolveVoiceComposerPresentation(
   state: VoiceInputState,
   elapsedSeconds: number,
+  resolve: MessageResolver = m,
 ): VoiceComposerPresentation {
   switch (state.phase) {
     case "idle":
@@ -38,7 +42,7 @@ export function resolveVoiceComposerPresentation(
         trailingAction: "confirm",
         showsSend: false,
         statusKind: "active",
-        statusLabel: "Preparing",
+        statusLabel: resolve(msg("Preparing", { $context: "voice input status" })),
         confirmationEnabled: false,
       };
     case "recording": {
@@ -48,7 +52,11 @@ export function resolveVoiceComposerPresentation(
         trailingAction: "confirm",
         showsSend: false,
         statusKind: "active",
-        statusLabel: `Recording ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`,
+        statusLabel: resolve(
+          msg("Recording {time}", {
+            time: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`,
+          }),
+        ),
         confirmationEnabled: true,
       };
     }
@@ -58,7 +66,7 @@ export function resolveVoiceComposerPresentation(
         trailingAction: "confirm",
         showsSend: false,
         statusKind: "active",
-        statusLabel: "Transcribing",
+        statusLabel: resolve(msg("Transcribing", { $context: "voice input status" })),
         confirmationEnabled: false,
       };
     case "sending":
@@ -67,7 +75,7 @@ export function resolveVoiceComposerPresentation(
         trailingAction: "confirm",
         showsSend: false,
         statusKind: "active",
-        statusLabel: "Saving",
+        statusLabel: resolve(msg("Saving", { $context: "voice input status" })),
         confirmationEnabled: false,
       };
   }

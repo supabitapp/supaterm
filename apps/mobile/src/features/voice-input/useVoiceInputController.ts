@@ -1,5 +1,6 @@
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
+import { msg } from "gt-react-native";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { Keyboard } from "react-native";
 import {
@@ -12,6 +13,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import * as Dialog from "../../components/ui/Dialog";
+import { m } from "../../i18n/messages";
 import { resolveComposerVoiceEngine, type VoiceTranscriptionContext } from "./composerVoiceEngine";
 import { useGlobalVoiceInput } from "./VoiceInputProvider";
 import { createVoiceInputTarget } from "./voiceInputSession";
@@ -90,7 +92,7 @@ export function useVoiceInputController(input: {
       subscribeFrames,
     });
     if (resolution.status === "unavailable") {
-      Dialog.alert("Voice input unavailable", resolution.message);
+      Dialog.alert(m(msg("Voice input unavailable")), resolution.message);
       return;
     }
     stopIntent.current = null;
