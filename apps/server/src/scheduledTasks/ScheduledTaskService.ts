@@ -1105,12 +1105,6 @@ export const layer = Layer.effect(
     const upsert: ScheduledTaskService["Service"]["upsert"] = Effect.fn(
       "ScheduledTaskService.upsert",
     )(function* (input) {
-      // Refused on save rather than at run time; a disabled task can still be saved, so one
-      // stored above the ceiling can be turned off before its mode is lowered.
-      const modeDenial = input.enabled ? runtimeModeDenial(input) : undefined;
-      if (modeDenial !== undefined) {
-        return yield* taskError(modeDenial, input.id === undefined ? {} : { taskId: input.id });
-      }
       const now = yield* localNow;
       const uuid =
         input.commandId === undefined
@@ -1144,6 +1138,12 @@ export const layer = Layer.effect(
       if (threadId !== null && threadId !== existingTask?.threadId) {
         yield* requireDestinationThread(threadId, input.projectId, id);
       }
+      // Refused on save rather than at run time; a disabled task can still be saved, so one
+      // stored above the ceiling can be turned off before its mode is lowered.
+      const modeDenial = input.enabled
+        ? runtimeModeDenial({ threadId, runtimeMode: input.runtimeMode })
+        : undefined;
+      if (modeDenial !== undefined) return yield* taskError(modeDenial, { taskId: id });
       // Keep the existing next_run_at when the schedule itself is untouched:
       // editing a title or prompt must not postpone (or resurrect) a due
       // run — only schedule/enabled changes restart the clock.
