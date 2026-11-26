@@ -210,7 +210,12 @@ describe("file manager", () => {
       [
         {
           environmentId: selected,
-          input: { cwd: openInCwd, editor: "file-manager", reveal: true },
+          input: {
+            cwd: openInCwd,
+            editor: "file-manager",
+            reveal: true,
+            acceptRevealTargetMissing: true,
+          },
         },
       ],
     ]);

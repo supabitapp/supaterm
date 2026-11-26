@@ -715,7 +715,12 @@ function useChatMarkdownState({
     }
     return openInEditor({
       environmentId,
-      input: { cwd: filePath, editor: "file-manager", reveal: true },
+      input: {
+        cwd: filePath,
+        editor: "file-manager",
+        reveal: true,
+        acceptRevealTargetMissing: true,
+      },
     });
   };
   const diffThemeName = resolveDiffThemeName(resolvedTheme);

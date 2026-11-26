@@ -173,7 +173,11 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
 
     const result = await openInEditor({
       environmentId,
-      input: { cwd: absolutePath, editor, ...(reveal ? { reveal: true } : {}) },
+      input: {
+        cwd: absolutePath,
+        editor,
+        ...(reveal ? { reveal: true, acceptRevealTargetMissing: true } : {}),
+      },
     });
     if (result._tag !== "Failure") return;
     toastManager.add({

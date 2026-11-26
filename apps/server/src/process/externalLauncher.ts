@@ -619,7 +619,19 @@ const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
       .exists(target)
       .pipe(Effect.orElseSucceed(() => true));
     if (!exists) {
-      return yield* new ExternalLauncherRevealTargetMissingError({ editor: editorDef.id, target });
+      const missing = new ExternalLauncherRevealTargetMissingError({
+        editor: editorDef.id,
+        target,
+      });
+      return yield* input.acceptRevealTargetMissing === true
+        ? missing
+        : new ExternalLauncherEditorSpawnError({
+            editor: editorDef.id,
+            target,
+            command,
+            args: [],
+            cause: missing,
+          });
     }
     return yield* resolveFileManagerRevealLaunch(target, platform, env, command);
   }
