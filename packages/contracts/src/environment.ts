@@ -181,6 +181,9 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Serves a draft's workspace file with `disposition: "attachment"`. Older servers drop the
       field and refuse text files, so a draft keeps its first megabyte there. */
   draftFileDownloads: Schema.optionalKey(Schema.Boolean),
+  /** Applies the `modelSelection` of queued-run.edit. Older servers save the text and keep the
+      run's model. */
+  queuedRunModelEdit: Schema.optionalKey(Schema.Boolean),
   /**
    * The server config's flags of the same names. A server that names them here lets a client
    * load the shell snapshot before the socket opens, and answers its `resumeFrom`.

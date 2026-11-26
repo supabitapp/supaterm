@@ -46,6 +46,7 @@ import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import { v2Now, v2Projection, v2ThreadId } from "../state/orchestrationV2TestFixtures.ts";
 import {
   archiveThread,
+  editQueuedRun,
   interruptThreadTurn,
   promoteQueuedRun,
   revertThreadCheckpoint,
@@ -81,6 +82,7 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
   readonly projectionRequests?: ThreadId[];
   readonly advertiseThreadStop?: boolean;
   readonly advertiseQueuedRunStart?: boolean;
+  readonly advertiseQueuedRunModelEdit?: boolean;
 }) {
   const client = {
     [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command: OrchestrationV2Command) =>
@@ -129,6 +131,7 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
         capabilities: {
           ...(input.advertiseThreadStop === true ? { threadStop: true } : {}),
           ...(input.advertiseQueuedRunStart === true ? { queuedRunStart: true } : {}),
+          ...(input.advertiseQueuedRunModelEdit === true ? { queuedRunModelEdit: true } : {}),
         },
       },
     } as never),
@@ -215,6 +218,80 @@ describe("V2 environment commands", () => {
         { type: "queue.resume", commandId: "send-selected", threadId: v2ThreadId },
       ]);
     }).pipe(Effect.provide(layerTestRandom)),
+  );
+
+  it.effect.each([
+    { applies: true, follows: false, model: "model-b", sent: true },
+    { applies: false, follows: false, model: "model-b", sent: false },
+    { applies: false, follows: false, model: "model-a", sent: true },
+    { applies: false, follows: true, model: "thread-model", sent: true },
+    { applies: false, follows: true, model: "model-a", sent: false },
+  ])(
+    "sends a queued edit's model $model to a server applying it $applies, following the thread $follows: $sent",
+    ({ applies, follows, model, sent }) =>
+      Effect.gen(function* () {
+        const commands: OrchestrationV2Command[] = [];
+        const instanceId = ProviderInstanceId.make("codex");
+        const supervisor = yield* makeSupervisor({
+          commands,
+          projects: [],
+          advertiseQueuedRunModelEdit: applies,
+          projection: {
+            ...v2Projection,
+            thread: {
+              ...v2Projection.thread,
+              modelSelection: { instanceId, model: "thread-model" },
+            },
+            runs: [
+              {
+                id: RunId.make("queued"),
+                status: "queued",
+                userMessageId: MessageId.make("queued-message"),
+                modelSelection: { instanceId, model: "model-a" },
+              },
+            ],
+            messages: [
+              {
+                id: MessageId.make("queued-message"),
+                ...(follows ? { followsThreadSelection: true } : {}),
+              },
+            ],
+          } as unknown as OrchestrationV2ThreadProjection,
+        });
+        const result = yield* editQueuedRun({
+          commandId: CommandId.make("edit"),
+          threadId: v2ThreadId,
+          runId: RunId.make("queued"),
+          text: "Revised prompt",
+          modelSelection: { instanceId, model },
+        }).pipe(
+          Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
+          Effect.result,
+        );
+
+        if (!sent) {
+          expect(commands).toEqual([]);
+          expect(result).toMatchObject({
+            _tag: "Failure",
+            failure: {
+              _tag: "EnvironmentRpcUnavailableError",
+              message:
+                "Update Supaterm on Test environment to change a queued message's model. Your edit is still in the composer.",
+            },
+          });
+        } else {
+          expect(commands).toEqual([
+            {
+              type: "queued-run.edit",
+              commandId: "edit",
+              threadId: v2ThreadId,
+              runId: "queued",
+              text: "Revised prompt",
+              modelSelection: { instanceId, model },
+            },
+          ]);
+        }
+      }).pipe(Effect.provide(layerTestRandom)),
   );
 
   it.effect("preserves caller command ids for idempotent V2 commands", () =>

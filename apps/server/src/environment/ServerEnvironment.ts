@@ -240,6 +240,7 @@ export const make = Effect.gen(function* () {
       deferredSteering: true,
       pullRequestReviewHeadPin: true,
       draftFileDownloads: true,
+      queuedRunModelEdit: true,
       npmReleaseLookup: true,
       secretSourceCheck: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
