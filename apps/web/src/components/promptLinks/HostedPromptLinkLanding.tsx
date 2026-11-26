@@ -25,6 +25,8 @@ const Opener = Schema.NullOr(Schema.Literals(["app", "browser"]));
 const DOWNLOAD_URL = "https://supaterm.com/download";
 
 interface LinkSummary {
+  readonly title: string;
+  readonly description: string;
   readonly prompt: LinkedPrompt | null;
   readonly details: ReadonlyArray<string>;
 }
@@ -33,11 +35,22 @@ function summarize(
   appPath: string,
   resolve: MessageResolver,
 ): { ok: true; value: LinkSummary } | { ok: false; error: string } {
+  const PROMPT_HEADER = {
+    title: resolve(msg("Open this prompt")),
+    description: resolve(msg("It opens as a draft. Nothing runs until you press Send.")),
+  };
   const url = new URL(appPath, window.location.origin);
   if (url.pathname !== "/new") {
     const prompt = parseThreadLinkPrompt(url.search, resolve);
     return prompt.ok
-      ? { ok: true, value: { prompt: prompt.value, details: ["Opens one of your threads."] } }
+      ? {
+          ok: true,
+          value: {
+            ...PROMPT_HEADER,
+            prompt: prompt.value,
+            details: [resolve(msg("Opens one of your threads."))],
+          },
+        }
       : prompt;
   }
   const link = parseNewThreadLink(url.search, resolve);
@@ -46,17 +59,32 @@ function summarize(
     const { owner, name, number } = link.value.pullRequest;
     return {
       ok: true,
-      value: { prompt: link.value.prompt, details: [`Pull request ${owner}/${name}#${number}`] },
+      value: {
+        ...PROMPT_HEADER,
+        prompt: link.value.prompt,
+        details: [
+          resolve(msg("Pull request {pullRequest}", { pullRequest: `${owner}/${name}#${number}` })),
+        ],
+      },
     };
   }
   const { repository, provider, model } = link.value;
   return {
     ok: true,
     value: {
+      ...PROMPT_HEADER,
       prompt: link.value.prompt,
       details: [
-        repository ? `Repository ${repository.owner}/${repository.name}` : "No project",
-        ...(provider ? [`Model ${model ? `${provider} ${model}` : provider}`] : []),
+        repository
+          ? resolve(
+              msg("Repository {repository}", {
+                repository: `${repository.owner}/${repository.name}`,
+              }),
+            )
+          : resolve(msg("No project")),
+        ...(provider
+          ? [resolve(msg("Model {model}", { model: model ? `${provider} ${model}` : provider }))]
+          : []),
       ],
     },
   };
@@ -129,13 +157,10 @@ function HostedPromptLinkLanding({
     );
   }
 
-  const { prompt, details } = summary.value;
+  const { title, description, prompt, details } = summary.value;
   return (
     <StandalonePage>
-      <StandalonePageHeader
-        title={msg("Open this prompt")}
-        description={msg("It opens as a draft. Nothing runs until you press Send.")}
-      />
+      <StandalonePageHeader title={title} description={description} />
       {prompt !== null && prompt.hiddenCharacters > 0 ? (
         <Alert className="mt-5" variant="error">
           <AlertTitle>

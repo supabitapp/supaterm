@@ -1,7 +1,7 @@
 import type { ChatAttachment } from "@supaterm/contracts";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
-import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
+import { composerFileLinksToPlainText } from "@supaterm/shared/composerMentionTokens";
 import { truncate } from "@supaterm/shared/String";
 import { msg } from "gt-i18n";
 

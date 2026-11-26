@@ -5,6 +5,7 @@ import {
   useClientSettingsHydrated,
   updateClientSettings,
 } from "~/hooks/useSettings";
+import type { MessageResolver } from "~/i18n/messages";
 import type { EnvironmentPresentation } from "~/state/environments";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
@@ -20,6 +21,12 @@ const preferences = [
   { value: 0, label: msg("Manual only") },
 ] as const;
 
+const summaryLabels = {
+  100: msg("{environment} prefer"),
+  25: msg("{environment} less often"),
+  0: msg("{environment} manual only"),
+} as const;
+
 type LoadPreference = (typeof preferences)[number]["value"];
 
 function loadPreferenceForWeight(weight: number | undefined): LoadPreference {
@@ -28,19 +35,16 @@ function loadPreferenceForWeight(weight: number | undefined): LoadPreference {
   return weight < 50 ? 25 : 100;
 }
 
-function preferenceLabel(preference: LoadPreference): string {
-  return preferences.find((entry) => entry.value === preference)!.label;
-}
-
 function summarizeLoadPreferences(
   environments: ReadonlyArray<Pick<EnvironmentPresentation, "environmentId" | "label">>,
   weights: Readonly<Record<string, number>>,
+  resolve: MessageResolver,
 ): string | null {
   const parts = environments.flatMap((environment) => {
     const preference = loadPreferenceForWeight(weights[environment.environmentId]);
     return preference === 50
       ? []
-      : [`${environment.label} ${preferenceLabel(preference).toLowerCase()}`];
+      : [resolve(summaryLabels[preference], { environment: environment.label })];
   });
   return parts.length === 0 ? null : parts.join(" · ");
 }
@@ -69,7 +73,7 @@ export function LoadBalancingSettings({
       title={title}
       summary={
         settings.loadBalancingEnabled
-          ? summarizeLoadPreferences(environments, settings.loadBalancingWeights)
+          ? summarizeLoadPreferences(environments, settings.loadBalancingWeights, m)
           : gt("Off", { $context: "load balancing is turned off" })
       }
       control={

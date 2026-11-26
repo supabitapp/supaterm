@@ -10,13 +10,13 @@ import { ThreadOutboxCoordinator } from "./components/ThreadOutboxCoordinator";
 // Keep webviews outside the router but inside its atom registry so route changes preserve them.
 export function AppRoot({ router }: { readonly router: AppRouter }) {
   return (
-    <AppAtomRegistryProvider>
-      <I18nProvider>
+    <I18nProvider>
+      <AppAtomRegistryProvider>
         <RouterProvider router={router} />
-      </I18nProvider>
-      <ThreadOutboxCoordinator />
-      <ElectronBrowserHost />
-      <DesktopUpdateRestartScreen />
-    </AppAtomRegistryProvider>
+        <ThreadOutboxCoordinator />
+        <ElectronBrowserHost />
+        <DesktopUpdateRestartScreen />
+      </AppAtomRegistryProvider>
+    </I18nProvider>
   );
 }

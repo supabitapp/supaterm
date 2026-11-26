@@ -283,6 +283,10 @@
       "types": "./src/composerInlineTokens.ts",
       "import": "./src/composerInlineTokens.ts"
     },
+    "./composerMentionTokens": {
+      "types": "./src/composerMentionTokens.ts",
+      "import": "./src/composerMentionTokens.ts"
+    },
     "./composerPromptTokens": {
       "types": "./src/composerPromptTokens.ts",
       "import": "./src/composerPromptTokens.ts"

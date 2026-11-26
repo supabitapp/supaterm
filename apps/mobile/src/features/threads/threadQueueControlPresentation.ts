@@ -4,7 +4,7 @@ import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
-import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
+import { composerFileLinksToPlainText } from "@supaterm/shared/composerMentionTokens";
 import { msg } from "gt-react-native";
 
 export const REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL = msg("Remove queued message");

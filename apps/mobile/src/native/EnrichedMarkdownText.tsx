@@ -26,11 +26,13 @@ import {
 import { Platform, Share, StyleSheet, useWindowDimensions, View } from "react-native";
 import {
   EnrichedMarkdownText,
+  type AccessibilityLabels,
   type MarkdownCodeBlock,
   type MarkdownImageBlock,
   type MarkdownImageOccurrence,
   type MarkdownLinkOccurrence,
   type MarkdownStyle,
+  type TextSelectionMenuConfig,
 } from "react-native-enriched-markdown";
 import { codeFenceRenderer } from "./codeBlockMarkdown";
 import { HighlightedCodeBlock } from "./HighlightedCodeBlock";
@@ -188,6 +190,8 @@ function codeBlockElement(
   markdownStyle: MarkdownStyle,
   mathRenderingEnabled: boolean,
   scheme: HighlightScheme,
+  accessibilityLabels: AccessibilityLabels,
+  selectionMenuConfig: TextSelectionMenuConfig,
 ): ReactElement | undefined {
   const renderer = codeFenceRenderer(block.language, mathRenderingEnabled);
   if (renderer.kind === "math") {
@@ -202,6 +206,8 @@ function codeBlockElement(
         selectable
         selectionColor={textStyle.selectionColor}
         selectionHandleColor={textStyle.selectionHandleColor}
+        accessibilityLabels={accessibilityLabels}
+        selectionMenuConfig={selectionMenuConfig}
       />
     ) : undefined;
   }
@@ -234,6 +240,39 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
   const gt = useGT();
   const { renderImage, resolveImageSource, fileEmbedLabel } = props;
   const { themeAppearance, mathRenderingEnabled } = useAppearancePreferences();
+  // The library fills in {n}, {content} and {speech} itself when VoiceOver or TalkBack speaks.
+  const accessibilityLabels = useMemo<AccessibilityLabels>(
+    () => ({
+      list: {
+        bulletPoint: gt("Bullet point"),
+        nestedBulletPoint: gt("Nested bullet point"),
+        orderedItem: gt("List item {n}", { n: "{n}" }),
+        nestedOrderedItem: gt("Nested list item {n}", { n: "{n}" }),
+      },
+      blockquote: { quote: gt("Blockquote"), nestedQuote: gt("Nested blockquote") },
+      table: { row: gt("Row {n}: {content}", { n: "{n}", content: "{content}" }) },
+      math: { equation: gt("Math: {speech}", { speech: "{speech}" }) },
+      codeBlock: { wrap: gt("Wrap lines"), unwrap: gt("Disable line wrap") },
+      rotor: {
+        headings: gt("Headings", { $context: "screen reader rotor category" }),
+        links: gt("Links", { $context: "screen reader rotor category" }),
+        images: gt("Images", { $context: "screen reader rotor category" }),
+      },
+    }),
+    [gt],
+  );
+  // The library's built-in selection menu items default to English labels.
+  const selectionMenuConfig = useMemo<TextSelectionMenuConfig>(
+    () => ({
+      copy: { label: gt("Copy", { $context: "verb" }) },
+      copyAsMarkdown: { label: gt("Copy as Markdown") },
+      copyImageUrl: {
+        label: gt("Copy Image URL"),
+        pluralLabels: { other: gt("Copy {count} Image URLs", { count: "{count}" }) },
+      },
+    }),
+    [gt],
+  );
   const {
     markdown,
     sources: mermaidSources,
@@ -407,8 +446,17 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
         baseMarkdownStyle,
         mathRenderingEnabled,
         themeAppearance,
+        accessibilityLabels,
+        selectionMenuConfig,
       ),
-    [props.textStyle, baseMarkdownStyle, mathRenderingEnabled, themeAppearance],
+    [
+      props.textStyle,
+      baseMarkdownStyle,
+      mathRenderingEnabled,
+      themeAppearance,
+      accessibilityLabels,
+      selectionMenuConfig,
+    ],
   );
   const renderers = {
     image: renderImage || mermaidSources.size > 0 ? renderImageBlock : undefined,
@@ -465,6 +513,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
           flavor="github"
           selectable
           selectionClipboard={selectionClipboard}
+          selectionMenuConfig={selectionMenuConfig}
           contextMenuItems={contextMenuItems}
           selectionColor={props.textStyle.selectionColor}
           selectionHandleColor={props.textStyle.selectionHandleColor}
@@ -484,6 +533,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
           onLinkLongPress={onLinkLongPress}
           linkContextMenuItems={linkContextMenuItems}
           linkPillContent={linkPillContent}
+          accessibilityLabels={accessibilityLabels}
         />
       </View>
     );
