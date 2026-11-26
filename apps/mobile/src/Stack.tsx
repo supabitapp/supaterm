@@ -570,7 +570,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
     }),
     SideChatDraft: createNativeStackScreen({
       screen: SideChatDraftRouteScreen,
-      options: pageRoute({ title: "Side chat" }),
+      options: pageRoute({ title: msg("Side chat") }),
     }),
     NewTaskProject: createNativeStackScreen({
       screen: NewTaskRouteScreen,
@@ -807,7 +807,10 @@ function ScreenRenderFallback(props: RenderFailureProps & { readonly routeName: 
           label: gt("Open settings"),
           onPress: () => openSettings(navigation, DEFAULT_SETTINGS_PAGE),
         }
-      : { label: "Return home", onPress: () => navigation.dispatch(StackActions.replace("Home")) };
+      : {
+          label: gt("Return home"),
+          onPress: () => navigation.dispatch(StackActions.replace("Home")),
+        };
 
   return <RenderFailureView {...props} exit={exit} />;
 }

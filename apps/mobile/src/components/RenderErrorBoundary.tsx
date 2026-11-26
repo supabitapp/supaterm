@@ -31,6 +31,7 @@ function errorDetails(error: unknown, componentStack?: string): string {
   } catch {
     description = "Unknown render error";
   }
+  // oxlint-disable-next-line supaterm/no-untranslated-copy -- crash report text shared with maintainers
   return componentStack ? `${description}\nComponent stack:\n${componentStack}` : description;
 }
 
