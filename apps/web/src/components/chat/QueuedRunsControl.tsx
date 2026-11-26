@@ -230,7 +230,9 @@ export function QueuedRunsControl({
       className="relative mx-auto flex w-full max-w-(--chat-content-max-width) flex-col gap-2 pb-4"
     >
       <span className="sr-only" aria-live="polite">
-        {`${items.length} queued`}
+        {gt("{count, plural, one {{count} queued} other {{count} queued}}", {
+          count: items.length,
+        })}
       </span>
       <ol className="flex flex-col items-end gap-3" id={queueListId}>
         {visibleItems.map((item, position) => {

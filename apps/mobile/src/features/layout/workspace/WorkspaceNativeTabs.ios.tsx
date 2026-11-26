@@ -285,6 +285,7 @@ export function WorkspaceNativeTabs(props: {
               key={COMPOSE_TAB}
               screenKey={COMPOSE_TAB}
               title={gt("New chat")}
+              tabBarItemAccessibilityLabel={gt("New chat")}
               preventNativeSelection
               ios={{
                 role: "search",

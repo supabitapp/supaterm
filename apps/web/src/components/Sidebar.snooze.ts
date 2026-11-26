@@ -12,8 +12,7 @@ import { serverEnvironment } from "../state/server";
 import { formatShortTimestamp } from "../timestampFormat";
 import { toastManager } from "./ui/toast";
 import { msg } from "gt-react";
-import { m } from "../i18n/messages";
-import { type MessageResolver } from "../i18n/messages";
+import { m, type MessageResolver } from "../i18n/messages";
 
 export { snoozeWakeLabel, type SnoozePreset };
 
@@ -22,8 +21,12 @@ export function resolveSnoozePresets(
   now: Date,
   timestampFormat: TimestampFormat,
   environmentId: EnvironmentId,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<SnoozePreset> {
-  return resolveSharedSnoozePresets(now, snoozeOptions(timestampFormat, environmentId));
+  return resolveSharedSnoozePresets(now, {
+    ...snoozeOptions(timestampFormat, environmentId),
+    resolve,
+  });
 }
 
 /** A shown menu choice as picked; see the shared `pickSnoozePreset`. */
@@ -39,6 +42,7 @@ export function pickSnoozePreset(
     id,
     now: new Date(),
     ...snoozeOptions(timestampFormat, environmentId),
+    resolve,
   });
   if (!picked) {
     toastManager.add({

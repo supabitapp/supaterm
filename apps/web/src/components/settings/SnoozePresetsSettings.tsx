@@ -257,7 +257,11 @@ function SnoozePresetList(props: {
     return { tone: "menu", label: resolved.label, when: resolved.whenLabel } as const;
   });
 
-  const menuPresets = resolveSnoozePresets(now, { presets: props.presets, formatTime });
+  const menuPresets = resolveSnoozePresets(now, {
+    presets: props.presets,
+    formatTime,
+    resolve: messages,
+  });
   const repeatedLabels = new Set(
     menuPresets
       .map((preset) => preset.label)

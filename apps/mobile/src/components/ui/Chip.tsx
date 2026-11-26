@@ -81,7 +81,7 @@ export function Chip(props: {
       onPress={props.onPress}
       hitSlop={6}
       className={cn(
-        small && "min-h-11 justify-center",
+        small && "min-h-[44px] justify-center",
         props.disabled ? "opacity-45" : "active:opacity-70",
       )}
     >

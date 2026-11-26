@@ -16,6 +16,7 @@ import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import { AsyncResult, type Atom, AtomRegistry } from "effect/reactivity";
 import * as DateTime from "effect/DateTime";
+import { GTProvider } from "gt-react";
 import { createRef, Profiler, useState, type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
@@ -90,6 +91,7 @@ import "~/index.css";
 import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@supaterm/client-runtime/state/threads";
 
 import { act, render as renderUi } from "../../../test/render";
+import de from "../../i18n/translations/de.json";
 import { threadEnvironment } from "../../state/threads";
 import { makeStreamingTimelineFixture, makeThreadProjectionFixture } from "../../test-fixtures";
 import { ToastProvider } from "../ui/toast";
@@ -302,6 +304,34 @@ describe("QueuedRunsControl editLatest", () => {
 
     expect(ref.current?.editLatest(false)).toBe(false);
   });
+});
+
+it("announces the queued count in German", async () => {
+  setup();
+  state.workflow = {
+    activeRun: null,
+    queuedRuns: ["first", "second"].map((id) => ({
+      run: { id: `run:${id}`, userMessageId: `message:${id}` },
+      text: id,
+      attachments: [],
+    })),
+  };
+  await using screen = await renderUi(
+    <GTProvider
+      locale="de"
+      translations={{
+        de: Object.fromEntries(
+          Object.entries(de).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        ),
+      }}
+    >
+      <QueuedRunsControl {...baseProps} />
+    </GTProvider>,
+  );
+
+  expect(screen.container.querySelector("[aria-live]")?.textContent).toBe("2 eingereiht");
 });
 
 it("previews assistant quotes as readable text and preserves the citation when editing", async () => {
