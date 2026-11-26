@@ -164,7 +164,7 @@ export function useComposerContextImport(input: {
     const fail = (reason: string) => {
       toastManager.add({
         type: "error",
-        title: `Couldn't bring ${record.name} into this message`,
+        title: m(msg("Couldn't bring {name} into this message", { name: record.name })),
         description: m(msg("{reason} Remove the chip or attach the file again.", { reason })),
       });
     };

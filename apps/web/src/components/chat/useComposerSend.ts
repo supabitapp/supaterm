@@ -433,13 +433,25 @@ export function useComposerSend(input: ComposerSendInput) {
       })[0];
       if (!strandedThread) return false;
       const owner =
-        readEnvironmentPresentation(strandedThread.environmentId)?.entry.target.label ??
-        "its machine";
+        readEnvironmentPresentation(strandedThread.environmentId)?.entry.target.label ?? null;
       toastManager.add(
         stackedThreadToast({
           type: "warning",
           title: m(msg("Attached thread is on another machine")),
-          description: `This machine's agent can't read "${strandedThread.title}". Remove it, or switch back to ${owner} to send.`,
+          description:
+            owner === null
+              ? m(
+                  msg(
+                    "This machine's agent can't read \"{title}\". Remove it, or switch back to its machine to send.",
+                    { title: strandedThread.title },
+                  ),
+                )
+              : m(
+                  msg(
+                    "This machine's agent can't read \"{title}\". Remove it, or switch back to {owner} to send.",
+                    { title: strandedThread.title, owner },
+                  ),
+                ),
         }),
       );
       return true;
@@ -563,7 +575,7 @@ export function useComposerSend(input: ComposerSendInput) {
     if (multipleModelBlock === "environment-disconnected") {
       setThreadError(
         activeThread.id,
-        "Connect to this environment before starting multiple models.",
+        m(msg("Connect to this environment before starting multiple models.")),
       );
       return;
     }
@@ -1147,7 +1159,7 @@ export function useComposerSend(input: ComposerSendInput) {
       const error = squashAtomCommandFailure(sendResult);
       setThreadError(
         threadIdForSend,
-        error instanceof Error ? error.message : "Could not save the pending message.",
+        error instanceof Error ? error.message : m(msg("Could not save the pending message.")),
       );
     }
     sendInFlightRef.current = false;

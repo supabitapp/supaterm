@@ -126,7 +126,12 @@ export function useAutoBalanceUpdateBanner(
       </Popover>
     ),
     description:
-      manual > 0 ? `${manual} ${manual === 1 ? "needs" : "need"} a manual update` : undefined,
+      manual > 0
+        ? gt(
+            "{manual, plural, one {{manual} needs a manual update} other {{manual} need a manual update}}",
+            { manual },
+          )
+        : undefined,
     actions:
       running === 0 && targets.length > 0 ? (
         <ServerUpdatesAction
@@ -137,7 +142,10 @@ export function useAutoBalanceUpdateBanner(
               ? gt("Retry", { $context: "verb, retries the server updates" })
               : targets.length === machines.length
                 ? gt("Update all")
-                : `Update ${targets.length} ${targets.length === 1 ? "machine" : "machines"}`
+                : gt(
+                    "{count, plural, one {Update {count} machine} other {Update {count} machines}}",
+                    { count: targets.length },
+                  )
           }
         />
       ) : undefined,

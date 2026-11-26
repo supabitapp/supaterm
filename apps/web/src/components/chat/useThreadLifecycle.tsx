@@ -620,7 +620,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
             ? gt("Done {time}", { time: formatRelativeTimeLabel(activeDoneAt, nowMs) })
             : gt("Done", { $context: "thread status" })
         }
-        actionLabel={isReopening ? "Reopening..." : gt("Reopen")}
+        actionLabel={isReopening ? gt("Reopening...") : gt("Reopen")}
         actionDisabled={!canOperateThread || isReopening}
         onAction={() => void handleReopenActiveThreadStable()}
       />

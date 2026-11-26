@@ -99,7 +99,7 @@ import { useTimelineDisclosure } from "./timelineDisclosure";
 import { WorkflowOpeningBlock } from "./WorkflowOpeningBlock";
 import { useTallEnoughToFold } from "./useTallEnoughToFold";
 import { isPinnableProjectedItem, MessagePinButton, useMessagePinned } from "./PinnedMessages";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 // Drawn inside the media so dark screenshots keep an edge on the dark background.
 const MEDIA_EDGE_CLASS_NAME =
@@ -182,7 +182,11 @@ function UserFileCard({
             >
               <DownloadIcon />
             </TooltipTrigger>
-            <TooltipPopup side="top">Download {label}</TooltipPopup>
+            <TooltipPopup side="top">
+              <T>
+                Download <Var>{label}</Var>
+              </T>
+            </TooltipPopup>
           </Tooltip>
         </>
       )}
@@ -1029,7 +1033,11 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                           >
                             <DownloadIcon />
                           </TooltipTrigger>
-                          <TooltipPopup side="top">Download {label}</TooltipPopup>
+                          <TooltipPopup side="top">
+                            <T>
+                              Download <Var>{label}</Var>
+                            </T>
+                          </TooltipPopup>
                         </Tooltip>
                       </div>
                     );

@@ -14,6 +14,8 @@ import type { OutboxTurn } from "../../state/threadOutboxSchema";
 import type { EditQueuedRunRequest } from "./QueuedRunsControl";
 import { useQueuedRunEdit } from "./useQueuedRunEdit";
 import { usePaneInputOwner, usePaneThreadNavigation } from "../../chatPanes/paneScope";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 /**
  * Queued-run and outbox-message edits share the composer, so starting either cancels the other.
@@ -93,7 +95,7 @@ export function useQueuedRunEditWithOutbox(input: Parameters<typeof useQueuedRun
       const error = squashAtomCommandFailure(saveResult);
       setThreadError(
         routeThreadRef.threadId,
-        error instanceof Error ? error.message : "Could not save the pending message.",
+        error instanceof Error ? error.message : m(msg("Could not save the pending message.")),
       );
     } else {
       setThreadError(routeThreadRef.threadId, null);

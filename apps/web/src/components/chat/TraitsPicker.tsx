@@ -57,7 +57,7 @@ import {
 } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
-import { msg, T } from "gt-react";
+import { msg, T, useGT } from "gt-react";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
 
@@ -382,6 +382,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
   omitToggleOnlyOptions = false,
   ...persistence
 }: TraitsMenuContentProps & TraitsPersistence & { omitToggleOnlyOptions?: boolean }) {
+  const gt = useGT();
   const modelSelection =
     instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null;
   const updateModelOptions = useUpdateModelOptions(provider, instanceId, model, persistence);
@@ -475,8 +476,9 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
               </div>
               {ultrathinkInBodyText && descriptor.id === primarySelectDescriptor?.id ? (
                 <div className="px-2 pb-1.5 text-muted-foreground/80 text-xs">
-                  Your prompt contains &quot;ultrathink&quot; in the text. Remove it to change this
-                  option.
+                  {gt(
+                    'Your prompt contains "ultrathink" in the text. Remove it to change this option.',
+                  )}
                 </div>
               ) : null}
               <MenuRadioGroup
@@ -530,7 +532,11 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
                 {(["on", "off"] as const).map((value) => (
                   <MenuRadioItem key={value} value={value} hideIndicator closeOnClick>
                     <span className="flex w-full min-w-0 items-center justify-between gap-3">
-                      <span>{value === "on" ? "On" : "Off"}</span>
+                      <span>
+                        {value === "on"
+                          ? gt("On", { $context: "option state" })
+                          : gt("Off", { $context: "option state" })}
+                      </span>
                     </span>
                   </MenuRadioItem>
                 ))}
@@ -562,6 +568,7 @@ function SpeedToggleControl({
   shortcutLabel: string | null;
   onSelect: (value: string | boolean) => void;
 }) {
+  const gt = useGT();
   const composerFloatingLayerProps = useComposerMenuProps();
   const choices = getSpeedToggleChoices(speedToggle, descriptors);
   const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled || !choices);
@@ -576,7 +583,7 @@ function SpeedToggleControl({
       {...(choices
         ? { "aria-label": SPEED_TOGGLE_LABELS[speedToggle.level] }
         : {
-            "aria-label": "Fast mode",
+            "aria-label": gt("Fast mode"),
             "aria-pressed": speedOn,
             onClick: () => onSelect(getSpeedToggleNextValue(speedToggle)),
           })}
@@ -620,7 +627,11 @@ function SpeedToggleControl({
                 )}
               />
               <span className="flex min-w-0 flex-1 flex-col">
-                <span>{choice.level === "fast" ? "Fast" : "Ultrafast"}</span>
+                <span>
+                  {choice.level === "fast"
+                    ? gt("Fast", { $context: "model speed" })
+                    : gt("Ultrafast", { $context: "model speed" })}
+                </span>
                 {choice.description ? (
                   <span className="max-w-56 text-pretty text-muted-foreground/80 text-xs">
                     {choice.description}

@@ -30,7 +30,7 @@ import { resolveExternalWebLinkHref } from "./externalLinkContextMenu";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { ShellCommandBlock } from "./ShellCommandBlock";
 import { useInitialOutputReady } from "./timelineRowContext";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 interface V2ItemInspectorProps {
   readonly onInitialOutputReady?: (() => void) | undefined;
@@ -169,7 +169,11 @@ function ToolOutput(props: ToolOutputState) {
       <T>Loading output…</T>
     </div>
   ) : props.error ? (
-    <div className="text-destructive">Couldn&apos;t load output: {props.error}</div>
+    <div className="text-destructive">
+      <T>
+        Couldn&apos;t load output: <Var>{props.error}</Var>
+      </T>
+    </div>
   ) : props.empty && props.images.length === 0 ? (
     <div className="text-muted-foreground italic">
       <T>No output.</T>
