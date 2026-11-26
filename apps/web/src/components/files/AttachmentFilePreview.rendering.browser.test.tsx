@@ -1117,11 +1117,13 @@ it.each([
 
 describe("binary workspace file", () => {
   it("offers a download instead of reading a text-named binary as text", async () => {
-    refresh.mockReset().mockResolvedValue("data:application/octet-stream,a%00b");
-    using _fetch = stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(new Uint8Array([0x61, 0x00, 0x62]))),
+    const fileUrl = "data:application/octet-stream,a%00b";
+    refresh.mockReset().mockResolvedValue(fileUrl);
+    const read = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(new Uint8Array([0x61, 0x00, 0x62])),
     );
+    using _fetch = stubGlobal("fetch", read);
     await using screen = await render(
       <AttachmentFilePreview
         name="export.csv"
@@ -1151,6 +1153,10 @@ describe("binary workspace file", () => {
     expect(container.textContent).toContain("No preview for this file");
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Show table"]')).toBeNull();
-    expect(fetch).not.toHaveBeenCalled();
+    // Importing the theme starts the connection runtime, which polls for the primary environment.
+    const requested = read.mock.calls.map(([input]) =>
+      input instanceof Request ? input.url : String(input),
+    );
+    expect(requested).not.toContain(fileUrl);
   });
 });
