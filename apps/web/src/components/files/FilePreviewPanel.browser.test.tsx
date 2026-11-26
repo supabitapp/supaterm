@@ -1,5 +1,10 @@
 import { DEFAULT_THEMES, preloadHighlighter } from "@pierre/diffs";
-import { EnvironmentId, ThreadId, type ProjectReadFileResult } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ThreadId,
+  type ProjectReadFileResult,
+  type ScopedThreadRef,
+} from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { StrictMode, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -22,6 +27,7 @@ const state = vi.hoisted(() => ({
   mintUrl: vi.fn<() => Promise<string | null>>(),
   browserAssetMints: 0,
   openedBrowserUrls: [] as string[],
+  draftFileDownloads: false,
 }));
 
 vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => ({
@@ -46,9 +52,15 @@ vi.mock(import("~/state/server"), async (original) => {
   const actual = await original();
   const { Atom } = await import("effect/reactivity");
   const noConfig = Atom.make(null);
+  const draftDownloads = Atom.make({
+    environment: { capabilities: { draftFileDownloads: true } },
+  });
   return {
     ...actual,
-    serverEnvironment: { ...actual.serverEnvironment, configValueAtom: (() => noConfig) as never },
+    serverEnvironment: {
+      ...actual.serverEnvironment,
+      configValueAtom: (() => (state.draftFileDownloads ? draftDownloads : noConfig)) as never,
+    },
   };
 });
 vi.mock(import("~/remoteOpen"), async (original) => ({
@@ -169,6 +181,7 @@ vi.mock(import("./projectFilesQueryState"), async (original) => ({
   confirmProjectFileQueryData: () => true,
 }));
 
+import { DraftId } from "~/composerDraftStore";
 import FilePreviewPanel from "./FilePreviewPanel";
 
 const environmentId = EnvironmentId.make("markdown-preview-test");
@@ -183,6 +196,7 @@ function setup() {
   state.assetUrl = { _tag: "Loading" };
   state.assetResources = [];
   state.openedBrowserUrls = [];
+  state.draftFileDownloads = false;
   let mints = 0;
   state.mintUrl.mockReset().mockImplementation(async () => `/assets/report.docx?mint=${++mints}`);
   state.writeFile.mockReset().mockResolvedValue(AsyncResult.success(undefined));
@@ -215,6 +229,7 @@ function filePreview(
   relativePath: string,
   workspaceMutationId: string | null = null,
   revealLine: number | null = null,
+  composerDraftTarget: ScopedThreadRef | DraftId = threadRef,
 ) {
   return (
     <FilePreviewPanel
@@ -223,7 +238,7 @@ function filePreview(
       projectName="Project"
       relativePath={relativePath}
       threadRef={threadRef}
-      composerDraftTarget={threadRef}
+      composerDraftTarget={composerDraftTarget}
       keybindings={[]}
       availableEditors={[]}
       openInShortcutEnabled={false}
@@ -629,6 +644,42 @@ describe("source file scroll", () => {
     };
     await vi.waitFor(() => expect(visibleLines()).toContain(801));
   });
+});
+
+describe("large draft files", () => {
+  it.each([false, true])(
+    "downloads a large draft file only from a server that serves draft downloads: %s",
+    async (draftFileDownloads) => {
+      using _settings = setup();
+      state.draftFileDownloads = draftFileDownloads;
+      // An older server refuses the download, as it does a text file it cannot preview.
+      if (!draftFileDownloads) state.assetUrl = { _tag: "Failure" };
+      state.file = {
+        relativePath: "notes.txt",
+        contents: "The first megabyte of notes\n",
+        byteLength: 1_200_000,
+        truncated: true,
+      };
+      await using screen = await render(
+        filePreview("notes.txt", null, null, DraftId.make("draft-1")),
+      );
+      const download = {
+        _tag: "draft-workspace-file",
+        cwd: "/workspace",
+        path: "/workspace/notes.txt",
+        disposition: "attachment",
+      };
+      if (draftFileDownloads) {
+        await expect.element(screen.getByRole("button", { name: "Save file" })).toBeVisible();
+        expect(state.assetResources).toContainEqual(download);
+      } else {
+        await expect.element(screen.getByRole("button", { name: /word wrap/ })).toBeVisible();
+        expect(screen.getByText("Unable to load file preview.").query()).toBeNull();
+        expect(screen.getByRole("button", { name: "Save file" }).query()).toBeNull();
+        expect(state.assetResources).not.toContainEqual(download);
+      }
+    },
+  );
 });
 
 describe("rendered Markdown task saves", () => {

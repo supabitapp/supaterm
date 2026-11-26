@@ -239,6 +239,7 @@ export const make = Effect.gen(function* () {
       scheduledTaskThreadModes: true,
       deferredSteering: true,
       pullRequestReviewHeadPin: true,
+      draftFileDownloads: true,
       npmReleaseLookup: true,
       secretSourceCheck: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),

@@ -178,6 +178,9 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Refuses a review whose `expectedHeadSha` is no longer the head. Older servers drop the
       field, and the host then reviews its newest commit. */
   pullRequestReviewHeadPin: Schema.optionalKey(Schema.Boolean),
+  /** Serves a draft's workspace file with `disposition: "attachment"`. Older servers drop the
+      field and refuse text files, so a draft keeps its first megabyte there. */
+  draftFileDownloads: Schema.optionalKey(Schema.Boolean),
   /**
    * The server config's flags of the same names. A server that names them here lets a client
    * load the shell snapshot before the socket opens, and answers its `resumeFrom`.
