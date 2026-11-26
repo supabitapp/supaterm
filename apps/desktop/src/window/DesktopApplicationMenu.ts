@@ -12,6 +12,8 @@ import * as ElectronMenu from "../electron/ElectronMenu.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopWindow from "./DesktopWindow.ts";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
 export class DesktopApplicationMenuActionError extends Schema.TaggedError<DesktopApplicationMenuActionError>()(
   "DesktopApplicationMenuActionError",
@@ -130,10 +132,10 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
     });
     yield* electronDialog.showMessageBox({
       type: "info",
-      title: "Updates unavailable",
-      message: "Automatic updates are not available right now.",
+      title: m(msg("Updates unavailable")),
+      message: m(msg("Automatic updates are not available right now.")),
       detail: disabledReason.value,
-      buttons: ["OK"],
+      buttons: [m(msg("OK"))],
     });
     return;
   }
@@ -205,12 +207,12 @@ export const make = Effect.gen(function* () {
         submenu: [
           { role: "about", label: `About ${environment.displayName}` },
           {
-            label: "Check for Updates...",
+            label: m(msg("Check for Updates...")),
             click: checkForUpdatesClick,
           },
           { type: "separator" },
           {
-            label: "Settings...",
+            label: m(msg("Settings...")),
             accelerator: "CmdOrCtrl+,",
             click: settingsClick,
           },
@@ -228,20 +230,20 @@ export const make = Effect.gen(function* () {
 
     template.push(
       {
-        label: "File",
+        label: m(msg("File", { $context: "menu bar title" })),
         submenu: [
           ...(environment.platform === "darwin"
             ? []
             : [
                 {
-                  label: "Settings...",
+                  label: m(msg("Settings...")),
                   accelerator: "CmdOrCtrl+,",
                   click: settingsClick,
                 },
                 { type: "separator" as const },
               ]),
           {
-            label: "Close Developer Tools",
+            label: m(msg("Close Developer Tools")),
             accelerator: "CmdOrCtrl+W",
             visible: false,
             click: () => {
@@ -258,7 +260,7 @@ export const make = Effect.gen(function* () {
         ],
       },
       {
-        label: "Edit",
+        label: m(msg("Edit", { $context: "menu bar title" })),
         submenu: [
           { role: "undo" },
           { role: "redo" },
@@ -267,7 +269,7 @@ export const make = Effect.gen(function* () {
           { role: "copy" },
           { role: "paste" },
           {
-            label: "Paste as Text",
+            label: m(msg("Paste as Text")),
             accelerator: "CmdOrCtrl+Shift+V",
             click: pasteAsTextClick,
           },
@@ -286,24 +288,24 @@ export const make = Effect.gen(function* () {
         ],
       },
       {
-        label: "View",
+        label: m(msg("View", { $context: "menu bar title" })),
         submenu: [
           { label: "Reload", accelerator: "CmdOrCtrl+R", click: mainContentsClick("reload") },
           {
-            label: "Force Reload",
+            label: m(msg("Force Reload")),
             accelerator: "Shift+CmdOrCtrl+R",
             click: mainContentsClick("forceReload"),
           },
           {
-            label: "Toggle Developer Tools",
+            label: m(msg("Toggle Developer Tools")),
             accelerator: environment.platform === "darwin" ? "Alt+Command+I" : "Ctrl+Shift+I",
             click: mainContentsClick("toggleDevTools"),
           },
           { type: "separator" },
-          { label: "Actual Size", accelerator: "CmdOrCtrl+0", click: zoomClick("reset") },
-          { label: "Zoom In", accelerator: "CmdOrCtrl+=", click: zoomClick("in") },
+          { label: m(msg("Actual Size")), accelerator: "CmdOrCtrl+0", click: zoomClick("reset") },
+          { label: m(msg("Zoom In")), accelerator: "CmdOrCtrl+=", click: zoomClick("in") },
           {
-            label: "Zoom In",
+            label: m(msg("Zoom In")),
             accelerator: "CmdOrCtrl+Plus",
             visible: false,
             click: zoomClick("in"),
@@ -311,7 +313,7 @@ export const make = Effect.gen(function* () {
           ...(environment.platform === "darwin"
             ? [
                 {
-                  label: "Zoom In",
+                  label: m(msg("Zoom In")),
                   accelerator: "CmdOrCtrl+Shift+=",
                   visible: false,
                   click: zoomClick("in"),
@@ -321,19 +323,19 @@ export const make = Effect.gen(function* () {
           { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: zoomClick("out") },
 
           {
-            label: "Actual Size",
+            label: m(msg("Actual Size")),
             accelerator: "CmdOrCtrl+num0",
             visible: false,
             click: zoomClick("reset"),
           },
           {
-            label: "Zoom In",
+            label: m(msg("Zoom In")),
             accelerator: "CmdOrCtrl+numadd",
             visible: false,
             click: zoomClick("in"),
           },
           {
-            label: "Zoom Out",
+            label: m(msg("Zoom Out")),
             accelerator: "CmdOrCtrl+numsub",
             visible: false,
             click: zoomClick("out"),
@@ -360,7 +362,7 @@ export const make = Effect.gen(function* () {
         role: "help",
         submenu: [
           {
-            label: "Check for Updates...",
+            label: m(msg("Check for Updates...")),
             click: checkForUpdatesClick,
           },
         ],

@@ -43,6 +43,8 @@ import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopSnapShot from "../snapShot/DesktopSnapShot.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
 const MAX_TCP_PORT = 65_535;
 const DESKTOP_BACKEND_PORT_PROBE_HOSTS = ["127.0.0.1", "0.0.0.0", "::"] as const;
@@ -147,7 +149,7 @@ const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupErr
   const wasQuitting = yield* Ref.getAndSet(state.quitting, true);
   if (!wasQuitting) {
     yield* electronDialog.showErrorBox(
-      "Supaterm failed to start",
+      m(msg("Supaterm failed to start")),
       `Stage: ${stage}\n${message}${detail}`,
     );
   }
@@ -215,7 +217,7 @@ const startLocalBackend = Effect.gen(function* () {
       owner: Option.getOrNull(owner),
     });
     yield* (yield* ElectronDialog.ElectronDialog).showErrorBox(
-      "This Supaterm home is unavailable",
+      m(msg("This Supaterm home is unavailable")),
       DesktopHomeOwner.homeOwnedMessage(owner),
     );
     yield* (yield* ElectronApp.ElectronApp).quit;

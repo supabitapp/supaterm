@@ -21,6 +21,8 @@ import * as ElectronDialog from "../../electron/ElectronDialog.ts";
 import * as DesktopSnapShot from "../../snapShot/DesktopSnapShot.ts";
 import * as IpcChannels from "../channels.ts";
 import * as DesktopIpc from "../DesktopIpc.ts";
+import { msg } from "gt-i18n";
+import { m } from "../../i18n/messages.ts";
 
 class SnapShotIpcUnauthorizedSenderError extends Schema.TaggedError<SnapShotIpcUnauthorizedSenderError>()(
   "SnapShotIpcUnauthorizedSenderError",
@@ -118,7 +120,7 @@ export const previewSnapShotConfig = DesktopIpc.makeIpcMethod({
         defaultPath: Option.fromUndefinedOr(state.shortcutConfigPath),
         filters: [
           {
-            name: "Desktop config",
+            name: m(msg("Desktop config")),
             extensions: state.linuxBackend === "niri" ? ["kdl"] : ["conf", "lua"],
           },
         ],

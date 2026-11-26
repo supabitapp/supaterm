@@ -17,6 +17,8 @@ import type { BackendStartupFailure } from "../backend/DesktopBackendManager.ts"
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopObservability from "./DesktopObservability.ts";
 import * as DesktopState from "./DesktopState.ts";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
 const RELEASES_URL = "https://github.com/supabitapp/supaterm/releases";
 const LAST_STARTED_VERSION_FILE = "desktop-last-started-version";
@@ -77,7 +79,7 @@ const actionLink = (action: StartupRecoveryAction, label: string, primary = fals
 function describeOffer(offer: StartupRecoveryOffer): { text: string; action: string } {
   switch (offer._tag) {
     case "Checking":
-      return { text: "Checking for a newer version…", action: "" };
+      return { text: m(msg("Checking for a newer version…")), action: "" };
     case "Update":
       return {
         text: `Version ${offer.version} is available. It can contain a fix.`,
@@ -95,8 +97,8 @@ function describeOffer(offer: StartupRecoveryOffer): { text: string; action: str
       };
     case "Releases":
       return {
-        text: "Get a different version from the releases page.",
-        action: actionLink("releases", "Open releases", true),
+        text: m(msg("Get a different version from the releases page.")),
+        action: actionLink("releases", m(msg("Open releases")), true),
       };
   }
 }
@@ -255,7 +257,7 @@ export const listen: Effect.Effect<
           minWidth: 420,
           minHeight: 320,
           show: false,
-          title: "Supaterm could not start",
+          title: m(msg("Supaterm could not start")),
           autoHideMenuBar: true,
           backgroundColor: shouldUseDarkColors ? "#000000" : "#ffffff",
           webPreferences: {

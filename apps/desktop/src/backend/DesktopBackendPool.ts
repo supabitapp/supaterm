@@ -40,6 +40,8 @@ import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
+import { msg } from "gt-i18n";
+import { m } from "../i18n/messages.ts";
 
 const { logInfo: logBackendPoolInfo, logWarning: logBackendPoolWarning } =
   DesktopObservability.makeComponentLogger("desktop-backend-pool");
@@ -298,7 +300,7 @@ export const layer = Layer.effect(
         DesktopHomeOwner.readLiveHomeOwner().pipe(
           Effect.flatMap((owner) =>
             electronDialog.showErrorBox(
-              "This Supaterm home is unavailable",
+              m(msg("This Supaterm home is unavailable")),
               DesktopHomeOwner.homeOwnedMessage(owner),
             ),
           ),
