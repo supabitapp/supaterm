@@ -8,8 +8,8 @@ export function preserveReadingPosition(
   let width = scroller.clientWidth;
   let anchor: { range: Range; top: number } | null = null;
   let frame: number | null = null;
-  let settle: number | null = null;
-  let scrolled = false;
+  let gesture: number | null = null;
+  let moving = false;
 
   const capture = () => {
     if (frame !== null || scroller.clientWidth !== width) return;
@@ -87,25 +87,24 @@ export function preserveReadingPosition(
       capture();
     });
   });
-  // A hit test after a scroll costs about 0.2 ms, so only a scroll's start and end hit-test.
-  // In between, the anchor tracks its own line while that line stays in view.
+  // A hit test after a scroll costs about 0.2 ms, so a wheel or touch gesture hit-tests only as it
+  // starts and settles. In between, the anchor tracks its own line while that line stays in view.
   const settled = () => {
-    if (scrolled) {
-      scrolled = false;
-      settle = requestAnimationFrame(settled);
+    if (moving) {
+      moving = false;
+      gesture = requestAnimationFrame(settled);
       return;
     }
-    settle = null;
+    gesture = null;
     capture();
   };
   const follow = () => {
     if (frame !== null || scroller.clientWidth !== width) return;
-    scrolled = true;
-    if (settle === null) {
+    if (gesture === null) {
       capture();
-      settle = requestAnimationFrame(settled);
       return;
     }
+    moving = true;
     if (!anchor) return;
     const top = anchor.range.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
     const inView =
@@ -119,7 +118,12 @@ export function preserveReadingPosition(
     if (document.activeElement === scroller) capture();
   };
   if (scroller.isContentEditable) document.addEventListener("selectionchange", captureSelection);
-  const interrupt = () => {
+  const drive = () => {
+    if (gesture === null) {
+      capture();
+      gesture = requestAnimationFrame(settled);
+    }
+    moving = true;
     if (frame === null) return;
     cancelAnimationFrame(frame);
     anchor = null;
@@ -130,16 +134,16 @@ export function preserveReadingPosition(
       capture();
     });
   };
-  scroller.addEventListener("wheel", interrupt, { passive: true });
-  scroller.addEventListener("touchmove", interrupt, { passive: true });
+  scroller.addEventListener("wheel", drive, { passive: true });
+  scroller.addEventListener("touchmove", drive, { passive: true });
   return () => {
     stop();
     if (frame !== null) cancelAnimationFrame(frame);
-    if (settle !== null) cancelAnimationFrame(settle);
+    if (gesture !== null) cancelAnimationFrame(gesture);
     scroller.removeEventListener("scroll", follow);
     scroller.removeEventListener("input", capture);
     document.removeEventListener("selectionchange", captureSelection);
-    scroller.removeEventListener("wheel", interrupt);
-    scroller.removeEventListener("touchmove", interrupt);
+    scroller.removeEventListener("wheel", drive);
+    scroller.removeEventListener("touchmove", drive);
   };
 }
