@@ -4,12 +4,13 @@ import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
 import { AtomRegistry } from "effect/reactivity";
 import { getReactI18nCache, GTProvider, initializeGTSPA, msg } from "gt-react";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
-import { render } from "../../test/render";
+import { fakeTimers, render } from "../../test/render";
 import { summarizePullRequestChecks } from "../components/pullRequest/pullRequestPresentation";
 import { SidebarSnoozeButton } from "../components/sidebar/SidebarSnoozeButton";
+import { SidebarRelativeTime } from "../components/sidebar/SidebarThreadRow";
 import { SidebarThreadUndoNotice } from "../components/sidebar/SidebarThreadUndoNotice";
 import { useThreadUndoNotice } from "../hooks/showThreadUndoNotice";
 import { primaryServerKeybindingsAtom } from "../state/server";
@@ -117,5 +118,21 @@ describe("German catalog", () => {
       </RegistryContext.Provider>,
     );
     await expect.element(screen.getByText("2 zurückgestellt,")).toBeVisible();
+  });
+
+  it("switches sidebar relative times to German with the language", async () => {
+    using _timers = fakeTimers();
+    vi.setSystemTime(Date.parse("2026-11-26T12:00:30Z"));
+    const ui = (locale: string) => (
+      <GTProvider locale={locale} translations={{ en: {}, de: germanStrings }}>
+        <SidebarRelativeTime timestamp="2026-11-26T09:00:00Z" />
+      </GTProvider>
+    );
+    await using screen = await render(ui("en"));
+    expect(screen.container.textContent).toBe("3h");
+
+    using _locale = await inGerman();
+    await screen.rerender(ui("de"));
+    expect(screen.container.textContent).toBe("3 Std.");
   });
 });

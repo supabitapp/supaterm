@@ -76,7 +76,7 @@ import { vcsBranchRevalidation, vcsEnvironment } from "../../state/vcs";
 import { useSidebarLinkedIssueState } from "../../state/issues";
 import { useEnvironmentQuery } from "../../state/query";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
-import { formatRelativeTimeLabel, parseTimestampDate } from "../../timestampFormat";
+import { formatRelativeTime, parseTimestampDate } from "../../timestampFormat";
 import type { SidebarThreadSummary } from "../../types";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
@@ -147,20 +147,20 @@ export type SidebarProviderEntry = Pick<
   | "models"
 >;
 
-function compactSidebarTimeLabel(label: string): string {
-  if (label === "just now") return "now";
-  return label.endsWith(" ago") ? label.slice(0, -4) : label;
+function compactSidebarTimeLabel(timestamp: string, nowMs: number, resolve: MessageResolver) {
+  const parts = formatRelativeTime(timestamp, nowMs, resolve);
+  if (parts === null) return "";
+  return parts.suffix === null ? resolve(msg("now", { $context: "relative time" })) : parts.value;
 }
 
 // Subscribes to the minute tick itself, so the label keeps counting while the
 // memoized row stays cached on its thread.
 function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
   const nowMinute = useNowMinute();
+  const m = useMessages();
   return props.timestamp === null
     ? null
-    : compactSidebarTimeLabel(
-        formatRelativeTimeLabel(props.timestamp, Date.parse(`${nowMinute}:00Z`)),
-      );
+    : compactSidebarTimeLabel(props.timestamp, Date.parse(`${nowMinute}:00Z`), m);
 }
 
 // An overlay rather than an inline slot so the hint never displaces the status label or shifts
@@ -178,7 +178,7 @@ export function JumpHintBadge(props: { label: string }) {
 }
 
 // Only the time label subscribes to the shared minute clock.
-function SidebarRelativeTime({
+export function SidebarRelativeTime({
   timestamp,
   className,
 }: {
@@ -186,13 +186,14 @@ function SidebarRelativeTime({
   className?: string | undefined;
 }) {
   const nowMinute = useNowMinute();
+  const m = useMessages();
   if (timestamp === null) return null;
   return (
     <time
       dateTime={timestamp}
       className={cn("shrink-0 text-right text-xs text-secondary-label tabular-nums", className)}
     >
-      {compactSidebarTimeLabel(formatRelativeTimeLabel(timestamp, Date.parse(`${nowMinute}:00Z`)))}
+      {compactSidebarTimeLabel(timestamp, Date.parse(`${nowMinute}:00Z`), m)}
     </time>
   );
 }
