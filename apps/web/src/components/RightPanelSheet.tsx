@@ -1,7 +1,11 @@
 import { type ReactNode } from "react";
 
+import { BrowserSurfaceLayer } from "../browser/BrowserSurfaceSlot";
 import { Sheet, SheetHeader, SheetPopup, SheetTitle } from "./ui/sheet";
 import { T } from "gt-react";
+
+// Over --z-sheet (46), under dialogs (50).
+const SHEET_BROWSER_SURFACE_Z_INDEX = 47;
 
 export function RightPanelSheet(props: {
   animationDurationMs: number;
@@ -33,7 +37,9 @@ export function RightPanelSheet(props: {
             <T>Workspace panel</T>
           </SheetTitle>
         </SheetHeader>
-        {props.children}
+        <BrowserSurfaceLayer value={SHEET_BROWSER_SURFACE_Z_INDEX}>
+          {props.children}
+        </BrowserSurfaceLayer>
       </SheetPopup>
     </Sheet>
   );

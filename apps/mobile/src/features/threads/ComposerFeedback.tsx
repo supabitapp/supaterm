@@ -10,7 +10,7 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 import Animated from "react-native-reanimated";
 import { useNoticeMotion } from "../../lib/useNoticeMotion";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 export function ComposerFeedback({
   submission,
@@ -20,8 +20,9 @@ export function ComposerFeedback({
   readonly onDismiss: () => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const motion = useNoticeMotion();
-  const notice = codexFeedbackNotice(submission);
+  const notice = codexFeedbackNotice(submission, m);
   if (!notice) return null;
   return (
     <Animated.View {...motion} collapsable={false} className="px-4 pb-3">

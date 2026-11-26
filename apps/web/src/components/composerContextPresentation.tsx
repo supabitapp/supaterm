@@ -58,7 +58,7 @@ import {
   PullRequestChip,
   UnresolvedChip,
 } from "./contextChipParts";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, useMessages, msg } from "gt-react";
 
 export interface ComposerImageContextAttachment extends Omit<ComposerImageAttachment, "file"> {
   readonly file: File | null;
@@ -216,13 +216,15 @@ function ContextChip(props: {
   detailsMode: ContextPresentationCapability["details"];
   kind: ContextChipKind;
 }) {
+  const m = useMessages();
+  const kindLabel = m(props.kindLabel);
   if (props.detailsMode === "popover") {
     return (
       <ContextChipPopover
         kind={props.kind}
         icon={props.icon}
         label={props.label}
-        accessibleLabel={props.kindLabel + ", " + props.label}
+        accessibleLabel={kindLabel + ", " + props.label}
       >
         {props.details}
       </ContextChipPopover>
@@ -233,9 +235,7 @@ function ContextChip(props: {
       kind={props.kind}
       icon={props.icon}
       label={props.label}
-      aria-label={
-        props.detailsMode === "tooltip" ? `${props.kindLabel}, ${props.label}` : undefined
-      }
+      aria-label={props.detailsMode === "tooltip" ? `${kindLabel}, ${props.label}` : undefined}
       tooltip={props.detailsMode === "tooltip" ? props.details : undefined}
     />
   );

@@ -25,7 +25,6 @@ import {
 } from "./lib/contextChipAccents";
 
 import { appAtomRegistry, subscribeAtomChanges } from "./rpc/atomRegistry";
-import { applyThemeBackground } from "./themeBackground";
 import { applyThemeCss } from "./themeCss";
 import { themeServerEnvironmentThemesAtom } from "./state/server";
 import { msg } from "gt-react";
@@ -87,6 +86,18 @@ function setThemePreviewAppearance(appearance: ThemeAppearance | null): void {
   if (themePreviewAppearance === appearance) return;
   themePreviewAppearance = appearance;
   for (const listener of themePreviewListeners) listener();
+}
+
+let appliedPaletteId: string | undefined;
+const appliedPaletteListeners = new Set<(themeId: string | undefined) => void>();
+
+/** Calls `listener` with the painted theme's id now and on every later paint, even an unchanged one. */
+export function subscribeToAppliedPalette(
+  listener: (themeId: string | undefined) => void,
+): () => void {
+  appliedPaletteListeners.add(listener);
+  listener(appliedPaletteId);
+  return () => appliedPaletteListeners.delete(listener);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1677,7 +1688,8 @@ export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppe
   setThemePreviewAppearance(null);
   const palette = getThemeDefinition(theme);
   applyThemeCss(palette?.css);
-  applyThemeBackground(palette?.id);
+  appliedPaletteId = palette?.id;
+  for (const listener of appliedPaletteListeners) listener(appliedPaletteId);
 
   // The standard palette uses the same role mapping as installed themes.
   root.dataset.themeId = palette ? palette.id : "__default";

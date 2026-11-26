@@ -2511,6 +2511,8 @@
   "0e2f2da4f2d94785": "L’agent ne verra pas les messages précédents de ce fil.",
   "e1189d2e582b008d": "Garder la session actuelle",
   "2bb448d605877a22": "Modifiez ou appuyez sur Échap pour annuler",
+  "1a1f128d70c62304": "{count, plural, one {Envoi dès que l’image est prête} other {Envoi dès que les {count} images sont prêtes}}",
+  "5af3ab719a9725fb": "Envoi du message",
   "9fe9687b0d482c7d": "Annuler",
   "be5989cafc1c0759": "Refuser",
   "98392ae1bfb83082": "Toujours autoriser pour cette session",

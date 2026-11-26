@@ -2511,6 +2511,8 @@
   "0e2f2da4f2d94785": "Der Agent sieht frühere Nachrichten in diesem Thread nicht.",
   "e1189d2e582b008d": "Aktuelle Sitzung behalten",
   "2bb448d605877a22": "Zum Abbrechen bearbeiten oder Esc drücken",
+  "1a1f128d70c62304": "{count, plural, one {Wird gesendet, sobald das Bild bereit ist} other {Wird gesendet, sobald {count} Bilder bereit sind}}",
+  "5af3ab719a9725fb": "Nachricht wird gesendet",
   "9fe9687b0d482c7d": "Abbrechen",
   "be5989cafc1c0759": "Ablehnen",
   "98392ae1bfb83082": "In dieser Sitzung immer erlauben",
