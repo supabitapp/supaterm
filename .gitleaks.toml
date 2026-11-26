@@ -2,8 +2,9 @@
 useDefault = true
 
 [allowlist]
-description = "Self-signed localhost key that a test server presents so linking can refuse its certificate, and the Cursor SDK patch whose minified bundle reads as generic API keys"
+description = "Self-signed localhost key that a test server presents so linking can refuse its certificate, the Cursor SDK patch whose minified bundle reads as generic API keys, and translation catalogs keyed by 16-hex-digit hashes"
 paths = [
   '''apps/server/src/peer/fixtures/localhost-key\.pem''',
   '''patches/@cursor__sdk@1\.4\.2\.patch''',
+  '''apps/(web|mobile|desktop)/src/i18n/translations/[A-Za-z-]+\.json''',
 ]
