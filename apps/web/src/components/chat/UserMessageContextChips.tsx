@@ -301,7 +301,7 @@ function UnavailableUserMessageContextChip(props: UserMessageContextRenderContex
     <UnresolvedChip
       label={props.reference.label}
       copyMarkdown={props.copyMarkdown}
-      tooltip={msg("This context is no longer available.")}
+      tooltip={props.m(msg("This context is no longer available."))}
     />
   );
 }

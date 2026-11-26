@@ -2781,14 +2781,18 @@ export default function ChatView(props: ChatViewProps) {
   });
   const armFreshSessionStable = useStableCallback(() => armFreshSession(routeThreadKey));
   const feedbackBannerItems = feedbackSubmissions.flatMap((submission) => {
-    const item = feedbackBannerItem(submission, () => {
-      setFeedbackSubmissionsByThreadKey((current) => ({
-        ...current,
-        [routeThreadKey]: (current[routeThreadKey] ?? []).filter(
-          (entry) => entry.id !== submission.id,
-        ),
-      }));
-    });
+    const item = feedbackBannerItem(
+      submission,
+      () => {
+        setFeedbackSubmissionsByThreadKey((current) => ({
+          ...current,
+          [routeThreadKey]: (current[routeThreadKey] ?? []).filter(
+            (entry) => entry.id !== submission.id,
+          ),
+        }));
+      },
+      messages,
+    );
     return item ? [item] : [];
   });
   const limitRecoveryBanner = useUsageLimitRecoveryBannerItem(
@@ -2872,14 +2876,14 @@ export default function ChatView(props: ChatViewProps) {
     // An approval's feedback goes to that approval; the armed session waits for the next message.
     const freshSessionItems =
       freshSessionAvailable && freshSessionArmed && activePendingApproval === null
-        ? [freshSessionBannerItem(() => disarmFreshSession(routeThreadKey))]
+        ? [freshSessionBannerItem(() => disarmFreshSession(routeThreadKey), messages)]
         : [];
     const heldSendItems = composerSendHeld
       ? [
-          heldComposerSendBannerItem({
-            draftTarget: composerDraftTarget,
-            onCancel: cancelHeldSendStable,
-          }),
+          heldComposerSendBannerItem(
+            { draftTarget: composerDraftTarget, onCancel: cancelHeldSendStable },
+            messages,
+          ),
         ]
       : [];
     if (!localCheckoutBranchMismatch || !showBranchMismatchBanner || !activeBranchMismatchKey) {

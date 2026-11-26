@@ -2511,6 +2511,8 @@
   "0e2f2da4f2d94785": "The agent won't see earlier messages in this thread.",
   "e1189d2e582b008d": "Keep the current session",
   "2bb448d605877a22": "Edit or press Esc to cancel",
+  "1a1f128d70c62304": "{count, plural, one {Sending once image is ready} other {Sending once {count} images are ready}}",
+  "5af3ab719a9725fb": "Sending message",
   "9fe9687b0d482c7d": "Cancel",
   "be5989cafc1c0759": "Decline",
   "98392ae1bfb83082": "Always allow this session",

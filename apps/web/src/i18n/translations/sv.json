@@ -2511,6 +2511,8 @@
   "0e2f2da4f2d94785": "Agenten ser inte tidigare meddelanden i den här tråden.",
   "e1189d2e582b008d": "Behåll den aktuella sessionen",
   "2bb448d605877a22": "Redigera eller tryck Esc för att avbryta",
+  "1a1f128d70c62304": "{count, plural, one {Skickas när bilden är klar} other {Skickas när {count} bilder är klara}}",
+  "5af3ab719a9725fb": "Skickar meddelande",
   "9fe9687b0d482c7d": "Avbryt",
   "be5989cafc1c0759": "Avböj",
   "98392ae1bfb83082": "Tillåt alltid under den här sessionen",

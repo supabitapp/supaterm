@@ -3,32 +3,39 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { usePreparingComposerImages } from "./preparingComposerImages";
-import { msg } from "gt-react";
+import { msg, useGT } from "gt-react";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 const HELD_COMPOSER_SEND_BANNER_ID = "held-composer-send";
 
 function HeldComposerSendStatus({ draftTarget }: { readonly draftTarget: ComposerThreadTarget }) {
+  const gt = useGT();
   const preparingCount = usePreparingComposerImages(composerTargetKey(draftTarget)).length;
   const label =
-    preparingCount === 0
-      ? "Sending message"
-      : preparingCount === 1
-        ? "Sending once image is ready"
-        : `Sending once ${preparingCount} images are ready`;
+    preparingCount > 0
+      ? gt(
+          "{count, plural, one {Sending once image is ready} other {Sending once {count} images are ready}}",
+          { count: preparingCount },
+        )
+      : gt("Sending message");
   return <span aria-live="polite">{label}</span>;
 }
 
 /** Shown while a send waits for pasted or dropped images to finish compressing. */
-export function heldComposerSendBannerItem(input: {
-  readonly draftTarget: ComposerThreadTarget;
-  readonly onCancel: () => void;
-}): ComposerBannerStackItem {
+export function heldComposerSendBannerItem(
+  input: {
+    readonly draftTarget: ComposerThreadTarget;
+    readonly onCancel: () => void;
+  },
+  resolve: MessageResolver = m,
+): ComposerBannerStackItem {
   return {
     id: HELD_COMPOSER_SEND_BANNER_ID,
     variant: "info",
     icon: <Spinner size="xs" aria-hidden="true" />,
     title: <HeldComposerSendStatus draftTarget={input.draftTarget} />,
-    description: msg("Edit or press Esc to cancel"),
+    description: resolve(msg("Edit or press Esc to cancel")),
     actions: (
       <Button
         size="xs"
@@ -36,7 +43,7 @@ export function heldComposerSendBannerItem(input: {
         onPointerDown={(event) => event.preventDefault()}
         onClick={input.onCancel}
       >
-        {msg("Cancel")}
+        {resolve(msg("Cancel"))}
       </Button>
     ),
   };

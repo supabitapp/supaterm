@@ -390,7 +390,7 @@ export function ArchivedThreadsPanel() {
                   </Button>
                 }
               />
-              <TooltipPopup side="top">{msg("Unarchive")}</TooltipPopup>
+              <TooltipPopup side="top">{gt("Unarchive")}</TooltipPopup>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger

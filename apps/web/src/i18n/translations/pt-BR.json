@@ -2511,6 +2511,8 @@
   "0e2f2da4f2d94785": "O agente não verá as mensagens anteriores desta thread.",
   "e1189d2e582b008d": "Manter a sessão atual",
   "2bb448d605877a22": "Edite ou pressione Esc para cancelar",
+  "1a1f128d70c62304": "{count, plural, one {Enviando assim que a imagem estiver pronta} other {Enviando assim que {count} imagens estiverem prontas}}",
+  "5af3ab719a9725fb": "Enviando mensagem",
   "9fe9687b0d482c7d": "Cancelar",
   "be5989cafc1c0759": "Recusar",
   "98392ae1bfb83082": "Sempre permitir nesta sessão",
