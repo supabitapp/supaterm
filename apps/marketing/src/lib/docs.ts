@@ -32,7 +32,7 @@ export const userDocLinksPlugin = {
 const toPlainText = (markdown: string) =>
   markdown
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/[*_`]/g, "")
+    .replace(/[*`]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 

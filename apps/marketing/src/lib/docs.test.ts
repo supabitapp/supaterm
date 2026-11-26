@@ -26,13 +26,13 @@ describe("summarizeUserDoc", () => {
     const body = [
       "# Remote access",
       "",
-      "Connect a **phone** to `Supaterm` running\non a [different machine](./devices.md).",
+      "Connect a **phone** to `SUPATERM_HOME` running\non a [different machine](./devices.md).",
       "",
       "## Pair",
     ].join("\n");
     expect(summarizeUserDoc(body)).toEqual({
       title: "Remote access",
-      description: "Connect a phone to Supaterm running on a different machine.",
+      description: "Connect a phone to SUPATERM_HOME running on a different machine.",
     });
   });
 });
