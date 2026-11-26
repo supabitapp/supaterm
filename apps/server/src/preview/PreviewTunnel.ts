@@ -2,7 +2,7 @@
 // connection per WebSocket. Raw bytes, so pages keep their own origin, HMR sockets and TLS.
 import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
 import * as NodeSocket from "@effect/platform-node/NodeSocket";
-import { AuthTerminalOperateScope } from "@supaterm/contracts";
+import { allowsPreviewTunnel, AuthTerminalOperateScope } from "@supaterm/contracts";
 import type * as NodeNet from "node:net";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -79,8 +79,9 @@ export class PreviewTunnel extends Context.Service<
 
 const make = Effect.gen(function* () {
   const serverSettings = yield* ServerSettingsService;
+  const managedPolicy = serverSettings.managedPolicy;
   const allowedBy = (settings: { readonly enablePreviewTunnel: boolean }) =>
-    settings.enablePreviewTunnel;
+    allowsPreviewTunnel({ settings, managedPolicy });
   // Unreadable settings fail closed: the tunnel is raw TCP into the host.
   const enabled = serverSettings.getSettings.pipe(
     Effect.map(allowedBy),
