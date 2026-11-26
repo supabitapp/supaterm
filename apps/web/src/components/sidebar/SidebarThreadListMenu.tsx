@@ -1,6 +1,7 @@
 import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { SlidersHorizontalIcon } from "@supaterm/icons";
+import { T, useGT, useMessages } from "gt-react";
 import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { updateClientSettings, useClientSettings } from "../../hooks/useSettings";
@@ -39,6 +40,8 @@ export function SidebarThreadListMenu({
     readonly onSelect: (environmentId: EnvironmentId | null) => void;
   } | null;
 }) {
+  const gt = useGT();
+  const messages = useMessages();
   const grouping = useClientSettings((settings) => settings.sidebarThreadGrouping);
   const hideOfflineEnvironments = useClientSettings(
     (settings) => settings.sidebarHideOfflineEnvironments,
@@ -50,8 +53,8 @@ export function SidebarThreadListMenu({
           <SidebarHeaderIconButton
             label={
               hidesOfflineThreads
-                ? "Thread list options, offline environments hidden"
-                : "Thread list options"
+                ? gt("Thread list options, offline environments hidden")
+                : gt("Thread list options")
             }
           />
         }
@@ -69,9 +72,11 @@ export function SidebarThreadListMenu({
         {environmentFilter ? (
           <MenuSub>
             <MenuSubTrigger>
-              <span className="flex-1">Environment</span>
+              <span className="flex-1">
+                <T>Environment</T>
+              </span>
               <span dir="auto" className="ml-6 max-w-32 truncate text-muted-foreground">
-                {environmentFilter.label ?? "All"}
+                {environmentFilter.label ?? gt("All", { $context: "every environment" })}
               </span>
             </MenuSubTrigger>
             <MenuSubPopup className="max-w-[min(18rem,var(--available-width))]">
@@ -83,25 +88,28 @@ export function SidebarThreadListMenu({
                   if (item) environmentFilter.onSelect(item.value);
                 }}
               >
-                {[{ value: ALL_ENVIRONMENTS, label: "All" }, ...environmentFilter.items].map(
-                  (item) => (
-                    <MenuRadioItem key={item.value} value={item.value} closeOnClick>
-                      <span className="flex items-center gap-6">
-                        <span dir="auto" className="min-w-0 flex-1 truncate">
-                          {item.label}
-                        </span>
-                        <MenuRadioItemIndicator />
+                {[
+                  { value: ALL_ENVIRONMENTS, label: gt("All", { $context: "every environment" }) },
+                  ...environmentFilter.items,
+                ].map((item) => (
+                  <MenuRadioItem key={item.value} value={item.value} closeOnClick>
+                    <span className="flex items-center gap-6">
+                      <span dir="auto" className="min-w-0 flex-1 truncate">
+                        {item.label}
                       </span>
-                    </MenuRadioItem>
-                  ),
-                )}
+                      <MenuRadioItemIndicator />
+                    </span>
+                  </MenuRadioItem>
+                ))}
               </MenuRadioGroup>
             </MenuSubPopup>
           </MenuSub>
         ) : null}
         <MenuSub>
           <MenuSubTrigger>
-            <span className="flex-1">Grouping</span>
+            <span className="flex-1">
+              <T>Grouping</T>
+            </span>
             {/* Every label shares one cell so the popup keeps the widest one's
                 width: a resize re-runs collision flipping and moves the menu. */}
             <span className="ml-6 grid justify-items-end text-muted-foreground">
@@ -113,7 +121,7 @@ export function SidebarThreadListMenu({
                     option.value !== grouping && "invisible",
                   )}
                 >
-                  {option.label}
+                  {messages(option.label)}
                 </span>
               ))}
             </span>
@@ -129,7 +137,7 @@ export function SidebarThreadListMenu({
               {THREAD_GROUPING_OPTIONS.map((option) => (
                 <MenuRadioItem key={option.value} value={option.value}>
                   <span className="flex items-center gap-6">
-                    <span className="flex-1">{option.label}</span>
+                    <span className="flex-1">{messages(option.label)}</span>
                     <MenuRadioItemIndicator />
                   </span>
                 </MenuRadioItem>
@@ -145,7 +153,7 @@ export function SidebarThreadListMenu({
             void updateClientSettings({ sidebarHideOfflineEnvironments: checked })
           }
         >
-          Hide offline environments
+          <T>Hide offline environments</T>
         </MenuCheckboxItem>
       </MenuPopup>
     </Menu>

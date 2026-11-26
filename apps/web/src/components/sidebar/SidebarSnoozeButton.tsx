@@ -1,5 +1,6 @@
 import type { EnvironmentId } from "@supaterm/contracts";
 import { ClockIcon } from "@supaterm/icons";
+import { T, useGT } from "gt-react";
 
 import { useClientSettings } from "~/hooks/useSettings";
 
@@ -19,6 +20,7 @@ export function SidebarSnoozeButton({
   onSnooze: (preset: Pick<SnoozePreset, "snoozedUntil">) => void;
   environmentId: EnvironmentId;
 }) {
+  const gt = useGT();
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   // Resolve relative presets when the menu opens, rather than when the row mounts.
   // oxlint-disable-next-line react/purity -- The compiler holds the opening moment's presets while the menu stays open.
@@ -32,7 +34,7 @@ export function SidebarSnoozeButton({
               render={
                 <button
                   type="button"
-                  aria-label="Snooze thread"
+                  aria-label={gt("Snooze thread")}
                   onClick={(event) => event.stopPropagation()}
                   onDoubleClick={(event) => event.stopPropagation()}
                   onPointerDown={(event) => event.stopPropagation()}
@@ -44,7 +46,9 @@ export function SidebarSnoozeButton({
         >
           <ClockIcon aria-hidden className="size-3.5" />
         </TooltipTrigger>
-        <TooltipPopup>Snooze thread</TooltipPopup>
+        <TooltipPopup>
+          <T>Snooze thread</T>
+        </TooltipPopup>
       </Tooltip>
       <MenuPopup side="bottom" align="end">
         {presets.map((preset) => (
@@ -68,7 +72,7 @@ export function SidebarSnoozeButton({
             if (choice) onSnooze(choice);
           }}
         >
-          Custom…
+          <T>Custom…</T>
         </MenuItem>
       </MenuPopup>
     </Menu>

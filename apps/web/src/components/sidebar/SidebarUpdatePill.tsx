@@ -138,7 +138,7 @@ export async function downloadLocalUpdate(
   } catch (error) {
     reportError(
       m(msg("Could not start update download")),
-      error instanceof Error ? error.message : "An unexpected error occurred.",
+      error instanceof Error ? error.message : m(msg("An unexpected error occurred.")),
     );
     return false;
   }
@@ -155,7 +155,7 @@ export async function installLocalUpdate(
   } catch (error) {
     reportError(
       m(msg("Could not install update")),
-      error instanceof Error ? error.message : "An unexpected error occurred.",
+      error instanceof Error ? error.message : m(msg("An unexpected error occurred.")),
     );
     return false;
   }
@@ -292,7 +292,7 @@ function SidebarUpdateControl() {
         stackedThreadToast({
           type: "error",
           title: gt("Could not update everything"),
-          description: error instanceof Error ? error.message : "An unexpected error occurred.",
+          description: error instanceof Error ? error.message : gt("An unexpected error occurred."),
         }),
       );
     }
