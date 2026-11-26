@@ -48,8 +48,8 @@ export function DiffCommentAnnotation({
   onCancel,
   onComment,
   onDelete,
-  placeholder = "Add a comment…",
-  submitLabel = "Comment",
+  placeholder,
+  submitLabel,
   pending = false,
   secondaryAction,
   focusOnMount = true,
@@ -124,7 +124,7 @@ export function DiffCommentAnnotation({
         readOnly={voiceBusy}
         value={displayedText}
         dir={textDirection(displayedText)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? gt("Add a comment…")}
         aria-label={gt("Comment on lines {rangeLabel}", { rangeLabel })}
         onValueChange={changeText}
         onFocus={(event) => {
@@ -176,7 +176,7 @@ export function DiffCommentAnnotation({
           </Button>
         ) : null}
         <Button size="xs" disabled={!canComment} onClick={() => onComment(trimmedText)}>
-          {submitLabel}
+          {submitLabel ?? gt("Comment", { $context: "verb, submit button" })}
         </Button>
       </div>
     </div>
