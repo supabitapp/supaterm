@@ -77,7 +77,6 @@ import {
   resolvePreviewMiniPlayerFrame,
   resolvePreviewMiniPlayerSourceSize,
 } from "./previewMiniPlayerLayout";
-import { m } from "~/i18n/messages";
 import { T, useGT } from "gt-react";
 
 const GESTURE_ATTRIBUTE = "data-preview-mini-player-gesture";

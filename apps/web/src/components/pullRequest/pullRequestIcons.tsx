@@ -9,7 +9,6 @@ import {
   UnlinkIcon,
 } from "@supaterm/icons";
 import type { PullRequestState } from "@supaterm/contracts";
-import { msg } from "gt-react";
 
 export const PullRequestGlyph = {
   pullRequest: GitPullRequestIcon,

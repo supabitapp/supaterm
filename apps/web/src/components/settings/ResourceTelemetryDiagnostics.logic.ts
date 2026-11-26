@@ -1,5 +1,4 @@
 import type { ResourceTelemetryProcess, ResourceTelemetrySourceStatus } from "@supaterm/contracts";
-import { m } from "../../i18n/messages";
 import { msg } from "gt-react";
 
 export function processIdentityKey(process: Pick<ResourceTelemetryProcess, "identity">): string {

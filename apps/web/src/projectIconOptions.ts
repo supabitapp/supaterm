@@ -1,7 +1,6 @@
 import { ProjectMonogramText } from "@supaterm/contracts";
 import { PROJECT_ICONS, type ProjectIcon } from "@supaterm/icons/project";
 import * as Schema from "effect/Schema";
-import { msg } from "gt-react";
 export { PROJECT_ICON_COLORS, projectIconColorClassName } from "./projectIconColors";
 
 const isProjectMonogramText = Schema.is(ProjectMonogramText);

@@ -15,7 +15,6 @@ import {
   type GitActionIconName,
   type GitDialogAction,
 } from "@supaterm/client-runtime/state/vcs";
-import { m } from "../i18n/messages";
 import { msg } from "gt-react";
 
 export {

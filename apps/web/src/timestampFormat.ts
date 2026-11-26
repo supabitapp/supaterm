@@ -1,5 +1,4 @@
 import { type TimestampFormat } from "@supaterm/contracts/settings";
-import { m } from "./i18n/messages";
 import { msg } from "gt-react";
 
 function getTimestampFormatOptions(

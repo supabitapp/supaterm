@@ -13,7 +13,6 @@ import {
   type ProjectGroupingSettings,
 } from "@supaterm/client-runtime/state/project-grouping";
 import type { Project } from "./types";
-import { msg } from "gt-react";
 
 export const PROJECT_GROUPING_MODE_LABELS: Record<SidebarProjectGroupingMode, string> = {
   repository: "Group by repository",

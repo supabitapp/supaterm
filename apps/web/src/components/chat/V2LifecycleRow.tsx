@@ -66,7 +66,7 @@ import { TimelineSystemDivider } from "./TimelineSystemDivider";
 import { subagentResumedSince } from "./V2LifecycleRow.logic";
 import { Button, InlineButton } from "../ui/button";
 import { SupatermIcon } from "../SupatermIcon";
-import { msg, useGT, T } from "gt-react";
+import { useGT, T } from "gt-react";
 
 export type { HandoffTimelineRun } from "@supaterm/client-runtime/handoff";
 

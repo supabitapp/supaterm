@@ -38,7 +38,6 @@ import { observeResize } from "~/lib/observeResize";
 import { attachMcpAppDocumentLink } from "./mcpAppDocumentLink";
 import { useNativeTitlebarHeight } from "~/lib/windowControlsOverlay";
 import { T, useGT } from "gt-react";
-import { m } from "~/i18n/messages";
 
 const fullscreenSupported =
   typeof HTMLElement !== "undefined" && "popover" in HTMLElement.prototype;

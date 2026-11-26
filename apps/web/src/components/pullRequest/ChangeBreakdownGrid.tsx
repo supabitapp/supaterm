@@ -1,6 +1,6 @@
 import { formatDiffCount } from "@supaterm/client-runtime/diff-count";
 import type { PullRequestChangeBreakdown } from "@supaterm/contracts";
-import { msg, useGT } from "gt-react";
+import { useGT } from "gt-react";
 
 const KIND_LABELS = {
   code: "Code",

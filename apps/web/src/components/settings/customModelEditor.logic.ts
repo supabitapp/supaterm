@@ -8,7 +8,6 @@ import {
   createModelCapabilities,
   filterCustomModelCapabilities,
 } from "@supaterm/shared/model";
-import { msg } from "gt-react";
 
 export interface EditorChoice {
   readonly key: string;

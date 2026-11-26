@@ -43,7 +43,6 @@ import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { THREAD_DETAILS_PANEL_ICON_CLASS } from "./threadDetailsPanelStyles";
 import { T, useGT } from "gt-react";
-import { m } from "~/i18n/messages";
 
 const SERVER_PAGE_COUNT = 4;
 

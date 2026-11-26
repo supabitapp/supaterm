@@ -1,7 +1,7 @@
 import { CircleCheckIcon } from "@supaterm/icons";
 import type { ComponentProps, ReactNode } from "react";
 import { Button } from "../ui/button";
-import { useGT, T } from "gt-react";
+import { T } from "gt-react";
 
 export interface PermissionItem {
   id: string;
@@ -50,7 +50,6 @@ export function PermissionContinueButton({
   children = "Continue",
   ...props
 }: Omit<ComponentProps<typeof Button>, "disabled"> & { ready: boolean; busy?: boolean }) {
-  const gt = useGT();
   return (
     <Button {...props} disabled={!ready || busy}>
       {children}

@@ -1,5 +1,4 @@
 import type { ProjectIconColor } from "@supaterm/contracts";
-import { msg } from "gt-react";
 
 export const PROJECT_ICON_COLORS: ReadonlyArray<{
   readonly value: ProjectIconColor;

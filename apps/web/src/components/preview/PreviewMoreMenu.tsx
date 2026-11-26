@@ -23,7 +23,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useShortcutLabel } from "~/hooks/useShortcutLabel";
 import { PREVIEW_FOCUS_SHORTCUT_OPTIONS } from "~/lib/previewFocus";
-import { msg, T, useGT } from "gt-react";
+import { T, useGT } from "gt-react";
 
 const COLOR_SCHEME_OPTIONS: ReadonlyArray<{
   value: DesktopPreviewColorScheme;
