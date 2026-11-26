@@ -33,6 +33,7 @@ const reactTests = [
   "src/features/pull-requests/guide/useReviewGuide.test.tsx",
   "src/features/settings/SettingsServerControlsRouteScreen.test.tsx",
   "src/features/settings/SettingsScheduledTasksRouteScreen.test.tsx",
+  "src/features/settings/SettingsRouteScreen.test.tsx",
   "src/features/settings/components/BranchNamingSettings.test.tsx",
   "src/features/settings/components/ThreadTitleInstructionsSettings.test.tsx",
   "src/features/settings/components/SettingsDragHandle.test.tsx",
@@ -80,22 +81,28 @@ const babelConfig = require("./babel.config.js")({ cache: () => {} });
 const testPlatform = process.env.MOBILE_TEST_PLATFORM === "android" ? "android" : "ios";
 
 // gt-react-native loads react-native and its hooks need <GTProvider>; tests get GT's core set up the way gt-react's initializeGTSPA does, which renders English without a provider.
+// A test that loads a catalog into the cache renders that language under <GTProvider locale>.
 const gtTestModule = "\0gt-react-native";
 const gtReactNativeEntry = require.resolve("gt-react-native");
-const gtTestConfig = JSON.stringify({ defaultLocale: require("./gt.config.json").defaultLocale });
+const { defaultLocale, locales } = require("./gt.config.json");
+const gtTestConfig = JSON.stringify({ defaultLocale, locales });
 const gtTestModuleCode = `
 import { I18nStore, ReactI18nCache, initializeI18nConfig, setI18nStore, setReactI18nCache } from "@generaltranslation/react-core/pure";
-import { ReadonlyConditionStore, createConditionStoreSingleton } from "gt-i18n/internal";
+import { WritableConditionStore, createConditionStoreSingleton } from "gt-i18n/internal";
 const config = ${gtTestConfig};
 initializeI18nConfig(config, "SPA");
 setReactI18nCache(new ReactI18nCache(config));
-createConditionStoreSingleton().setConditionStore(new ReadonlyConditionStore({ locale: config.defaultLocale }));
+const conditions = new WritableConditionStore({ locale: config.defaultLocale });
+createConditionStoreSingleton().setConditionStore(conditions);
 setI18nStore(new I18nStore());
 export * from "@generaltranslation/react-core/components";
 export * from "@generaltranslation/react-core/hooks";
 export * from "@generaltranslation/react-core/pure";
 export const initializeGT = () => {};
-export const GTProvider = (props) => props.children;
+export const GTProvider = (props) => {
+  conditions.setLocale(props.locale ?? config.defaultLocale);
+  return props.children;
+};
 `;
 
 export default defineConfig({

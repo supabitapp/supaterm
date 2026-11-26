@@ -20,9 +20,13 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import { ChevronDownIcon, MessageSquareIcon } from "@supaterm/icons";
-import { resolvePastedPath } from "@supaterm/shared/path";
-import { resolveWorktreeRepositorySelection } from "@supaterm/client-runtime/state/thread-repositories";
-import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
+import { fileBasename, resolvePastedPath } from "@supaterm/shared/path";
+import {
+  resolveWorktreeRepositorySelection,
+  scheduledTaskWorkspaceStrategy,
+  type WorktreeRepositoryChoice,
+  type WorktreeRepositorySelection,
+} from "@supaterm/client-runtime/state/thread-repositories";
 import { msg, T, useGT, useMessages } from "gt-react";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
@@ -91,7 +95,6 @@ import {
   toDateTimeLocalValue,
   unbindDraftFromThread,
   WEEKDAY_LABELS,
-  workspaceStrategyFromDraft,
   type DraftState,
   type WorkspaceMode,
 } from "./automations.logic";
@@ -160,22 +163,28 @@ function Field({
   );
 }
 
-/** The tracked repositories each run's new worktree takes. Hidden for a project that tracks none. */
+/**
+ * The tracked repositories each run's new worktree takes, and any saved one the project no longer
+ * offers, which the task keeps until it is unchecked. Hidden when there is nothing to list.
+ */
 function ScheduledTaskRepositories({
-  project,
-  repositories,
+  choices,
+  selection,
   onChange,
 }: {
-  readonly project: EnvironmentProject | null;
-  readonly repositories: ReadonlyArray<string> | undefined;
+  readonly choices: ReadonlyArray<WorktreeRepositoryChoice>;
+  readonly selection: WorktreeRepositorySelection;
   readonly onChange: (repositories: ReadonlyArray<string>) => void;
 }) {
-  const messages = useMessages();
   const gt = useGT();
-  const { choices } = useWorktreeRepositoryChoices(project);
-  if (choices === null || choices.length === 0) return null;
-  const selection = resolveWorktreeRepositorySelection({ choices, chosen: repositories }, messages);
-  const selected = new Set(selection.selected);
+  if (choices.length === 0 && selection.unavailable.length === 0) return null;
+  const selected = new Set([...selection.selected, ...selection.unavailable]);
+  const toggle = (path: string, checked: boolean) =>
+    onChange(
+      [...choices.map((choice) => choice.repositoryPath), ...selection.unavailable].filter(
+        (candidate) => (candidate === path ? checked : selected.has(candidate)),
+      ),
+    );
   return (
     <div className="space-y-1.5">
       <Label>
@@ -190,17 +199,7 @@ function ScheduledTaskRepositories({
             <Checkbox
               className="self-center"
               checked={selected.has(choice.repositoryPath)}
-              onCheckedChange={(checked) =>
-                onChange(
-                  choices.flatMap(({ repositoryPath }) => {
-                    const keep =
-                      repositoryPath === choice.repositoryPath
-                        ? checked
-                        : selected.has(repositoryPath);
-                    return keep ? [repositoryPath] : [];
-                  }),
-                )
-              }
+              onCheckedChange={(checked) => toggle(choice.repositoryPath, checked)}
             />
             <span className="min-w-0 truncate">{choice.name}</span>
             {choice.relativePath !== undefined && choice.relativePath !== choice.name ? (
@@ -210,16 +209,36 @@ function ScheduledTaskRepositories({
             ) : null}
           </label>
         ))}
+        {selection.unavailable.map((path) => (
+          <label
+            key={path}
+            className="flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5 text-sm not-last:border-b"
+          >
+            <Checkbox
+              className="self-center"
+              checked
+              onCheckedChange={(checked) => toggle(path, checked)}
+            />
+            <span className="min-w-0 truncate">{fileBasename(path)}</span>
+            <span className="min-w-0 truncate text-xs text-warning-foreground">
+              <T>Unavailable</T>
+            </span>
+          </label>
+        ))}
       </div>
       <p
         className={cn(
           "text-xs",
-          selection.needsChoice ? "text-warning-foreground" : "text-muted-foreground",
+          selection.needsChoice || selection.unavailable.length > 0
+            ? "text-warning-foreground"
+            : "text-muted-foreground",
         )}
       >
-        {selection.needsChoice
-          ? gt("Choose the repositories each run works on.")
-          : gt("Each gets its own worktree on the run's branch.")}
+        {selection.unavailable.length > 0
+          ? gt("Runs fail until each unavailable repository is back or unchecked.")
+          : selection.needsChoice
+            ? gt("Choose the repositories each run works on.")
+            : gt("Each gets its own worktree on the run's branch.")}
       </p>
     </div>
   );
@@ -467,6 +486,13 @@ export function AutomationEditorDialog({
     !tasksQuery.data.tasks.some((entry) => entry.id === draft.editingId);
   const selectedProjectId = draft.projectId || projects[0]?.id || "";
   const selectedProject = projects.find((project) => project.id === selectedProjectId);
+  const { choices: repositoryChoices } = useWorktreeRepositoryChoices(
+    draft.workspaceMode === "worktree" ? (selectedProject ?? null) : null,
+  );
+  const repositorySelection = resolveWorktreeRepositorySelection(
+    { choices: repositoryChoices, chosen: draft.repositories },
+    m,
+  );
   const automaticBaseRef = draft.workspaceMode === "worktree" && !draft.baseRef.trim();
   const automaticBaseRefs = usePaginatedBranches({
     environmentId,
@@ -576,7 +602,13 @@ export function AutomationEditorDialog({
       );
       return;
     }
-    const workspaceStrategy = workspaceStrategyFromDraft(draft, worktreeBaseRef);
+    const workspaceStrategy = scheduledTaskWorkspaceStrategy({
+      mode: draft.workspaceMode,
+      baseRef: worktreeBaseRef,
+      startFromOrigin: draft.startFromOrigin,
+      worktreePath: draft.existingWorktreePath,
+      selection: repositorySelection,
+    });
     const input: ScheduledTaskUpsertInput = {
       ...(draft.editingId ? { id: draft.editingId as ScheduledTaskId, requireExisting: true } : {}),
       title: draft.title.trim(),
@@ -825,10 +857,10 @@ export function AutomationEditorDialog({
                 />
               </Field>
             ) : null}
-            {draft.workspaceMode === "worktree" ? (
+            {draft.workspaceMode === "worktree" && repositoryChoices !== null ? (
               <ScheduledTaskRepositories
-                project={selectedProject ?? null}
-                repositories={draft.repositories}
+                choices={repositoryChoices}
+                selection={repositorySelection}
                 onChange={(repositories) => setDraft((current) => ({ ...current, repositories }))}
               />
             ) : null}

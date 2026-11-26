@@ -24,9 +24,9 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
+import * as SqlClient from "effect/sql/SqlClient";
 
 import { withCommandMetrics } from "../observability/Metrics.ts";
-import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
@@ -198,7 +198,7 @@ export const make = Effect.gen(function* () {
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const threadProjections = yield* ProjectionStore.ProjectionStoreV2;
   const eventSink = yield* EventSink.EventSinkV2;
-  const commandReceipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
+  const sql = yield* SqlClient.SqlClient;
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
   const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
@@ -269,10 +269,14 @@ export const make = Effect.gen(function* () {
     });
   });
 
+  // A read inside a transaction must not lend it to the scan, which outlives it.
+  const startFolderSync = (row: Parameters<typeof syncFolders>[0]) =>
+    sql.afterCommit(
+      syncFolders(row).pipe(Effect.ignoreCause({ log: true }), Effect.forkIn(scope), Effect.asVoid),
+    );
+
   const hydrate = Effect.fn("ProjectService.hydrate")(function* (row: ProjectStore.ProjectRow) {
-    if (row.deletedAt === null) {
-      yield* syncFolders(row).pipe(Effect.ignoreCause({ log: true }), Effect.forkIn(scope));
-    }
+    if (row.deletedAt === null) yield* startFolderSync(row);
     const enrichment =
       row.deletedAt === null
         ? yield* projectEnrichment.getAvailable(row.workspaceRoot)
@@ -393,8 +397,6 @@ export const make = Effect.gen(function* () {
     refine?: (
       current: ProjectStore.ProjectRow | undefined,
     ) => Effect.Effect<ProjectCommand | null, ProjectServiceError>,
-    // Runs under the same lock before a new command commits, so writes keep the commit order and
-    // a failed write commits nothing for the retry to skip. Replays of a recorded command skip it.
     beforeCommit?: Effect.Effect<void, ProjectOperationError>,
   ) {
     const { projectId } = initial;
@@ -429,18 +431,13 @@ export const make = Effect.gen(function* () {
         now,
       });
       if (Result.isSuccess(planned)) {
-        if (beforeCommit !== undefined) {
-          const recorded = yield* commandReceipts
-            .getProjectByCommandId(command.commandId)
-            .pipe(Effect.mapError(dispatchError));
-          if (Option.isNone(recorded)) yield* beforeCommit;
-        }
         const { receipt } = yield* eventSink.commitProjectCommand({
           commandId: command.commandId,
           projectId,
           commandType: command.type,
           acceptedAt: now,
           event: planned.success,
+          beforeCommit,
         });
         return { receipt };
       }
@@ -823,13 +820,11 @@ export const make = Effect.gen(function* () {
   );
 
   const enrichShell = (shell: OrchestrationProjectShell) =>
-    syncFolders({
+    startFolderSync({
       projectId: shell.id,
       workspaceRoot: shell.workspaceRoot,
       trackedFolders: shell.trackedFolders ?? [],
     }).pipe(
-      Effect.ignoreCause({ log: true }),
-      Effect.forkIn(scope),
       Effect.andThen(projectEnrichment.getAvailable(shell.workspaceRoot)),
       Effect.map((enrichment) => ({
         ...shell,

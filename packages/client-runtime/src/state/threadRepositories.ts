@@ -8,6 +8,7 @@ import type {
   OrchestrationV2Checkpoint,
   OrchestrationV2CheckpointFileTotals,
   OrchestrationV2CheckpointScope,
+  OrchestrationV2ThreadLaunchWorkspaceStrategy,
   OrchestrationV2ThreadProjection,
   RunId,
   ThreadTurnRepositoryDiff,
@@ -661,6 +662,8 @@ export interface WorktreeRepositorySelection {
    * so the server applies its own default.
    */
   readonly strategyRepositories: ReadonlyArray<{ readonly path: string }> | undefined;
+  /** Chosen paths the project no longer offers; empty while its folders are unknown. */
+  readonly unavailable: ReadonlyArray<string>;
 }
 
 /**
@@ -684,6 +687,7 @@ export function resolveWorktreeRepositorySelection(
       label: resolve(msg("Repositories")),
       needsChoice: false,
       strategyRepositories: chosen?.map((path) => ({ path })),
+      unavailable: [],
     };
   }
   const takesAllByDefault = choices.length <= TASK_FOLDER_DEFAULT_REPOSITORIES_MAX;
@@ -705,6 +709,34 @@ export function resolveWorktreeRepositorySelection(
           : `${selected.length} ${selected.length === 1 ? "repository" : "repositories"}`,
     needsChoice,
     strategyRepositories: chosen === undefined ? undefined : selected.map((path) => ({ path })),
+    unavailable: (chosen ?? []).filter(
+      (path) => !choices.some((choice) => choice.repositoryPath === path),
+    ),
+  };
+}
+
+/**
+ * The workspace a scheduled task saves. Unlike a launch, it keeps a chosen repository the project
+ * no longer offers, which its editor shows, so an edit never retargets the task on its own.
+ */
+export function scheduledTaskWorkspaceStrategy(input: {
+  readonly mode: OrchestrationV2ThreadLaunchWorkspaceStrategy["type"];
+  readonly baseRef: string;
+  readonly startFromOrigin: boolean;
+  readonly worktreePath: string;
+  readonly selection: WorktreeRepositorySelection;
+}): OrchestrationV2ThreadLaunchWorkspaceStrategy {
+  if (input.mode === "root") return { type: "root" };
+  if (input.mode === "existing_worktree")
+    return { type: "existing_worktree", worktreePath: input.worktreePath.trim() };
+  const { strategyRepositories, unavailable } = input.selection;
+  return {
+    type: "worktree",
+    baseRef: input.baseRef,
+    startFromOrigin: input.startFromOrigin,
+    ...(strategyRepositories === undefined
+      ? {}
+      : { repositories: [...strategyRepositories, ...unavailable.map((path) => ({ path }))] }),
   };
 }
 

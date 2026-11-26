@@ -29,6 +29,7 @@ import {
   ScheduledTaskId,
   type ServerProvider,
   ThreadId,
+  TaskFolderError,
   TextGenerationError,
   ServerSettingsError,
   VcsProcessExitError,
@@ -979,7 +980,12 @@ it.effect("a rejected initial message leaves no title change and no new thread",
 function scratchHarness({
   scratch = true,
   nestedRepository = false,
-}: { readonly scratch?: boolean; readonly nestedRepository?: boolean } = {}) {
+  nestedRepositoryAvailable = () => true,
+}: {
+  readonly scratch?: boolean;
+  readonly nestedRepository?: boolean;
+  readonly nestedRepositoryAvailable?: () => boolean;
+} = {}) {
   const claimed: Array<ThreadId> = [];
   const scratchRoot = project.workspaceRoot;
   const notARepository = (operation: string, cwd: string) =>
@@ -992,19 +998,27 @@ function scratchHarness({
   const harness = makeHarness({
     ...(nestedRepository && {
       taskFolders: Layer.mock(TaskFolders.TaskFolders)({
-        plan: (input) =>
-          Effect.succeed(
-            input.projectId === projectId
-              ? {
-                  projectId,
-                  projectRoot: scratchRoot,
-                  projectIsRepository: false,
-                  anchor: scratchRoot,
-                  repositories: [{ name: "api", path: `${scratchRoot}/api` }],
-                  trackedRepositories: [`${scratchRoot}/api`],
-                }
-              : null,
-          ),
+        plan: (input) => {
+          if (input.projectId !== projectId) return Effect.succeed(null);
+          if (nestedRepositoryAvailable())
+            return Effect.succeed({
+              projectId,
+              projectRoot: scratchRoot,
+              projectIsRepository: false,
+              anchor: scratchRoot,
+              repositories: [{ name: "api", path: `${scratchRoot}/api` }],
+              trackedRepositories: [`${scratchRoot}/api`],
+            });
+          // Like the real plan, a named choice is refused, not dropped, once its repository is gone.
+          return (input.repositories ?? []).length === 0
+            ? Effect.succeed(null)
+            : Effect.fail(
+                new TaskFolderError({
+                  operation: "plan",
+                  detail: `"${scratchRoot}/api" is not a tracked folder of project "Project".`,
+                }),
+              );
+        },
       }),
     }),
     managedFolders: Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
@@ -1297,6 +1311,34 @@ it.effect.each([
     }).pipe(Effect.provide(harness.layer));
   },
 );
+
+it.effect("an automation edit keeps its repository while that repository is unavailable", () => {
+  let repositoryAvailable = true;
+  const harness = scratchHarness({
+    scratch: false,
+    nestedRepository: true,
+    nestedRepositoryAvailable: () => repositoryAvailable,
+  });
+  return Effect.gen(function* () {
+    const tasks = yield* ScheduledTasks.ScheduledTaskService;
+    const input = {
+      ...scheduledTaskInput("scheduled-task:repository-unavailable", projectId),
+      workspaceStrategy: {
+        ...worktreeStrategy,
+        repositories: [{ path: `${project.workspaceRoot}/api` }],
+      },
+    };
+    const created = yield* tasks.upsert(input);
+    assert.deepEqual(created.task.workspaceStrategy, input.workspaceStrategy);
+    repositoryAvailable = false;
+    const edited = yield* tasks.upsert({ ...input, title: "Weekly summary" });
+    assert.deepEqual(edited.task.workspaceStrategy, input.workspaceStrategy);
+    const unnamed = yield* tasks.upsert(
+      scheduledTaskInput("scheduled-task:repository-unavailable-default", projectId),
+    );
+    assert.deepEqual(unnamed.task.workspaceStrategy, { type: "root" });
+  }).pipe(Effect.provide(harness.layer));
+});
 
 it.effect("runs a Scratch scheduled task saved with a worktree in its own folder", () => {
   const harness = scratchHarness();

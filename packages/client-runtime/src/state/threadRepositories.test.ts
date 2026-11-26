@@ -21,6 +21,7 @@ import {
   repositoryFilePath,
   repositorySectionForPath,
   resolveWorktreeRepositorySelection,
+  scheduledTaskWorkspaceStrategy,
   rewindFileRestore,
   THREAD_REPOSITORY_SECTIONS_VISIBLE,
   isRelativePathInsideFolder,
@@ -444,6 +445,7 @@ describe("worktree repository selection", () => {
       label: "All repositories",
       needsChoice: false,
       strategyRepositories: undefined,
+      unavailable: [],
     });
   });
 
@@ -474,10 +476,45 @@ describe("worktree repository selection", () => {
       label: "Choose repositories",
       needsChoice: true,
       strategyRepositories: undefined,
+      unavailable: [],
     });
     expect(
       resolveWorktreeRepositorySelection({ choices: many.slice(0, 8), chosen: undefined }).selected,
     ).toHaveLength(8);
+  });
+
+  it("shows a saved repository the project no longer offers, and a task saves what it shows", () => {
+    const selection = resolveWorktreeRepositorySelection({
+      choices,
+      chosen: ["/work/shared", "/work/untracked"],
+    });
+    expect(selection).toMatchObject({
+      selected: ["/work/shared"],
+      unavailable: ["/work/untracked"],
+    });
+    expect(
+      scheduledTaskWorkspaceStrategy({
+        mode: "worktree",
+        baseRef: "main",
+        startFromOrigin: true,
+        worktreePath: "",
+        selection,
+      }),
+    ).toEqual({
+      type: "worktree",
+      baseRef: "main",
+      startFromOrigin: true,
+      repositories: [{ path: "/work/shared" }, { path: "/work/untracked" }],
+    });
+    expect(
+      scheduledTaskWorkspaceStrategy({
+        mode: "worktree",
+        baseRef: "main",
+        startFromOrigin: false,
+        worktreePath: "",
+        selection: resolveWorktreeRepositorySelection({ choices, chosen: undefined }),
+      }),
+    ).toEqual({ type: "worktree", baseRef: "main", startFromOrigin: false });
   });
 
   it("sends a stored choice as it is while the tracked folders are still loading", () => {

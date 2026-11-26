@@ -218,10 +218,13 @@ export function ScheduledTaskRepositoriesPickerRouteScreen() {
     <RepositoriesPickerScreen
       choices={choices}
       selection={selection}
+      listsUnavailable
       hint={
-        selection.needsChoice
-          ? gt("Choose the repositories each run works on.")
-          : gt("Each gets its own worktree on the run's branch.")
+        selection.unavailable.length > 0
+          ? gt("Runs fail until each unavailable repository is back or unchecked.")
+          : selection.needsChoice
+            ? gt("Choose the repositories each run works on.")
+            : gt("Each gets its own worktree on the run's branch.")
       }
       onChange={(repositories) =>
         setEditor((current) =>

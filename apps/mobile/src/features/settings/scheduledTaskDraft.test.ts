@@ -16,7 +16,6 @@ import {
   DEFAULT_SCHEDULE,
   scheduleDraftForTask,
   scheduleFromDraft,
-  workspaceStrategyFromDraft,
 } from "./scheduledTaskDraft";
 
 describe("scheduleDraftForTask", () => {
@@ -185,14 +184,7 @@ describe("scheduled task worktree base", () => {
       repositories: [{ path: "/work/api" }],
     } as const;
     const draft = editDraft({ ...rootTask, workspaceStrategy });
-    expect(workspaceStrategyFromDraft({ ...draft, title: "Renamed" }, "release")).toEqual(
-      workspaceStrategy,
-    );
-    expect(
-      workspaceStrategyFromDraft(
-        changeDraftProject(draft, ProjectId.make("other-project")),
-        "release",
-      ),
-    ).toEqual({ type: "worktree", baseRef: "release", startFromOrigin: true });
+    expect(draft.repositories).toEqual(["/work/api"]);
+    expect(changeDraftProject(draft, ProjectId.make("other-project")).repositories).toBeUndefined();
   });
 });

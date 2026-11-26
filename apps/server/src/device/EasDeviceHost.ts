@@ -188,7 +188,8 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
   // and sessions whose stop after a failed start failed too. The reaper leaves
   // them alone and they count against the limit.
   const starting = new Set<string>();
-  const unresolved = new Map<string, { readonly sessionId: string }>();
+  // Each keeps the client that started it: the account it bills is the one that can stop it.
+  const unresolved = new Map<string, { readonly sessionId: string; readonly expo: ExpoApi }>();
   // Creates whose outcome is unknown (no answer, or a server error), and
   // fresh records a previous server left: Expo may have made the session.
   // Each listing looks for it, and it counts against the limit until found
@@ -236,6 +237,17 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
   const apiForStop = api.pipe(
     Effect.catch((error) => (lastApi === undefined ? Effect.fail(error) : Effect.succeed(lastApi))),
   );
+
+  /** A token rotated for the same account no longer works, so the current credential is the fallback. */
+  const withStartingApi = <A, E>(started: ExpoApi, use: (expo: ExpoApi) => Effect.Effect<A, E>) =>
+    use(started).pipe(
+      Effect.catch((error) =>
+        apiForStop.pipe(
+          Effect.mapError(() => error),
+          Effect.flatMap(use),
+        ),
+      ),
+    );
 
   /** A missing ledger is empty; an unreadable one is an error, never an empty list. */
   const readLedger = fs.readFileString(ledgerPath).pipe(
@@ -316,7 +328,8 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
                           // Still running and billed: owned, counted, and retried by listing.
                           Effect.catch(() =>
                             Effect.sync(
-                              () => void unresolved.set(entry.name, { sessionId: session.id }),
+                              () =>
+                                void unresolved.set(entry.name, { sessionId: session.id, expo }),
                             ),
                           ),
                         ),
@@ -344,18 +357,16 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
    * Retries the stop of a session whose stop failed. A session Expo already
    * ended is let go even if stopping it keeps failing.
    */
-  const retryUnresolved = (expo: ExpoApi, name: string, sessionId: string) =>
-    stopSession(expo, sessionId, name).pipe(
+  const retryUnresolved = (name: string, sessionId: string, started: ExpoApi) =>
+    withStartingApi(started, (expo) => stopSession(expo, sessionId, name)).pipe(
       Effect.catch(() =>
-        expo
-          .session(sessionId)
-          .pipe(
-            Effect.flatMap((current) =>
-              current.status === "STOPPED" || current.status === "ERRORED"
-                ? forgetEntry(name)
-                : Effect.fail(current.status),
-            ),
+        withStartingApi(started, (expo) => expo.session(sessionId)).pipe(
+          Effect.flatMap((current) =>
+            current.status === "STOPPED" || current.status === "ERRORED"
+              ? forgetEntry(name)
+              : Effect.fail(current.status),
           ),
+        ),
       ),
       Effect.andThen(Effect.sync(() => void unresolved.delete(name))),
       Effect.ignore,
@@ -569,7 +580,9 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
                 Effect.onError(() =>
                   stopSession(expo, sessionId, name).pipe(
                     // Still running and billed: owned, counted, and retried by listing.
-                    Effect.catch(() => Effect.sync(() => void unresolved.set(name, { sessionId }))),
+                    Effect.catch(() =>
+                      Effect.sync(() => void unresolved.set(name, { sessionId, expo })),
+                    ),
                   ),
                 ),
               );
@@ -630,20 +643,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
 
   const sessionFor = (deviceId: string) => Option.fromNullishOr(sessions.get(deviceId));
 
-  /** A token rotated for the same account no longer works, so the current credential is the fallback. */
-  const withSessionApi = <A, E>(
-    session: RunningSession,
-    use: (expo: ExpoApi) => Effect.Effect<A, E>,
-  ) =>
-    use(session.expo).pipe(
-      Effect.catch((error) =>
-        apiForStop.pipe(
-          Effect.mapError(() => error),
-          Effect.flatMap(use),
-        ),
-      ),
-    );
-
   const forget = (session: RunningSession) =>
     Effect.sync(() => {
       sessions.delete(session.sessionId);
@@ -654,7 +653,7 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     session: RunningSession,
     onRunning: (status: EasSessionStatus) => Effect.Effect<void, E>,
   ) =>
-    withSessionApi(session, (expo) => expo.session(session.sessionId)).pipe(
+    withStartingApi(session.expo, (expo) => expo.session(session.sessionId)).pipe(
       Effect.flatMap((current) =>
         current.status === "STOPPED" || current.status === "ERRORED"
           ? forget(session).pipe(Effect.andThen(forgetEntry(session.name)))
@@ -689,14 +688,14 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     );
     yield* Effect.forEach(
       [...unresolved],
-      ([name, { sessionId }]) => retryUnresolved(expo, name, sessionId),
+      ([name, { sessionId, expo: started }]) => retryUnresolved(name, sessionId, started),
       { discard: true, concurrency: 4 },
     );
     yield* Effect.forEach(
       stale,
       (session) =>
         (session.stopping
-          ? withSessionApi(session, (expo) =>
+          ? withStartingApi(session.expo, (expo) =>
               stopSession(expo, session.sessionId, session.name),
             ).pipe(
               Effect.andThen(forget(session)),
@@ -719,7 +718,9 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
   const stopTracked = (session: RunningSession) =>
     Effect.suspend(() => {
       session.stopping = true;
-      return withSessionApi(session, (expo) => stopSession(expo, session.sessionId, session.name));
+      return withStartingApi(session.expo, (expo) =>
+        stopSession(expo, session.sessionId, session.name),
+      );
     }).pipe(Effect.andThen(forget(session)));
 
   const devices: DeviceHost.DeviceOperations = {
@@ -898,7 +899,7 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     const expo = yield* apiForStop;
     yield* Effect.forEach(
       [...unresolved],
-      ([name, { sessionId }]) => retryUnresolved(expo, name, sessionId),
+      ([name, { sessionId, expo: started }]) => retryUnresolved(name, sessionId, started),
       { discard: true, concurrency: 4 },
     );
     // Also stop a recorded session a create with an unknown outcome made after all.

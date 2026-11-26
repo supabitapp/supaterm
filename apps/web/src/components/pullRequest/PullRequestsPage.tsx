@@ -1549,6 +1549,10 @@ export function PullRequestsPage() {
     if (!rightPanelState.isOpen) return false;
     if (!repeat) toggleRightPanelMaximized();
   });
+  const panelShortcutContext = useEffectEvent(() => ({
+    ...getShortcutContext(),
+    rightPanelOpen: rightPanelState.isOpen,
+  }));
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the right panel and copy-link commands with the dispatcher for the page's lifetime
   useEffect(
     () =>
@@ -1560,7 +1564,7 @@ export function PullRequestsPage() {
             toggleRightPanelMaximizedFromShortcut(repeat),
           "thread.copyReference": ({ repeat }) => copyPullRequestFromShortcut(repeat),
         },
-        { when: () => !isCommandPaletteOpen(), context: getShortcutContext },
+        { when: () => !isCommandPaletteOpen(), context: () => panelShortcutContext() },
       ),
     [],
   );

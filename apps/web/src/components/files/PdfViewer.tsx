@@ -218,17 +218,8 @@ function PdfPage(props: {
                 />
               );
             }
-            const { onOpenLink } = props;
-            return onOpenLink ? (
-              <button
-                key={key}
-                type="button"
-                aria-label={link.url}
-                className="pointer-events-auto absolute cursor-pointer"
-                style={style}
-                onClick={(event) => onOpenLink(link.url, event)}
-              />
-            ) : (
+            const openLink = props.onOpenLink;
+            return (
               <a
                 key={key}
                 href={link.url}
@@ -237,6 +228,13 @@ function PdfPage(props: {
                 aria-label={link.url}
                 className="pointer-events-auto absolute"
                 style={style}
+                onClick={
+                  openLink &&
+                  ((event) => {
+                    event.preventDefault();
+                    openLink(link.url, event);
+                  })
+                }
               />
             );
           })}
