@@ -18,6 +18,10 @@ vi.mock("@effect/atom-react", () => ({
     environment: { platform: { os: "linux" } },
   }),
 }));
+vi.mock("gt-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("gt-react")>()),
+  useMessages: () => (text: string) => text,
+}));
 vi.mock(import("./state/session"), async (original) => ({
   ...(await original()),
   useEnvironmentScope: () => true,

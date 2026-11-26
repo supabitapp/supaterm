@@ -28,7 +28,9 @@ import { useAtomCommand } from "./state/use-atom-command";
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { toastManager } from "./components/ui/toast";
 import { useAtomValue } from "@effect/atom-react";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
+
+import type { MessageResolver } from "./i18n/messages";
 
 export type FileContextMenuAction =
   | "reveal-in-folder"
@@ -73,11 +75,16 @@ function buildFileContextMenuItems(input: {
   readonly hasAbsolutePath: boolean;
   readonly capabilities: FileContextMenuCapabilities;
   readonly editorIcons: ReadonlyMap<EditorId, string>;
+  readonly resolve: MessageResolver;
 }): readonly ContextMenuItem<FileContextMenuAction>[] {
   if (!input.hasAbsolutePath) return [];
   const items: ContextMenuItem<FileContextMenuAction>[] = [];
   if (input.capabilities.canOpenDefault) {
-    items.push({ id: "open", label: "Open", icon: "pencil" });
+    items.push({
+      id: "open",
+      label: input.resolve(msg("Open", { $context: "verb, opens a file" })),
+      icon: "pencil",
+    });
   }
   if (input.capabilities.revealLabel !== undefined) {
     items.push({
@@ -90,7 +97,7 @@ function buildFileContextMenuItems(input: {
   if (editorIds.length > 0) {
     items.push({
       id: "open-with",
-      label: msg("Open with"),
+      label: input.resolve(msg("Open with")),
       children: editorIds.map((editorId) => {
         const iconImage = input.editorIcons.get(editorId);
         return {
@@ -107,6 +114,7 @@ function buildFileContextMenuItems(input: {
 export function useFileContextMenu(environmentId: EnvironmentId | null) {
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: false });
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
+  const resolve = useMessages();
 
   const remoteOpen = useRemoteOpenResolution(environmentId);
   const remoteCapableEditors = useRemoteCapableEditors();
@@ -137,7 +145,11 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
   const editorIcons = useEditorMenuIcons(availableEditors);
 
   const editorFailureTitle = (editor: EditorId) =>
-    `Could not open in ${EDITOR_LABEL_BY_ID.get(editor) ?? editor}`;
+    resolve(
+      msg("Could not open in {editor}", {
+        editor: EDITOR_LABEL_BY_ID.get(editor) ?? editor,
+      }),
+    );
 
   const activate = async (
     action: FileContextMenuAction,
@@ -180,9 +192,9 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
       type: "error",
       title:
         action === "open"
-          ? msg("Could not open file")
+          ? resolve(msg("Could not open file"))
           : reveal
-            ? msg("Unable to reveal file")
+            ? resolve(msg("Unable to reveal file"))
             : editorFailureTitle(editor),
       description: absolutePath,
     });
@@ -198,6 +210,7 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
       hasAbsolutePath: resolveFileContextMenuAbsolutePath(target) !== null,
       capabilities,
       editorIcons,
+      resolve,
     });
     if (items.length === 0 || api === undefined) return;
     const clicked = await api.contextMenu.show(items, position, source);
@@ -211,6 +224,7 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
         hasAbsolutePath: resolveFileContextMenuAbsolutePath(target) !== null,
         capabilities,
         editorIcons,
+        resolve,
       }),
     capabilities,
     activate,
