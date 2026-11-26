@@ -21,7 +21,7 @@ import { stackedThreadToast, toastManager } from "./ui/toast";
 import { msg, useGT, T } from "gt-react";
 import { m } from "../i18n/messages";
 
-export const APPEARANCE_OPTIONS = [
+const APPEARANCE_OPTIONS = [
   { mode: "system", label: msg("System"), icon: MonitorIcon },
   { mode: "light", label: msg("Light"), icon: SunIcon },
   { mode: "dark", label: msg("Dark"), icon: MoonIcon },

@@ -561,6 +561,8 @@ export default defineConfig({
         files: ["apps/web/src/**"],
         rules: { "shadcn/no-raw-colors": "error" },
       },
+      // Registered always so a disable comment for intentional English counts as used.
+      // `vp run i18n:untranslated` counts what it flags.
       {
         files: ["apps/web/src/**", "apps/mobile/src/**", "packages/client-runtime/src/**"],
         excludeFiles: [
@@ -571,7 +573,7 @@ export default defineConfig({
           "apps/mobile/src/features/development/**",
           "packages/client-runtime/src/rpc/**",
         ],
-        rules: { "supaterm/no-untranslated-copy": "off" },
+        rules: { "supaterm/no-untranslated-copy": "error" },
       },
       {
         // Third-party marks (brand logos, the macOS permission panes, Codex's Computer Use

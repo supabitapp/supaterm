@@ -106,7 +106,7 @@
       // reports an entire component module when nothing imports it.
       "ignoreIssues": {
         "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
-        // Translation runtime helpers whose callers arrive with the remaining copy.
+        // Upstream's runtime keeps helpers (useFormattingLocale, getActiveLocale) the fork does not call yet.
         "src/i18n/{I18nProvider.tsx,messages.ts}": ["exports"],
       },
     },
@@ -136,7 +136,7 @@
         "@supaterm/mobile-review-diff-native",
         "@supaterm/mobile-terminal-native",
       ],
-      // Translation runtime helpers whose callers arrive with the remaining copy.
+      // Upstream's runtime keeps helpers (useFormattingLocale, keepMarked) the fork does not call yet.
       "ignoreIssues": { "src/i18n/{I18nProvider.tsx,messages.ts}": ["exports"] },
     },
     "apps/mobile/modules/supaterm-highlights": {
@@ -153,7 +153,7 @@
     },
     "packages/client-runtime": {
       "includeEntryExports": true,
-      // Error translation helpers whose callers arrive with the remaining copy.
+      // Upstream's marked-error helpers; the fork's errors do not carry i18nMessage yet.
       "ignoreIssues": { "src/errors/translatable.ts": ["exports"] },
     },
     "packages/effect-acp": {
