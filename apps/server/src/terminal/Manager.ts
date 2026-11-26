@@ -38,11 +38,13 @@ import {
   ClaudeSettings,
   CodexSettings,
   ProviderInstanceId,
+  type ProviderInstanceEnvironmentVariable,
 } from "@supaterm/contracts";
 import { makeKeyedCoalescingWorker } from "@supaterm/shared/KeyedCoalescingWorker";
 import * as KeyedLock from "@supaterm/shared/KeyedLock";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import { stripAppImageRuntimeEnv } from "@supaterm/shared/appImageRuntimeEnv";
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { SpawnExecutableResolution, mergePathEntries } from "@supaterm/shared/shell";
 
@@ -1751,6 +1753,7 @@ export const resolveProviderInstanceTerminalEnvironment = Effect.fn(
 )(function* (input: {
   readonly deriveProviderInstanceConfigMap: typeof deriveProviderInstanceConfigMap;
   readonly serverSettings: ServerSettings.ServerSettingsService["Service"];
+  readonly secretResolver: SecretResolver.SecretResolver["Service"];
   readonly path: Path.Path;
   readonly rawProviderInstanceId: string;
   readonly env: Record<string, string> | undefined;
@@ -1764,7 +1767,30 @@ export const resolveProviderInstanceTerminalEnvironment = Effect.fn(
     return yield* new TerminalProviderInstanceNotFoundError({ providerInstanceId });
   }
 
-  let resolved = yield* mergeProviderInstanceEnvironment(instance.environment, input.env ?? {});
+  const variables = instance.environment ?? [];
+  const references = variables.flatMap((variable) =>
+    typeof variable.value === "string" ? [] : [variable.value],
+  );
+  const secrets = references.length === 0 ? [] : yield* input.secretResolver.read(references);
+  let secretIndex = 0;
+  const environment: Array<ProviderInstanceEnvironmentVariable> = [];
+  for (const variable of variables) {
+    if (typeof variable.value === "string") {
+      environment.push(variable);
+      continue;
+    }
+    const secret = secrets[secretIndex++];
+    // As for the provider itself, an unreadable secret never falls back to an inherited value.
+    if (secret === undefined || secret.trim() === "") {
+      return yield* new TerminalProviderEnvironmentError({
+        providerInstanceId,
+        cause: `Could not read ${variable.name} from "${yield* input.secretResolver.label(variable.value.provider)}".`,
+      });
+    }
+    environment.push({ ...variable, value: secret });
+  }
+
+  let resolved = yield* mergeProviderInstanceEnvironment(environment, input.env ?? {});
   if (instance.driver === "codex") {
     const config = decodeCodexSettings(instance.config ?? {});
     if (Option.isSome(config)) {
@@ -1797,6 +1823,7 @@ export const make = Effect.fn("TerminalManager.make")(function* (
   const portDiscovery = yield* PortScanner.PortDiscovery;
   const nativeTelemetry = yield* NativeTelemetryClient.NativeTelemetryClient;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
+  const secretResolver = yield* SecretResolver.SecretResolver;
   const path = yield* Path.Path;
   const resolveProviderInstanceEnvironment = Effect.fn(
     "terminal.resolveProviderInstanceEnvironment",
@@ -1804,6 +1831,7 @@ export const make = Effect.fn("TerminalManager.make")(function* (
     resolveProviderInstanceTerminalEnvironment({
       deriveProviderInstanceConfigMap: deriveConfigMap,
       serverSettings,
+      secretResolver,
       path,
       rawProviderInstanceId,
       env,

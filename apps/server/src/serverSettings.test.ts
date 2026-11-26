@@ -14,6 +14,7 @@ import {
   ServerSettings,
   ServerSettingsPatch,
 } from "@supaterm/contracts";
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import { createModelSelection } from "@supaterm/shared/model";
 import { assert, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
@@ -1850,6 +1851,11 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
       const environment = yield* resolveProviderInstanceTerminalEnvironment({
         deriveProviderInstanceConfigMap,
         serverSettings,
+        secretResolver: SecretResolver.SecretResolver.of({
+          read: (references) => Effect.succeed(references.map(() => undefined)),
+          invalidate: () => Effect.void,
+          label: () => Effect.succeed("unused"),
+        }),
         path,
         rawProviderInstanceId: instanceId,
         env: undefined,
