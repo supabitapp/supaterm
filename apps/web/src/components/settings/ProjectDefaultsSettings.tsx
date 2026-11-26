@@ -146,7 +146,10 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       }
       resetAction={
         settings.defaultModelSelection !== null ? (
-          <SettingResetButton label="default model" onClick={() => setModel(null)} />
+          <SettingResetButton
+            label={gt("default model", { $context: "setting name in a reset button label" })}
+            onClick={() => setModel(null)}
+          />
         ) : null
       }
       control={
@@ -213,7 +216,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       resetAction={
         !isProjectScope && settings.defaultThreadEnvMode !== null ? (
           <SettingResetButton
-            label="default workspace"
+            label={gt("default workspace", { $context: "setting name in a reset button label" })}
             onClick={() => updateSettings({ defaultThreadEnvMode: null })}
           />
         ) : null
@@ -256,7 +259,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       resetAction={
         mixedFallback || settings.fallbackModelSelection !== null ? (
           <SettingResetButton
-            label="fallback model"
+            label={gt("fallback model", { $context: "setting name in a reset button label" })}
             onClick={() => updateSettings({ fallbackModelSelection: null })}
           />
         ) : null
@@ -350,7 +353,9 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             resetAction={
               settings.defaultRuntimeMode !== DEFAULT_SERVER_SETTINGS.defaultRuntimeMode ? (
                 <SettingResetButton
-                  label="default permissions"
+                  label={gt("default permissions", {
+                    $context: "setting name in a reset button label",
+                  })}
                   onClick={() =>
                     updateSettings({
                       defaultRuntimeMode: DEFAULT_SERVER_SETTINGS.defaultRuntimeMode,
@@ -408,11 +413,13 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             mixed={mixedAutoPull}
             id="automatic-pull"
             title={gt("Automatically pull")}
-            description="Fast-forward the default branch when the checkout is clean."
+            description={gt("Fast-forward the default branch when the checkout is clean.")}
             resetAction={
               settings.defaultAutoPull !== DEFAULT_SERVER_SETTINGS.defaultAutoPull ? (
                 <SettingResetButton
-                  label="default automatic pull"
+                  label={gt("default automatic pull", {
+                    $context: "setting name in a reset button label",
+                  })}
                   onClick={() =>
                     updateSettings({ defaultAutoPull: DEFAULT_SERVER_SETTINGS.defaultAutoPull })
                   }
@@ -433,11 +440,15 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             settingKeys={["removeAgentCreditsOnMerge"]}
             mixed={mixedAgentCredits}
             {...searchableSetting("remove-agent-credits-on-merge")}
-            description="Keeps human co-authors. Covers auto-merge; skips merge queues and stack merges."
+            description={gt(
+              "Keeps human co-authors. Covers auto-merge; skips merge queues and stack merges.",
+            )}
             resetAction={
               settings.removeAgentCreditsOnMerge ? (
                 <SettingResetButton
-                  label="agent credit removal"
+                  label={gt("agent credit removal", {
+                    $context: "setting name in a reset button label",
+                  })}
                   tooltip={gt("Keep agent credits")}
                   onClick={() => updateSettings({ removeAgentCreditsOnMerge: false })}
                 />
@@ -459,11 +470,13 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             settingKeys={["pullRequestMergeMethod"]}
             mixed={mixedMergeMethod}
             {...searchableSetting("pull-request-merge-method")}
-            description="Last selected reuses your most recent choice on this device."
+            description={gt("Last selected reuses your most recent choice on this device.")}
             resetAction={
               settings.pullRequestMergeMethod !== null ? (
                 <SettingResetButton
-                  label="default merge method"
+                  label={gt("default merge method", {
+                    $context: "setting name in a reset button label",
+                  })}
                   tooltip={gt("Reset to last selected")}
                   onClick={() => updateSettings({ pullRequestMergeMethod: null })}
                 />
@@ -490,7 +503,9 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup align="end" alignItemWithTrigger={false}>
-                  <SelectItem value="last">Last selected</SelectItem>
+                  <SelectItem value="last">
+                    <T>Last selected</T>
+                  </SelectItem>
                   <SelectItem value="merge">{PULL_REQUEST_MERGE_METHOD_LABELS.merge}</SelectItem>
                   <SelectItem value="squash">{PULL_REQUEST_MERGE_METHOD_LABELS.squash}</SelectItem>
                   <SelectItem value="rebase">{PULL_REQUEST_MERGE_METHOD_LABELS.rebase}</SelectItem>
@@ -505,6 +520,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
 }
 
 export function AgentBrowserAccessRow() {
+  const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const mixed = useScopedSettingsMixed(["enableAgentBrowserAccess"]);
@@ -514,11 +530,13 @@ export function AgentBrowserAccessRow() {
       settingKeys={["enableAgentBrowserAccess"]}
       mixed={mixed}
       {...searchableSetting("agent-browser-access")}
-      description="Let agents drive the shared browser. Applies when an agent session starts."
+      description={gt("Let agents drive the shared browser. Applies when an agent session starts.")}
       resetAction={
         settings.enableAgentBrowserAccess !== DEFAULT_SERVER_SETTINGS.enableAgentBrowserAccess ? (
           <SettingResetButton
-            label="default browser access"
+            label={gt("default browser access", {
+              $context: "setting name in a reset button label",
+            })}
             onClick={() =>
               updateSettings({
                 enableAgentBrowserAccess: DEFAULT_SERVER_SETTINGS.enableAgentBrowserAccess,
@@ -529,7 +547,7 @@ export function AgentBrowserAccessRow() {
       }
       control={
         <Switch
-          aria-label="Agent browser access"
+          aria-label={gt("Agent browser access")}
           mixed={mixed}
           checked={mixed ? false : settings.enableAgentBrowserAccess}
           onCheckedChange={(enabled) => updateSettings({ enableAgentBrowserAccess: enabled })}
@@ -560,7 +578,7 @@ export function WorktreeSubmodulesRow() {
       resetAction={
         !isProjectScope && settings.worktreeSubmodules !== null ? (
           <SettingResetButton
-            label="worktree submodules"
+            label={gt("worktree submodules", { $context: "setting name in a reset button label" })}
             onClick={() => updateSettings({ worktreeSubmodules: null })}
           />
         ) : null
@@ -597,6 +615,7 @@ export function WorktreeSubmodulesRow() {
 }
 
 export function StartFromRemoteRow() {
+  const gt = useGT();
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
 
@@ -605,12 +624,14 @@ export function StartFromRemoteRow() {
       serverScoped
       settingKeys={["newWorktreesStartFromOrigin"]}
       {...searchableSetting("start-from-origin")}
-      description="Base new worktrees on origin instead of your local branch."
+      description={gt("Base new worktrees on origin instead of your local branch.")}
       resetAction={
         settings.newWorktreesStartFromOrigin !==
         DEFAULT_SERVER_SETTINGS.newWorktreesStartFromOrigin ? (
           <SettingResetButton
-            label="new worktrees start from remote"
+            label={gt("new worktrees start from remote", {
+              $context: "setting name in a reset button label",
+            })}
             onClick={() =>
               updateSettings({
                 newWorktreesStartFromOrigin: DEFAULT_SERVER_SETTINGS.newWorktreesStartFromOrigin,
@@ -626,7 +647,7 @@ export function StartFromRemoteRow() {
           onCheckedChange={(checked) =>
             updateSettings({ newWorktreesStartFromOrigin: Boolean(checked) })
           }
-          aria-label="Start new worktrees from remote by default"
+          aria-label={gt("Start new worktrees from remote by default")}
         />
       }
     />

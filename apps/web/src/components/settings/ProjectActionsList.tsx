@@ -43,7 +43,7 @@ export function ProjectActionsList({
             ) : null}
             {script.runOnDone ? (
               <span className="shrink-0 rounded-sm border border-border/60 px-1.5 py-px text-2xs font-normal text-muted-foreground">
-                on Done
+                {gt("on Done", { $context: "badge, action runs when the thread is marked Done" })}
               </span>
             ) : null}
             {script.previewUrl ? (

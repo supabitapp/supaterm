@@ -558,7 +558,7 @@ function ProjectDetail({
             resetAction={
               canResetScratchTitle ? (
                 <SettingResetButton
-                  label="project name"
+                  label={gt("project name", { $context: "setting name in a reset button label" })}
                   disabled={!canEditGroup}
                   onClick={() =>
                     void updateAllMembers(
@@ -606,7 +606,7 @@ function ProjectDetail({
             resetAction={
               group.memberProjects.some((member) => !hasDefaultProjectIcon(member)) ? (
                 <SettingResetButton
-                  label="project icon"
+                  label={gt("project icon", { $context: "setting name in a reset button label" })}
                   disabled={isSavingFavicon || !canEditGroup}
                   onClick={() => void setProjectIcon(defaultProjectIcon)}
                 />
@@ -706,7 +706,10 @@ function ProjectDetail({
                     "Deletes the selected machine's checkout entries and their threads. Other machines and files on disk are not touched.",
                   )
                 : group.memberProjects.length > 1
-                  ? `Deletes all ${group.memberProjects.length} checkout entries and their threads on every machine. Files on disk are not touched.`
+                  ? gt(
+                      "{count, plural, other {Deletes all {count} checkout entries and their threads on every machine. Files on disk are not touched.}}",
+                      { count: group.memberProjects.length },
+                    )
                   : gt("Deletes the project entry and its threads. Files on disk are not touched.")
             }
             control={

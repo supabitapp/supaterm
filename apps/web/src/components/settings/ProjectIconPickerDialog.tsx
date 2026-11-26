@@ -196,8 +196,8 @@ function ProjectIconPickerBody({
               type="text"
               role="searchbox"
               value={query}
-              aria-label="Search icons"
-              placeholder="Search icons"
+              aria-label={gt("Search icons")}
+              placeholder={gt("Search icons")}
               onChange={(event) => setQuery(event.currentTarget.value)}
               onKeyDown={(event) => {
                 if (
