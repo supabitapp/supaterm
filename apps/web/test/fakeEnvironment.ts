@@ -14,6 +14,7 @@ import {
   ProjectId,
   ProviderInstanceId,
   RunId,
+  type RuntimeRequestId,
   ServerConfig,
   type ServerConfigStreamEvent,
   ThreadId,
@@ -172,6 +173,25 @@ export function assistantItem(
     text,
     streaming,
     ...(streaming ? { status: "running" as const, completedAt: null } : {}),
+  } satisfies OrchestrationV2TurnItem;
+}
+
+export function approvalRequestItem(
+  threadId: ThreadId,
+  runId: RunId,
+  id: string,
+  ordinal: number,
+  requestId: RuntimeRequestId,
+  prompt: string,
+) {
+  return {
+    ...base(threadId, runId, id, ordinal),
+    status: "waiting",
+    completedAt: null,
+    type: "approval_request",
+    requestId,
+    requestKind: "command",
+    prompt,
   } satisfies OrchestrationV2TurnItem;
 }
 

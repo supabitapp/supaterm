@@ -2,7 +2,7 @@ import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { ToolCallDiffTarget } from "../../diffPanelStore";
 import { AudioPreviewUnmountContext } from "../files/AudioPreview";
-import { TimelineMinimap } from "./TimelineMinimap";
+import { createTimelineMinimapPosition, TimelineMinimap } from "./TimelineMinimap";
 import {
   type WorkGroupViewState,
   type TimelineRowSharedState,
@@ -368,16 +368,18 @@ interface MessagesTimelineProps {
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   messageJump?: MessageJump | null;
   onMessageJumpFailed?: MessageJumpHandlers["fail"];
-  turnNavigationRef?: Ref<TimelineTurnNavigation | null>;
+  shortcutsRef?: Ref<TimelineShortcuts | null>;
   findExpanded?: boolean;
   findQuery?: string;
   activeFindMatch?: ThreadFindMatch | null;
   findNavigationId?: number;
 }
 
-export interface TimelineTurnNavigation {
+export interface TimelineShortcuts {
   /** Returns `false` when the thread has no user messages to step between. */
   readonly step: (delta: -1 | 1, repeat: boolean) => boolean;
+  /** The pending approval shown highest: inline rows first, then the footer. */
+  readonly firstPendingApproval: () => PendingApproval | null;
 }
 
 export function MessagesTimeline(props: MessagesTimelineProps) {
@@ -481,7 +483,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onJumpToPinnedMessage,
   messageJump = null,
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
-  turnNavigationRef,
+  shortcutsRef,
 }: MessagesTimelineProps) {
   const gt = useGT();
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
@@ -924,8 +926,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // is not keyed per thread and reports no "new data" event, and the restore
   // must land before paint, after LegendList's own layout effects applied the
   // new data. A citation request that arrives mid-restore takes over.
-  const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
-  const [minimapAtEnd, setMinimapAtEnd] = useState(false);
+  const [minimapPosition] = useState(createTimelineMinimapPosition);
   const refreshMinimap = useStableCallback(() => {
     const state = listRef.current?.getState?.();
     if (restoringThreadPosition || state?.data !== rows) return;
@@ -974,14 +975,13 @@ const ConversationTimeline = memo(function ConversationTimeline({
       visibleEnd: currentRange.end,
       rowIndices: minimapRowIndices,
     });
-    setMinimapCurrentIndex((current) =>
-      current === nextCurrentIndex ? current : nextCurrentIndex,
-    );
-    // The exact bottom, not the follow re-arm zone: Next can still scroll inside that zone.
-    setMinimapAtEnd(
-      viewport !== undefined &&
+    minimapPosition.setState({
+      currentIndex: nextCurrentIndex,
+      // The exact bottom, not the follow re-arm zone: Next can still scroll inside that zone.
+      atEnd:
+        viewport !== undefined &&
         viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1,
-    );
+    });
   });
 
   const minimapRefreshFrameRef = useRef<number | null>(null);
@@ -1635,14 +1635,14 @@ const ConversationTimeline = memo(function ConversationTimeline({
   };
 
   const heldTurnRef = useRef<{ listIdentityKey: string; itemId: string } | null>(null);
-  useImperativeHandle(turnNavigationRef, () => ({
+  useImperativeHandle(shortcutsRef, () => ({
     step: (delta: -1 | 1, repeat: boolean) => {
       if (minimapItems.length === 0) return false;
       if (!repeat) heldTurnRef.current = null;
       const held = heldTurnRef.current;
       const item = resolveTimelineTurnStep({
         items: minimapItems,
-        currentIndex: minimapCurrentIndex,
+        currentIndex: minimapPosition.getState().currentIndex,
         heldItemId: held?.listIdentityKey === listIdentityKey ? held.itemId : null,
         delta,
       });
@@ -1650,6 +1650,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
       heldTurnRef.current = { listIdentityKey, itemId: item.id };
       scrollToMinimapTurn(item, !repeat);
       return true;
+    },
+    firstPendingApproval: () => {
+      for (const requestId of matchedApprovalRequestIds) {
+        const approval = pendingApprovals.find(
+          (pending) => pending.requestId === requestId && isVisiblePendingApproval(pending),
+        );
+        if (approval) return approval;
+      }
+      return unmatchedPendingApprovals[0] ?? null;
     },
   }));
 
@@ -1763,8 +1772,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 items={minimapItems}
                 hasPersistentGutter={minimapHasPersistentGutter}
                 hitStripWidth={minimapHitStripWidth}
-                currentIndex={minimapCurrentIndex}
-                atEnd={minimapAtEnd}
+                position={minimapPosition}
                 stripMap={minimapStripMap}
                 onWheel={forwardMinimapWheel}
                 onSelect={(item) => {

@@ -1,12 +1,13 @@
 import { createMemoryHistory } from "@tanstack/react-router";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
-import { RunId, ThreadId } from "@supaterm/contracts";
+import { NodeId, ProviderSessionId, RunId, RuntimeRequestId, ThreadId } from "@supaterm/contracts";
 import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts/settings";
 import {
   compileResolvedKeybindingsConfig,
   mergeWithDefaultKeybindings,
 } from "@supaterm/shared/keybindings";
 import type * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
 import { expect, it, vi } from "vite-plus/test";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
 
@@ -24,10 +25,12 @@ import { environmentThreadDetails } from "~/state/threads";
 import {
   ENVIRONMENT_ID,
   PROJECT_ID,
+  approvalRequestItem,
   assistantItem,
   dispatchedCommands,
   emitThreadEvent,
   installFakeEnvironment,
+  runningRun,
   threadWithHistory,
   type FakeDriver,
 } from "../../test/fakeEnvironment";
@@ -199,6 +202,111 @@ it("a shortcut conditioned on rightPanelOpen sees the thread's open right panel"
   await userEvent.keyboard("{Control>}t{/Control}");
   await expect.element(page.getByRole("menuitem", { name: /Files/ })).toBeVisible();
   await expect.element(toggle).toHaveAttribute("aria-pressed", "true");
+});
+
+it("the approve shortcut answers the approval the timeline shows first", async () => {
+  const history = threadWithHistory("approvals", 1);
+  const runId = history.runs[0]!.id;
+  const olderRequest = RuntimeRequestId.make("older-approval");
+  const newerRequest = RuntimeRequestId.make("newer-approval");
+  const pendingRequest = (id: RuntimeRequestId, createdAt: string) => ({
+    id,
+    nodeId: NodeId.make("approvals-node"),
+    providerTurnId: null,
+    nativeRequestRef: null,
+    kind: "command" as const,
+    status: "pending" as const,
+    responseCapability: {
+      type: "live" as const,
+      providerSessionId: ProviderSessionId.make("approvals-session"),
+    },
+    createdAt: DateTime.makeUnsafe(createdAt),
+    resolvedAt: null,
+  });
+  // The older request's item is paged out of the loaded history, so it shows below the newer one.
+  const thread = {
+    ...history,
+    items: [
+      ...history.items,
+      approvalRequestItem(history.id, runId, "newer-approval-item", 2, newerRequest, "pnpm test"),
+    ],
+    runtimeRequests: [
+      pendingRequest(olderRequest, "2026-03-17T19:12:29.000Z"),
+      pendingRequest(newerRequest, "2026-03-17T19:12:30.000Z"),
+    ],
+  };
+  using _environment = installFakeEnvironment([thread], {
+    acceptCommands: true,
+    keybindings: mergeWithDefaultKeybindings(
+      compileResolvedKeybindingsConfig([{ key: "ctrl+y", command: "thread.approve" }]),
+    ),
+  });
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${thread.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  const approvals = page.getByRole("group", { name: "Command approval" });
+  await expect.element(approvals.nth(1)).toBeVisible();
+  expect(approvals.first().element().textContent).toContain("pnpm test");
+
+  await userEvent.click(page.getByTestId("composer-editor"));
+  await userEvent.keyboard("{Control>}y{/Control}");
+
+  await vi.waitFor(() =>
+    expect(
+      dispatchedCommands().flatMap((command) =>
+        command.type === "runtime-request.respond" ? [[command.requestId, command.decision]] : [],
+      ),
+    ).toEqual([[newerRequest, "accept"]]),
+  );
+});
+
+it("a queued message sending on one thread leaves the next thread's queue usable in the same pane", async () => {
+  const withQueuedRun = (name: string) => {
+    const history = threadWithHistory(name, 1);
+    const queued = runningRun(history.id, `${name}-queued`, 2, `${name}-queued`);
+    return { ...history, runs: [...history.runs, { ...queued, status: "queued" as const }] };
+  };
+  const first = withQueuedRun("queue-first");
+  const second = withQueuedRun("queue-second");
+  using _environment = installFakeEnvironment([first, second]);
+  __setClientSettingsForTests({
+    ...DEFAULT_CLIENT_SETTINGS,
+    onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
+  });
+  const router = getRouter(
+    createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${second.id}`] }),
+  );
+  await router.load();
+  await using _app = await render(<AppRoot router={router} />, {
+    // AppRoot brings its own router.
+    router: false,
+  });
+  const open = async (threadId: ThreadId) => {
+    await act(() =>
+      router.navigate({
+        to: "/$environmentId/$threadId",
+        params: { environmentId: ENVIRONMENT_ID, threadId },
+      }),
+    );
+    await expect.element(page.getByText(`Answer 0 for ${threadId}.`)).toBeVisible();
+  };
+  const sendNow = page.getByRole("button", { name: "Send now" });
+  await expect.element(sendNow).toBeEnabled();
+  await open(first.id);
+  await sendNow.click();
+  await expect.element(sendNow).toBeDisabled();
+
+  await open(second.id);
+  await expect.element(sendNow).toBeEnabled();
 });
 
 it("a stashed prompt ending in a file chip restores with the chip", async () => {

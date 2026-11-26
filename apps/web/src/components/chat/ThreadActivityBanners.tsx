@@ -273,46 +273,54 @@ export function backgroundWorkNowItem(
     title: <BackgroundWorkTitle title={presentation.title} action={titleAction} />,
     description: only
       ? only.activity
-      : newest
-        ? `${newest.task.label}: ${newest.activity}`
-        : presentation.items.map((item, index) => {
-            const childThreadId = item.childThreadId;
-            const separator = index < presentation.items.length - 1 ? "," : null;
-            const link =
-              childThreadId !== undefined ? (
-                <InlineButton
-                  tone="muted"
-                  aria-label={resolve(msg("Open subagent {label}", { label: item.label }))}
-                  onClick={() => onOpenThread(childThreadId)}
-                >
+      : rows.map((row, index) => {
+          const item = row.task;
+          const childThreadId = item.childThreadId;
+          const separator = index < rows.length - 1 ? "," : null;
+          const activity = row === newest ? row.activity : null;
+          const labelEnd = activity === null ? separator : ":";
+          const link =
+            childThreadId !== undefined ? (
+              <InlineButton
+                tone="muted"
+                aria-label={resolve(msg("Open subagent {label}", { label: item.label }))}
+                onClick={() => onOpenThread(childThreadId)}
+              >
+                {item.label}
+              </InlineButton>
+            ) : item.hasOutput ? (
+              <PopoverTrigger
+                handle={input.outputHandle}
+                payload={outputTarget(item)}
+                render={<InlineButton tone="muted" />}
+              >
+                {item.label}
+              </PopoverTrigger>
+            ) : null;
+          return (
+            <Fragment key={item.taskId}>
+              {index > 0 ? " " : null}
+              {link === null ? (
+                <>
                   {item.label}
-                </InlineButton>
-              ) : item.hasOutput ? (
-                <PopoverTrigger
-                  handle={input.outputHandle}
-                  payload={outputTarget(item)}
-                  render={<InlineButton tone="muted" />}
-                >
-                  {item.label}
-                </PopoverTrigger>
-              ) : null;
-            return (
-              <Fragment key={item.taskId}>
-                {index > 0 ? " " : null}
-                {link === null ? (
-                  <>
-                    {item.label}
-                    {separator}
-                  </>
-                ) : (
-                  <span className="whitespace-nowrap">
-                    {link}
-                    {separator}
-                  </span>
-                )}
-              </Fragment>
-            );
-          }),
+                  {labelEnd}
+                </>
+              ) : (
+                <span className="whitespace-nowrap">
+                  {link}
+                  {labelEnd}
+                </span>
+              )}
+              {activity === null ? null : (
+                <>
+                  {" "}
+                  {activity}
+                  {separator}
+                </>
+              )}
+            </Fragment>
+          );
+        }),
     actions: (
       <>
         <BackgroundTaskOutputPopover handle={input.outputHandle} />
