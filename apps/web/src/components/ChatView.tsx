@@ -326,10 +326,7 @@ import {
 } from "./chat/ChatOverlayHosts";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import { useCitedHistory } from "./chat/citationProcedure";
-import type {
-  MessagesTimelineHistoryControls,
-  TimelineTurnNavigation,
-} from "./chat/MessagesTimeline";
+import type { MessagesTimelineHistoryControls, TimelineShortcuts } from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
 import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/message-jump";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
@@ -838,7 +835,7 @@ export default function ChatView(props: ChatViewProps) {
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
   const legendListRef = useRef<LegendListRef | null>(null);
-  const timelineTurnNavigationRef = useRef<TimelineTurnNavigation | null>(null);
+  const timelineShortcutsRef = useRef<TimelineShortcuts | null>(null);
   const getTimelineScrollableNode = () => legendListRef.current?.getScrollableNode() ?? null;
   const getTimelineScrollableNodeStable = useStableCallback(getTimelineScrollableNode);
   const [composerOverlayElement, setComposerOverlayElement] = useState<HTMLDivElement | null>(null);
@@ -3044,9 +3041,7 @@ export default function ChatView(props: ChatViewProps) {
   });
 
   const respondToActiveApproval = (decision: "accept" | "decline", repeat: boolean) => {
-    const approval = pendingApprovals.find(
-      (pending) => !heldApprovalRequestIds.has(pending.requestId),
-    );
+    const approval = timelineShortcutsRef.current?.firstPendingApproval();
     if (!approval || approval.responseCapability !== "live") return false;
     if (approval.options && !approval.options.some((option) => option.decision === decision)) {
       return false;
@@ -3094,9 +3089,9 @@ export default function ChatView(props: ChatViewProps) {
       "pane.focus.3": () => focusPaneIndexFromKeyboard(2),
       "pane.focus.4": () => focusPaneIndexFromKeyboard(3),
       "conversation.previousTurn": ({ repeat }) =>
-        timelineTurnNavigationRef.current?.step(-1, repeat) ?? false,
+        timelineShortcutsRef.current?.step(-1, repeat) ?? false,
       "conversation.nextTurn": ({ repeat }) =>
-        timelineTurnNavigationRef.current?.step(1, repeat) ?? false,
+        timelineShortcutsRef.current?.step(1, repeat) ?? false,
       "thread.copyReference": ({ repeat }) => {
         if (!repeat) copyActiveThreadReferenceStable();
       },
@@ -3822,7 +3817,7 @@ export default function ChatView(props: ChatViewProps) {
                       isPreparingWorktree={isPreparingWorktree}
                       footer={timelineFooter}
                       listRef={legendListRef}
-                      turnNavigationRef={timelineTurnNavigationRef}
+                      shortcutsRef={timelineShortcutsRef}
                       runs={serverProjection?.runs ?? []}
                       latestRun={activeActivityRun}
                       usageLimitRunId={usageLimitRunId}

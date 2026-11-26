@@ -368,16 +368,18 @@ interface MessagesTimelineProps {
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   messageJump?: MessageJump | null;
   onMessageJumpFailed?: MessageJumpHandlers["fail"];
-  turnNavigationRef?: Ref<TimelineTurnNavigation | null>;
+  shortcutsRef?: Ref<TimelineShortcuts | null>;
   findExpanded?: boolean;
   findQuery?: string;
   activeFindMatch?: ThreadFindMatch | null;
   findNavigationId?: number;
 }
 
-export interface TimelineTurnNavigation {
+export interface TimelineShortcuts {
   /** Returns `false` when the thread has no user messages to step between. */
   readonly step: (delta: -1 | 1, repeat: boolean) => boolean;
+  /** The pending approval shown highest: inline rows first, then the footer. */
+  readonly firstPendingApproval: () => PendingApproval | null;
 }
 
 export function MessagesTimeline(props: MessagesTimelineProps) {
@@ -481,7 +483,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onJumpToPinnedMessage,
   messageJump = null,
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
-  turnNavigationRef,
+  shortcutsRef,
 }: MessagesTimelineProps) {
   const gt = useGT();
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
@@ -1635,7 +1637,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   };
 
   const heldTurnRef = useRef<{ listIdentityKey: string; itemId: string } | null>(null);
-  useImperativeHandle(turnNavigationRef, () => ({
+  useImperativeHandle(shortcutsRef, () => ({
     step: (delta: -1 | 1, repeat: boolean) => {
       if (minimapItems.length === 0) return false;
       if (!repeat) heldTurnRef.current = null;
@@ -1650,6 +1652,15 @@ const ConversationTimeline = memo(function ConversationTimeline({
       heldTurnRef.current = { listIdentityKey, itemId: item.id };
       scrollToMinimapTurn(item, !repeat);
       return true;
+    },
+    firstPendingApproval: () => {
+      for (const requestId of matchedApprovalRequestIds) {
+        const approval = pendingApprovals.find(
+          (pending) => pending.requestId === requestId && isVisiblePendingApproval(pending),
+        );
+        if (approval) return approval;
+      }
+      return unmatchedPendingApprovals[0] ?? null;
     },
   }));
 
