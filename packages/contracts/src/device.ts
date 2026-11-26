@@ -2,7 +2,8 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
-import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString, TrimmedString } from "./baseSchemas.ts";
+import { SecretReference } from "./secretReference.ts";
 import { SettingsSecretValue } from "./settingsSecretValue.ts";
 
 export const DevicePlatform = Schema.Literals(["ios", "android"]);
@@ -30,11 +31,7 @@ export const SshDeviceHostConfig = Schema.Struct({
 });
 export type SshDeviceHostConfig = typeof SshDeviceHostConfig.Type;
 
-/**
- * Cloud simulators from Expo Simulators. Sessions bill the Expo account until
- * they stop, so every one is bounded. The Expo credential is not stored here.
- */
-export const EasDeviceHostConfig = Schema.Struct({
+const easDeviceHostFields = {
   kind: Schema.Literal("eas"),
   id: ConfiguredDeviceHostId,
   label: TrimmedNonEmptyString,
@@ -59,7 +56,13 @@ export const EasDeviceHostConfig = Schema.Struct({
   maxConcurrentSessions: Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 20 })).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed(2)),
   ),
-}).check(
+};
+
+/**
+ * Cloud simulators from Expo Simulators. Sessions bill the Expo account until
+ * they stop, so every one is bounded. The Expo credential is not stored here.
+ */
+export const EasDeviceHostConfig = Schema.Struct(easDeviceHostFields).check(
   // Expo requires the idle limit to be smaller than the session limit.
   Schema.makeFilter(
     (host: { readonly idleMinutes: number; readonly maxSessionMinutes: number }) =>
@@ -84,7 +87,29 @@ export const SshDeviceHostConfigs = Schema.Array(SshDeviceHostConfig).check(uniq
  * Expo hosts decode `deviceHosts` as SSH hosts and would reject the whole file
  * or snapshot over one Expo entry.
  */
-export const EasDeviceHostConfigs = Schema.Array(EasDeviceHostConfig).check(uniqueHostIds);
+// A reference is stored beside an empty token, so servers from before references still read
+// settings.json; a token they cannot decode would make them ignore the whole file.
+const StoredEasDeviceHost = Schema.Struct({
+  ...easDeviceHostFields,
+  accessToken: TrimmedString.pipe(Schema.withDecodingDefaultKey(Effect.succeed(""))),
+  accessTokenSecret: Schema.optionalKey(SecretReference),
+});
+
+const StoredEasDeviceHostConfig = StoredEasDeviceHost.pipe(
+  Schema.decodeTo(
+    Schema.toType(EasDeviceHostConfig),
+    SchemaTransformation.transform<EasDeviceHostConfig, typeof StoredEasDeviceHost.Type>({
+      decode: ({ accessTokenSecret, ...host }) =>
+        accessTokenSecret === undefined ? host : { ...host, accessToken: accessTokenSecret },
+      encode: ({ accessToken, ...host }) =>
+        typeof accessToken === "string"
+          ? { ...host, accessToken }
+          : { ...host, accessToken: "", accessTokenSecret: accessToken },
+    }),
+  ),
+);
+
+export const EasDeviceHostConfigs = Schema.Array(StoredEasDeviceHostConfig).check(uniqueHostIds);
 
 export const DeviceEasAccountInput = Schema.Struct({
   /** A saved Expo host whose stored token is checked when no new token is given. */

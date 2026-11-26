@@ -11,6 +11,7 @@ import {
   IssueTrackerKind,
   ProjectId,
   ProjectMutationError,
+  ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
   TurnItemId,
@@ -773,6 +774,38 @@ describe("settings mutation authorization", () => {
           },
         }).pipe(Effect.flip),
       ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+      // Settings fields that store a reference beside an empty value arrive here decoded.
+      const reference = {
+        provider: SecretProviderId.make("personal"),
+        reference: "op://Private/Expo/token",
+      };
+      for (const patch of [
+        {
+          easDeviceHosts: [
+            {
+              kind: "eas" as const,
+              id: "eas",
+              label: "Expo Simulators",
+              accessToken: reference,
+              maxSessionMinutes: 30,
+              idleMinutes: 10,
+              maxConcurrentSessions: 2,
+            },
+          ],
+        },
+        {
+          providerInstances: {
+            [ProviderInstanceId.make("codex_work")]: {
+              driver: ProviderDriverKind.make("codex"),
+              environment: [{ name: "OPENAI_API_KEY", value: reference, sensitive: true }],
+            },
+          },
+        },
+      ]) {
+        expect(
+          yield* client[WS_METHODS.serverUpdateSettings]({ patch }).pipe(Effect.flip),
+        ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+      }
       expect(handled).toBe(false);
     }),
   );

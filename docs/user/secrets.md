@@ -32,6 +32,10 @@ providers that use it start using the new value.
 Supaterm reads the secret when it needs it, for example when a provider starts. Change the
 credential in 1Password and refresh to use the new value.
 
+A Supaterm release from before secret providers cannot read references. If you go back to one, it
+treats those credentials as unset, so an Expo host falls back to `EXPO_TOKEN` or your `eas login`
+session, and saving settings there can remove the references. Pick them again after you update.
+
 ## When a secret cannot be read
 
 If 1Password is locked or signed out, the provider or feature that needs the secret shows an error

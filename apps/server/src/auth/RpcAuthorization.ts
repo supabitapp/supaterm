@@ -262,7 +262,8 @@ const SettingsUpdate = Schema.Struct({
   providerInstanceMutation: Schema.optionalKey(ProviderInstanceMutation),
 });
 
-const decodeSettingsUpdate = Schema.decodeUnknownSync(SettingsUpdate);
+// Middleware receives the payload already decoded, so it is checked against the decoded shape.
+const decodeSettingsUpdate = Schema.decodeUnknownSync(Schema.toType(SettingsUpdate));
 const decodeAssetCreateUrlInput = Schema.decodeUnknownSync(AssetCreateUrlInput);
 
 const requiredScopesForSettingsUpdate = (
