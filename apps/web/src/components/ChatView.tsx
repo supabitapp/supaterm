@@ -571,20 +571,20 @@ export default function ChatView(props: ChatViewProps) {
       if (failure === "history-error") {
         toastManager.add({
           type: "error",
-          title: "Could not load the pinned message",
-          description: "Check the connection, then select the pin again.",
+          title: gt("Could not load the pinned message"),
+          description: gt("Check the connection, then select the pin again."),
         });
         return;
       }
       const pin = pinnedMessages.find((candidate) => candidate.messageId === jump.messageId);
       const id = toastManager.add({
         type: "warning",
-        title: "Pinned message not found",
-        description: "It may have been reverted.",
+        title: gt("Pinned message not found"),
+        description: gt("It may have been reverted."),
         ...(pin && canOperateThread
           ? {
               actionProps: {
-                children: "Unpin",
+                children: gt("Unpin", { $context: "verb, unpins a message" }),
                 onClick: () => {
                   toastManager.close(id);
                   unpinMessageStable(pin);

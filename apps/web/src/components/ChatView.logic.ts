@@ -98,7 +98,7 @@ import {
   type ProviderInstanceEntry,
 } from "../providerInstances";
 import { msg } from "gt-react";
-import { m } from "../i18n/messages";
+import { m, type MessageResolver } from "../i18n/messages";
 
 type ThreadProjection = EnvironmentThread["projection"];
 type ThreadStructureRow = ThreadStructure["visibleTurnItems"][number];
@@ -718,19 +718,38 @@ export function isComposerDraftEmpty(draft: {
 export function buildExpiredTerminalContextToastCopy(
   expiredTerminalContextCount: number,
   variant: "omitted" | "empty",
+  resolve: MessageResolver = m,
 ): { title: string; description: string } {
   const count = Math.max(1, Math.floor(expiredTerminalContextCount));
-  const noun = count === 1 ? "Expired terminal context" : "Expired terminal contexts";
-  const pronoun = count === 1 ? "it" : "them";
   if (variant === "empty") {
     return {
-      title: `${noun} won't be sent`,
-      description: `Remove ${pronoun} or re-add ${pronoun} to include terminal output.`,
+      title: resolve(
+        msg(
+          "{count, plural, =1 {Expired terminal context won't be sent} other {Expired terminal contexts won't be sent}}",
+          { count },
+        ),
+      ),
+      description: resolve(
+        msg(
+          "{count, plural, =1 {Remove it or re-add it to include terminal output.} other {Remove them or re-add them to include terminal output.}}",
+          { count },
+        ),
+      ),
     };
   }
   return {
-    title: `${noun} omitted from message`,
-    description: `Re-add ${pronoun} if you want that terminal output included.`,
+    title: resolve(
+      msg(
+        "{count, plural, =1 {Expired terminal context omitted from message} other {Expired terminal contexts omitted from message}}",
+        { count },
+      ),
+    ),
+    description: resolve(
+      msg(
+        "{count, plural, =1 {Re-add it if you want that terminal output included.} other {Re-add them if you want that terminal output included.}}",
+        { count },
+      ),
+    ),
   };
 }
 
@@ -1179,6 +1198,7 @@ export function makeModelDisabledReason(
     Parameters<typeof getStartedThreadModelChangeBlockReason>[0],
     "nextModelSelection"
   > | null,
+  resolve: MessageResolver = m,
 ) {
   return (instanceId: ProviderInstanceId, model: string): string | null => {
     if (!context) return null;
@@ -1186,7 +1206,11 @@ export function makeModelDisabledReason(
       ...context,
       nextModelSelection: { instanceId, model },
     });
-    return reason ? `${reason.description} Start a new thread to use this model.` : null;
+    return reason
+      ? resolve(
+          msg("{reason} Start a new thread to use this model.", { reason: reason.description }),
+        )
+      : null;
   };
 }
 
