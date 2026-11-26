@@ -183,7 +183,7 @@ export function DevicePreviewScreen({
       icon: "info.circle",
       onPress: () =>
         Dialog.alert(
-          "Device tool versions",
+          m(msg("Device tool versions")),
           deviceToolUpdateOwnership +
             "\n\n" +
             deviceToolUpdatePolicy(
