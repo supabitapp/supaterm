@@ -1,6 +1,7 @@
 import { ProjectId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
@@ -12,6 +13,7 @@ const projectId = ProjectId.make("project-a");
 const otherProjectId = ProjectId.make("project-b");
 const nestedProjectId = ProjectId.make("project-nested");
 const childRepositoryProjectId = ProjectId.make("project-child-repository");
+const symlinkedProjectId = ProjectId.make("project-symlinked");
 
 const thread = (
   title: string,
@@ -80,8 +82,12 @@ describe("assertCheckoutIdle", () => {
             { id: nestedProjectId, workspaceRoot: "/repo/packages/app" },
             { id: childRepositoryProjectId, workspaceRoot: "/repo/child" },
             { id: otherProjectId, workspaceRoot: "/other" },
+            { id: symlinkedProjectId, workspaceRoot: "/links/repo" },
           ],
         } as never),
+      }),
+      FileSystem.layerNoop({
+        realPath: (path) => Effect.succeed(path.replace(/^\/links\/repo(?=\/|$)/, "/repo")),
       }),
       Layer.mock(ThreadManagementService.ThreadManagementService)({
         getShellSnapshot: (options) =>
@@ -151,6 +157,21 @@ describe("assertCheckoutIdle", () => {
       expect(error.detail).toMatch(
         /^'(nested|archived) running' and '(nested|archived) running' are still working/,
       );
+    }),
+  );
+
+  it.effect("refuses a switch while a project added through a symlink is working", () =>
+    Effect.gen(function* () {
+      const error = yield* assertCheckoutIdle("test", "/repo").pipe(
+        Effect.flip,
+        Effect.provide(
+          guardLayer({
+            repositoryRoot: "/repo",
+            threads: [thread("symlinked running", { projectId: symlinkedProjectId })],
+          }),
+        ),
+      );
+      expect(error.detail).toContain("'symlinked running'");
     }),
   );
 
