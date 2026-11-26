@@ -1120,7 +1120,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     const enrichmentChanges = yield* projectEnrichment.subscribeChanges;
     const loadProjectMetadataSnapshot = Effect.fn("ws.orchestrationV2.loadProjectMetadataSnapshot")(
       function* (snapshotSequence: number) {
-        const enriched = yield* enrichProjectShells(yield* projects.listShells());
+        const enriched = yield* enrichProjectShells(yield* projectService.listShells());
         return {
           snapshot: {
             schemaVersion: ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION,
@@ -1142,7 +1142,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
             location: "active",
             ...(threadIds === undefined ? {} : { threadIds }),
           }),
-        listProjects: projects.listShells(),
+        listProjects: projectService.listShells(),
         latestSequence: applicationEvents.latestApplicationSequence,
         options: {
           omitIdleSubagents: input.omitIdleSubagents === true,

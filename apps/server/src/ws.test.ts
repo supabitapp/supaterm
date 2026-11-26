@@ -493,10 +493,12 @@ const resumeSkipsUnknownTypes = (scope: "thread" | "shell") =>
             .pipe(Stream.filter((event): event is OrchestrationV2StoredEvent => "event" in event));
         },
       } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-      Effect.provideService(ProjectStore.ProjectStoreV2, {
-        listShells: () => Effect.succeed([]),
-      } as unknown as ProjectStore.ProjectStoreV2["Service"]),
+      Effect.provideService(
+        ProjectStore.ProjectStoreV2,
+        {} as unknown as ProjectStore.ProjectStoreV2["Service"],
+      ),
       Effect.provideService(ProjectService.ProjectService, {
+        listShells: () => Effect.succeed([]),
         getShell: () => Effect.succeedSome(project),
       } as unknown as ProjectService.ProjectService["Service"]),
       Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
@@ -752,10 +754,12 @@ it.effect("shell snapshots omit idle children and older done threads only on req
               }),
             ),
         } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-        Effect.provideService(ProjectStore.ProjectStoreV2, {
-          listShells: () => Effect.succeed([]),
-        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
+        Effect.provideService(
+          ProjectStore.ProjectStoreV2,
+          {} as unknown as ProjectStore.ProjectStoreV2["Service"],
+        ),
         Effect.provideService(ProjectService.ProjectService, {
+          listShells: () => Effect.succeed([]),
           getShell: () => Effect.succeedNone,
         } as unknown as ProjectService.ProjectService["Service"]),
         Effect.provideServiceEffect(
@@ -2209,13 +2213,13 @@ it.effect.each([false, true])(
           readShellSnapshot: () => Effect.die("snapshot"),
           listActiveSubagentThreadIds: () => Effect.die("replay"),
         } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-        Effect.provideService(ProjectStore.ProjectStoreV2, {
-          listShells: () => Effect.succeed([]),
-        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
         Effect.provideService(
-          ProjectService.ProjectService,
-          {} as ProjectService.ProjectService["Service"],
+          ProjectStore.ProjectStoreV2,
+          {} as unknown as ProjectStore.ProjectStoreV2["Service"],
         ),
+        Effect.provideService(ProjectService.ProjectService, {
+          listShells: () => Effect.succeed([]),
+        } as unknown as ProjectService.ProjectService["Service"]),
         Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
           subscribeChanges: PubSub.subscribe(yield* PubSub.unbounded()),
         } as ProjectEnrichment.ProjectEnrichmentService["Service"]),
@@ -2566,10 +2570,12 @@ it.effect("shell resume from a cursor below the pruned boundary resumes without 
         getShellSnapshot: () => Effect.succeed({ threads: [liveShell], archivedThreads: [] }),
         listActiveSubagentThreadIds: () => Effect.succeed([]),
       } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-      Effect.provideService(ProjectStore.ProjectStoreV2, {
-        listShells: () => Effect.succeed([]),
-      } as unknown as ProjectStore.ProjectStoreV2["Service"]),
+      Effect.provideService(
+        ProjectStore.ProjectStoreV2,
+        {} as unknown as ProjectStore.ProjectStoreV2["Service"],
+      ),
       Effect.provideService(ProjectService.ProjectService, {
+        listShells: () => Effect.succeed([]),
         getShell: () => Effect.succeedNone,
       } as unknown as ProjectService.ProjectService["Service"]),
       Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
@@ -2666,13 +2672,13 @@ it.effect.each([
           listActiveSubagentThreadIds: () => Effect.succeed([]),
           streamStoredEventsFrom: () => Stream.empty,
         } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-        Effect.provideService(ProjectStore.ProjectStoreV2, {
-          listShells: () => Effect.succeed([project]),
-        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
         Effect.provideService(
-          ProjectService.ProjectService,
-          {} as ProjectService.ProjectService["Service"],
+          ProjectStore.ProjectStoreV2,
+          {} as unknown as ProjectStore.ProjectStoreV2["Service"],
         ),
+        Effect.provideService(ProjectService.ProjectService, {
+          listShells: () => Effect.succeed([project]),
+        } as unknown as ProjectService.ProjectService["Service"]),
         Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
           subscribeChanges: PubSub.subscribe(yield* PubSub.unbounded()),
           getAvailable: () =>

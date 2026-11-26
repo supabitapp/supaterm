@@ -1077,6 +1077,52 @@ it.effect("keeps a folder added while a scan of the project folder waited to com
   }).pipe(Effect.provide(layerProjectServiceDependencies)),
 );
 
+it.effect("brings a repository cloned into a plain project folder into its listed shell", () =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const root = yield* fileSystem.realPath(
+      yield* fileSystem.makeTempDirectoryScoped({ prefix: "project-shell-sync-" }),
+    );
+    const eventSink = yield* EventSink.EventSinkV2;
+    const synced = yield* Deferred.make<void>();
+    const withFolderSync = (onFolderSync: typeof eventSink.commitProjectCommand) =>
+      ProjectService.make.pipe(
+        Effect.provideService(
+          EventSink.EventSinkV2,
+          EventSink.EventSinkV2.of({
+            ...eventSink,
+            commitProjectCommand: (input) =>
+              input.commandId.startsWith("project-folders:")
+                ? onFolderSync(input)
+                : eventSink.commitProjectCommand(input),
+          }),
+        ),
+      );
+    // The scan that creating the project starts must not be the one that finds the clone.
+    const creator = yield* withFolderSync(() => Effect.never);
+    const projectId = ProjectId.make("project:shell-sync");
+    yield* creator.create({
+      commandId: CommandId.make("command:shell-sync:create"),
+      projectId,
+      title: "Shell sync",
+      workspaceRoot: root,
+    });
+    yield* fileSystem.makeDirectory(`${root}/api/.git`, { recursive: true });
+    const service = yield* withFolderSync((input) =>
+      eventSink
+        .commitProjectCommand(input)
+        .pipe(Effect.ensuring(Deferred.succeed(synced, undefined))),
+    );
+    yield* service.listShells();
+    yield* Deferred.await(synced);
+    const [shell] = yield* service.listShells({ projectIds: [projectId] });
+    assert.deepEqual(shell?.trackedFolders, [
+      { path: path.join(root, "api"), name: "api", discovered: true },
+    ]);
+  }).pipe(Effect.provide(layerProjectServiceDependencies)),
+);
+
 it.effect("rejects an update that waited on the lock while its project was deleted", () =>
   Effect.gen(function* () {
     const eventSink = yield* EventSink.EventSinkV2;
