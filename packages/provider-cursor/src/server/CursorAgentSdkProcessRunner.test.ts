@@ -4,6 +4,7 @@ import * as NodeNet from "node:net";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import { ProviderSessionId, ThreadId } from "@supaterm/contracts";
+import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -319,6 +320,7 @@ describe("CursorAgentSdkProcessRunner", () => {
           const executable = yield* HostProcess.ExecutablePath;
           const registeredPids: Array<number> = [];
           const unregisteredPids: Array<number> = [];
+          const stoppedUnits: Array<string> = [];
           const protocolEvents: Array<string> = [];
 
           const runner = yield* CursorAgentSdkProcessRunner.makeCursorAgentSdkProcessRunner({
@@ -334,7 +336,19 @@ describe("CursorAgentSdkProcessRunner", () => {
               Effect.sync(() => {
                 protocolEvents.push(event.payload.type);
               }),
-          });
+          }).pipe(
+            Effect.provideService(AgentScope, {
+              wrap: ({ command, args, name }) =>
+                Effect.succeed({ command, args, unit: `unit-${name}` }),
+              oomKilled: () => Effect.succeed(false),
+              stop: (unit) =>
+                Effect.sync(() => {
+                  stoppedUnits.push(unit);
+                }),
+              kill: () => Effect.succeed(false),
+              clear: () => Effect.void,
+            }),
+          );
 
           const session = yield* runner.open(openInput);
           assert.equal(session.agentId, "agent-worker-1");
@@ -392,6 +406,7 @@ describe("CursorAgentSdkProcessRunner", () => {
           assert.isFalse(session.isAlive?.());
 
           assert.deepEqual(unregisteredPids, registeredPids);
+          assert.deepEqual(stoppedUnits, ["unit-cursor-sdk"]);
           assert.include(protocolEvents, "agent.open");
           assert.include(protocolEvents, "agent.opened");
           assert.include(protocolEvents, "run.started");

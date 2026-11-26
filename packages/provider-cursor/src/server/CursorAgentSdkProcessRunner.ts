@@ -195,7 +195,15 @@ export const makeCursorAgentSdkProcessRunner = Effect.fn("makeCursorAgentSdkProc
                 forceKillAfter: WORKER_EXIT_TIMEOUT,
               }),
             ),
-            (child) => child.kill().pipe(Effect.ignore),
+            (child) =>
+              child
+                .kill()
+                .pipe(
+                  Effect.ignore,
+                  Effect.andThen(
+                    wrapped.unit === undefined ? Effect.void : agentScope.stop(wrapped.unit),
+                  ),
+                ),
           ),
           workerScope,
         ).pipe(
