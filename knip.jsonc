@@ -97,8 +97,6 @@
       // The injected runtime resolves Playwright by string; release tooling runs
       // electron-builder from this workspace, outside its package scripts.
       "ignoreDependencies": ["playwright-core", "electron-builder"],
-      // The translation runtime has no callers until existing copy is wrapped.
-      "ignoreIssues": { "src/i18n/messages.ts": ["exports"] },
     },
     "apps/web": {
       // The first dev start (scripts/dev-runner.ts) runs this directly.
@@ -108,8 +106,8 @@
       // reports an entire component module when nothing imports it.
       "ignoreIssues": {
         "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
-        // The translation runtime has no callers until existing copy is wrapped.
-        "src/i18n/*.{ts,tsx}": ["exports"],
+        // Translation runtime helpers whose callers arrive with the remaining copy.
+        "src/i18n/{I18nProvider.tsx,messages.ts}": ["exports"],
       },
     },
     "apps/marketing": {
@@ -138,8 +136,8 @@
         "@supaterm/mobile-review-diff-native",
         "@supaterm/mobile-terminal-native",
       ],
-      // The translation runtime has no callers until existing copy is wrapped.
-      "ignoreIssues": { "src/i18n/*.{ts,tsx}": ["exports"] },
+      // Translation runtime helpers whose callers arrive with the remaining copy.
+      "ignoreIssues": { "src/i18n/{I18nProvider.tsx,messages.ts}": ["exports"] },
     },
     "apps/mobile/modules/supaterm-highlights": {
       // Nitrogen discovers HybridObject specifications by filename.
@@ -155,8 +153,8 @@
     },
     "packages/client-runtime": {
       "includeEntryExports": true,
-      // The translation runtime has no callers until existing copy is wrapped.
-      "ignoreIssues": { "src/{locales,errors/translatable}.ts": ["exports"] },
+      // Error translation helpers whose callers arrive with the remaining copy.
+      "ignoreIssues": { "src/errors/translatable.ts": ["exports"] },
     },
     "packages/effect-acp": {
       "includeEntryExports": true,
