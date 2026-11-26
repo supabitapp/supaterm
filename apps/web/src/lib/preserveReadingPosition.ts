@@ -8,6 +8,8 @@ export function preserveReadingPosition(
   let width = scroller.clientWidth;
   let anchor: { range: Range; top: number } | null = null;
   let frame: number | null = null;
+  let settle: number | null = null;
+  let scrolled = false;
 
   const capture = () => {
     if (frame !== null || scroller.clientWidth !== width) return;
@@ -85,14 +87,41 @@ export function preserveReadingPosition(
       capture();
     });
   });
-  scroller.addEventListener("scroll", capture, { passive: true });
+  // A hit test after a scroll costs about 0.2 ms, so only a scroll's start and end hit-test.
+  // In between, the anchor tracks its own line while that line stays in view.
+  const settled = () => {
+    if (scrolled) {
+      scrolled = false;
+      settle = requestAnimationFrame(settled);
+      return;
+    }
+    settle = null;
+    capture();
+  };
+  const follow = () => {
+    if (frame !== null || scroller.clientWidth !== width) return;
+    scrolled = true;
+    if (settle === null) {
+      capture();
+      settle = requestAnimationFrame(settled);
+      return;
+    }
+    if (!anchor) return;
+    const top = anchor.range.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    const inView =
+      scroller.contains(anchor.range.startContainer) && top >= 0 && top < scroller.clientHeight;
+    if (inView) anchor.top = top;
+    else anchor = null;
+  };
+  scroller.addEventListener("scroll", follow, { passive: true });
   scroller.addEventListener("input", capture);
   const captureSelection = () => {
     if (document.activeElement === scroller) capture();
   };
   if (scroller.isContentEditable) document.addEventListener("selectionchange", captureSelection);
   const interrupt = () => {
-    if (frame !== null) cancelAnimationFrame(frame);
+    if (frame === null) return;
+    cancelAnimationFrame(frame);
     anchor = null;
     // Scrolling wins over a pending resize correction; the next frame captures the reader's new place.
     frame = requestAnimationFrame(() => {
@@ -106,7 +135,8 @@ export function preserveReadingPosition(
   return () => {
     stop();
     if (frame !== null) cancelAnimationFrame(frame);
-    scroller.removeEventListener("scroll", capture);
+    if (settle !== null) cancelAnimationFrame(settle);
+    scroller.removeEventListener("scroll", follow);
     scroller.removeEventListener("input", capture);
     document.removeEventListener("selectionchange", captureSelection);
     scroller.removeEventListener("wheel", interrupt);

@@ -8,6 +8,7 @@ import { AsyncResult, Atom } from "effect/reactivity";
 import { connectionAtomRuntime } from "~/connection/runtime";
 
 import { FULL_TEXT_MAX_BYTES, RENDERED_MAX_LINES } from "./largeTextProtocol";
+import { PreviewError } from "./previewFailure";
 
 // A slow download swaps in what has arrived this often, so the reader is not left at 1 MB.
 const SWAP_INTERVAL = "1 second";
@@ -31,6 +32,18 @@ function countNewlines(text: string): number {
 const tooLarge = (file: Downloaded) =>
   file.lines > RENDERED_MAX_LINES || file.text.length > FULL_TEXT_MAX_BYTES;
 
+// Decodes as the 1 MB preview read does: drops a leading BOM and refuses malformed UTF-8.
+const decodeUtf8 = <E, R>(bytes: Stream.Stream<Uint8Array, E, R>) =>
+  Stream.suspend(() => {
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    const decode = (chunk?: Uint8Array) =>
+      Effect.try({
+        try: () => decoder.decode(chunk, { stream: chunk !== undefined }),
+        catch: () => new PreviewError({ code: "text-binary" }),
+      });
+    return bytes.pipe(Stream.mapEffect(decode), Stream.concat(Stream.fromEffect(decode())));
+  });
+
 /** A file's text so far, at most once per interval, ending at its whole text or past a cap. */
 export const downloadText = (src: string) =>
   HttpClient.get(src).pipe(
@@ -38,8 +51,7 @@ export const downloadText = (src: string) =>
     Effect.map((response) => response.stream),
     Effect.provideService(FetchHttpClient.RequestInit, { cache: "no-store" }),
     Stream.unwrap,
-    // Drops a leading BOM, as the 1 MB preview read does.
-    Stream.decodeText,
+    decodeUtf8,
     Stream.scan(
       (): Downloaded => ({ text: "", lines: 1 }),
       (file, chunk) => ({ text: file.text + chunk, lines: file.lines + countNewlines(chunk) }),

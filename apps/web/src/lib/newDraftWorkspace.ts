@@ -95,6 +95,7 @@ export async function resolveNewDraftWorkspace(
 // Drafts that opened before their project's supaterm.json was read. A send waits for the file's
 // workspace default unless the user has already chosen a workspace.
 interface ProvisionalWorkspace {
+  readonly logicalProjectKey: string | undefined;
   readonly envMode: DraftThreadEnvMode;
   // A reused draft keeps an earlier "manual" marker; only a switch to manual after opening is a choice.
   readonly openedManual: boolean;
@@ -112,6 +113,7 @@ function keepsProvisionalWorkspace(
   return (
     draft !== null &&
     draft.promotedTo == null &&
+    draft.logicalProjectKey === provisional.logicalProjectKey &&
     draft.envMode === provisional.envMode &&
     draft.worktreePath === null &&
     (provisional.openedManual || draft.environmentSelection !== "manual")
@@ -149,10 +151,11 @@ export function openNewDraftWorkspace(
   }
   const workspace = workspaceFor(null);
   const applyProjectFile = (draftId: DraftId) => {
-    const store = useComposerDraftStore.getState();
+    const openedDraft = useComposerDraftStore.getState().getDraftSession(draftId);
     const provisional: ProvisionalWorkspace = {
+      logicalProjectKey: openedDraft?.logicalProjectKey,
       envMode: workspace.envMode,
-      openedManual: store.getDraftSession(draftId)?.environmentSelection === "manual",
+      openedManual: openedDraft?.environmentSelection === "manual",
     };
     const settled = projectFileRead
       .then((projectFile) => {
