@@ -44,13 +44,13 @@ export function ComposerModelControl(props: {
       : descriptor && (descriptor.type === "boolean" || selectableChoices(descriptor).length > 0)
         ? typeof currentValue === "boolean"
           ? currentValue
-            ? "On"
-            : "Off"
+            ? gt("On")
+            : gt("Off")
           : (getProviderOptionCurrentLabel(
               descriptor,
               props.selectedModel,
               props.reportedModelSelection,
-            ) ?? "Default")
+            ) ?? gt("Default"))
         : undefined;
   const badge = props.modelOption?.providerBadge;
   const providerNameLabel = badge

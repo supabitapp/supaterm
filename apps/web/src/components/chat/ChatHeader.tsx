@@ -101,7 +101,7 @@ export const ChatHeader = memo(function ChatHeader({
 }: ChatHeaderProps) {
   const gt = useGT();
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
-  const activeProjectName = activeProject?.isScratch ? "No project" : activeProject?.title;
+  const activeProjectName = activeProject?.isScratch ? gt("No project") : activeProject?.title;
   const newThreadShortcut = useShortcutLabel("chat.newLocal");
   const interfaceFont = useClientSettings((settings) => settings.fontFamilySans);
   const breadcrumbContainerRef = useRef<HTMLDivElement>(null);

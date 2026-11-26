@@ -145,10 +145,16 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       title={gt("Model")}
       status={
         mixedModel
-          ? `${automaticModel ? "Automatic defaults differ." : "Defaults differ."} Select one environment or choose a shared model to edit effort.`
+          ? automaticModel
+            ? gt(
+                "Automatic defaults differ. Select one environment or choose a shared model to edit effort.",
+              )
+            : gt("Defaults differ. Select one environment or choose a shared model to edit effort.")
           : (presentation.providerNote ??
             effortDisabledReason ??
-            (!unavailable && modelSource !== "project" && automaticModel ? "Automatic" : undefined))
+            (!unavailable && modelSource !== "project" && automaticModel
+              ? gt("Automatic")
+              : undefined))
       }
       resetAction={
         settings.defaultModelSelection !== null ? (

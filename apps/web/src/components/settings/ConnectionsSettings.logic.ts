@@ -2,6 +2,7 @@ import * as DateTime from "effect/DateTime";
 
 import { resolveDesktopPairingUrl, resolveHostedPairingUrl } from "./pairingUrls";
 import { setPairingTokenOnUrl } from "@supaterm/shared/remote";
+import type { PairingRouteHints } from "@supaterm/shared/remote";
 import {
   isLoopbackHostname,
   type ServerClientSessionRecord,
@@ -26,7 +27,6 @@ import {
   normalizeRelayServerUrl,
 } from "@supaterm/contracts";
 import { createAdvertisedEndpoint } from "@supaterm/shared/advertisedEndpoint";
-import type { PairingRouteHints } from "@supaterm/shared/remote";
 
 export function createRelayPairingEndpoint(relayEndpoint: string) {
   return createAdvertisedEndpoint({
@@ -312,8 +312,11 @@ export function parseManualDesktopSshTarget(input: {
   };
 }
 
-export function formatDesktopSshConnectionError(error: unknown): string {
-  const fallback = "Failed to connect SSH host.";
+export function formatDesktopSshConnectionError(
+  error: unknown,
+  resolve: MessageResolver = m,
+): string {
+  const fallback = resolve(msg("Failed to connect SSH host."));
   const rawMessage = error instanceof Error ? error.message : fallback;
   const withoutIpcPrefix = rawMessage.replace(
     /^Error invoking remote method 'desktop:ensure-ssh-environment':\s*/u,
@@ -332,11 +335,20 @@ export function sortDesktopPairingLinks(links: ReadonlyArray<ServerPairingLinkRe
 export function summarizeAuthorizedClients(
   sessions: ReadonlyArray<ServerClientSessionRecord>,
   links: ReadonlyArray<ServerPairingLinkRecord>,
+  resolve: MessageResolver = m,
 ): string {
   const parts = [
-    `${sessions.length} ${sessions.length === 1 ? "client" : "clients"}`,
+    resolve(
+      msg("{count, plural, one {{count} client} other {{count} clients}}", {
+        count: sessions.length,
+      }),
+    ),
     links.length > 0
-      ? `${links.length} ${links.length === 1 ? "pairing link" : "pairing links"}`
+      ? resolve(
+          msg("{count, plural, one {{count} pairing link} other {{count} pairing links}}", {
+            count: links.length,
+          }),
+        )
       : null,
   ];
   return parts.filter((part): part is string => part !== null).join(" · ");

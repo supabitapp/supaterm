@@ -166,7 +166,7 @@ import { PullRequestGuideTab } from "./PullRequestGuideTab";
 import { guideRunKey, useGuideRunStore } from "./guide/guideRunStore";
 import { useReviewGuideWriter } from "./guide/useReviewGuideWriter";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
-import { msg, T, useGT, useMessages } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { m } from "~/i18n/messages";
 import { changeRequestTermKind, type ChangeRequestTermKind } from "./changeRequestTerm";
 import { resolveFilterOptions } from "./pullRequestListOptions";
@@ -1473,7 +1473,7 @@ export function PullRequestDetailPanel({
     workflowApprovalsRequired > 0 && !checksStale && can("approve-workflows");
   const checksSummary = checksStale
     ? checksState === null
-      ? "No checks reported"
+      ? gt("No checks reported")
       : pullRequestChecksStatePresentation(checksState, resolve).label
     : detail
       ? summarizePullRequestChecks(detail.checks, resolve)
@@ -1747,9 +1747,13 @@ export function PullRequestDetailPanel({
                   <span className="ml-auto inline-flex shrink-0 items-baseline justify-end gap-2 text-2xs">
                     <span
                       className="inline-flex items-baseline gap-1 tabular-nums"
-                      aria-label={`${detail.changedFiles.toLocaleString()} changed ${
-                        detail.changedFiles === 1 ? "file" : "files"
-                      }`}
+                      aria-label={gt(
+                        "{count, plural, one {{formatted} changed file} other {{formatted} changed files}}",
+                        {
+                          count: detail.changedFiles,
+                          formatted: detail.changedFiles.toLocaleString(),
+                        },
+                      )}
                     >
                       <DiffIcon aria-hidden className="size-3 self-center" />
                       {detail.changedFiles.toLocaleString()}
@@ -1804,7 +1808,12 @@ export function PullRequestDetailPanel({
                 }
                 updated={
                   <span>
-                    updated <RelativeTime timestamp={detail.updatedAt} />
+                    <T context="followed by a relative time such as 5m ago or just now">
+                      updated{" "}
+                      <Var>
+                        <RelativeTime timestamp={detail.updatedAt} />
+                      </Var>
+                    </T>
                   </span>
                 }
                 checkout={
@@ -1842,7 +1851,10 @@ export function PullRequestDetailPanel({
                     copiedLabel={gt("Branch name copied")}
                   />
                 }
-                files={`${detail.changedFiles.toLocaleString()} ${detail.changedFiles === 1 ? "file" : "files"}`}
+                files={gt("{count, plural, one {{formatted} file} other {{formatted} files}}", {
+                  count: detail.changedFiles,
+                  formatted: detail.changedFiles.toLocaleString(),
+                })}
                 diffStat={
                   <PullRequestChangeBreakdownStat
                     environmentId={environmentId}
@@ -1940,9 +1952,13 @@ export function PullRequestDetailPanel({
                     aria-label={
                       activityError
                         ? gt("Comments unavailable")
-                        : `${detail.commentCount.toLocaleString()} ${
-                            detail.commentCount === 1 ? "comment" : "comments"
-                          }`
+                        : gt(
+                            "{count, plural, one {{formatted} comment} other {{formatted} comments}}",
+                            {
+                              count: detail.commentCount,
+                              formatted: detail.commentCount.toLocaleString(),
+                            },
+                          )
                     }
                   >
                     <MessageSquareIcon aria-hidden className="size-3" />
@@ -1957,9 +1973,13 @@ export function PullRequestDetailPanel({
                     aria-label={
                       activityError
                         ? gt("Commits unavailable")
-                        : `${detail.commits.length.toLocaleString()} ${
-                            detail.commits.length === 1 ? "commit" : "commits"
-                          }`
+                        : gt(
+                            "{count, plural, one {{formatted} commit} other {{formatted} commits}}",
+                            {
+                              count: detail.commits.length,
+                              formatted: detail.commits.length.toLocaleString(),
+                            },
+                          )
                     }
                   >
                     <GitCommitIcon aria-hidden className="size-3" />
@@ -1979,7 +1999,9 @@ export function PullRequestDetailPanel({
                       <PullRequestReviewOutcomeIcon outcome="approved" className="size-3" />
                       {approvalCount.toLocaleString()}
                       <span className="sr-only">
-                        {approvalCount === 1 ? "approval" : "approvals"}
+                        {gt("{count, plural, one {approval} other {approvals}}", {
+                          count: approvalCount,
+                        })}
                       </span>
                     </span>
                   ) : null}

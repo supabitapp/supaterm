@@ -10,6 +10,7 @@ describe("native device stream document", () => {
     const html = deviceStreamDocument(
       configuration,
       "var SupatermDeviceStream={start(input){return input}};",
+      "Device viewer stopped unexpectedly.",
     );
     const script = html.match(/<script>([\s\S]*)<\/script>/)?.[1];
     expect(html.match(/<script>/g)).toHaveLength(1);
@@ -22,6 +23,7 @@ describe("native device stream document", () => {
     const html = deviceStreamDocument(
       "{}",
       'var SupatermDeviceStream={start(){throw new Error("startup")}};',
+      "Device viewer stopped unexpectedly.",
     );
     NodeVM.runInNewContext(html.match(/<script>([\s\S]*)<\/script>/)![1]!, {
       window: { addEventListener() {}, ReactNativeWebView: { postMessage } },

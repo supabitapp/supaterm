@@ -68,7 +68,7 @@ export function ThreadWorkflowGroup(props: {
         <View className="flex-row items-center">
           <RowPressable
             accessibilityRole="button"
-            accessibilityLabel={`${label} workflow, ${statusLabel}`}
+            accessibilityLabel={gt("{label} workflow, {status}", { label, status: statusLabel })}
             accessibilityHint={open ? gt("Collapses the workflow") : gt("Opens the current phase")}
             accessibilityState={{ expanded: open !== undefined }}
             disabled={rail.length === 0}
@@ -113,7 +113,24 @@ export function ThreadWorkflowGroup(props: {
                   icon={RAIL_ICON[item.tone]}
                   label={count ? `${count} ${item.title}` : item.title}
                   selected={item.key === selected}
-                  accessibilityLabel={`${item.title} phase, ${item.tone}${count ? `, ${count} completed` : ""}`}
+                  accessibilityLabel={
+                    count
+                      ? gt(
+                          "{title} phase, {tone, select, working {working} completed {completed} failed {failed} stopped {stopped} other {queued}}, {count} completed",
+                          {
+                            title: item.title,
+                            tone: item.tone,
+                            count,
+                          },
+                        )
+                      : gt(
+                          "{title} phase, {tone, select, working {working} completed {completed} failed {failed} stopped {stopped} other {queued}}",
+                          {
+                            title: item.title,
+                            tone: item.tone,
+                          },
+                        )
+                  }
                   onPress={() => setSelected(nextWorkflowSelection(rail, selected, item.key))}
                 />
               );

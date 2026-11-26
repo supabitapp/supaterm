@@ -52,13 +52,16 @@ export function connectionRetryLabel(
     : resolve(msg("Retrying connection…"));
 }
 
-export function connectionFloatingStatus(input: {
-  readonly connectionError: string | null;
-  readonly connectionState: EnvironmentConnectionPhase;
-  readonly environmentLabel: string | null;
-  readonly onReconnect: () => void;
-}): FloatingWorkingStatus | null {
-  const environmentLabel = input.environmentLabel ?? "Environment";
+export function connectionFloatingStatus(
+  input: {
+    readonly connectionError: string | null;
+    readonly connectionState: EnvironmentConnectionPhase;
+    readonly environmentLabel: string | null;
+    readonly onReconnect: () => void;
+  },
+  resolve: MessageResolver = m,
+): FloatingWorkingStatus | null {
+  const environmentLabel = input.environmentLabel ?? resolve(msg("Environment"));
   const unavailable = (label: string): FloatingWorkingStatus => ({
     kind: "connection",
     label,
@@ -67,17 +70,22 @@ export function connectionFloatingStatus(input: {
 
   switch (input.connectionState) {
     case "offline":
-      return unavailable("You are offline");
+      return unavailable(resolve(msg("You are offline")));
     case "unsupported":
-      return unavailable("Client not supported");
+      return unavailable(resolve(msg("Client not supported")));
     case "error":
       return unavailable(
         input.connectionError
-          ? `Failed to connect to ${environmentLabel}: ${input.connectionError}`
-          : `Failed to connect to ${environmentLabel}`,
+          ? resolve(
+              msg("Failed to connect to {environmentLabel}: {connectionError}", {
+                environmentLabel,
+                connectionError: input.connectionError,
+              }),
+            )
+          : resolve(msg("Failed to connect to {environmentLabel}", { environmentLabel })),
       );
     case "available":
-      return unavailable(`${environmentLabel} is not connected`);
+      return unavailable(resolve(msg("{environmentLabel} is not connected", { environmentLabel })));
     case "connecting":
     case "reconnecting":
     case "connected":

@@ -61,7 +61,7 @@ function WorkspaceRootTitle(props: {
     ? gt("Settings")
     : enabled.length
       ? m(TAB_TITLES[state.selectedTab])
-      : "Navigation";
+      : gt("Navigation", { $context: "screen title when every navigation tab is hidden" });
   return (
     <View style={{ width: maxWidth, minHeight: 32, justifyContent: "center" }}>
       <WorkspaceConnectionTitle

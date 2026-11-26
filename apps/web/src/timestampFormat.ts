@@ -240,6 +240,7 @@ export function formatDayAwareTimestamp(
   timestampFormat: TimestampFormat,
   nowMs: number = Date.now(),
   timeZone?: string,
+  resolve: MessageResolver = m,
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
@@ -250,7 +251,7 @@ export function formatDayAwareTimestamp(
   const dayDiff = today.index - messageDay.index;
 
   if (dayDiff <= 0) return time;
-  if (dayDiff === 1) return `yesterday at ${time}`;
+  if (dayDiff === 1) return resolve(msg("yesterday at {time}", { time }));
   return `${formatNumericDate(date, messageDay.year === today.year, timeZone)} ${time}`;
 }
 
@@ -260,6 +261,7 @@ export function formatUpcomingTimestamp(
   timestampFormat: TimestampFormat,
   nowMs: number = Date.now(),
   timeZone?: string,
+  resolve: MessageResolver = m,
 ): string {
   const date = parseTimestampDate(isoDate);
   if (!date) return "";
@@ -269,17 +271,20 @@ export function formatUpcomingTimestamp(
   const targetDay = calendarDay(date, timeZone);
   const dayDiff = targetDay.index - today.index;
 
-  if (dayDiff < 0) return formatDayAwareTimestamp(isoDate, timestampFormat, nowMs, timeZone);
+  if (dayDiff < 0) {
+    return formatDayAwareTimestamp(isoDate, timestampFormat, nowMs, timeZone, resolve);
+  }
   if (dayDiff === 0) return time;
-  if (dayDiff === 1) return `tomorrow at ${time}`;
+  if (dayDiff === 1) return resolve(msg("tomorrow at {time}", { time }));
   return `${formatNumericDate(date, targetDay.year === today.year, timeZone)} ${time}`;
 }
 
-type RelativeTimeParts = { value: string; suffix: string | null };
+/** `label` is the whole phrase ("5m ago"); `value` and `suffix` split it for styled layouts. */
+type RelativeTimeParts = { value: string; suffix: string | null; label: string };
 export type RelativeTimeState =
   | { status: "missing" }
   | { status: "invalid" }
-  | { status: "relative"; value: string; suffix: string | null };
+  | ({ status: "relative" } & RelativeTimeParts);
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
@@ -313,51 +318,6 @@ export function msUntilRelativeTimeChange(
   return Math.min(nextChangeMs - nowMs, DAY_MS);
 }
 
-export function formatRelativeElapsed(elapsedMs: number): RelativeTimeParts {
-  const seconds = Math.floor(elapsedMs / 1000);
-  if (seconds < 60) return { value: "just now", suffix: null };
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return { value: `${minutes}m`, suffix: "ago" };
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return { value: `${hours}h`, suffix: "ago" };
-  const days = Math.floor(hours / 24);
-  return { value: `${days}d`, suffix: "ago" };
-}
-
-export function formatRelativeTime(
-  isoDate: string,
-  nowMs: number = Date.now(),
-): RelativeTimeParts | null {
-  const elapsedMs = relativeTimeElapsedMs(isoDate, nowMs);
-  return elapsedMs === null ? null : formatRelativeElapsed(elapsedMs);
-}
-
-export function formatRelativeTimeLabel(isoDate: string, nowMs: number = Date.now()) {
-  const relative = formatRelativeTime(isoDate, nowMs);
-  if (!relative) return "";
-  return relative.suffix ? `${relative.value} ${relative.suffix}` : relative.value;
-}
-
-export function formatElapsedDurationLabel(isoDate: string, nowMs: number = Date.now()): string {
-  const date = parseTimestampDate(isoDate);
-  if (!date) return "";
-  const diffMs = nowMs - date.getTime();
-  if (diffMs <= 0) return "just now";
-
-  const seconds = Math.floor(diffMs / 1000);
-  if (seconds < 5) return "just now";
-  if (seconds < 60) return `${seconds}s`;
-
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
-}
-
 const secondsLabel = (count: number, resolve: MessageResolver) =>
   resolve(msg("{count}s", { count, $context: "seconds, abbreviated" }));
 const minutesLabel = (count: number, resolve: MessageResolver) =>
@@ -366,6 +326,74 @@ const hoursLabel = (count: number, resolve: MessageResolver) =>
   resolve(msg("{count}h", { count, $context: "hours, abbreviated" }));
 const daysLabel = (count: number, resolve: MessageResolver) =>
   resolve(msg("{count}d", { count, $context: "days, abbreviated" }));
+
+function relativeElapsedLabel(elapsedMs: number, resolve: MessageResolver): string {
+  const seconds = Math.floor(elapsedMs / 1000);
+  if (seconds < 60) return resolve(msg("just now"));
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return resolve(msg("{count}m ago", { count: minutes }));
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return resolve(msg("{count}h ago", { count: hours }));
+  return resolve(msg("{count}d ago", { count: Math.floor(hours / 24) }));
+}
+
+export function formatRelativeElapsed(
+  elapsedMs: number,
+  resolve: MessageResolver = m,
+): RelativeTimeParts {
+  const label = relativeElapsedLabel(elapsedMs, resolve);
+  const seconds = Math.floor(elapsedMs / 1000);
+  if (seconds < 60) return { value: label, suffix: null, label };
+  const ago = resolve(msg("ago", { $context: "follows an elapsed time such as 5m" }));
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return { value: minutesLabel(minutes, resolve), suffix: ago, label };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { value: hoursLabel(hours, resolve), suffix: ago, label };
+  const days = Math.floor(hours / 24);
+  return { value: daysLabel(days, resolve), suffix: ago, label };
+}
+
+export function formatRelativeTime(
+  isoDate: string,
+  nowMs: number = Date.now(),
+  resolve: MessageResolver = m,
+): RelativeTimeParts | null {
+  const elapsedMs = relativeTimeElapsedMs(isoDate, nowMs);
+  return elapsedMs === null ? null : formatRelativeElapsed(elapsedMs, resolve);
+}
+
+export function formatRelativeTimeLabel(
+  isoDate: string,
+  nowMs: number = Date.now(),
+  resolve: MessageResolver = m,
+) {
+  const elapsedMs = relativeTimeElapsedMs(isoDate, nowMs);
+  return elapsedMs === null ? "" : relativeElapsedLabel(elapsedMs, resolve);
+}
+
+export function formatElapsedDurationLabel(
+  isoDate: string,
+  nowMs: number = Date.now(),
+  resolve: MessageResolver = m,
+): string {
+  const date = parseTimestampDate(isoDate);
+  if (!date) return "";
+  const diffMs = nowMs - date.getTime();
+  if (diffMs <= 0) return resolve(msg("just now"));
+
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 5) return resolve(msg("just now"));
+  if (seconds < 60) return secondsLabel(seconds, resolve);
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutesLabel(minutes, resolve);
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return hoursLabel(hours, resolve);
+
+  const days = Math.floor(hours / 24);
+  return daysLabel(days, resolve);
+}
 
 /** Pass nowMs to match a parent-driven render tick. */
 export function formatExpiresInLabel(

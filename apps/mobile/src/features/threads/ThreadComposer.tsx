@@ -249,8 +249,8 @@ function SendActionButton(props: {
   readonly disabled: boolean;
   readonly onSend: (followUp?: ActiveTurnComposerAction) => void;
 }) {
-  const gt = useGT();
   const m = useMessages();
+  const gt = useGT();
   const { presentation } = props;
   const button = (
     <ComposerActionButton

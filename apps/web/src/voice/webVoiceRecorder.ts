@@ -140,7 +140,7 @@ export class WebVoiceRecorder implements VoiceRecorder {
         return {
           granted: false,
           canAskAgain: true,
-          reason: "No microphone was found. Connect one, then record again.",
+          reason: m(msg("No microphone was found. Connect one, then record again.")),
         };
       }
       throw error;

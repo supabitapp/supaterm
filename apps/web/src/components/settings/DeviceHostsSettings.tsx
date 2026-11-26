@@ -333,11 +333,11 @@ function DeviceHostList({
           (check?.status === "connected" ? check.platforms : undefined) ?? summary?.platforms ?? [];
         const progress =
           check?.status === "pending"
-            ? "Checking connection…"
+            ? gt("Checking connection…")
             : status?.status === "installing"
-              ? "Installing device support…"
+              ? gt("Installing device support…")
               : status?.status === "starting"
-                ? "Connecting…"
+                ? gt("Connecting…")
                 : null;
         const failed = results.filter(
           (result) =>

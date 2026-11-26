@@ -5,6 +5,8 @@ import {
 } from "./state/attachments.ts";
 import type { EnvironmentShellStatus } from "./state/shell.ts";
 import type { ThreadFamilyRead } from "./state/threadFamilies.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export function threadOutboxRetryDelayMs(attempt: number): number {
   return Math.min(1_000 * 2 ** Math.max(0, attempt - 1), 16_000);
@@ -93,7 +95,9 @@ export function resolveThreadOutboxDispatchStep(input: {
   readonly fileAttachments: ReadonlyArray<{ readonly name: string; readonly sizeBytes: number }>;
   /** Null while the environment's server config has not synced yet. */
   readonly serverConfig: { readonly maxFileUploadBytes: number | undefined } | null;
+  readonly resolve?: MFunctionType;
 }): ThreadOutboxDispatchStep {
+  const resolve = input.resolve ?? mFallback;
   if (input.deliveryAction !== "send") {
     return { step: input.deliveryAction };
   }
@@ -105,14 +109,20 @@ export function resolveThreadOutboxDispatchStep(input: {
   }
   const maxBytes = input.serverConfig.maxFileUploadBytes;
   if (maxBytes === undefined) {
-    return { step: "restore", reason: "This server does not support file attachments." };
+    return {
+      step: "restore",
+      reason: resolve(msg("This server does not support file attachments.")),
+    };
   }
   const effectiveMaxBytes = clampFileAttachmentUploadBytes(maxBytes);
   const oversized = input.fileAttachments.find(
     (attachment) => attachment.sizeBytes > effectiveMaxBytes,
   );
   return oversized
-    ? { step: "restore", reason: fileAttachmentTooLargeMessage(oversized.name, effectiveMaxBytes) }
+    ? {
+        step: "restore",
+        reason: fileAttachmentTooLargeMessage(oversized.name, effectiveMaxBytes, resolve),
+      }
     : { step: "send" };
 }
 

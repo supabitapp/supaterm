@@ -23,8 +23,7 @@ import type { ProjectOverrideEntry, ScopedSettingsTarget } from "./scopedSetting
 import { isProjectScopedSettingKey } from "./scopedSettings";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 import { msg, T, useGT, useMessages } from "gt-react";
-import { m } from "../../i18n/messages";
-import { type MessageResolver } from "../../i18n/messages";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 interface InheritanceLayer {
   readonly key: "project" | "environment" | "supaterm.json" | "built-in";
@@ -240,7 +239,10 @@ export function SettingInheritance({
   const hasMultipleEnvironments = new Set(targets.map((target) => target.environmentId)).size > 1;
   const overrideSummary =
     overridingProjects.length > 0
-      ? `${summary} · ${overridingProjects.length} project ${overridingProjects.length === 1 ? "override" : "overrides"}`
+      ? gt(
+          "{summary} · {count, plural, one {{count} project override} other {{count} project overrides}}",
+          { summary, count: overridingProjects.length },
+        )
       : summary;
   const chains = targets.flatMap((target) => {
     const environment = environments.find(

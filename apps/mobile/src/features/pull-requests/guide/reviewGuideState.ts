@@ -1,6 +1,5 @@
 import type { PullRequestReviewGuideResult } from "@supaterm/contracts";
 import { msg } from "gt-react-native";
-
 import { m, type MessageResolver } from "../../../i18n/messages";
 
 export function reviewGuideState(data: PullRequestReviewGuideResult | null) {

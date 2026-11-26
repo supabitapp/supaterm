@@ -127,8 +127,8 @@ export function startThreadNotifications(
           : status === "limited"
             ? m(msg("Usage limit reached"))
             : status === "failed"
-              ? "Thread failed"
-              : "Input needed";
+              ? m(msg("Thread failed"))
+              : m(msg("Input needed"));
     if (hasNotificationSound(mode)) {
       void playNotificationSound(kind, () =>
         hasNotificationSound(getClientSettings().notificationMode),

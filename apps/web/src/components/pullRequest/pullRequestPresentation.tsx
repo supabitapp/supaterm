@@ -682,27 +682,55 @@ export function summarizePullRequestChecks(
   const passed = checks.filter((check) => check.status === "success").length;
   const skipped = checks.filter((check) => check.status === "skipped").length;
   const neutral = checks.filter((check) => check.status === "neutral").length;
-  const outcomes = [
-    [failed, "failing"],
-    [pending, "pending"],
-    [skipped, "skipped"],
-    [neutral, "neutral"],
-    [passed, "successful"],
-  ] as const;
-  const outcomeSummary = outcomes
-    .flatMap(([count, label]) => (count > 0 ? [`${count} ${label}`] : []))
+  const outcomeSummary = [
+    failed > 0
+      ? resolve(msg("{count} failing", { count: failed, $context: "pull request checks" }))
+      : null,
+    pending > 0
+      ? resolve(msg("{count} pending", { count: pending, $context: "pull request checks" }))
+      : null,
+    skipped > 0
+      ? resolve(msg("{count} skipped", { count: skipped, $context: "pull request checks" }))
+      : null,
+    neutral > 0
+      ? resolve(msg("{count} neutral", { count: neutral, $context: "pull request checks" }))
+      : null,
+    passed > 0
+      ? resolve(msg("{count} successful", { count: passed, $context: "pull request checks" }))
+      : null,
+  ]
+    .filter((part) => part !== null)
     .join(", ");
   const outcomeCount = checks.length - actionRequired.length;
   const parts =
-    outcomeCount === 0 ? [] : [`${outcomeSummary} ${outcomeCount === 1 ? "check" : "checks"}`];
+    outcomeCount === 0
+      ? []
+      : [
+          resolve(
+            msg("{outcomes} {count, plural, one {check} other {checks}}", {
+              outcomes: outcomeSummary,
+              count: outcomeCount,
+            }),
+          ),
+        ];
   if (workflowApprovalRequired > 0) {
     parts.push(
-      `${workflowApprovalRequired} ${workflowApprovalRequired === 1 ? "workflow" : "workflows"} awaiting approval`,
+      resolve(
+        msg(
+          "{count, plural, one {{count} workflow awaiting approval} other {{count} workflows awaiting approval}}",
+          { count: workflowApprovalRequired },
+        ),
+      ),
     );
   }
   if (otherActionRequired > 0) {
     parts.push(
-      `${otherActionRequired} ${otherActionRequired === 1 ? "check" : "checks"} awaiting action`,
+      resolve(
+        msg(
+          "{count, plural, one {{count} check awaiting action} other {{count} checks awaiting action}}",
+          { count: otherActionRequired },
+        ),
+      ),
     );
   }
   return parts.join(", ");

@@ -2,8 +2,8 @@ import * as Dialog from "../../components/ui/Dialog";
 import { ConnectionTraceId } from "./ConnectionTraceId";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { connectionAddressLabel } from "@supaterm/client-runtime/connection";
-import { relayName } from "@supaterm/shared/relay/name";
 import { hasSavedBearerRoute, hostFreezeNotice } from "@supaterm/client-runtime/connection";
+import { relayName } from "@supaterm/shared/relay/name";
 import type { AtomCommandResult } from "@supaterm/client-runtime/state/runtime";
 import { type EnvironmentId, resolveEnvironmentMachineKind } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
@@ -41,11 +41,14 @@ function connectionStatusLabel(
   if (!environment.isEnabled && environment.connectionState !== "unsupported") {
     return resolve(msg("Off", { $context: "environment is switched off" }));
   }
-  return environmentStatusText({
-    phase: environment.connectionState,
-    error: environment.connectionError,
-    traceId: environment.connectionErrorTraceId,
-  });
+  return environmentStatusText(
+    {
+      phase: environment.connectionState,
+      error: environment.connectionError,
+      traceId: environment.connectionErrorTraceId,
+    },
+    resolve,
+  );
 }
 
 export function ConnectionEnvironmentRow(props: {
@@ -113,8 +116,14 @@ export function ConnectionEnvironmentRow(props: {
   };
 
   const toggleLabel = props.opensDetails
-    ? `Manage ${props.environment.environmentLabel}`
-    : `${props.expanded ? "Collapse" : "Expand"} details for ${props.environment.environmentLabel}`;
+    ? gt("Manage {environment}", { environment: props.environment.environmentLabel })
+    : props.expanded
+      ? gt("Collapse details for {environment}", {
+          environment: props.environment.environmentLabel,
+        })
+      : gt("Expand details for {environment}", {
+          environment: props.environment.environmentLabel,
+        });
 
   return (
     <Animated.View layout={LinearTransition.duration(250)} className="bg-grouped-card">

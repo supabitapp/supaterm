@@ -116,7 +116,7 @@ function SettingsSectionIcon({ to }: { to: SettingsPath }) {
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const gt = useGT();
   const messages = useMessages();
-  const navArea = workspaceAreaProps("settings-nav", 0, "Settings sections");
+  const navArea = workspaceAreaProps("settings-nav", 0, gt("Settings sections"));
   const navigate = useNavigate();
   const { isMobile } = useSidebar();
   const navRowSize = isMobile ? "default" : "compact";

@@ -71,7 +71,7 @@ import { IssueThreadLinks } from "./IssueThreadLinks";
 import { ReactionBar } from "../pullRequest/PullRequestReactions";
 import { PullRequestsUnavailableState } from "../pullRequest/PullRequestsUnavailableState";
 import { issueTrackerPresentation, issueStatePresentation } from "./issuePresentation";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { m } from "~/i18n/messages";
 
 function IssueReactionBar({
@@ -426,6 +426,7 @@ export function IssueDetailPanel({
   /** Opens a referenced issue beside this one; absent, the link goes to the host. */
   onSelectIssue?: ((reference: IssueRef & { readonly url: string }) => void) | undefined;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const detailAtom = issueEnvironment.detail({ environmentId, input: reference });
   const detailQuery = useEnvironmentQuery(detailAtom);
@@ -465,7 +466,7 @@ export function IssueDetailPanel({
     ...detail.events.map((e): TimelineItem => ({ kind: "event", at: e.createdAt, event: e })),
   ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 
-  const access = issueWriteAccess(detail, canWrite);
+  const access = issueWriteAccess(detail, canWrite, messages);
   const { blocked } = access;
   const canComment = access.comment;
   const canEdit = access.edit;
@@ -706,9 +707,17 @@ export function IssueDetailPanel({
 
           <PullRequestMetaLine className="mt-2 min-h-5 text-xs text-muted-foreground">
             <PullRequestActorLabel actor={detail.author} />
-            <span>opened {formatRelativeTimeLabel(detail.createdAt)}</span>
+            <span>
+              <T>
+                opened <Var>{formatRelativeTimeLabel(detail.createdAt, undefined, messages)}</Var>
+              </T>
+            </span>
             {detail.closedAt ? (
-              <span>closed {formatRelativeTimeLabel(detail.closedAt)}</span>
+              <span>
+                <T>
+                  closed <Var>{formatRelativeTimeLabel(detail.closedAt, undefined, messages)}</Var>
+                </T>
+              </span>
             ) : null}
             {detail.writable ? null : (
               <span>
@@ -919,7 +928,7 @@ export function IssueDetailPanel({
                   <PullRequestActorLabel actor={item.event.actor} />
                   <IssueEventText
                     event={item.event}
-                    sentence={issueEventSentence(item.event)}
+                    sentence={issueEventSentence(item.event, messages)}
                     onOpen={openEventSource}
                   />
                   <span>{formatRelativeTimeLabel(item.event.createdAt)}</span>

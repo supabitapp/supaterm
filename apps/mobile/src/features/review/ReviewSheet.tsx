@@ -365,7 +365,9 @@ function ReviewFileNavigator({ files, sectionId, onSelectFile, ref }: ReviewFile
     <SheetPane>
       <AppBar
         title={gt("Changed files")}
-        subtitle={`${files.length} ${files.length === 1 ? "file" : "files"}`}
+        subtitle={gt("{count, plural, one {{count} file} other {{count} files}}", {
+          count: files.length,
+        })}
         hideBottomBorder
       />
       <ScreenContent insetHorizontal>
@@ -686,7 +688,9 @@ export function ReviewSheet(props: ReviewSheetProps) {
     headerDiffSummary.additions,
     headerDiffSummary.deletions,
     pendingReviewCommentCount > 0
-      ? `${pendingReviewCommentCount} comment${pendingReviewCommentCount === 1 ? "" : "s"}`
+      ? gt("{count, plural, one {{count} comment} other {{count} comments}}", {
+          count: pendingReviewCommentCount,
+        })
       : null,
   ]
     .filter(Boolean)

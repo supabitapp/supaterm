@@ -10,6 +10,7 @@ import { MaximizedContext } from "./PreviewPanelLayout";
 import { canReturnFocusTo, workspaceAreaProps } from "../../lib/workspaceFocus";
 
 import { cn } from "~/lib/utils";
+import { useGT } from "gt-react";
 
 export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded";
 
@@ -40,8 +41,9 @@ export function PreviewPanelShell(props: {
   onMouseUp?: MouseEventHandler<HTMLDivElement>;
   children: ReactNode;
 }) {
+  const gt = useGT();
   const maximized = use(MaximizedContext);
-  const panelArea = workspaceAreaProps("panel", 4, props.workspaceLabel ?? "Workspace panel");
+  const panelArea = workspaceAreaProps("panel", 4, props.workspaceLabel ?? gt("Workspace panel"));
   const hostRef = useRef<HTMLDivElement>(null);
   const returnedFocus = useRef(false);
   const focusOrigin = useRef<HTMLElement | null>(null);

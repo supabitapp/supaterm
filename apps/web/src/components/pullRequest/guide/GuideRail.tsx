@@ -45,7 +45,7 @@ export function GuideRail({
   return (
     <nav aria-label={gt("Review tour")} className="flex min-h-0 flex-col gap-4">
       <p className="text-xs text-muted-foreground tabular-nums @max-[56rem]/guide:hidden">
-        {reviewed} of {stops.length} read
+        {gt("{reviewed} of {total} read", { reviewed, total: stops.length })}
       </p>
       <div className="flex flex-col gap-4">
         <ol className="flex flex-col gap-0.5">{stops.map(renderStop)}</ol>

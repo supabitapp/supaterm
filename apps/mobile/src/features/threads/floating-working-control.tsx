@@ -341,7 +341,7 @@ export function FloatingWorkingControl(props: {
           ) : null}
           <SymbolView name="list.number" size={13} tintColorClassName="accent-foreground" />
           <Text className="shrink font-supaterm-medium text-xs tabular-nums" numberOfLines={1}>
-            {props.queuedCount} queued
+            {gt("{count, plural, other {{count} queued}}", { count: props.queuedCount })}
           </Text>
         </Pressable>
       ) : null}

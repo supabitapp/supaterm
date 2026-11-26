@@ -100,15 +100,18 @@ function SwitchPlan({
   const [checking, setChecking] = useState(false);
   const everything = useUpdateEverything(switchesLocal ? release.version : null, release);
   const label = channelSwitchLabel(release.channel, messages);
-  const idle = nothingToMove({
-    label,
-    channel: release.channel,
-    savedChannel: updateState?.channel ?? null,
-    switchesLocal,
-    crossesLocal,
-    rows: everything.rows,
-    hasTargets: everything.hasUpdates,
-  });
+  const idle = nothingToMove(
+    {
+      label,
+      channel: release.channel,
+      savedChannel: updateState?.channel ?? null,
+      switchesLocal,
+      crossesLocal,
+      rows: everything.rows,
+      hasTargets: everything.hasUpdates,
+    },
+    messages,
+  );
   // This app's reinstall restarts every server it hosts, so each of their databases must allow it.
   const localBlocked = localSwitchBlockReason(
     APP_VERSION,

@@ -6,12 +6,16 @@ import { Menu } from "../../../components/ui/Menu";
 import { useAndroidControlSizing } from "../../../components/ui/useAndroidControlSizing";
 import { isSharedSlotTab, type SharedSlotTab } from "./navigation-tab-order";
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
-import { useGT } from "gt-react-native";
+import { useGT, msg, useMessages } from "gt-react-native";
 
-const TITLES = { pullRequests: "Pull requests", issues: "Issues" } as const;
+const TITLES = {
+  pullRequests: msg("Pull requests"),
+  issues: msg("Issues", { $context: "screen title, list of issues" }),
+} as const;
 
 /** The header title of the tab pull requests and issues share: names the list and switches it. */
 export function SharedSlotTitle(props: { readonly tab: SharedSlotTab }) {
+  const messages = useMessages();
   const gt = useGT();
   const selectTab = useSelectWorkspaceTab();
   const { scale } = useAndroidControlSizing();
@@ -19,7 +23,7 @@ export function SharedSlotTitle(props: { readonly tab: SharedSlotTab }) {
     <Menu
       actions={Object.entries(TITLES).map(([id, title]) => ({
         id,
-        title,
+        title: messages(title),
         state: id === props.tab ? ("on" as const) : ("off" as const),
       }))}
       onPressAction={({ nativeEvent }) => {
@@ -29,9 +33,9 @@ export function SharedSlotTitle(props: { readonly tab: SharedSlotTab }) {
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={gt("{list}, switch list", { list: TITLES[props.tab] })}
+        accessibilityLabel={gt("{list}, switch list", { list: messages(TITLES[props.tab]) })}
         hitSlop={8}
-        className="flex-row items-center gap-1.5"
+        className="min-h-11 flex-row items-center gap-1.5"
       >
         <Text
           allowFontScaling={Platform.OS === "ios"}
@@ -40,7 +44,7 @@ export function SharedSlotTitle(props: { readonly tab: SharedSlotTab }) {
           className="font-supaterm-bold text-foreground"
           style={{ fontSize: 20 * scale, letterSpacing: -0.4 * scale }}
         >
-          {TITLES[props.tab]}
+          {messages(TITLES[props.tab])}
         </Text>
         <SymbolView
           name="chevron.down"

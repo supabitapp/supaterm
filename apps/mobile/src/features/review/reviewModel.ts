@@ -17,8 +17,8 @@ type ReviewGitSource = ReviewDiffPreviewSource & { readonly kind: ReviewGitSecti
 const CHANGES_SECTION_ID = "git:branch-range";
 const GIT_SECTION_KINDS = ["working-tree", "branch-range"] as const;
 const GIT_PLACEHOLDER_TITLES = {
-  "working-tree": "Uncommitted",
-  "branch-range": "Changes",
+  "working-tree": msg("Uncommitted", { $context: "diff section: working tree" }),
+  "branch-range": msg("Changes", { $context: "diff section: branch changes" }),
 } as const satisfies Record<ReviewGitSectionKind, unknown>;
 const UNCOMMITTED_SUBTITLE = msg("Staged, unstaged, and untracked files");
 
@@ -585,7 +585,10 @@ export function buildReviewSectionItems(input: {
   const turnItems = getReadyReviewCheckpoints(input.checkpoints).map<ReviewSectionItem>(
     (checkpoint) => {
       const id = getReviewSectionIdForCheckpoint(checkpoint);
-      const repositoryGroups = checkpointRepositoryGroups(checkpoint, input.rootName ?? "Project");
+      const repositoryGroups = checkpointRepositoryGroups(
+        checkpoint,
+        input.rootName ?? m(msg("Project", { $context: "fallback name of the project root" })),
+      );
       const unlistedRepositories = (checkpoint.repositories ?? []).flatMap((repository) =>
         repository.baselineMissing ? [repository.name] : [],
       );
@@ -628,7 +631,7 @@ export function buildReviewSectionItems(input: {
           {
             id: `git:${kind}`,
             kind,
-            title: GIT_PLACEHOLDER_TITLES[kind],
+            title: resolve(GIT_PLACEHOLDER_TITLES[kind]),
             subtitle: null,
             diff: null,
             isLoading: state === "loading",
@@ -660,6 +663,7 @@ export function resolveReviewSelectedSectionId(
 export function buildReviewParsedDiff(
   diff: string | null | undefined,
   cacheScope: string,
+  resolve: MessageResolver = m,
 ): ReviewParsedDiff {
   if (!diff?.trim()) {
     return { kind: "empty" };
@@ -671,7 +675,7 @@ export function buildReviewParsedDiff(
   }
 
   const notice = truncated
-    ? "Diff output hit the server size cap. Showing the available excerpt."
+    ? resolve(msg("Diff output hit the server size cap. Showing the available excerpt."))
     : null;
 
   try {
@@ -706,8 +710,12 @@ export function buildReviewParsedDiff(
         kind: "raw",
         text,
         reason: truncated
-          ? "Diff was truncated before it could be parsed completely. Showing the raw excerpt."
-          : "Unsupported diff format. Showing raw patch.",
+          ? resolve(
+              msg(
+                "Diff was truncated before it could be parsed completely. Showing the raw excerpt.",
+              ),
+            )
+          : resolve(msg("Unsupported diff format. Showing raw patch.")),
         notice,
       };
     }
@@ -725,8 +733,12 @@ export function buildReviewParsedDiff(
       kind: "raw",
       text,
       reason: truncated
-        ? "Diff was truncated before it could be parsed completely. Showing the raw excerpt."
-        : "Failed to parse patch. Showing raw patch.",
+        ? resolve(
+            msg(
+              "Diff was truncated before it could be parsed completely. Showing the raw excerpt.",
+            ),
+          )
+        : resolve(msg("Failed to parse patch. Showing raw patch.")),
       notice,
     };
   }

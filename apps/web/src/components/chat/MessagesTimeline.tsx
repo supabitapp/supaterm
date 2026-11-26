@@ -1405,7 +1405,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
               parentThreadLink.remote === undefined ||
               parentThreadLink.remote.environmentLabel === ""
                 ? parentThreadLink.title
-                : `${parentThreadLink.title} on ${parentThreadLink.remote.environmentLabel}`
+                : gt("{title} on {environment}", {
+                    title: parentThreadLink.title,
+                    environment: parentThreadLink.remote.environmentLabel,
+                  })
             }
             icon={parentThreadLink.sideChat ? MessagesSquareIcon : BotIcon}
             {...(openParentThread === null

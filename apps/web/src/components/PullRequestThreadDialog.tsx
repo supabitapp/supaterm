@@ -187,9 +187,13 @@ export function PullRequestThreadDialog({
   const validationMessage = !referenceDirty
     ? null
     : reference.trim().length === 0
-      ? `Paste a ${terminology.singular} URL, checkout command, or enter 123 / #123.`
+      ? gt("Paste a {singular} URL, checkout command, or enter 123 / #123.", {
+          singular: terminology.singular,
+        })
       : parsedReference === null
-        ? `Use a ${terminology.singular} URL, checkout command, 123, or #123.`
+        ? gt("Use a {singular} URL, checkout command, 123, or #123.", {
+            singular: terminology.singular,
+          })
         : null;
   const errorMessage =
     validationMessage ??

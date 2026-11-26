@@ -352,7 +352,9 @@ function PullRequestAuthorChoices({
               <span className="min-w-0 flex-1 truncate">{option.actor.login}</span>
               {option.mergedCount > 0 ? (
                 <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  {option.mergedCount} {option.mergedCount === 1 ? "merge" : "merges"} loaded
+                  {gt("{count, plural, one {{count} merge loaded} other {{count} merges loaded}}", {
+                    count: option.mergedCount,
+                  })}
                 </span>
               ) : null}
             </span>
@@ -499,7 +501,7 @@ function PullRequestLabelFilter({
         <span className="text-xs text-muted-foreground">
           {value.length === 0
             ? gt("Any", { $context: "no label filter" })
-            : `${value.length} selected`}
+            : gt("{count} selected", { count: value.length })}
         </span>
       </MenuSubTrigger>
       <MenuSubPopup>

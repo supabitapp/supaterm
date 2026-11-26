@@ -32,7 +32,7 @@ import {
   deriveThreadFeedPresentation,
   messageFoldRunId,
   threadFeedActivityIsVisible,
-  threadFeedCompactionTitles,
+  threadFeedCompactionIdleAges,
   type ThreadFeedActivity,
   type ThreadFeedCache,
   type ThreadFeedEntry,
@@ -400,15 +400,15 @@ it("folds a persisted resume answer into the next compaction in its run", () => 
       compaction("resume-compact", 2, "completed"),
       compaction("auto-compact", 3, status),
     ]);
-    const titles = threadFeedCompactionTitles(feed);
+    const idleAges = threadFeedCompactionIdleAges(feed);
     const compactRows = feed.filter(
       (entry) =>
         entry.type === "activity-group" &&
         entry.activities[0]?.projectedItem.item.type === "compaction",
     );
     expect(compactRows).toHaveLength(2);
-    expect(titles.get(compactRows[0]!.id)).toBe("Context compacted after 2h 10m idle");
-    expect(titles.get(compactRows[1]!.id)).toBeUndefined();
+    expect(idleAges.get(compactRows[0]!.id)).toBe("2h 10m");
+    expect(idleAges.get(compactRows[1]!.id)).toBeUndefined();
     const presented = deriveThreadFeedPresentation(feed, latestRun, new Set());
     expect(
       presented.flatMap((entry) =>

@@ -293,13 +293,13 @@ export function ThreadMcpApp(props: {
         confirm(
           m(msg("Allow {server} to run {tool}?", { server: app.server, tool: title ?? name })),
           JSON.stringify(args, null, 2),
-          "Allow",
+          m(msg("Allow", { $context: "verb, confirm button" })),
         ),
       confirmDownload: (files) =>
         confirm(
           m(msg("Save a file from {server}?", { server: app.server })),
           files.map((file) => file.name).join(", "),
-          "Save",
+          m(msg("Save", { $context: "verb, confirm button" })),
         ),
       saveFile: async ({ name, mimeType, bytes }) => {
         const shared = await shareGeneratedAttachment({
@@ -325,7 +325,7 @@ export function ThreadMcpApp(props: {
           !(await confirm(
             m(msg("Open a link from {server}?", { server: app.server })),
             url,
-            "Open",
+            m(msg("Open", { $context: "verb, opens a link" })),
           ))
         ) {
           throw new McpAppHostRefusal({ message: "Declined by the user." });
@@ -339,7 +339,7 @@ export function ThreadMcpApp(props: {
           !(await confirm(
             m(msg("Send this message from {server}?", { server: app.server })),
             text,
-            "Send",
+            m(msg("Send", { $context: "verb, sends the message" })),
           ))
         ) {
           throw new McpAppHostRefusal({ message: "Declined by the user." });

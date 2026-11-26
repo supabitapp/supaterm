@@ -18,7 +18,7 @@ import {
   DEFAULT_CLIENT_SETTINGS,
   type UnifiedSettings,
 } from "@supaterm/contracts/settings";
-import { safeErrorLogAttributes } from "@supaterm/client-runtime/errors";
+import { safeErrorLogAttributes, thrownErrorMessage } from "@supaterm/client-runtime/errors";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -458,8 +458,9 @@ export function usePrimarySettings<T = UnifiedSettings>(
   return useMergedSettings(settings, selector);
 }
 
-export const PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE =
-  "This setting is saved on a server, and the hosted app is not anchored to one. Change it from the desktop app or from the server's own address.";
+export const PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE = msg(
+  "This setting is saved on a server, and the hosted app is not anchored to one. Change it from the desktop app or from the server's own address.",
+);
 
 /**
  * The hosted app connects to every environment as a remote, so it has no
@@ -554,7 +555,7 @@ function useUpdateSettingsTarget(environmentId: EnvironmentId | null) {
     if (Object.keys(serverPatch).length > 0 && canWriteServerPatch) {
       const { sharedPatch, localPatch } = splitSharedServerPatch(serverPatch);
       // Dropping the write silently leaves the control looking saved.
-      const warnUnsaved = (description = PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE) => {
+      const warnUnsaved = (description = m(PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE)) => {
         options?.onFailed?.();
         return toastManager.add({
           type: "warning",
@@ -608,7 +609,11 @@ function useUpdateSettingsTarget(environmentId: EnvironmentId | null) {
         if (writes.length === 0) {
           warnUnsaved(
             deniedLabels.length > 0
-              ? `This connection lacks permission to change settings on ${deniedLabels.join(", ")}.`
+              ? m(
+                  msg("This connection lacks permission to change settings on {environments}.", {
+                    environments: deniedLabels.join(", "),
+                  }),
+                )
               : targets.size > 0
                 ? m(msg("Update older servers to save this setting."))
                 : undefined,
@@ -632,7 +637,14 @@ function useUpdateSettingsTarget(environmentId: EnvironmentId | null) {
               if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return [];
               const error = squashAtomCommandFailure(result);
               return [
-                `Could not save on ${label}: ${error instanceof Error ? error.message : "The save failed. Try reconnecting and saving again."}`,
+                m(
+                  msg("Could not save on {label}: {error}", {
+                    label,
+                    error:
+                      (error instanceof Error ? thrownErrorMessage(error, m) : null) ??
+                      m(msg("The save failed. Try reconnecting and saving again.")),
+                  }),
+                ),
               ];
             });
             if (failures.length === 0) return;

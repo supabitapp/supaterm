@@ -33,7 +33,8 @@ export const ISSUE_SAVED_VIEWS = {
   noun: "issue",
   shortNoun: "issue",
   placeholder: msg("Issues Assigned to Me"),
-  suggestedName: (preferences) => (preferences.who === "assigned" ? "Issues Assigned to Me" : ""),
+  suggestedName: (preferences) =>
+    preferences.who === "assigned" ? msg("Issues Assigned to Me") : "",
   normalize: issueListPreferences,
   matches: issueViewMatches,
 } as const satisfies SavedViewsKind<

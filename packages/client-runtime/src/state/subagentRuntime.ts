@@ -417,12 +417,15 @@ export function workflowOpeningParentThreadId(input: {
 }
 
 /** The opening block's heading: the workflow, what it does, and how its agents stand. */
-export function workflowOpeningHeadline(opening: WorkflowOpening): {
+export function workflowOpeningHeadline(
+  opening: WorkflowOpening,
+  resolve: MFunctionType = mFallback,
+): {
   readonly title: string;
   readonly description: string | null;
   readonly agents: string | null;
 } {
-  const title = opening.name ?? opening.description ?? "Workflow";
+  const title = opening.name ?? opening.description ?? resolve(msg("Workflow"));
   const members =
     opening.group === null
       ? []
@@ -444,17 +447,26 @@ export function workflowOpeningHeadline(opening: WorkflowOpening): {
   const agents =
     members.length === 0
       ? null
-      : `${members.length} ${members.length === 1 ? "agent" : "agents"} · ${[
-          "working",
-          "done",
-          "failed",
-          "stopped",
-        ]
-          .flatMap((key) => {
+      : [
+          resolve(
+            msg("{count, plural, one {{count} agent} other {{count} agents}}", {
+              count: members.length,
+            }),
+          ),
+          ...(["working", "done", "failed", "stopped"] as const).flatMap((key) => {
             const count = counts.get(key);
-            return count === undefined ? [] : [`${count} ${key}`];
-          })
-          .join(" · ")}`;
+            if (count === undefined) return [];
+            return [
+              key === "working"
+                ? resolve(msg("{count} working", { count, $context: "subagents still running" }))
+                : key === "done"
+                  ? resolve(msg("{count} done", { count, $context: "subagents finished" }))
+                  : key === "failed"
+                    ? resolve(msg("{count} failed", { count, $context: "subagents failed" }))
+                    : resolve(msg("{count} stopped", { count, $context: "subagents stopped" })),
+            ];
+          }),
+        ].join(" · ");
   return {
     title,
     description:

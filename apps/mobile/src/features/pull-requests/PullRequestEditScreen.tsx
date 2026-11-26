@@ -79,12 +79,12 @@ export function PullRequestEditScreen({ route }: StaticScreenProps<PullRequestEd
     !pr || allowed
       ? null
       : !permissions.connected
-        ? "Reconnect to save changes."
+        ? gt("Reconnect to save changes.")
         : !canWrite
-          ? "This device isn't allowed to change source control on this environment."
+          ? gt("This device isn't allowed to change source control on this environment.")
           : params.field === "comment"
-            ? "You can't edit this comment."
-            : `You can't edit this ${singular}.`;
+            ? gt("You can't edit this comment.")
+            : gt("You can't edit this {singular}.", { singular });
   const unchanged = draft === null || draft === original;
   const invalid = params.field === "title" && value.trim().length === 0;
   const save = async () => {
@@ -124,10 +124,10 @@ export function PullRequestEditScreen({ route }: StaticScreenProps<PullRequestEd
   };
   const title =
     params.field === "title"
-      ? "Edit title"
+      ? gt("Edit title")
       : params.field === "body"
-        ? "Edit description"
-        : "Edit comment";
+        ? gt("Edit description")
+        : gt("Edit comment");
   return (
     <PullRequestSheetContent
       busy={busy}

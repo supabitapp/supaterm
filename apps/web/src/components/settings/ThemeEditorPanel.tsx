@@ -254,7 +254,7 @@ function getThemeEditorColorFamily(role: ThemeColorRole): ThemeEditorColorFamily
 
 function themeEditorRoleLabel(role: ThemeColorRole, resolve: MessageResolver = m): string {
   const family = getThemeEditorColorFamily(role);
-  return family ? resolve(family.label) : getThemeRoleLabel(role);
+  return family ? resolve(family.label) : getThemeRoleLabel(role, resolve);
 }
 
 type ThemeEditorColors = ThemeColors;
@@ -1051,7 +1051,7 @@ export function ThemeEditorPanel({
       const families = group.families.filter(
         (family) =>
           !query ||
-          [messages(family.label), ...family.roles.map((role) => getThemeRoleLabel(role))]
+          [messages(family.label), ...family.roles.map((role) => getThemeRoleLabel(role, messages))]
             .join(" ")
             .toLowerCase()
             .includes(query),
@@ -1217,7 +1217,7 @@ export function ThemeEditorPanel({
                   ? gt("{label} · {count, plural, one {{count} use} other {{count} uses}}", {
                       label: isAdvanced
                         ? themeEditorRoleLabel(selectedRole, messages)
-                        : getThemeRoleLabel(selectedRole),
+                        : getThemeRoleLabel(selectedRole, messages),
                       count: usageCount ?? 0,
                     })
                   : gt("Select a color below")}

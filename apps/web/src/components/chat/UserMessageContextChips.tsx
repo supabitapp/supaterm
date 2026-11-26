@@ -138,14 +138,15 @@ function UserMessagePullRequestContextChip(props: {
   kind: ContextChipKind;
 }) {
   const { activeThreadEnvironmentId, openPullRequest } = use(TimelineRowCtx);
+  const messages = useMessages();
   const metadata = props.record.pullRequest;
   if (metadata === undefined) return null;
   return (
     <PullRequestChip
       metadata={metadata}
       environmentId={activeThreadEnvironmentId}
-      label={reviewCommentContextLabel(props.record)}
-      kindLabel={pullRequestContextKindLabel(props.record)}
+      label={reviewCommentContextLabel(props.record, messages)}
+      kindLabel={pullRequestContextKindLabel(props.record, messages)}
       kind={props.kind}
       copyMarkdown={props.copyMarkdown}
       onOpen={openPullRequest}
@@ -417,7 +418,9 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
         const disabled =
           attachment.downloadable === false && (!isVideo || attachment.previewUrl === undefined);
         const size =
-          attachment.downloadable === false ? "Sending…" : formatAttachmentSize(record.sizeBytes);
+          attachment.downloadable === false
+            ? context.m(msg("Sending…"))
+            : formatAttachmentSize(record.sizeBytes);
         return (
           <FileChip
             name={label}
@@ -489,8 +492,10 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
           return <UnavailableUserMessageContextChip {...context} />;
         }
         const isPullRequest = isPullRequestSummaryContext(record);
-        const label = reviewCommentContextLabel(record);
-        const kindLabel = isPullRequest ? pullRequestContextKindLabel(record) : "Review comment";
+        const label = reviewCommentContextLabel(record, context.m);
+        const kindLabel = isPullRequest
+          ? pullRequestContextKindLabel(record, context.m)
+          : context.m(msg("Review comment"));
         const pullRequestState = pullRequestContextDisplayState(record) ?? "unknown";
         if (isPullRequest && record.pullRequest !== undefined) {
           return (

@@ -192,7 +192,7 @@ function hostOptionsFor(
           ? tracker.host
           : `${issueTrackerPresentation(tracker.tracker).providerName} (${tracker.host})`,
       Icon: issueTrackerPresentation(tracker.tracker).Icon,
-      ...(tracker.configured ? {} : { unavailable: tracker.detail ?? "Unavailable" }),
+      ...(tracker.configured ? {} : { unavailable: tracker.detail ?? resolve(msg("Unavailable")) }),
     })),
   ];
 }
@@ -630,8 +630,10 @@ export function IssuesPage() {
                 <span className="font-normal">· {group.tracker.host}</span>
               ) : null}
               <span className="font-normal">
-                · {group.tracker.projectCount}{" "}
-                {group.tracker.projectCount === 1 ? "project" : "projects"}
+                ·{" "}
+                {gt("{count, plural, one {{count} project} other {{count} projects}}", {
+                  count: group.tracker.projectCount,
+                })}
               </span>
             </h2>
             {!group.tracker.configured ? (

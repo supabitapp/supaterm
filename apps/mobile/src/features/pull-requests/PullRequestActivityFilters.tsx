@@ -68,7 +68,11 @@ export function PullRequestActivityFilters({
             className="min-h-11 flex-row items-center gap-1.5 active:opacity-60"
           >
             {hiddenCount > 0 ? (
-              <Text className="text-xs text-foreground-muted">{hiddenCount} hidden</Text>
+              <Text className="text-xs text-foreground-muted">
+                {gt("{count, plural, one {{count} hidden} other {{count} hidden}}", {
+                  count: hiddenCount,
+                })}
+              </Text>
             ) : null}
             <SymbolView
               name="line.3.horizontal.decrease"

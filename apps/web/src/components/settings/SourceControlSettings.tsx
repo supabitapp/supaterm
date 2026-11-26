@@ -233,7 +233,9 @@ function itemSummary({
           </span>
           {authAccount ? (
             <>
-              <span aria-hidden>as</span>
+              <span aria-hidden>
+                <T context="authenticated as an account">as</T>
+              </span>
               <RedactedAccount account={authAccount} />
             </>
           ) : null}

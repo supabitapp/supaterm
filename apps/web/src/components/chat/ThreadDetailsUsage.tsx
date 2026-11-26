@@ -76,7 +76,8 @@ export function ThreadDetailsUsage({
                       </span>
                     ) : null}
                     <span className="min-w-10 text-right pointer-coarse:min-w-11">
-                      {percentage ?? `${formatContextWindowTokens(usage.usedTokens)} tokens`}
+                      {percentage ??
+                        gt("{used} tokens", { used: formatContextWindowTokens(usage.usedTokens) })}
                     </span>
                   </dd>
                 </div>

@@ -111,7 +111,7 @@ function PendingSecretRequestForm(props: {
   const messages = useMessages();
   const { item } = props;
   const formId = useId();
-  const inputs = secretRequestInputs(item);
+  const inputs = secretRequestInputs(item, messages);
   const inputId = (index: number) => `${formId}-${index}`;
   const errorId = useId();
   const privacyId = useId();
@@ -292,7 +292,7 @@ function PendingSecretRequestForm(props: {
           className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
         >
           <ShieldCheckIcon className="size-3.5 shrink-0" aria-hidden />
-          {SECRET_REQUEST_PRIVACY_NOTE}
+          {messages(SECRET_REQUEST_PRIVACY_NOTE)}
         </p>
         <Button
           type="button"

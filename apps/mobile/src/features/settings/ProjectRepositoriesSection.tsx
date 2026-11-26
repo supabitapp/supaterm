@@ -31,8 +31,8 @@ import { msg, T, useGT, useMessages } from "gt-react-native";
 
 const FOLDER_STATE_LABELS: Record<WorkspaceFolderState, string> = {
   git: msg("Git repository"),
-  plain: "Folder",
-  missing: "Missing",
+  plain: msg("Folder", { $context: "a plain folder that is not a Git repository" }),
+  missing: msg("Missing", { $context: "folder state: not found on disk" }),
 };
 
 /** Tracked folders are paths on one environment, so each checkout gets its own section. */
@@ -40,8 +40,8 @@ export function ProjectRepositoriesSection(props: {
   readonly member: EnvironmentProject;
   readonly title: string;
 }) {
-  const gt = useGT();
   const m = useMessages();
+  const gt = useGT();
   const { member } = props;
   const tracked = member.trackedFolders ?? [];
   const canEdit = useEnvironmentScope(member.environmentId, AuthOrchestrationOperateScope);
@@ -129,7 +129,9 @@ export function ProjectRepositoriesSection(props: {
     return (
       <SettingsSection
         title={props.title}
-        footer="Repositories inside this project's folder are part of it as soon as they are there."
+        footer={gt(
+          "Repositories inside this project's folder are part of it as soon as they are there.",
+        )}
       >
         {null}
       </SettingsSection>

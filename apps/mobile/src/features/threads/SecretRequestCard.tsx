@@ -114,7 +114,7 @@ function PendingSecretRequestForm(props: {
   const canAnswer = useAtomValue(
     serverEnvironment.answerSecretRequest.permissionAtom(props.environmentId),
   );
-  const inputs = secretRequestInputs(item);
+  const inputs = secretRequestInputs(item, messages);
   const config = useAtomValue(serverEnvironment.configValueAtom(props.environmentId));
   // The server accepts a reference answer only with this scope; without it the card is typed.
   const canUseReferences = useEnvironmentScope(props.environmentId, AuthProvidersManageScope);
@@ -315,7 +315,7 @@ function PendingSecretRequestForm(props: {
             type="monochrome"
           />
           <Text className="flex-1 font-sans text-xs text-foreground-muted">
-            {SECRET_REQUEST_PRIVACY_NOTE}
+            {messages(SECRET_REQUEST_PRIVACY_NOTE)}
           </Text>
         </View>
         <Button

@@ -25,8 +25,8 @@ import { PullRequestCommentFooter } from "./PullRequestReactions";
 import { pullRequestDescriptionContent } from "./pullRequestDescriptionContent";
 import { normalizedReviewState } from "./pullRequestStatus";
 import type { PullRequestParams } from "./usePullRequestDiff";
-import { formatCommentCount } from "./pullRequestDiffComments";
-import { msg, T, useGT, Var } from "gt-react-native";
+import { discussionCommentCountLabel } from "./pullRequestDiffComments";
+import { msg, T, useGT, Var, useMessages } from "gt-react-native";
 import type { MessageResolver } from "../../i18n/messages";
 
 function TimelineEvent(props: {
@@ -83,6 +83,7 @@ function TimelineComment({
   params: PullRequestParams;
   actions: CommentActions;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const target = parsePullRequestAnchor(params.navigationUrl);
   const linked =
@@ -131,7 +132,9 @@ function TimelineComment({
             )}
           </Text>
         </View>
-        <Text className="text-2xs text-foreground-tertiary">{relativeTime(comment.createdAt)}</Text>
+        <Text className="text-2xs text-foreground-tertiary">
+          {relativeTime(comment.createdAt, undefined, messages)}
+        </Text>
       </View>
       {comment.path ? (
         <Text className="font-mono text-2xs text-foreground-muted" numberOfLines={2}>
@@ -283,7 +286,7 @@ export function pullRequestTimelineRows(
             </Text>
             {thread.comments[0] ? (
               <Text className="text-2xs text-foreground-tertiary">
-                {relativeTime(thread.comments[0].createdAt)}
+                {relativeTime(thread.comments[0].createdAt, undefined, resolve)}
               </Text>
             ) : null}
           </View>
@@ -326,7 +329,8 @@ export function pullRequestTimelineRows(
               {thread.isOutdated
                 ? ` · ${resolve(msg("Outdated", { $context: "review thread state" }))}`
                 : ""}{" "}
-              · {formatCommentCount(thread.commentCount ?? thread.comments.length)}
+              ·{" "}
+              {discussionCommentCountLabel(thread.commentCount ?? thread.comments.length, resolve)}
             </Text>
           </Pressable>
         </TimelineEvent>

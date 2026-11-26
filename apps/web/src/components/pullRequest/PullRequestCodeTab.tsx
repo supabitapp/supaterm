@@ -1480,12 +1480,17 @@ function PullRequestCodeTab({
         ) : null}
         <PullRequestMetaLine>
           <span className="shrink-0 tabular-nums">
-            {files.length} {files.length === 1 ? "file" : "files"}
+            {gt("{count, plural, one {{count} file} other {{count} files}}", {
+              count: files.length,
+            })}
             {nextCursor === null ? "" : "+"}
           </span>
           {hiddenTestFileCount > 0 ? (
             <Button type="button" size="xs" variant="link" onClick={() => setHideTestFiles(false)}>
-              {hiddenTestFileCount} test {hiddenTestFileCount === 1 ? "file" : "files"} hidden
+              {gt(
+                "{count, plural, one {{count} test file hidden} other {{count} test files hidden}}",
+                { count: hiddenTestFileCount },
+              )}
             </Button>
           ) : null}
           {filesViewed.enabled && files.length > 0 ? (

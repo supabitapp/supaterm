@@ -13,7 +13,8 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerBanner } from "./ComposerBanner";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
-import { T, useGT, Var } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 const SNIPPET_MAX_CHARS = 90;
 
@@ -21,7 +22,7 @@ function missingImageCount(entry: PromptStashEntry): number {
   return entry.droppedImageNames.length + (entry.unreadableImageNames?.length ?? 0);
 }
 
-export function stashEntrySnippet(entry: PromptStashEntry): string {
+export function stashEntrySnippet(entry: PromptStashEntry, resolve: MessageResolver = m): string {
   const trimmed = assistantCitationsToPlainText(
     composerFileLinksToPlainText(
       replaceComposerContextReferences(entry.prompt, (reference) => reference.label),
@@ -40,10 +41,25 @@ export function stashEntrySnippet(entry: PromptStashEntry): string {
   const fileCount = entry.files?.length ?? 0;
   const attachmentCount = imageCount + fileCount;
   if (attachmentCount === 0) {
-    return "(empty)";
+    return resolve(msg("(empty)", { $context: "a stashed prompt with no text or attachments" }));
   }
-  const label = imageCount > 0 && fileCount > 0 ? "attachment" : fileCount > 0 ? "file" : "image";
-  return `(${attachmentCount} ${label}${attachmentCount === 1 ? "" : "s"})`;
+  return imageCount > 0 && fileCount > 0
+    ? resolve(
+        msg("{count, plural, one {({count} attachment)} other {({count} attachments)}}", {
+          count: attachmentCount,
+        }),
+      )
+    : fileCount > 0
+      ? resolve(
+          msg("{count, plural, one {({count} file)} other {({count} files)}}", {
+            count: attachmentCount,
+          }),
+        )
+      : resolve(
+          msg("{count, plural, one {({count} image)} other {({count} images)}}", {
+            count: attachmentCount,
+          }),
+        );
 }
 
 /**
@@ -60,6 +76,7 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
   onSendAll: () => void;
   onClose: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const {
     entries,
@@ -281,24 +298,28 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                     className="min-w-0 flex-1 cursor-pointer truncate text-left text-foreground/80 outline-none before:absolute before:inset-0 before:rounded-sm focus-visible:before:ring-2 focus-visible:before:ring-inset focus-visible:before:ring-ring"
                     data-stash-restore={entry.id}
                     aria-label={gt("Restore stashed prompt: {snippet}", {
-                      snippet: stashEntrySnippet(entry),
+                      snippet: stashEntrySnippet(entry, messages),
                     })}
                     onPointerDown={(event) => event.preventDefault()}
                     onClick={() => onRestore(entry)}
                   >
-                    {stashEntrySnippet(entry)}
+                    {stashEntrySnippet(entry, messages)}
                   </button>
                 </ComposerBanner.Content>
                 <ComposerBanner.Actions>
                   {entry.pendingImageCount ? (
                     <span className="shrink-0 text-muted-foreground">
-                      saving {entry.pendingImageCount} image
-                      {entry.pendingImageCount === 1 ? "" : "s"}…
+                      {gt(
+                        "{count, plural, one {saving {count} image…} other {saving {count} images…}}",
+                        { count: entry.pendingImageCount },
+                      )}
                     </span>
                   ) : missingImageCount(entry) > 0 ? (
                     <span className="shrink-0 text-warning-foreground">
-                      {missingImageCount(entry)} image
-                      {missingImageCount(entry) === 1 ? "" : "s"} dropped
+                      {gt(
+                        "{count, plural, one {{count} image dropped} other {{count} images dropped}}",
+                        { count: missingImageCount(entry) },
+                      )}
                     </span>
                   ) : null}
                   {entry.attachments.length > 0 ? (
@@ -328,8 +349,8 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
                   </time>
                   <InlineConfirmTooltip
                     armed={confirm.armed === entry.id}
-                    tip="Delete stashed prompt"
-                    armedTip="Click again to delete this stashed prompt"
+                    tip={gt("Delete stashed prompt")}
+                    armedTip={gt("Click again to delete this stashed prompt")}
                     render={
                       <ComposerBanner.Dismiss
                         className="z-10"

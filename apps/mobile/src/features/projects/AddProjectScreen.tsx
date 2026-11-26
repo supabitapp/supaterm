@@ -495,15 +495,21 @@ function SourceControlRow(props: {
   readonly isFirst: boolean;
 }) {
   const messages = useMessages();
+  const gt = useGT();
   const navigation = useNavigation();
   const title =
     props.source === "url"
-      ? "Git URL"
-      : `${addProjectRemoteSourceLabel(props.source, messages)} repository`;
+      ? gt("Git URL")
+      : gt("{provider} repository", {
+          provider: addProjectRemoteSourceLabel(props.source, messages),
+        });
   const subtitle =
     props.source === "url"
-      ? "Clone from a remote URL"
-      : `Clone ${addProjectRemoteSourceLabel(props.source, messages)} ${props.hint}`;
+      ? gt("Clone from a remote URL")
+      : gt("Clone {provider} {hint}", {
+          provider: addProjectRemoteSourceLabel(props.source, messages),
+          hint: props.hint,
+        });
   const icon =
     props.source === "url" ? (
       <SymbolView
@@ -585,11 +591,14 @@ export function AddProjectSourceScreen(props: { readonly environmentId?: string 
                 subtitle={
                   canCreateProjectInEnvironment(environment.connectionState)
                     ? undefined
-                    : environmentStatusText({
-                        phase: environment.connectionState,
-                        error: environment.connectionError,
-                        traceId: environment.connectionErrorTraceId,
-                      })
+                    : environmentStatusText(
+                        {
+                          phase: environment.connectionState,
+                          error: environment.connectionError,
+                          traceId: environment.connectionErrorTraceId,
+                        },
+                        messages,
+                      )
                 }
                 icon={
                   <EnvironmentMachineSymbol
@@ -680,7 +689,7 @@ export function AddProjectSourceScreen(props: { readonly environmentId?: string 
                     !canCloneProject
                       ? gt("This connection cannot clone projects.")
                       : readiness(candidate).ready
-                        ? addProjectRemoteSourcePathHint(candidate)
+                        ? addProjectRemoteSourcePathHint(candidate, messages)
                         : (readiness(candidate).hint ?? "")
                   }
                   isFirst={false}
@@ -908,7 +917,11 @@ export function AddProjectRepositoryScreen(props: {
 
   const lookupRepository = async () => {
     if (!environment || repositoryInput.trim().length === 0 || isSubmitting) return;
-    const incompleteOwnerMessage = githubIncompleteOwnerRepositoryMessage(source, repositoryInput);
+    const incompleteOwnerMessage = githubIncompleteOwnerRepositoryMessage(
+      source,
+      repositoryInput,
+      m,
+    );
     if (incompleteOwnerMessage) {
       setError(incompleteOwnerMessage);
       return;
@@ -971,7 +984,7 @@ export function AddProjectRepositoryScreen(props: {
             placeholder={
               source === "url"
                 ? (defaultHostCloneUrl("org/repo") ?? "https://example.com/org/repo.git")
-                : addProjectRemoteSourcePathHint(source)
+                : addProjectRemoteSourcePathHint(source, messages)
             }
             returnKeyType="next"
             onSubmitEditing={() => void lookupRepository()}

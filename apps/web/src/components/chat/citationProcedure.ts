@@ -11,7 +11,7 @@ import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
 import { msg } from "gt-react";
 import { m } from "../../i18n/messages";
 
-const HISTORY_LOAD_ERROR = "Could not load history.";
+const HISTORY_LOAD_ERROR = msg("Could not load history.");
 
 /** Whether the cited response is in the loaded history, after paging toward it. */
 export type CitedHistory =
@@ -221,7 +221,7 @@ const citedHistoryAtom = Atom.family(
           );
           return result._tag === "Success"
             ? result.value
-            : { _tag: "error", message: HISTORY_LOAD_ERROR };
+            : { _tag: "error", message: m(HISTORY_LOAD_ERROR) };
         },
       }).then((outcome) => {
         if (outcome._tag === "aborted") return;

@@ -27,10 +27,14 @@ export function GuideOutline({
       <View className="mb-5 flex-row items-center justify-between">
         <View className="flex-row items-baseline gap-2">
           <Text className="text-base font-supaterm-semibold">
-            {guide.stops.length} {guide.stops.length === 1 ? "stop" : "stops"}
+            {gt("{count, plural, one {{count} stops} other {{count} stops}}", {
+              count: guide.stops.length,
+            })}
           </Text>
           <Text className="text-sm text-foreground-muted">
-            through {files.size} {files.size === 1 ? "file" : "files"}
+            {gt("{count, plural, one {through {count} file} other {through {count} files}}", {
+              count: files.size,
+            })}
           </Text>
         </View>
         <Menu

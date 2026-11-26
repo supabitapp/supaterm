@@ -255,7 +255,7 @@ export function liveActivityToolStatus(status: string | undefined, presentTense:
   return "completed";
 }
 
-function genericCommandStatusLabel(
+export function genericCommandStatusLabel(
   status: ReturnType<typeof liveActivityToolStatus>,
   resolve: MFunctionType = mFallback,
 ) {

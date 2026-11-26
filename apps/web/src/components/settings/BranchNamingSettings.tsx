@@ -18,20 +18,22 @@ import {
   useScopedSettingsMixed,
   useUpdateScopedSettings,
 } from "./useScopedSettings";
-import { useGT } from "gt-react";
+import { useGT, msg, useMessages } from "gt-react";
 
 const MODES = {
-  static: "Static prefix",
-  repository: "Repository name prefix",
-  semantic: "Semantic prefix",
-  custom: "Custom instructions",
+  static: msg("Static prefix"),
+  repository: msg("Repository name prefix"),
+  semantic: msg("Semantic prefix"),
+  custom: msg("Custom instructions"),
 } satisfies Record<BranchNamingChoice, string>;
 
 const MODE_STATUS: Partial<Record<BranchNamingChoice, string>> = {
-  repository:
+  repository: msg(
     "Branches start with the repository name, such as supaterm/add-search. A fork uses its own name.",
-  semantic:
+  ),
+  semantic: msg(
     "The model chooses a prefix that describes the work, such as feat/add-search, fix/login-timeout, or refactor/auth.",
+  ),
 };
 
 const DEFAULT_CHOICE = branchNamingChoiceOf(
@@ -40,6 +42,7 @@ const DEFAULT_CHOICE = branchNamingChoiceOf(
 );
 
 export function BranchNamingSettings() {
+  const messages = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
@@ -62,7 +65,9 @@ export function BranchNamingSettings() {
         serverScoped
         settingKeys={["branchNamingMode", "branchNamePrefixFromRepository"]}
         {...searchableSetting("worktree-branch-naming")}
-        status={modeMixed ? undefined : MODE_STATUS[choice]}
+        status={
+          modeMixed || MODE_STATUS[choice] === undefined ? undefined : messages(MODE_STATUS[choice])
+        }
         resetAction={
           choice !== DEFAULT_CHOICE || modeMixed ? (
             <SettingResetButton
@@ -82,13 +87,17 @@ export function BranchNamingSettings() {
           >
             <SelectTrigger size="sm" aria-label={gt("Worktree branch naming")}>
               <SelectValue>
-                {(value: BranchNamingChoice | null) => (value === null ? "Mixed" : MODES[value])}
+                {(value: BranchNamingChoice | null) =>
+                  value === null
+                    ? gt("Mixed", { $context: "values differ across targets" })
+                    : messages(MODES[value])
+                }
               </SelectValue>
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
               {BRANCH_NAMING_CHOICES.map((mode) => (
                 <SelectItem key={mode} value={mode}>
-                  {MODES[mode]}
+                  {messages(MODES[mode])}
                 </SelectItem>
               ))}
             </SelectPopup>

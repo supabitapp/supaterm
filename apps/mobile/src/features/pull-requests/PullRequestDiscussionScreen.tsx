@@ -34,7 +34,7 @@ import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import { PullRequestCompletionSuggestions } from "./PullRequestCompletionSuggestions";
 import { usePullRequestCompletions } from "./usePullRequestCompletions";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 export function PullRequestDiscussionScreen({
   route,
@@ -48,6 +48,7 @@ export function PullRequestDiscussionScreen({
 }
 
 function Discussion({ params }: { params: PullRequestParams & { readonly discussionId: string } }) {
+  const messages = useMessages();
   const gt = useGT();
   const target = pullRequestTarget(params);
   const navigation = useNavigation();
@@ -266,7 +267,7 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
                     {comment.author?.login ?? gt("Unknown author")}
                   </Text>
                   <Text className="text-2xs text-foreground-muted">
-                    {relativeTime(comment.createdAt)}
+                    {relativeTime(comment.createdAt, undefined, messages)}
                   </Text>
                 </View>
                 <PullRequestMarkdown markdown={comment.body} />

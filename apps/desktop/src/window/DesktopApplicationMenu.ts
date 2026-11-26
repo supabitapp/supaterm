@@ -68,9 +68,6 @@ const runMainContentsCommand = Effect.fn("desktop.menu.runMainContentsCommand")(
   yield* desktopWindow.runMainContentsCommand(command);
 });
 
-const describeUpdate = (version: string | null) =>
-  version === null ? "A new version of Supaterm" : `Supaterm ${version}`;
-
 const checkForUpdatesFromMenu = Effect.gen(function* () {
   const updates = yield* DesktopUpdates.DesktopUpdates;
   const electronDialog = yield* ElectronDialog.ElectronDialog;
@@ -80,17 +77,27 @@ const checkForUpdatesFromMenu = Effect.gen(function* () {
   if (updateState.status === "up-to-date") {
     yield* electronDialog.showMessageBox({
       type: "info",
-      title: "You're up to date!",
-      message: `Supaterm ${updateState.currentVersion} is currently the newest version available.`,
-      buttons: ["OK"],
+      title: m(msg("You're up to date!")),
+      message: m(msg("Supaterm {version} is currently the newest version available."), {
+        version: updateState.currentVersion,
+      }),
+      buttons: [m(msg("OK"))],
     });
   } else if (updateState.status === "available") {
     const { response } = yield* electronDialog.showMessageBox({
       type: "info",
-      title: "Update available",
-      message: `${describeUpdate(updateState.availableVersion)} is available.`,
-      detail: `You're running Supaterm ${updateState.currentVersion}.`,
-      buttons: ["Download", "Later"],
+      title: m(msg("Update available")),
+      message:
+        updateState.availableVersion === null
+          ? m(msg("A new version of Supaterm is available."))
+          : m(msg("Supaterm {version} is available."), { version: updateState.availableVersion }),
+      detail: m(msg("You're running Supaterm {version}."), {
+        version: updateState.currentVersion,
+      }),
+      buttons: [
+        m(msg("Download", { $context: "button, downloads an app update" })),
+        m(msg("Later")),
+      ],
       defaultId: 0,
       cancelId: 1,
     });
@@ -98,17 +105,26 @@ const checkForUpdatesFromMenu = Effect.gen(function* () {
   } else if (updateState.status === "downloading") {
     yield* electronDialog.showMessageBox({
       type: "info",
-      title: "Update downloading",
-      message: `${describeUpdate(updateState.availableVersion)} is already downloading.`,
-      buttons: ["OK"],
+      title: m(msg("Update downloading")),
+      message:
+        updateState.availableVersion === null
+          ? m(msg("A new version of Supaterm is already downloading."))
+          : m(msg("Supaterm {version} is already downloading."), {
+              version: updateState.availableVersion,
+            }),
+      buttons: [m(msg("OK"))],
     });
   } else if (updateState.status === "downloaded") {
+    const version = updateState.downloadedVersion ?? updateState.availableVersion;
     const { response } = yield* electronDialog.showMessageBox({
       type: "info",
-      title: "Update ready",
-      message: `${describeUpdate(updateState.downloadedVersion ?? updateState.availableVersion)} is ready to install.`,
-      detail: "Supaterm will restart to install it. Any running tasks will be interrupted.",
-      buttons: ["Restart", "Later"],
+      title: m(msg("Update ready")),
+      message:
+        version === null
+          ? m(msg("A new version of Supaterm is ready to install."))
+          : m(msg("Supaterm {version} is ready to install."), { version }),
+      detail: m(msg("Supaterm will restart to install it. Any running tasks will be interrupted.")),
+      buttons: [m(msg("Restart", { $context: "button, restarts the app" })), m(msg("Later"))],
       defaultId: 0,
       cancelId: 1,
     });
@@ -116,10 +132,10 @@ const checkForUpdatesFromMenu = Effect.gen(function* () {
   } else if (updateState.status === "error") {
     yield* electronDialog.showMessageBox({
       type: "warning",
-      title: "Update check failed",
-      message: "Could not check for updates.",
-      detail: updateState.message ?? "An unknown error occurred. Please try again later.",
-      buttons: ["OK"],
+      title: m(msg("Update check failed")),
+      message: m(msg("Could not check for updates.")),
+      detail: updateState.message ?? m(msg("An unknown error occurred. Please try again later.")),
+      buttons: [m(msg("OK"))],
     });
   }
 }).pipe(Effect.withSpan("desktop.menu.checkForUpdates"));

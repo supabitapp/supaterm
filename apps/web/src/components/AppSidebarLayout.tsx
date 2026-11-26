@@ -297,7 +297,7 @@ export function AppSidebarLayout({
   showSidebar?: boolean;
 }) {
   const gt = useGT();
-  const sidebarArea = workspaceAreaProps("sidebar", 0, "Threads");
+  const sidebarArea = workspaceAreaProps("sidebar", 0, gt("Threads"));
   const [sidebarRouteReveal] = useState<SidebarRouteReveal>(() => ({
     observedKey: null,
     pendingKey: null,

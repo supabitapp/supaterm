@@ -57,7 +57,7 @@ import {
 } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 import { m, type MessageResolver } from "~/i18n/messages";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
@@ -215,6 +215,7 @@ function getTraitsSectionVisibility(input: {
   promptUltrathink?: PromptUltrathink | undefined;
   modelOptions: ProviderOptions | null | undefined;
   allowPromptInjectedEffort?: boolean;
+  resolve?: MessageResolver;
 }) {
   const selected = getSelectedTraits(
     input.provider,
@@ -223,6 +224,7 @@ function getTraitsSectionVisibility(input: {
     input.promptUltrathink ?? "none",
     input.modelOptions,
     input.allowPromptInjectedEffort ?? true,
+    input.resolve,
   );
 
   const speedToggle = selected.modelIsUnavailable ? null : getSpeedToggle(selected.descriptors);
@@ -389,6 +391,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
   ...persistence
 }: TraitsMenuContentProps & TraitsPersistence & { omitToggleOnlyOptions?: boolean }) {
   const gt = useGT();
+  const resolve = useMessages();
   const modelSelection =
     instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null;
   const updateModelOptions = useUpdateModelOptions(provider, instanceId, model, persistence);
@@ -399,6 +402,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
     promptUltrathink,
     modelOptions,
     allowPromptInjectedEffort,
+    resolve,
   });
   const {
     descriptors,
@@ -574,6 +578,7 @@ function SpeedToggleControl({
   shortcutLabel: string | null;
   onSelect: (value: string | boolean) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const composerFloatingLayerProps = useComposerMenuProps();
   const choices = getSpeedToggleChoices(speedToggle, descriptors);
@@ -587,7 +592,7 @@ function SpeedToggleControl({
       activeBackground={false}
       disabled={disabled}
       {...(choices
-        ? { "aria-label": SPEED_TOGGLE_LABELS[speedToggle.level] }
+        ? { "aria-label": messages(SPEED_TOGGLE_LABELS[speedToggle.level]) }
         : {
             "aria-label": gt("Fast mode"),
             "aria-pressed": speedOn,
@@ -605,7 +610,7 @@ function SpeedToggleControl({
         />
       </TooltipTrigger>
       <TooltipPopup side="top" shortcut={shortcutLabel}>
-        {SPEED_TOGGLE_LABELS[speedToggle.level]}
+        {messages(SPEED_TOGGLE_LABELS[speedToggle.level])}
       </TooltipPopup>
     </Tooltip>
   );
@@ -682,9 +687,11 @@ export const TraitsPicker = memo(function TraitsPicker({
     speedShortcutLabel?: string | null;
     disabled?: boolean;
   }) {
+  const messages = useMessages();
   const composerFloatingLayerProps = useComposerMenuProps();
   const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
   const updateModelOptions = useUpdateModelOptions(provider, instanceId, model, persistence);
+  const resolve = useMessages();
   const {
     descriptors,
     primarySelectDescriptor,
@@ -699,6 +706,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     promptUltrathink,
     modelOptions,
     allowPromptInjectedEffort,
+    resolve,
   });
   if (!hasAnyControls) {
     return null;
@@ -734,6 +742,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     ultrathinkPromptControlled,
     modelSelection: instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null,
     reportedModelSelection,
+    resolve: messages,
   });
 
   const isCodexStyle = provider === "codex";

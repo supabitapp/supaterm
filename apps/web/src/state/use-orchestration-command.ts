@@ -13,8 +13,12 @@ import { AsyncResult } from "effect/reactivity";
 
 import { readEnvironmentScope } from "./session";
 import { useAtomCommand } from "./use-atom-command";
+import { msg } from "gt-react";
+import { m } from "../i18n/messages";
 
-const ORCHESTRATION_OPERATE_DENIED_MESSAGE = "This connection cannot change threads or projects.";
+const ORCHESTRATION_OPERATE_DENIED_MESSAGE = msg(
+  "This connection cannot change threads or projects.",
+);
 
 export function useOrchestrationCommand<W extends { readonly environmentId: EnvironmentId }, A, E>(
   command: AtomCommand<W, A, E>,
@@ -27,7 +31,7 @@ export function useOrchestrationCommand<W extends { readonly environmentId: Envi
         Cause.fail(
           new EnvironmentAuthorizationError({
             requiredScope: AuthOrchestrationOperateScope,
-            message: ORCHESTRATION_OPERATE_DENIED_MESSAGE,
+            message: m(ORCHESTRATION_OPERATE_DENIED_MESSAGE),
           }),
         ),
       );

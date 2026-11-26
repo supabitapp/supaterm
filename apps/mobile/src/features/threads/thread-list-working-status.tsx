@@ -4,6 +4,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import { memo, useEffect, useState } from "react";
 import { AppState, Platform, Text as RNText } from "react-native";
 import { AppText } from "../../components/ui/AppText";
+import { m } from "../../i18n/messages";
 
 // DM Sans has no tabular figures, so a ticking timer in it reflows the row every second.
 const TABULAR_DURATION_STYLE = {
@@ -13,7 +14,7 @@ const TABULAR_DURATION_STYLE = {
 } as const;
 
 function elapsedLabel(environmentId: EnvironmentId, startedMs: number): string {
-  return formatWorkingDurationLabel(toServerClock(environmentId, Date.now()) - startedMs);
+  return formatWorkingDurationLabel(toServerClock(environmentId, Date.now()) - startedMs, m);
 }
 
 /** The clock updates only this label, leaving the row and its subscriptions idle. */

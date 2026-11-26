@@ -9,6 +9,8 @@ import {
   type PaneDragPayload,
 } from "../../chatPanes/paneDrop";
 import type { ThreadContextDropRef } from "./threadContextDrop.logic";
+import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export const THREAD_CONTEXT_DROP_EVENT = "supaterm-thread-context-drop";
 
@@ -96,7 +98,7 @@ export function moveThreadContextDrag(
   const paneTarget = target ? null : findPaneDropTarget(point, payload);
   setPaneDropHover(paneTarget);
   const verb = target
-    ? "Add as context"
+    ? m(msg("Add as context"))
     : paneTarget
       ? paneDropVerb(paneTarget.zone, payload)
       : null;

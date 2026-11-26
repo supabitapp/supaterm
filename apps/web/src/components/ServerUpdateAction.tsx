@@ -4,14 +4,14 @@ import {
   type AuthSessionState,
   sessionGrantsScope,
 } from "@supaterm/contracts";
-import type { AsyncResult } from "effect/reactivity";
-import { environmentSession } from "~/state/session";
 import type {
   DesktopUpdateChannel,
   EnvironmentId,
   ServerInstallation,
   ServerSelfUpdateCapability,
 } from "@supaterm/contracts";
+import type { AsyncResult } from "effect/reactivity";
+import { environmentSession } from "~/state/session";
 import type { ServerUpdateStage, ServerUpdateState } from "@supaterm/client-runtime/state/server";
 import {
   isAtomCommandInterrupted,
@@ -199,7 +199,10 @@ export function ServerUpdatesAction({
       if (desktopTargets.length > 0) {
         const confirmed =
           (await requestConfirmDialog(
-            `Update the Supaterm desktop apps on ${desktopTargets.map((target) => target.serverLabel).join(", ")}? They will close and relaunch on those machines.`,
+            gt(
+              "Update the Supaterm desktop apps on {servers}? They will close and relaunch on those machines.",
+              { servers: desktopTargets.map((target) => target.serverLabel).join(", ") },
+            ),
             { initialFocus: "confirm" },
           )) ?? true;
         if (!confirmed) return;
@@ -315,7 +318,10 @@ export function ServerUpdateAction({
     if (isDesktopAppUpdate) {
       const confirmed =
         (await requestConfirmDialog(
-          `Update the Supaterm desktop app that runs the ${serverLabel}? It will close and relaunch on that machine.`,
+          gt(
+            "Update the Supaterm desktop app that runs the {serverLabel}? It will close and relaunch on that machine.",
+            { serverLabel },
+          ),
           { initialFocus: "confirm" },
         )) ?? true;
       if (!confirmed) {
@@ -366,7 +372,7 @@ export function ServerUpdateAction({
               size="icon-xs"
               variant="ghost-muted"
               className={className}
-              aria-label={`${actionLabel} for ${serverLabel}`}
+              aria-label={gt("{action} for {serverLabel}", { action: actionLabel, serverLabel })}
               disabled={manualCommand === null && !canUpdate}
               onClick={onClick}
             />

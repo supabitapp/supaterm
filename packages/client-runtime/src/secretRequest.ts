@@ -20,9 +20,10 @@ export type SecretRequestItem = Extract<
 >;
 
 /** The agent's commands read the value from a file, so the card must not promise more. */
-export const SECRET_REQUEST_PRIVACY_NOTE =
-  "Secrets are kept out of chat history and automatically deleted";
-const SECRET_REQUEST_DEFAULT_PLACEHOLDER = "Paste the secret";
+export const SECRET_REQUEST_PRIVACY_NOTE = msg(
+  "Secrets are kept out of chat history and automatically deleted",
+);
+const SECRET_REQUEST_DEFAULT_PLACEHOLDER = msg("Paste the secret");
 
 export interface SecretRequestInput {
   /** Key in the card's values: the field name, or "" for a request without fields. */
@@ -34,13 +35,14 @@ export interface SecretRequestInput {
 
 export function secretRequestInputs(
   item: Pick<SecretRequestItem, "label" | "placeholder" | "fields">,
+  resolve: MFunctionType = mFallback,
 ): ReadonlyArray<SecretRequestInput> {
   if (item.fields === undefined) {
     return [
       {
         key: "",
         label: item.label,
-        placeholder: item.placeholder ?? SECRET_REQUEST_DEFAULT_PLACEHOLDER,
+        placeholder: item.placeholder ?? resolve(SECRET_REQUEST_DEFAULT_PLACEHOLDER),
         masked: true,
       },
     ];

@@ -29,7 +29,7 @@ import {
   resolveMarkdownImageDisplaySize,
   resolveSvgImageSize,
 } from "./markdownImageSize";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 /** Use known feed width immediately; later image measurement would move already-positioned rows. */
 export const MarkdownImageAvailableWidthContext = createContext(0);
@@ -287,6 +287,7 @@ export function ThreadMarkdownImage(props: {
   readonly actionsSource?: MediaActionsSource;
   readonly onPressPreview: (source: FilePreviewSource) => void;
 }) {
+  const messages = useMessages();
   const withGallery = useFilePreviewGallery();
   const workspaceMutationId = useContext(WorkspaceMutationIdContext);
   const assetUrl = useAssetUrlState(
@@ -324,7 +325,7 @@ export function ThreadMarkdownImage(props: {
       unavailable={assetUrl._tag === "Failure"}
       unavailableDetail={
         assetUrl._tag === "Failure" && assetUrl.reason === "missing-file-access"
-          ? MISSING_FILE_ACCESS_MESSAGE
+          ? messages(MISSING_FILE_ACCESS_MESSAGE)
           : undefined
       }
       knownSize={assetUrl._tag === "Success" ? assetUrl.imageDimensions : undefined}

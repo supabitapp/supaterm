@@ -9,11 +9,11 @@ import type {
   PreviewAnnotationPayload,
   ThreadContextRecord,
 } from "@supaterm/contracts";
+import type { EnvironmentId } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
 import { videoMimeType } from "@supaterm/shared/video";
 import { MessageCircleIcon, MousePointerClickIcon } from "@supaterm/icons";
 import { createContext, type MouseEvent, type ReactElement, type ReactNode, use } from "react";
-import type { EnvironmentId } from "@supaterm/contracts";
 
 import type { ComposerFileAttachment, ComposerImageAttachment } from "~/composerDraftStore";
 import { composerFileNeedsReattach } from "~/composerDraftStore";
@@ -59,6 +59,7 @@ import {
   UnresolvedChip,
 } from "./contextChipParts";
 import { T, useGT, useMessages, msg } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 export interface ComposerImageContextAttachment extends Omit<ComposerImageAttachment, "file"> {
   readonly file: File | null;
@@ -340,30 +341,63 @@ function FileContextChip(props: {
 
 function PullRequestContextChip(props: { record: ReviewCommentContext; kind: ContextChipKind }) {
   const actions = use(ComposerContextActionsContext);
+  const messages = useMessages();
   const metadata = props.record.pullRequest;
   if (metadata === undefined) return null;
   return (
     <PullRequestChip
       metadata={metadata}
       environmentId={actions.environmentId}
-      label={reviewCommentContextLabel(props.record)}
-      kindLabel={pullRequestContextKindLabel(props.record)}
+      label={reviewCommentContextLabel(props.record, messages)}
+      kindLabel={pullRequestContextKindLabel(props.record, messages)}
       kind={props.kind}
       onOpen={actions.openPullRequest}
     />
   );
 }
 
-function previewAnnotationTooltip(annotation: PreviewAnnotationPayload): string {
+function previewAnnotationTooltip(
+  annotation: PreviewAnnotationPayload,
+  resolve: MessageResolver,
+): string {
   const lines = [annotation.pageTitle?.trim() || annotation.pageUrl];
   if (annotation.comment.trim()) lines.push("", annotation.comment.trim());
   const targets: string[] = [];
-  const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
-  if (annotation.elements.length > 0) targets.push(plural(annotation.elements.length, "element"));
-  if (annotation.regions.length > 0) targets.push(plural(annotation.regions.length, "region"));
-  if (annotation.strokes.length > 0) targets.push(plural(annotation.strokes.length, "drawing"));
+  if (annotation.elements.length > 0) {
+    targets.push(
+      resolve(
+        msg("{count, plural, one {{count} element} other {{count} elements}}", {
+          count: annotation.elements.length,
+        }),
+      ),
+    );
+  }
+  if (annotation.regions.length > 0) {
+    targets.push(
+      resolve(
+        msg("{count, plural, one {{count} region} other {{count} regions}}", {
+          count: annotation.regions.length,
+        }),
+      ),
+    );
+  }
+  if (annotation.strokes.length > 0) {
+    targets.push(
+      resolve(
+        msg("{count, plural, one {{count} drawing} other {{count} drawings}}", {
+          count: annotation.strokes.length,
+        }),
+      ),
+    );
+  }
   if (annotation.styleChanges.length > 0) {
-    targets.push(plural(annotation.styleChanges.length, "style change"));
+    targets.push(
+      resolve(
+        msg("{count, plural, one {{count} style change} other {{count} style changes}}", {
+          count: annotation.styleChanges.length,
+        }),
+      ),
+    );
   }
   if (targets.length > 0) lines.push("", targets.join(", "));
   return lines.join("\n");
@@ -398,7 +432,8 @@ function ComposerPreviewAnnotationDetails({
   screenshot: ComposerImageAttachment | undefined;
 }) {
   const gt = useGT();
-  const summary = previewAnnotationTooltip(annotation);
+  const messages = useMessages();
+  const summary = previewAnnotationTooltip(annotation, messages);
 
   const screenshotUrl = annotation.screenshot?.dataUrl || screenshot?.previewUrl;
   return (
@@ -427,6 +462,29 @@ function ComposerThreadContextChip(props: { record: ThreadContextRecord }) {
     <ThreadContextChip
       record={props.record}
       unreadable={environmentId !== null && props.record.environmentId !== environmentId}
+    />
+  );
+}
+
+function ReviewCommentContextChip(props: {
+  record: ReviewCommentContext;
+  isPullRequest: boolean;
+  detailsMode: ContextPresentationCapability["details"];
+  kind: ContextChipKind;
+}) {
+  const messages = useMessages();
+  return (
+    <ContextChip
+      icon={props.isPullRequest ? <PullRequestGlyph.pullRequest /> : <MessageCircleIcon />}
+      label={reviewCommentContextLabel(props.record, messages)}
+      kindLabel={
+        props.isPullRequest
+          ? pullRequestContextKindLabel(props.record, messages)
+          : msg("Review comment")
+      }
+      details={<ComposerReviewCommentDetails comment={props.record} />}
+      detailsMode={props.detailsMode}
+      kind={props.kind}
     />
   );
 }
@@ -511,13 +569,9 @@ const composerContextPresentationRegistry = createContextPresentationRegistry<
           );
         }
         return (
-          <ContextChip
-            icon={isPullRequest ? <PullRequestGlyph.pullRequest /> : <MessageCircleIcon />}
-            label={reviewCommentContextLabel(entry.record)}
-            kindLabel={
-              isPullRequest ? pullRequestContextKindLabel(entry.record) : msg("Review comment")
-            }
-            details={<ComposerReviewCommentDetails comment={entry.record} />}
+          <ReviewCommentContextChip
+            record={entry.record}
+            isPullRequest={isPullRequest}
             detailsMode={definition.capabilities.details}
             kind={isPullRequest ? PULL_REQUEST_CHIP_KINDS[pullRequestState] : "review-comment"}
           />

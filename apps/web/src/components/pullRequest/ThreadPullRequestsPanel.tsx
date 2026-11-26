@@ -69,7 +69,7 @@ const SOURCE_LABELS: Record<ThreadPullRequestLink["source"], string> = {
   created: msg("Created from this thread"),
   agent: msg("Linked by the agent"),
   stack: msg("Found in the stack"),
-  "stack-dismissed": "Dismissed",
+  "stack-dismissed": msg("Dismissed", { $context: "pull request link source" }),
 };
 
 function ChecksGlyph({
@@ -77,8 +77,8 @@ function ChecksGlyph({
 }: {
   state: NonNullable<ThreadPullRequestLink["snapshot"]>["checksState"] & string;
 }) {
-  const messages = useMessages();
-  const presentation = pullRequestChecksStatePresentation(state, messages);
+  const resolve = useMessages();
+  const presentation = pullRequestChecksStatePresentation(state, resolve);
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="inline-flex shrink-0" />}>

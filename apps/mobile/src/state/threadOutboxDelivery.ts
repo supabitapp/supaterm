@@ -1109,7 +1109,7 @@ export function createThreadOutboxDelivery(): {
       if (!shouldRetryThreadOutboxDelivery(error)) {
         return yield* restoreQueuedMessage(
           queuedMessage,
-          error instanceof Error ? error.message : "An attachment could not upload.",
+          error instanceof Error ? error.message : m(msg("An attachment could not upload.")),
         );
       }
       return yield* retryDelivery;
@@ -1263,7 +1263,7 @@ export function createThreadOutboxDelivery(): {
       if (!shouldRetryThreadOutboxDelivery(error)) {
         return yield* restoreQueuedMessage(
           queuedMessage,
-          error instanceof Error ? error.message : "An attachment could not upload.",
+          error instanceof Error ? error.message : m(msg("An attachment could not upload.")),
         );
       }
       return yield* retryDelivery;
@@ -1318,7 +1318,12 @@ export function createThreadOutboxDelivery(): {
         ).changeRequest;
         return yield* restoreQueuedMessage(
           persistedMessage,
-          `The ${shortLabel} worktree has local changes and could not update to the ${shortLabel} head. Resolve them before trying again.`,
+          m(
+            msg(
+              "The {label} worktree has local changes and could not update to the {label} head. Resolve them before trying again.",
+              { label: shortLabel },
+            ),
+          ),
         );
       }
       workspace = {
@@ -1509,6 +1514,7 @@ export function createThreadOutboxDelivery(): {
       return { _tag: "Wait" };
     }
     const dispatchStep = resolveThreadOutboxDispatchStep({
+      resolve: m,
       deliveryAction,
       fileAttachments: nextQueuedMessage.attachments.filter(
         (attachment) => attachment.type === "file",

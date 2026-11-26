@@ -2,8 +2,7 @@ import {
   connectionStatusText,
   type EnvironmentConnectionPresentation,
 } from "@supaterm/client-runtime/connection";
-import { m } from "../../i18n/messages";
-import { type MessageResolver } from "../../i18n/messages";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export function environmentStatusText(
   connection: EnvironmentConnectionPresentation,

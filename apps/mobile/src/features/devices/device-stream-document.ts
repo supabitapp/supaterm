@@ -32,11 +32,7 @@ export function deviceStreamBaseUrl(
   return `${new URL(httpBase).origin}/`;
 }
 
-export function deviceStreamDocument(
-  configuration: string,
-  script: string,
-  stoppedDetail = "Device viewer stopped unexpectedly.",
-) {
+export function deviceStreamDocument(configuration: string, script: string, stoppedDetail: string) {
   const safeConfiguration = configuration.replace(/</g, "\\u003c");
   const safeScript = script.replace(/<\/script/gi, "<\\/script");
   const safeStoppedDetail = JSON.stringify(stoppedDetail).replace(/</g, "\\u003c");

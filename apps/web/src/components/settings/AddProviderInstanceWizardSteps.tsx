@@ -4,6 +4,7 @@ import {
   resolveWizardNavigation,
   type WizardNavigation,
 } from "./AddProviderInstanceDialog.logic";
+import { useMessages } from "gt-react";
 
 interface AddProviderInstanceWizardStepsProps {
   readonly currentStep: number;
@@ -29,9 +30,10 @@ export function AddProviderInstanceWizardSteps({
   onNavigation,
   disabled = false,
 }: AddProviderInstanceWizardStepsProps) {
+  const m = useMessages();
   return (
     <WizardSteps
-      steps={steps}
+      steps={steps.map((step) => m(step))}
       currentStep={currentStep}
       summaries={summaries}
       isStepDisabled={() => disabled}

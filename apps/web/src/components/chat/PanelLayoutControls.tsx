@@ -176,7 +176,8 @@ export const RightPanelMaximizeControl = memo(function RightPanelMaximizeControl
   maximized: boolean;
   onToggle: () => void;
 }) {
-  const label = maximized ? "Restore panel size" : "Maximize panel";
+  const gt = useGT();
+  const label = maximized ? gt("Restore panel size") : gt("Maximize panel");
   const Icon = maximized ? ShrinkIcon : ExpandIcon;
   return (
     <Tooltip>

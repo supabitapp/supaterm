@@ -81,7 +81,7 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
     confirm(
       "close",
       pullRequestActionLabel("close", terminology, messages),
-      `Close this ${terminology.singular} without merging its changes?`,
+      gt("Close this {singular} without merging its changes?", { singular: terminology.singular }),
     );
   };
   return {

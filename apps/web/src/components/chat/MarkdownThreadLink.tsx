@@ -104,7 +104,7 @@ export function MarkdownThreadLink(props: {
     }) === "linked"
   ) {
     const knownTitle = props.label ?? written?.title ?? null;
-    const title = knownTitle ?? `Thread on ${linkedLabel}`;
+    const title = knownTitle ?? gt("Thread on {label}", { label: linkedLabel });
     return (
       <Tooltip>
         <TooltipTrigger
@@ -143,7 +143,8 @@ export function MarkdownThreadLink(props: {
   }
   const ref = resolved?.ref ?? childRef ?? writtenRef;
   const childTitle = childRef === null ? undefined : childTitles.get(childRef.threadId);
-  const fallbackTitle = resolved === null && childRef === null ? "Thread" : "Untitled thread";
+  const fallbackTitle =
+    resolved === null && childRef === null ? gt("Thread") : gt("Untitled thread");
   const title = resolved?.metadata.title.trim() || childTitle || props.label || fallbackTitle;
   return (
     <ThreadContextChip

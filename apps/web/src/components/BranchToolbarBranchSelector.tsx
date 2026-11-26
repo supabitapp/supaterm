@@ -397,7 +397,10 @@ export function BranchToolbarBranchSelector({
     : isFetchingNextPage
       ? gt("Loading more refs...")
       : hasNextPage
-        ? `Showing ${refs.length.toLocaleString()} of ${totalBranchCount.toLocaleString()} refs`
+        ? gt("Showing {shown} of {total} refs", {
+            shown: refs.length.toLocaleString(),
+            total: totalBranchCount.toLocaleString(),
+          })
         : null;
 
   const copyBranchName = (branchName: string) => {

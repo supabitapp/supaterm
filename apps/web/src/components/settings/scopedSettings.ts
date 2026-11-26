@@ -388,8 +388,14 @@ export function planScopedSettingsPatch(
         : unscopableKeys.length > 0
           ? m(msg("This setting is environment-wide and cannot be overridden by a project."))
           : isProjectScope
-            ? "Connect the selected checkouts, or update their environments, to save a project override."
-            : `Connect ${scope.kind === "environment" ? scope.label : "an environment"} to save this setting.`;
+            ? m(
+                msg(
+                  "Connect the selected checkouts, or update their environments, to save a project override.",
+                ),
+              )
+            : scope.kind === "environment"
+              ? m(msg("Connect {environment} to save this setting.", { environment: scope.label }))
+              : m(msg("Connect an environment to save this setting."));
   return { clientPatch, hasClientWrite, serverWrites, unavailableReason };
 }
 

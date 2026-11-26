@@ -416,15 +416,15 @@ export function isContextCompactionActivityGroup(entry: ThreadFeedActivityGroup)
   );
 }
 
-/** Titles for compactions an answered "compact before continuing?" question asked for. */
-export function threadFeedCompactionTitles(feed: ReadonlyArray<ThreadFeedEntry>) {
-  const titlesByEntryId = new Map<string, string>();
+/** Idle ages for compactions an answered "compact before continuing?" question asked for. */
+export function threadFeedCompactionIdleAges(feed: ReadonlyArray<ThreadFeedEntry>) {
+  const agesByEntryId = new Map<string, string>();
   const pendingResumeAgeByRunId = new Map<RunId, string>();
   for (const entry of feed) {
     if (entry.type !== "activity-group" || entry.runId === null) continue;
     if (isContextCompactionActivityGroup(entry)) {
       const age = pendingResumeAgeByRunId.get(entry.runId);
-      if (age !== undefined) titlesByEntryId.set(entry.id, `Context compacted after ${age} idle`);
+      if (age !== undefined) agesByEntryId.set(entry.id, age);
       pendingResumeAgeByRunId.delete(entry.runId);
     }
     for (const activity of entry.activities) {
@@ -434,7 +434,7 @@ export function threadFeedCompactionTitles(feed: ReadonlyArray<ThreadFeedEntry>)
       if (age !== null) pendingResumeAgeByRunId.set(entry.runId, age);
     }
   }
-  return titlesByEntryId;
+  return agesByEntryId;
 }
 
 function isResumeCompactionAnswerGroup(entry: ThreadFeedActivityGroup): boolean {
@@ -2316,8 +2316,8 @@ function appendToolGroupRows(
   const summary = live
     ? (expanded || thought) && latestActivity.workEntry.itemType === "reasoning"
       ? latestActivity.lifecycleStatus === "inProgress"
-        ? "Thinking"
-        : "Thought"
+        ? resolve(msg("Thinking"))
+        : resolve(msg("Thought"))
       : liveToolActivitySummary(latestActivity, live, resolve)
     : singleActivity !== null &&
         singleActivity.toolLike &&
@@ -2414,7 +2414,8 @@ function liveToolActivitySummary(
   const status = liveActivityToolStatus(activity.lifecycleStatus, presentTense);
   if (activity.workEntry.itemType === "reasoning") {
     return compactWorkEntryText(
-      activity.workEntry.detail?.trim() || (status === "inProgress" ? "Thinking" : "Thought"),
+      activity.workEntry.detail?.trim() ||
+        (status === "inProgress" ? resolve(msg("Thinking")) : resolve(msg("Thought"))),
     );
   }
   const presentation = resolveWorkEntryToolPresentation(
@@ -2429,17 +2430,26 @@ function liveToolActivitySummary(
   const command = activity.workEntry.command?.trim();
   if (command) {
     const program = commandProgramName(command);
-    const verb =
-      status === "inProgress"
-        ? "Running"
+    if (program === null || program === undefined) {
+      return status === "inProgress"
+        ? resolve(msg("Running command"))
         : status === "failed"
-          ? "Failed"
+          ? resolve(msg("Failed command"))
           : status === "declined"
-            ? "Declined"
+            ? resolve(msg("Declined command"))
             : status === "stopped"
-              ? "Stopped"
-              : "Ran";
-    return `${verb} ${program ?? "command"}`;
+              ? resolve(msg("Stopped command"))
+              : resolve(msg("Ran command"));
+    }
+    return status === "inProgress"
+      ? resolve(msg("Running {program}", { program }))
+      : status === "failed"
+        ? resolve(msg("Failed {program}", { program }))
+        : status === "declined"
+          ? resolve(msg("Declined {program}", { program }))
+          : status === "stopped"
+            ? resolve(msg("Stopped {program}", { program }))
+            : resolve(msg("Ran {program}", { program }));
   }
   return (
     commandlessCommandLabel(activity.workEntry, status, resolve) ??

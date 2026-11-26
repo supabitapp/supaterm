@@ -1,9 +1,9 @@
 import { SettingsGroup } from "./SettingsGroup";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
+import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@supaterm/contracts";
 import { usePrimaryEnvironmentId, usePrimaryEnvironment } from "../../state/environments";
 import { useEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
 import { InfoIcon, UndoIcon } from "@supaterm/icons";
-import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@supaterm/contracts";
 import * as Equal from "effect/Equal";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { createContext, type ComponentPropsWithoutRef, type ReactNode, useContext } from "react";
@@ -32,7 +32,7 @@ import {
   type SettingInheritanceState,
   type SettingOverridingProject,
 } from "./SettingInheritance";
-import { useGT } from "gt-react";
+import { useGT, useMessages } from "gt-react";
 
 const EMPTY_SETTING_KEYS: readonly (keyof ServerSettings)[] = [];
 
@@ -336,6 +336,7 @@ export function SettingsRow({
   mixed?: boolean;
   children?: ReactNode;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const targetRef = useSettingsSearchTarget<HTMLDivElement>(rowProps.id);
   const primarySettingsAvailable = usePrimarySettingsAvailable();
@@ -412,26 +413,34 @@ export function SettingsRow({
       <TooltipPopup side="top">{message}</TooltipPopup>
     </Tooltip>
   );
+  const lackingPermissionMessage = () => {
+    const environments = context
+      ? context.connectedEnvironments
+          .filter((target) => !writableIds.has(target.environmentId))
+          .map((target) => target.label)
+          .join(", ")
+      : primaryEnvironment?.label;
+    return environments
+      ? gt("This connection lacks permission to change settings on {environments}.", {
+          environments,
+        })
+      : context
+        ? gt("This connection lacks permission to change settings on the selected environment.")
+        : gt("This connection lacks permission to change settings on the primary environment.");
+  };
   const renderedControl =
     unavailable && control
       ? inertControl(
           !canWriteSettings
-            ? `This connection lacks permission to change settings on ${
-                context
-                  ? context.connectedEnvironments
-                      .filter((target) => !writableIds.has(target.environmentId))
-                      .map((target) => target.label)
-                      .join(", ") || "the selected environment"
-                  : (primaryEnvironment?.label ?? "the primary environment")
-              }.`
+            ? lackingPermissionMessage()
             : context
-              ? "Reconnect the selected environment to change this setting."
-              : PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE,
+              ? gt("Reconnect the selected environment to change this setting.")
+              : messages(PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE),
         )
       : environmentWide && control
-        ? inertControl("Environment-wide setting. Select an environment to change it.")
+        ? inertControl(gt("Environment-wide setting. Select an environment to change it."))
         : deviceReadOnly && control
-          ? inertControl("Saved on this device. Select All projects to change it.")
+          ? inertControl(gt("Saved on this device. Select All projects to change it."))
           : control;
   const customized =
     context !== null &&

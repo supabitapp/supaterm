@@ -1,4 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
+import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { resolveProviderInstanceDisplayName as agentName } from "@supaterm/client-runtime/state/provider-instance-display";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
 import type {
   AgentSessionProjectCandidate,
   EnvironmentId,
@@ -8,12 +14,6 @@ import type {
   ServerConfig,
   ServerProvider,
 } from "@supaterm/contracts";
-import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
-import { resolveProviderInstanceDisplayName as agentName } from "@supaterm/client-runtime/state/provider-instance-display";
-import {
-  isAtomCommandInterrupted,
-  squashAtomCommandFailure,
-} from "@supaterm/client-runtime/state/runtime";
 import {
   AgentSessionSource,
   AuthProvidersManageScope,
@@ -70,6 +70,7 @@ import {
   welcomeImportSelectionKey,
 } from "../../onboarding/welcomeState";
 import { newProjectId, randomUUID } from "../../lib/utils";
+import { cn } from "../../lib/utils";
 import { agentSessionImport } from "../../state/agentSessions";
 import { readProjects, useProjects, waitForProject } from "../../state/entities";
 import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
@@ -100,12 +101,13 @@ import { ScrollArea } from "../ui/scroll-area";
 import { SidebarInset } from "../ui/sidebar";
 import { toastManager } from "../ui/toast";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
-import { cn } from "../../lib/utils";
 import { formatRelativeTime } from "../../timestampFormat";
 import { msg, T, useGT, Var, useMessages } from "gt-react";
 
 const AGENT_ONBOARDING_THREAD_ID = ThreadId.make("onboarding-agent-setup");
-const SCAN_LIMIT_MESSAGE = "Scan limit reached. Some projects or conversations may be missing.";
+const SCAN_LIMIT_MESSAGE = msg(
+  "Scan limit reached. Some projects or conversations may be missing.",
+);
 
 /**
  * First-run page for one computer: its agents and the projects found in agent history. Every
@@ -607,7 +609,7 @@ function AgentsSection({
     )
       ? gt("This connection cannot control terminals.")
       : null,
-    !canManageProviders ? "This connection cannot manage agents." : null,
+    !canManageProviders ? gt("This connection cannot manage agents.") : null,
   ].filter((note) => note !== null);
 
   return (
@@ -798,7 +800,7 @@ function ProjectsSection({
     return scan.data?.truncated ? (
       <WelcomeSection title={gt("Projects")}>
         <p className="text-xs leading-10 text-muted-foreground" role="status">
-          {SCAN_LIMIT_MESSAGE}
+          {m(SCAN_LIMIT_MESSAGE)}
         </p>
       </WelcomeSection>
     ) : null;
@@ -865,7 +867,13 @@ function ProjectsSection({
         <fieldset className="-mx-1.5 mt-1 min-w-0" disabled={isImporting}>
           <div className="flex items-center justify-between gap-3 px-2 text-xs text-muted-foreground">
             <span role="status">
-              {selected.length} of {candidates.length} selected
+              {gt(
+                "{selected, plural, one {{selected} of {total} selected} other {{selected} of {total} selected}}",
+                {
+                  selected: selected.length,
+                  total: candidates.length,
+                },
+              )}
             </span>
             <div className="flex items-center gap-1">
               <Button
@@ -899,7 +907,7 @@ function ProjectsSection({
       ) : null}
       {scan.data?.truncated ? (
         <p className="pl-8 text-xs text-muted-foreground" role="status">
-          {SCAN_LIMIT_MESSAGE}
+          {m(SCAN_LIMIT_MESSAGE)}
         </p>
       ) : null}
       {scan.error !== null ? (
@@ -994,7 +1002,8 @@ function TerminalAction({
   readonly disabled: boolean;
   readonly onClick: () => void;
 }) {
-  const label = signIn ? "Sign in" : "Install";
+  const gt = useGT();
+  const label = signIn ? gt("Sign in") : gt("Install");
   return (
     <Button
       size="xs"
@@ -1500,11 +1509,23 @@ function useProjectImport({
     const importedThreadCount = importedThreadTotal();
     if (importedProjectsCount < selection.length) {
       if (importedThreadCount > 0 && skippedThreadCount > 0) {
-        importWarningRef.current = `Imported ${importedThreadCount} ${importedThreadCount === 1 ? "thread" : "threads"}. ${skippedThreadCount} ${skippedThreadCount === 1 ? "thread" : "threads"} could not be imported.`;
+        importWarningRef.current = `${gt(
+          "{count, plural, one {Imported {count} thread.} other {Imported {count} threads.}}",
+          { count: importedThreadCount },
+        )} ${gt(
+          "{count, plural, one {{count} thread could not be imported.} other {{count} threads could not be imported.}}",
+          { count: skippedThreadCount },
+        )}`;
       } else if (skippedThreadCount > 0) {
-        importWarningRef.current = `${skippedThreadCount} ${skippedThreadCount === 1 ? "thread could" : "threads could"} not be imported.`;
+        importWarningRef.current = gt(
+          "{count, plural, one {{count} thread could not be imported.} other {{count} threads could not be imported.}}",
+          { count: skippedThreadCount },
+        );
       } else if (importedThreadCount > 0) {
-        importWarningRef.current = `Imported ${importedThreadCount} ${importedThreadCount === 1 ? "thread" : "threads"}. Some thread history could not be imported.`;
+        importWarningRef.current = gt(
+          "{count, plural, one {Imported {count} thread. Some thread history could not be imported.} other {Imported {count} threads. Some thread history could not be imported.}}",
+          { count: importedThreadCount },
+        );
       } else {
         importWarningRef.current = gt("Could not import thread history.");
       }
@@ -1540,6 +1561,7 @@ function ImportCandidateList({
   readonly selectedKeys: ReadonlySet<string>;
   readonly onSelectionChange: (next: ReadonlySet<string>) => void;
 }) {
+  const gt = useGT();
   const { repositories, other } = groupOnboardingProjects(candidates);
   const setKeys = (keys: ReadonlyArray<string>, checked: boolean) => {
     const next = new Set(selectedKeys);
@@ -1580,7 +1602,9 @@ function ImportCandidateList({
                 <T>Other folders</T>
               </span>
               <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
-                {other.length} {other.length === 1 ? "folder" : "folders"}
+                {gt("{count, plural, one {{count} folder} other {{count} folders}}", {
+                  count: other.length,
+                })}
               </span>
             </CollapsibleTrigger>
           </div>

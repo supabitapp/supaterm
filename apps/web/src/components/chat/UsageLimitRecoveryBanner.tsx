@@ -99,9 +99,15 @@ export function usageLimitRecoveryBannerItem(
   ) : null;
   const resumesUpcoming = resumes && !displayPassed;
   const shownAt = resumesUpcoming ? displayAt : resetAt;
-  const resetDescription = shownAt
-    ? `${resumesUpcoming ? "Resumes" : resetPassed ? "Reset" : "Resets"} ${formatUpcomingTimestamp(shownAt, timestampFormat)}`
-    : "Reset time unavailable; retry manually";
+  const formattedTime = shownAt ? formatUpcomingTimestamp(shownAt, timestampFormat) : null;
+  const resetDescription =
+    formattedTime !== null
+      ? resumesUpcoming
+        ? resolve(msg("Resumes {time}", { time: formattedTime }))
+        : resetPassed
+          ? resolve(msg("Reset {time}", { time: formattedTime }))
+          : resolve(msg("Resets {time}", { time: formattedTime }))
+      : resolve(msg("Reset time unavailable; retry manually"));
   if (!chatGptLimit) {
     return {
       id: `usage-limit-recovery:${runId}`,

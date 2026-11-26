@@ -8,10 +8,6 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
-import {
-  isAtomCommandInterrupted,
-  squashAtomCommandFailure,
-} from "@supaterm/client-runtime/state/runtime";
 import type {
   GitStackedAction,
   SourceControlCloneProtocol,
@@ -20,6 +16,10 @@ import type {
   SourceControlRepositoryVisibility,
   VcsStatusResult,
 } from "@supaterm/contracts";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
 import { useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import { memo, useEffect, useEffectEvent, useId, useRef, useState } from "react";
@@ -43,6 +43,7 @@ import { RadioGroup } from "~/components/ui/radio-group";
 import { Spinner } from "~/components/ui/spinner";
 import { Toggle, ToggleGroup } from "~/components/ui/toggle-group";
 import { cn } from "~/lib/utils";
+import { randomUUID } from "~/lib/utils";
 import {
   buildMenuItems,
   formatGitActionElapsed,
@@ -114,7 +115,6 @@ import { sourceControlEnvironment } from "~/state/sourceControl";
 import { threadEnvironment } from "~/state/threads";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { vcsActionManager, vcsEnvironment, vcsStatusRevalidation } from "~/state/vcs";
-import { randomUUID } from "~/lib/utils";
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import {
@@ -276,9 +276,10 @@ function getPublishProviderReadiness(
   return { ready: true, hint: null };
 }
 
-const COMMIT_DIALOG_TITLE = "Commit changes";
-const COMMIT_DIALOG_DESCRIPTION =
-  "Review and confirm your commit. Leave the message blank to auto-generate one.";
+const COMMIT_DIALOG_TITLE = msg("Commit changes");
+const COMMIT_DIALOG_DESCRIPTION = msg(
+  "Review and confirm your commit. Leave the message blank to auto-generate one.",
+);
 
 function GitActionItemIcon({
   icon,
@@ -1030,8 +1031,8 @@ function CheckoutGitActionsControl({
   const changesBreakdown = resolvedChangesTotals?.breakdown ?? null;
   const changesBaseLabel = resolvedChangesTotals
     ? resolvedChangesTotals.baseRef === null
-      ? "Uncommitted"
-      : `vs ${resolvedChangesTotals.baseRef}`
+      ? gt("Uncommitted")
+      : gt("vs {ref}", { ref: resolvedChangesTotals.baseRef })
     : null;
 
   const allFiles = gitStatusForActions?.workingTree.files ?? [];
@@ -1276,8 +1277,13 @@ function CheckoutGitActionsControl({
         const title = pullResult.status === "pulled" ? gt("Pulled") : gt("Already up to date");
         const description =
           pullResult.status === "pulled"
-            ? `Updated ${pullResult.refName} from ${pullResult.upstreamRef ?? "upstream"}`
-            : `${pullResult.refName} is already synchronized.`;
+            ? pullResult.upstreamRef
+              ? gt("Updated {ref} from {upstream}", {
+                  ref: pullResult.refName,
+                  upstream: pullResult.upstreamRef,
+                })
+              : gt("Updated {ref} from upstream", { ref: pullResult.refName })
+            : gt("{ref} is already synchronized.", { ref: pullResult.refName });
         setInlineSuccess({
           title,
           description,
@@ -1715,8 +1721,8 @@ function CheckoutGitActionsControl({
       >
         <DialogPopup>
           <DialogHeader>
-            <DialogTitle>{COMMIT_DIALOG_TITLE}</DialogTitle>
-            <DialogDescription>{COMMIT_DIALOG_DESCRIPTION}</DialogDescription>
+            <DialogTitle>{messages(COMMIT_DIALOG_TITLE)}</DialogTitle>
+            <DialogDescription>{messages(COMMIT_DIALOG_DESCRIPTION)}</DialogDescription>
           </DialogHeader>
           <DialogPanel>
             <div className="space-y-3 rounded-xl bg-zinc-25 p-3 text-sm ring-1 ring-black/5 dark:bg-white/[0.035] dark:ring-white/5">
@@ -1759,7 +1765,10 @@ function CheckoutGitActionsControl({
                     </span>
                     {!allSelected && !isEditingFiles && (
                       <span className="text-muted-foreground">
-                        ({selectedFiles.length} of {allFiles.length})
+                        {gt("({selected} of {total})", {
+                          selected: selectedFiles.length,
+                          total: allFiles.length,
+                        })}
                       </span>
                     )}
                   </div>
@@ -1778,7 +1787,9 @@ function CheckoutGitActionsControl({
                   )}
                 </div>
                 {!gitStatusForActions || allFiles.length === 0 ? (
-                  <p className="font-medium">none</p>
+                  <p className="font-medium">
+                    <T context="no files">none</T>
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     <div className="h-44 rounded-lg bg-card ring-1 ring-black/5 dark:bg-white/[0.025] dark:ring-white/5">

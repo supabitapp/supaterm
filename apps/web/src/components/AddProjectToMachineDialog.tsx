@@ -293,7 +293,9 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
                 <span>
                   {selectedFiles.size === 0
                     ? gt("no files")
-                    : `+ ${selectedFiles.size} ${selectedFiles.size === 1 ? "file" : "files"}`}
+                    : gt("{count, plural, one {+ {count} file} other {+ {count} files}}", {
+                        count: selectedFiles.size,
+                      })}
                 </span>
               </div>
               <div className="flex min-w-0 flex-col gap-1">
@@ -384,7 +386,10 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
                   {copyable.length > 0 ? (
                     <>
                       <span className="text-muted-foreground text-xs">
-                        {selectedFiles.size} of {allIgnoredFiles.data?.files.length ?? 0}
+                        {gt("{selected} of {total}", {
+                          selected: selectedFiles.size,
+                          total: allIgnoredFiles.data?.files.length ?? 0,
+                        })}
                         {selectedBytes > 0 ? ` · ${formatBytes(selectedBytes)}` : ""}
                       </span>
                       <Button type="button" variant="ghost" size="xs" onClick={toggleShownFiles}>

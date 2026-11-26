@@ -1,4 +1,9 @@
 import { useScopedSettingsWriteAllowed } from "./useScopedSettings";
+import {
+  useScopedSettings,
+  useScopedSettingsMixed,
+  useUpdateScopedSettings,
+} from "./useScopedSettings";
 import { SettingsIcon } from "@supaterm/icons";
 import { useState } from "react";
 import { type BackgroundActivityProfile } from "@supaterm/contracts";
@@ -6,11 +11,6 @@ import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";
 import { resolveServerBackgroundActivitySettings } from "@supaterm/shared/backgroundActivitySettings";
 import * as Duration from "effect/Duration";
 import * as Equal from "effect/Equal";
-import {
-  useScopedSettings,
-  useScopedSettingsMixed,
-  useUpdateScopedSettings,
-} from "./useScopedSettings";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { Button } from "../ui/button";
 import {
@@ -51,9 +51,9 @@ const BACKGROUND_ACTIVITY_PROFILE_OPTION_LABELS: Record<BackgroundActivityProfil
 };
 
 const BACKGROUND_ACTIVITY_PROFILE_DESCRIPTIONS: Record<BackgroundActivityProfile, string> = {
-  balanced: "Pauses probes for idle clients, locked hosts, or low power mode.",
-  performance: "Keeps probing while any client is connected.",
-  "battery-saver": "Also pauses probes on battery power.",
+  balanced: msg("Pauses probes for idle clients, locked hosts, or low power mode."),
+  performance: msg("Keeps probing while any client is connected."),
+  "battery-saver": msg("Also pauses probes on battery power."),
 };
 
 const BACKGROUND_ACTIVITY_BOOLEAN_OVERRIDES: ReadonlyArray<{
@@ -376,7 +376,7 @@ export function BackgroundActivitySettingsRow() {
       ? gt("Uses custom intervals. Shared policy: {profile}.", {
           profile: m(BACKGROUND_ACTIVITY_PROFILE_LABELS[activeBackgroundActivityProfile]),
         })
-      : BACKGROUND_ACTIVITY_PROFILE_DESCRIPTIONS[resolvedBackgroundActivity.profile];
+      : m(BACKGROUND_ACTIVITY_PROFILE_DESCRIPTIONS[resolvedBackgroundActivity.profile]);
   const canResetBackgroundActivity = !Equal.equals(
     settings.backgroundActivity,
     DEFAULT_UNIFIED_SETTINGS.backgroundActivity,

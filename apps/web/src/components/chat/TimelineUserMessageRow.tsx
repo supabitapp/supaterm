@@ -120,7 +120,9 @@ function UserFileCard({
   const ctx = use(TimelineRowCtx);
   const pastedText = file.source?._tag === "pasted-text";
   const label = userMessageFileLabel(file, messages);
-  const extension = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toUpperCase() ?? "File";
+  const extension =
+    /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toUpperCase() ??
+    gt("File", { $context: "file type badge when the name has no extension" });
   const identity = (
     <>
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background/60">
@@ -484,7 +486,10 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
   const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
   const revealFoldRef = findRevealRef(() => setExpanded(true));
   const senderShell = useQuietThreadShell(folded ? senderRef : null);
-  const senderLabel = senderShell?.title.trim() || linkedSender?.title.trim() || "Agent";
+  const senderLabel =
+    senderShell?.title.trim() ||
+    linkedSender?.title.trim() ||
+    gt("Agent", { $context: "sender of a message from another agent" });
   // Only an environment this client is connected to can open the sender's thread there.
   const linkedSenderEnvironment = useEnvironment(linkedSender?.environmentId ?? null);
   const openSender =

@@ -217,7 +217,7 @@ export function AddEnvironmentDialog({
     try {
       remotePairingInput = resolveRemotePairingForm(savedBackendForm);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to add backend.";
+      const message = error instanceof Error ? error.message : gt("Failed to add backend.");
       onErrorChange(message);
       toastManager.add(
         stackedThreadToast({
@@ -238,7 +238,7 @@ export function AddEnvironmentDialog({
     if (result._tag === "Failure") {
       if (!isAtomCommandInterrupted(result)) {
         const error = squashAtomCommandFailure(result);
-        const message = error instanceof Error ? error.message : "Failed to add backend.";
+        const message = error instanceof Error ? error.message : gt("Failed to add backend.");
         onErrorChange(message);
         toastManager.add(
           stackedThreadToast({

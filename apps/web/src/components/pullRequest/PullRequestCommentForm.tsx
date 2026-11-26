@@ -148,8 +148,8 @@ export function PullRequestCommentForm({
             </InlineConfirmIcon>
             <InlineConfirmLabel
               armed={confirm.armed === "close"}
-              idle={submitting === "close" ? "Closing..." : "Close with comment"}
-              confirm="Confirm close"
+              idle={submitting === "close" ? gt("Closing...") : gt("Close with comment")}
+              confirm={gt("Confirm close")}
             />
           </Button>
         ) : followUpAction === "reopen" ? (

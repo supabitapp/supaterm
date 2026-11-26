@@ -123,7 +123,7 @@ function SettingsScopeBoundary({ pathname, children }: { pathname: string; child
 
 function SettingsContentLayout() {
   const gt = useGT();
-  const contentArea = workspaceAreaProps("settings", 1, "Settings content");
+  const contentArea = workspaceAreaProps("settings", 1, gt("Settings content"));
   const location = useLocation();
   const { search, environment } = useSettingsScope();
   const contentScopeKey =

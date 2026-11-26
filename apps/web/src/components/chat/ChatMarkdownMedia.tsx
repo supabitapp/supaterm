@@ -419,6 +419,7 @@ export const ChatMarkdownAssetImage = memo(function ChatMarkdownAssetImage(props
   readonly workspaceMutationId?: string | null | undefined;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
 }) {
+  const messages = useMessages();
   const resource = props.resource;
   const threadWorkspaceMutationId = use(WorkspaceMutationIdContext);
   const workspaceMutationId = props.workspaceMutationId ?? threadWorkspaceMutationId;
@@ -437,7 +438,7 @@ export const ChatMarkdownAssetImage = memo(function ChatMarkdownAssetImage(props
     assetUrl._tag === "Failure" &&
     assetUrl.reason === "missing-file-access" &&
     fallbackSrc === undefined;
-  const unavailableDetail = missingFileAccess ? MISSING_FILE_ACCESS_MESSAGE : undefined;
+  const unavailableDetail = missingFileAccess ? messages(MISSING_FILE_ACCESS_MESSAGE) : undefined;
   const src =
     assetUrl._tag === "Success"
       ? assetUrl.url + (props.srcFragment ?? "")

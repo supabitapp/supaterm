@@ -1,5 +1,6 @@
 import type { ProviderOptionDescriptor } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
+import { msg } from "gt-i18n";
 
 const STANDARD_SERVICE_TIER = "default";
 
@@ -15,9 +16,9 @@ export type SpeedToggle = {
 };
 
 export const SPEED_TOGGLE_LABELS: Readonly<Record<SpeedToggleLevel, string>> = {
-  off: "Fast mode off",
-  fast: "Fast mode on",
-  ultrafast: "Ultrafast mode on",
+  off: msg("Fast mode off"),
+  fast: msg("Fast mode on"),
+  ultrafast: msg("Ultrafast mode on"),
 };
 
 export function getSpeedToggle(

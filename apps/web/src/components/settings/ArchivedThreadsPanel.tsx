@@ -396,7 +396,7 @@ export function ArchivedThreadsPanel() {
               <TooltipTrigger
                 render={
                   <Button
-                    aria-label={`Delete ${row.title}`}
+                    aria-label={gt("Delete {title}", { title: row.title })}
                     disabled={pendingAction !== null}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -410,7 +410,9 @@ export function ArchivedThreadsPanel() {
                   </Button>
                 }
               />
-              <TooltipPopup side="top">Delete</TooltipPopup>
+              <TooltipPopup side="top">
+                <T context="verb, deletes a thread">Delete</T>
+              </TooltipPopup>
             </Tooltip>
           </span>
         </TableCell>
@@ -576,7 +578,7 @@ export function ArchivedThreadsPanel() {
           className="sticky bottom-4 flex items-center gap-1 self-center rounded-lg border bg-popover p-1 ps-3 shadow-lg/5 transition-[opacity,translate] duration-150 ease-out starting:translate-y-1 starting:opacity-0 motion-reduce:transition-none"
         >
           <span className="me-2 text-xs tabular-nums text-muted-foreground">
-            {selectedRows.length} selected
+            {gt("{count} selected", { count: selectedRows.length })}
           </span>
           <Button
             disabled={pendingAction !== null}
@@ -596,7 +598,7 @@ export function ArchivedThreadsPanel() {
             variant="ghost-destructive"
           >
             {pendingAction === "delete" ? <Spinner /> : <TrashIcon />}
-            Delete
+            <T context="verb, deletes a thread">Delete</T>
           </Button>
           <Separator orientation="vertical" className="mx-1 h-4" />
           <Tooltip>

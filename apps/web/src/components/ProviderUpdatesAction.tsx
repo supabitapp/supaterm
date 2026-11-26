@@ -1,3 +1,4 @@
+import { thrownErrorMessage } from "@supaterm/client-runtime/errors";
 import { AuthProvidersManageScope, PROVIDER_DISPLAY_NAMES } from "@supaterm/contracts";
 import {
   isAtomCommandInterrupted,
@@ -20,6 +21,7 @@ import { Button } from "./ui/button";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { T, useGT, useMessages } from "gt-react";
+import { m } from "~/i18n/messages";
 
 // `refreshModels` always drops the server's hour-long latest-version cache. `modelCatalogOnly`
 // drops it only when the model manifest changed.
@@ -44,7 +46,7 @@ export function useCheckProviderUpdates() {
           const result = await refreshProviders({ environmentId, input: { refreshModels: true } });
           if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return [];
           const error = squashAtomCommandFailure(result);
-          return [`${label}: ${error instanceof Error ? error.message : "Refresh failed."}`];
+          return [`${label}: ${thrownErrorMessage(error, m) ?? gt("Refresh failed.")}`];
         }),
     );
     const lines = failures.flat();

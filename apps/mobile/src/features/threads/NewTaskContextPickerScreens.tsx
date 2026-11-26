@@ -9,6 +9,7 @@ import type {
   WorktreeRepositorySelection,
 } from "@supaterm/client-runtime/state/thread-repositories";
 import { shouldCheckoutNewTaskBranch } from "./new-task-context-presentation";
+import { filterNewTaskBranches } from "./new-task-context-presentation";
 import type { VcsRef } from "@supaterm/client-runtime/state/vcs";
 import {
   AuthSourceControlWriteScope,
@@ -28,6 +29,7 @@ import { Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppBar } from "../../components/ui/AppBar";
+import type { AppBarSearch } from "../../components/ui/AppBar";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
@@ -39,15 +41,13 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { vcsEnvironment } from "../../state/vcs";
 import { useRefreshBranchesOnFocus } from "./use-refresh-branches-on-focus";
 import { useSearchToolbarInset } from "../../components/ui/useBarInset";
-import type { AppBarSearch } from "../../components/ui/AppBar";
 import { useServedNewTaskFlow } from "./new-task-flow-provider";
 import { checkoutNewTaskBranch } from "./checkout-new-task-branch";
-import { filterNewTaskBranches } from "./new-task-context-presentation";
 import { useDebouncedValue, usePaginatedBranches } from "../../state/queries";
 import { setPendingConnectionError } from "../../state/use-remote-environment-registry";
+import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 
 import { useEnvironmentPresentation } from "../../state/presentation";
-import { useRemoteConnections } from "../../state/use-remote-environment-registry";
 import { ConnectionStatusDot } from "../connection/ConnectionStatusDot";
 import {
   ConnectionDiagnosisDetails,
@@ -75,7 +75,7 @@ function EnvironmentPickerRow(props: {
   const connection = presentation?.connection;
   const status =
     diagnosis?.headline ??
-    (connection ? environmentStatusText({ ...connection, error: null }, messages) : "Offline");
+    (connection ? environmentStatusText({ ...connection, error: null }, messages) : gt("Offline"));
   return (
     <View className={cn("bg-grouped-card", !props.isLast && "border-b border-border-subtle")}>
       <View className="flex-row items-center">

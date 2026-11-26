@@ -390,6 +390,7 @@ import { ScrollToEndPill } from "./chat/ScrollToEndPill";
 import { ThreadNow } from "./chat/ThreadNow";
 import { useDelayedStatus } from "../hooks/useDelayedStatus";
 import { WorkspaceDropOverlay } from "./WorkspaceDropOverlay";
+import { m } from "../i18n/messages";
 import {
   buildLocalDraftThread,
   deriveCommittedServerUserMessageIds,
@@ -484,7 +485,7 @@ export default function ChatView(props: ChatViewProps) {
   const canOperateThread = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const isPaneInputOwner = usePaneInputOwner();
   const paneScope = usePaneScope();
-  const conversationArea = workspaceAreaProps("conversation", 1, "Conversation");
+  const conversationArea = workspaceAreaProps("conversation", 1, gt("Conversation"));
   const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
   const ownsPaneInput = useIsPaneInputOwner();
   const canQueueMessage = useAtomValue(canQueueComposerMessageAtom(environmentId));
@@ -2767,12 +2768,12 @@ export default function ChatView(props: ChatViewProps) {
   const compactDisabled = compactThreadUnavailable;
   const compactDisabledReason = compactDisabled
     ? !canOperateThread
-      ? "This connection cannot change threads."
+      ? gt("This connection cannot change threads.")
       : !activeProject
-        ? "Choose a project before compacting"
+        ? gt("Choose a project before compacting")
         : !manualCompactionProviderAvailable
-          ? "Compaction is unavailable for this provider"
-          : "Compacting is unavailable right now"
+          ? gt("Compaction is unavailable for this provider")
+          : gt("Compacting is unavailable right now")
     : null;
   const freshSessionAvailable =
     activeMessageCount > 0 && serverConfig?.environment.capabilities.freshContext === true;
@@ -3150,7 +3151,7 @@ export default function ChatView(props: ChatViewProps) {
         if (level === null) return false;
         toastManager.add({
           id: "fast-mode-toggle",
-          title: SPEED_TOGGLE_LABELS[level],
+          title: m(SPEED_TOGGLE_LABELS[level]),
           timeout: 1500,
         });
       },
@@ -3909,7 +3910,7 @@ export default function ChatView(props: ChatViewProps) {
                   {...workspaceAreaProps(
                     "composer",
                     2,
-                    showProviderSubagentBar ? "Subagent" : undefined,
+                    showProviderSubagentBar ? gt("Subagent") : undefined,
                   )}
                   ref={attachComposerOverlayElement}
                   inert={isRevertingCheckpoint}

@@ -13,7 +13,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useEnvironmentQuery } from "../../state/query";
 import { useInitialOutputReady } from "./timelineRowContext";
-import { T, Var } from "gt-react";
+import { T, Var, useGT } from "gt-react";
 
 // Within this many pixels of the end still counts as following the output.
 const FOLLOW_SLACK_PX = 8;
@@ -52,6 +52,7 @@ export function CommandOutputPanel(props: {
   readonly waitingLabel?: string;
   readonly onInitialOutputReady?: (() => void) | undefined;
 }) {
+  const gt = useGT();
   const { data, error } = useEnvironmentQuery(props.output);
   useInitialOutputReady(data === null && !error, props.onInitialOutputReady);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -82,7 +83,7 @@ export function CommandOutputPanel(props: {
           <T>Loading output…</T>
         </div>
       );
-    const label = data.running ? props.waitingLabel : "No output.";
+    const label = data.running ? props.waitingLabel : gt("No output.");
     return label === undefined ? null : <div className="text-muted-foreground italic">{label}</div>;
   }
   // Parsed after the layout effect, the last hook, so the compiler caches it on text and theme.

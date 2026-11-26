@@ -72,10 +72,10 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
       : null;
   const workspaceDisplayName = resolveWorkspaceDisplayName(workspacePath);
   // The panel names the workspace kind only when it is not the project folder.
-  const workspaceKind = activeWorktreePath ? "Worktree" : null;
-  const lockedWorkspaceKind = forceNewWorktree ? "Worktree" : workspaceKind;
+  const workspaceKind = activeWorktreePath ? gt("Worktree") : null;
+  const lockedWorkspaceKind = forceNewWorktree ? gt("Worktree") : workspaceKind;
   const selectWorkspaceKind =
-    effectiveEnvMode === "worktree" && !activeWorktreePath ? "Create" : workspaceKind;
+    effectiveEnvMode === "worktree" && !activeWorktreePath ? gt("Create") : workspaceKind;
   const composerFloatingLayerProps = useComposerMenuProps();
   const workspaceShortcut = useShortcutLabel(
     displayMode === "toolbar" ? "composer.workspace" : null,

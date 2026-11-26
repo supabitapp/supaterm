@@ -24,9 +24,13 @@ import {
   refreshEnvironmentLimits,
 } from "./usageLimitsRefresh";
 import { usageProviderKind, useProviderColors } from "./usageProviders";
-import { T, useGT, useMessages, Var } from "gt-react-native";
+import { T, useGT, useMessages, Var, msg } from "gt-react-native";
 
-const PACE_LABEL = { ahead: "ahead of pace", on: "on pace", under: "under pace" } as const;
+const PACE_LABEL = {
+  ahead: msg("ahead of pace"),
+  on: msg("on pace"),
+  under: msg("under pace"),
+} as const;
 
 type Driver = ServerProvider["driver"];
 
@@ -117,7 +121,9 @@ function WindowRow(props: {
       </View>
       {pace || resetsIn ? (
         <View className="flex-row justify-between gap-3">
-          <Text className="text-xs text-foreground-tertiary">{pace ? PACE_LABEL[pace] : ""}</Text>
+          <Text className="text-xs text-foreground-tertiary">
+            {pace ? messages(PACE_LABEL[pace]) : ""}
+          </Text>
           <Text className="text-xs tabular-nums text-foreground-tertiary">{resetsIn ?? ""}</Text>
         </View>
       ) : null}

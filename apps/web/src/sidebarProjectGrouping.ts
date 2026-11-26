@@ -13,12 +13,13 @@ import {
   type ProjectGroupingSettings,
 } from "@supaterm/client-runtime/state/project-grouping";
 import type { Project } from "./types";
+import { msg } from "gt-react";
 import { m, type MessageResolver } from "./i18n/messages";
 
 export const PROJECT_GROUPING_MODE_LABELS: Record<SidebarProjectGroupingMode, string> = {
-  repository: "Group by repository",
-  repository_path: "Group by repository path",
-  separate: "Keep separate",
+  repository: msg("Group by repository", { $context: "sidebar project grouping mode" }),
+  repository_path: msg("Group by repository path", { $context: "sidebar project grouping mode" }),
+  separate: msg("Keep separate", { $context: "sidebar project grouping mode" }),
 };
 
 export function withProjectGroupingOverride(

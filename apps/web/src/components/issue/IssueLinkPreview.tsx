@@ -10,6 +10,7 @@ import { PullRequestActorAvatar } from "../pullRequest/pullRequestPresentation";
 import { PreviewCard, PreviewCardPopup, PreviewCardTrigger } from "../ui/preview-card";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { issueStatePresentation } from "./issuePresentation";
+import { T, Var } from "gt-react";
 
 export interface IssueLinkPreviewTarget {
   readonly environmentId: EnvironmentId;
@@ -101,7 +102,11 @@ function IssuePreviewCardBody({ detail }: { detail: IssueDetail }) {
         <PullRequestActorAvatar actor={author} className="size-4" />
         <span className="min-w-0 truncate">{authorLabel}</span>
         <span aria-hidden>·</span>
-        <span className="shrink-0">opened {createdAt}</span>
+        <span className="shrink-0">
+          <T>
+            opened <Var>{createdAt}</Var>
+          </T>
+        </span>
       </div>
     </div>
   );

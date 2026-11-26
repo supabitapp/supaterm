@@ -977,7 +977,10 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
               ? {
                   disabledInstanceIds: lockedDisabledInstanceIds,
                   getDisabledInstanceTooltip: (entry: ProviderInstanceEntry) =>
-                    `${entry.displayName} is unavailable in this thread. Start a new thread to switch providers.`,
+                    gt(
+                      "{provider} is unavailable in this thread. Start a new thread to switch providers.",
+                      { provider: entry.displayName },
+                    ),
                 }
               : {})}
           />
@@ -1162,7 +1165,9 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                         </div>
                         <div className="mt-1 text-xs font-normal leading-snug text-muted-foreground">
                           {subProviderSection.unavailableReason ??
-                            `${subProviderSection.models.length} ${subProviderSection.models.length === 1 ? "model" : "models"}`}
+                            gt("{count, plural, one {{count} model} other {{count} models}}", {
+                              count: subProviderSection.models.length,
+                            })}
                         </div>
                       </div>
                       {unavailable ? null : (

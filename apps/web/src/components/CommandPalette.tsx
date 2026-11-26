@@ -107,6 +107,7 @@ import type { LegendListRef } from "@legendapp/list/react";
 import { useAtomValue } from "@effect/atom-react";
 
 import { isDesktopLocalConnectionTarget } from "../connection/desktopLocal";
+import { desktopLocalBackendId } from "../connection/desktopLocal";
 import { useDesktopLocalBootstraps } from "../connection/useDesktopLocalBootstraps";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useActiveThreadRef } from "../hooks/useActiveThreadRef";
@@ -127,11 +128,11 @@ import {
 import { useClientSettings } from "../hooks/useSettings";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { readLocalApi } from "../localApi";
-import { desktopLocalBackendId } from "../connection/desktopLocal";
 import { filesystemEnvironment, useFilesystemReadAccess } from "../state/filesystem";
 import { projectEnvironment } from "../state/projects";
 import { useEnvironmentQuery } from "../state/query";
 import { serverEnvironment } from "../state/server";
+import { primaryServerKeybindingsAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { sourceControlEnvironment } from "../state/sourceControl";
@@ -276,7 +277,6 @@ import { ProjectFilePicker } from "./files/ProjectFilePicker";
 import { openLinkPullRequestDialog } from "./pullRequest/LinkPullRequestDialog";
 import { ProjectContentSearchDialog } from "./search/ProjectContentSearchDialog";
 import { settingsForThisPlatform, SETTINGS_SECTION_LABELS } from "./settings/settingsSearch";
-import { primaryServerKeybindingsAtom } from "../state/server";
 import { resolveShortcutCommand, threadJumpIndexFromCommand } from "../keybindings";
 import { CommandDialog, CommandDialogPopup, CommandFooterAction } from "./ui/command";
 import { Button } from "./ui/button";
@@ -1139,11 +1139,14 @@ function OpenCommandPaletteDialog(props: {
 
     for (const source of orderedSources) {
       const label = addProjectRemoteSourceLabel(source, messages);
-      const title = source === "url" ? "Git URL" : `${label} repository`;
+      const title = source === "url" ? gt("Git URL") : gt("{source} repository", { source: label });
       const description =
         source === "url"
-          ? "Clone from a remote URL"
-          : `Clone ${label} ${addProjectRemoteSourcePathHint(source)}`;
+          ? gt("Clone from a remote URL")
+          : gt("Clone {source} {hint}", {
+              source: label,
+              hint: addProjectRemoteSourcePathHint(source, messages),
+            });
       const readiness = readinessBySource(source);
       const disabledHint = readiness.hint;
 
@@ -2307,6 +2310,7 @@ function OpenCommandPaletteDialog(props: {
       const incompleteOwnerMessage = githubIncompleteOwnerRepositoryMessage(
         addProjectCloneFlow.source,
         rawRepository,
+        m,
       );
       if (incompleteOwnerMessage) {
         toastManager.add(
@@ -2687,7 +2691,7 @@ function OpenCommandPaletteDialog(props: {
 
   const inputPlaceholder =
     newProjectFlow !== null
-      ? "Project name"
+      ? gt("Project name")
       : (remoteProjectInputPlaceholder(addProjectCloneFlow, messages) ??
         getCommandPaletteInputPlaceholder(paletteMode, messages));
   const isSubmenu = paletteMode === "submenu" || paletteMode === "submenu-browse";

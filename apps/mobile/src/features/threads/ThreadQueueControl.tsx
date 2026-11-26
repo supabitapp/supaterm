@@ -258,7 +258,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
         });
         const title =
           controls.displayText.trim() ||
-          (attachments.length > 0 ? "Attachments" : "Queued message");
+          (attachments.length > 0 ? gt("Attachments") : gt("Queued message"));
         return (
           <Reanimated.View
             key={run.id}

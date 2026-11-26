@@ -81,6 +81,7 @@ export function PullRequestReviewSheet({
     readonly reviewedHeadSha?: string | undefined;
   }
 >) {
+  const messages = useMessages();
   const gt = useGT();
   const m = useMessages();
   const params = route.params;
@@ -280,7 +281,7 @@ export function PullRequestReviewSheet({
               className="gap-1 rounded-[20px] bg-grouped-card p-4"
             >
               <Text className="font-mono text-xs text-foreground-muted">
-                {draft.path} · {reviewPositionLabel(draft.position)}
+                {draft.path} · {reviewPositionLabel(draft.position, messages)}
               </Text>
               <Text numberOfLines={3} className="text-sm">
                 {draft.body}

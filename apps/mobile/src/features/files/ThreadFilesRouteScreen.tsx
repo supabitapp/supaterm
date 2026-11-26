@@ -389,6 +389,7 @@ function useThreadFilesWorkspace(params: {
   readonly projectName?: string | string[];
   readonly path?: string | string[];
 }) {
+  const gt = useGT();
   const routeEnvironmentId = firstRouteParam(params.environmentId);
   const routeThreadId = firstRouteParam(params.threadId);
   const routeCwd = firstRouteParam(params.cwd);
@@ -408,7 +409,10 @@ function useThreadFilesWorkspace(params: {
   return {
     cwd: routeCwd ?? selectedThreadCwd ?? project?.workspaceRoot ?? null,
     environmentId,
-    projectName: routeProjectName ?? project?.title ?? "Files",
+    projectName:
+      routeProjectName ??
+      project?.title ??
+      gt("Files", { $context: "screen title, workspace files" }),
     relativePath: normalizeRoutePath(params.path),
     selectedThread,
     threadId,

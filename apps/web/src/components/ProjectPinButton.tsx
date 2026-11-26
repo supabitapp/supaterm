@@ -6,6 +6,7 @@ import { resolveShortcutCommand } from "../keybindings";
 
 import { cn } from "~/lib/utils";
 import { Button } from "./ui/button";
+import { useGT } from "gt-react";
 
 /** The thread pin shortcut, which pins the highlighted row in a project list. */
 export function isProjectPinShortcut(
@@ -42,7 +43,10 @@ export function ProjectPinButton(props: {
   readonly onToggle: () => void;
   readonly shortcutLabel?: string | null;
 }) {
-  const action = `${props.pinned ? "Unpin" : "Pin"} ${props.name}`;
+  const gt = useGT();
+  const action = props.pinned
+    ? gt("Unpin {name}", { name: props.name })
+    : gt("Pin {name}", { name: props.name });
   return (
     <span
       className={cn(

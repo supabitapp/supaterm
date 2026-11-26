@@ -9,6 +9,11 @@ import { draftThreadShell } from "./draft-thread-shell";
 import { connectionTone } from "../connection/connectionTone";
 import { AppBar } from "../../components/ui/AppBar";
 import { ThreadId } from "@supaterm/contracts";
+import {
+  AuthOrchestrationOperateScope,
+  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+  resolveEnvironmentMachineKind,
+} from "@supaterm/contracts";
 
 import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
@@ -29,14 +34,16 @@ import { Platform, Pressable, View } from "react-native";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { KeyboardController, KeyboardStickyView } from "react-native-keyboard-controller";
 
-import {
-  AuthOrchestrationOperateScope,
-  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
-  resolveEnvironmentMachineKind,
-} from "@supaterm/contracts";
-
 import { ComposerEditor, type ComposerEditorHandle } from "../../components/ComposerEditor";
 import { composerContextImportsAtom } from "../../state/use-composer-drafts";
+import {
+  clearComposerDraftContent,
+  getComposerDraftSnapshot,
+  setStickyNewTaskProject,
+  stickyNewTaskProjectAtom,
+  updateComposerDraftSettings,
+  scheduleUnusedComposerAttachmentCleanup,
+} from "../../state/use-composer-drafts";
 import { abortComposerDraftOperations } from "../../state/composerDraftOperations";
 import { composerContextSendBlockReason } from "../../lib/composerContext";
 import { ComposerInlineControl } from "../../components/ComposerToolbar";
@@ -53,14 +60,6 @@ import { threadContextsOutsideEnvironment } from "@supaterm/shared/composerConte
 
 import { makeTurnCommandMetadata } from "../../lib/commandMetadata";
 
-import {
-  clearComposerDraftContent,
-  getComposerDraftSnapshot,
-  setStickyNewTaskProject,
-  stickyNewTaskProjectAtom,
-  updateComposerDraftSettings,
-  scheduleUnusedComposerAttachmentCleanup,
-} from "../../state/use-composer-drafts";
 import { useEnvironmentServerConfig, useProjects } from "../../state/entities";
 import { useProjectClone } from "../../state/projectClones";
 import { projectEnvironment } from "../../state/projects";
@@ -544,7 +543,7 @@ export function NewTaskDraftScreen(props: {
   const selectedEnvironmentLabel =
     flow.environments.find(
       (environment) => environment.environmentId === flow.selectedEnvironmentId,
-    )?.environmentLabel ?? "Environment";
+    )?.environmentLabel ?? gt("Environment");
   const selectedBranchName = resolveProjectThreadCreationBranch({
     workspaceMode: flow.workspaceMode,
     selectedBranch:
@@ -561,10 +560,13 @@ export function NewTaskDraftScreen(props: {
     },
     messages,
   );
-  const workspaceLabel = resolveNewTaskWorkspaceLabel({
-    workspaceMode: flow.workspaceMode,
-    worktreePath: flow.selectedWorktreePath,
-  });
+  const workspaceLabel = resolveNewTaskWorkspaceLabel(
+    {
+      workspaceMode: flow.workspaceMode,
+      worktreePath: flow.selectedWorktreePath,
+    },
+    messages,
+  );
   const showBranchLoading =
     environmentConnected && flow.branchesLoading && flow.availableBranches.length === 0;
 
@@ -734,10 +736,10 @@ export function NewTaskDraftScreen(props: {
       ? cloneBlocksStart
         ? gt("Wait for the project clone to finish.")
         : flow.submitting
-          ? "Starting the thread…"
+          ? gt("Starting the thread…")
           : // Until the repository check answers, a saved worktree selection may belong to a non-git folder.
             flow.workspaceMode === "worktree" && !flow.isGitRepoKnown
-            ? "Checking the repository…"
+            ? gt("Checking the repository…")
             : null
       : gt("Wait for shared content to finish importing.");
   const chooseProject = () => {
@@ -938,7 +940,11 @@ export function NewTaskDraftScreen(props: {
         </View>
       ) : (
         <ComposerInlineControl
-          accessibilityLabel={`${startsNewWorktree ? "Base branch" : "Branch"}: ${selectedBranchLabel}`}
+          accessibilityLabel={
+            startsNewWorktree
+              ? gt("Base branch: {branch}", { branch: selectedBranchLabel })
+              : gt("Branch: {branch}", { branch: selectedBranchLabel })
+          }
           chevronDirection="right"
           disabled={isComposerInteractionLocked || !flow.isGitRepo}
           icon="arrow.triangle.branch"

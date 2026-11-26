@@ -119,7 +119,7 @@ export function PullRequestsColumn({
 }) {
   const gt = useGT();
   const resolve = useMessages();
-  const contentArea = workspaceAreaProps("pull-requests", 1, "Pull requests");
+  const contentArea = workspaceAreaProps("pull-requests", 1, gt("Pull requests"));
   const markerRef = useRef<HTMLDivElement | null>(null);
   const [condensed, setCondensed] = useState(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- IntersectionObserver on the scroll marker condenses the topbar

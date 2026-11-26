@@ -205,15 +205,20 @@ function WorkingDuration(props: { environmentId: EnvironmentId; startedAt: strin
 }
 
 function WorkingDurationLabel(props: { environmentId: EnvironmentId; startedMs: number }) {
+  const messages = useMessages();
   const nowMs = useNowSecond();
   return (
     <span className="tabular-nums">
-      {formatWorkingDurationLabel(toServerClock(props.environmentId, nowMs) - props.startedMs)}
+      {formatWorkingDurationLabel(
+        toServerClock(props.environmentId, nowMs) - props.startedMs,
+        messages,
+      )}
     </span>
   );
 }
 
 function SidebarThreadWorkTime(props: { thread: SidebarThreadSummary }) {
+  const messages = useMessages();
   const nowMs = useNowSecond();
   const totalMs = resolveThreadTotalWorkMs(
     props.thread,
@@ -227,7 +232,7 @@ function SidebarThreadWorkTime(props: { thread: SidebarThreadSummary }) {
         <T>
           Total working time:{" "}
           <span className="tabular-nums">
-            <Var>{formatWorkingDurationLabel(totalMs)}</Var>
+            <Var>{formatWorkingDurationLabel(totalMs, messages)}</Var>
           </span>
         </T>
       </div>
@@ -421,7 +426,7 @@ function SidebarThreadTooltip({
           <div className="flex min-w-0 items-center gap-2">
             <ZapIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
             <div className="min-w-0 truncate text-foreground/75">
-              {SPEED_TOGGLE_LABELS[speedToggle.level]}
+              {messages(SPEED_TOGGLE_LABELS[speedToggle.level])}
             </div>
           </div>
         ) : null}
@@ -1218,9 +1223,15 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const issueLabel =
     issueCount === 1 && firstIssue
       ? issueStatus
-        ? `Issue ${firstIssue.displayKey}: ${firstIssue.title}, ${issueStatus.label}`
-        : `Issue ${firstIssue.displayKey}: ${firstIssue.title}`
-      : `${issueCount} linked ${issueCount === 1 ? "issue" : "issues"}`;
+        ? gt("Issue {key}: {title}, {state}", {
+            key: firstIssue.displayKey,
+            title: firstIssue.title,
+            state: issueStatus.label,
+          })
+        : gt("Issue {key}: {title}", { key: firstIssue.displayKey, title: firstIssue.title })
+      : gt("{count, plural, one {{count} linked issue} other {{count} linked issues}}", {
+          count: issueCount,
+        });
   const issueBadge = firstIssue ? (
     <Tooltip>
       <TooltipTrigger

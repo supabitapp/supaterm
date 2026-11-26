@@ -294,11 +294,15 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
     }
     if (item.dialogAction === "commit" && status.hasWorkingTreeChanges) {
       const fileCount = status.workingTree?.files.length ?? 0;
-      return `${fileCount} file${fileCount === 1 ? "" : "s"} changed`;
+      return gt("{count, plural, one {{count} file changed} other {{count} files changed}}", {
+        count: fileCount,
+      });
     }
     if (item.dialogAction === "push" && (status.aheadCount ?? 0) > 0) {
       const ahead = status.aheadCount ?? 0;
-      return `${ahead} commit${ahead === 1 ? "" : "s"} ahead`;
+      return gt("{count, plural, one {{count} commit ahead} other {{count} commits ahead}}", {
+        count: ahead,
+      });
     }
     if (item.kind === "open_pr" && status.pr?.number != null) {
       return `${shortLabel} #${status.pr.number} ${status.pr.state ?? "open"}`;

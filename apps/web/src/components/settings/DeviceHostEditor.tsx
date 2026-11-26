@@ -95,9 +95,9 @@ function DeviceHostEditorForm({
     ? gt("Checking environments…")
     : results
       ? failed
-        ? `${failed} of ${targets.length} failed`
-        : "Connection checks passed"
-      : "Check access before saving";
+        ? gt("{failed} of {total} failed", { failed, total: targets.length })
+        : gt("Connection checks passed")
+      : gt("Check access before saving");
   return (
     <form
       className="flex min-h-0 flex-col"

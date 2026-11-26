@@ -22,9 +22,14 @@ const COPY = {
   },
 } as const;
 
-const STATE_LABEL = { open: "Open", closed: "Closed", merged: "Merged" } as const;
+const STATE_LABEL = {
+  open: msg("Open", { $context: "issue or pull request state" }),
+  closed: msg("Closed", { $context: "issue or pull request state" }),
+  merged: msg("Merged", { $context: "issue or pull request state" }),
+} as const;
 
 function CompletionRow({ completion }: { readonly completion: PullRequestCompletion }) {
+  const m = useMessages();
   if (completion.kind === "mention") {
     const { actor } = completion;
     return (
@@ -51,7 +56,7 @@ function CompletionRow({ completion }: { readonly completion: PullRequestComplet
         {candidate.title}
       </Text>
       <Text className="shrink-0 text-xs text-foreground-tertiary">
-        {STATE_LABEL[candidate.state]}
+        {m(STATE_LABEL[candidate.state])}
       </Text>
     </>
   );

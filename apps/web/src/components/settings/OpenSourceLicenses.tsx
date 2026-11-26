@@ -128,11 +128,15 @@ function LicenseCount({
   filteredCount: number;
   totalCount: number;
 }) {
+  const gt = useGT();
   return (
     <p className="whitespace-nowrap text-xs font-normal text-muted-foreground tabular-nums">
       {filteredCount === totalCount
         ? `${String(totalCount)} notices`
-        : `${String(filteredCount)} of ${String(totalCount)}`}
+        : gt("{filtered} of {total}", {
+            filtered: String(filteredCount),
+            total: String(totalCount),
+          })}
     </p>
   );
 }

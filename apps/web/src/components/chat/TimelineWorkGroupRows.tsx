@@ -370,7 +370,7 @@ export function WorkingTimelineRow() {
   const { isCompacting, compactionStartedAt, worktreeSetupLabel, backgroundWorktreeSetup } =
     use(TimelineRowActivityCtx);
   const label = worktreeSetupLabel ? (
-    "Setting up worktree…"
+    <T>Setting up worktree…</T>
   ) : isCompacting ? (
     <CompactingLabel startedAt={compactionStartedAt} />
   ) : null;
@@ -441,6 +441,7 @@ function BackgroundWorktreeSetupChip({ snapshot }: { snapshot: WorktreeSetupSnap
 
 function CompactingLabel({ startedAt }: { startedAt: string | null }) {
   const { activeThreadEnvironmentId } = use(TimelineRowCtx);
+  const m = useMessages();
   const startedAtMs = startedAt === null ? Number.NaN : Date.parse(startedAt);
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -454,6 +455,7 @@ function CompactingLabel({ startedAt }: { startedAt: string | null }) {
                 (nowMs) =>
                   formatElapsedSeconds(
                     (toServerClock(activeThreadEnvironmentId, nowMs) - startedAtMs) / 1000,
+                    m,
                   ),
                 true,
               )}

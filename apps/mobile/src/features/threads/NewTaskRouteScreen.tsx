@@ -120,10 +120,18 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
     ? incomingShare.attachments.length === 0
       ? gt("Choose a project for what you shared")
       : incomingShare.attachments.length === 1
-        ? `Choose a project for the ${incomingShare.attachments[0]?.type === "image" ? "image" : "file"} you shared`
-        : `Choose a project for the ${incomingShare.attachments.length} ${incomingShare.attachments.every((attachment) => attachment.type === "image") ? "images" : "files"} you shared`
+        ? incomingShare.attachments[0]?.type === "image"
+          ? gt("Choose a project for the image you shared")
+          : gt("Choose a project for the file you shared")
+        : incomingShare.attachments.every((attachment) => attachment.type === "image")
+          ? gt("Choose a project for the {count} images you shared", {
+              count: incomingShare.attachments.length,
+            })
+          : gt("Choose a project for the {count} files you shared", {
+              count: incomingShare.attachments.length,
+            })
     : null;
-  const screenTitle = incomingShare ? "Start a task" : "Choose project";
+  const screenTitle = incomingShare ? gt("Start a task") : gt("Choose project");
   const projectEmptyState = resolveNewTaskProjectEmptyState(catalogState.phase, messages);
   const hasReadyEnvironment = catalogState.phase.type === "connected";
   const serverConfigs = useServerConfigs();

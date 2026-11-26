@@ -196,11 +196,9 @@ export async function addProjectToMachine(input: AddProjectToMachineInput): Prom
         ? null
         : {
             phase: "failed",
-            title: m(
-              msg(
-                "Could not copy {count, plural, one {{count} file} other {{count} files}} to {target}",
-                { count: failed.length, target: input.target.label },
-              ),
+            title: msg(
+              "Could not copy {count, plural, one {{count} file} other {{count} files}} to {target}",
+              { count: failed.length, target: input.target.label },
             ),
             failures: failed,
           },

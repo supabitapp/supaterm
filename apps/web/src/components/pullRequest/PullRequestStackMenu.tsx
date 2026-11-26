@@ -147,8 +147,16 @@ export function PullRequestStackMenu({
         description: readableFailure(
           squashAtomCommandFailure(result),
           merging
-            ? "The host refused the merge. Check that you have write access, that the checks it requires have passed, and that the branch is not conflicting."
-            : "The host refused the rebase. A rebase stops at the first commit that does not apply cleanly.",
+            ? m(
+                msg(
+                  "The host refused the merge. Check that you have write access, that the checks it requires have passed, and that the branch is not conflicting.",
+                ),
+              )
+            : m(
+                msg(
+                  "The host refused the rebase. A rebase stops at the first commit that does not apply cleanly.",
+                ),
+              ),
         ),
       });
     } else {
@@ -263,7 +271,9 @@ export function PullRequestStackMenu({
                   disabled={mergeDisabled}
                 >
                   <PullRequestGlyph.merged aria-hidden />
-                  {`${confirm.armed === "menu-merge" ? "Confirm merge" : "Merge stack"} (${mergeLayers.length})`}
+                  {confirm.armed === "menu-merge"
+                    ? gt("Confirm merge ({count})", { count: mergeLayers.length })
+                    : gt("Merge stack ({count})", { count: mergeLayers.length })}
                 </MenuItem>
               ) : null}
               {canAutoMerge && !autoMergeArmed ? (
@@ -272,7 +282,9 @@ export function PullRequestStackMenu({
                   disabled={mergeDisabled}
                 >
                   <ClockIcon aria-hidden />
-                  {`${confirm.armed === "menu-auto-merge" ? "Confirm auto-merge" : "Auto-merge stack"} (${mergeLayers.length})`}
+                  {confirm.armed === "menu-auto-merge"
+                    ? gt("Confirm auto-merge ({count})", { count: mergeLayers.length })
+                    : gt("Auto-merge stack ({count})", { count: mergeLayers.length })}
                 </MenuItem>
               ) : null}
               {autoMergeArmed && canCancelAutoMerge ? (

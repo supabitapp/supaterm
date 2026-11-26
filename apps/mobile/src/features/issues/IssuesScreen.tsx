@@ -48,7 +48,7 @@ import type { WorkspaceFilterMenu } from "../layout/workspace/workspace-filter-m
 import { WorkspaceHeaderActions } from "../layout/workspace/WorkspaceHeaderActions";
 import { issueListFiltersAtom } from "./issueListFilters";
 import { msg, useGT, useMessages } from "gt-react-native";
-import type { MessageResolver } from "../../i18n/messages";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 const DEFAULT_ISSUE_LIST_INPUT = { state: "open", involvement: "all", limit: 50 } as const;
 const STATES = {
@@ -169,7 +169,10 @@ export function IssuesScreen(
           continueIssuePage(
             page,
             AsyncResult.isFailure(result)
-              ? { failure: failure instanceof Error ? failure.message : "The next page failed." }
+              ? {
+                  failure:
+                    failure instanceof Error ? failure.message : m(msg("The next page failed.")),
+                }
               : result.value,
           ),
         ] as const;
@@ -189,7 +192,7 @@ export function IssuesScreen(
     ...groups.flatMap((group) => [
       ...(group.tracker.configured
         ? []
-        : [`${group.tracker.host}: ${group.tracker.detail ?? "This tracker cannot be read."}`]),
+        : [`${group.tracker.host}: ${group.tracker.detail ?? gt("This tracker cannot be read.")}`]),
       ...group.errors.map((error) => `${error.projectTitle}: ${error.message}`),
     ]),
   ];

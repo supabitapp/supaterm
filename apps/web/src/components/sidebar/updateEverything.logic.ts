@@ -96,13 +96,13 @@ export function collectServerUpdateTargets(
       skipped.push({ environmentId: machine.environmentId, label: machine.label, reason });
     const unavailable = unavailableReason(machine, resolve);
     if (config === null || unavailable !== null) {
-      skip(unavailable ?? "not connected");
+      skip(unavailable ?? resolve(msg("not connected")));
       continue;
     }
     const selfUpdate = resolveServerSelfUpdateCapability(config);
     const desktopAppUpdate = supportsDesktopAppUpdate(config);
     if (selfUpdate === null) {
-      skip("needs a manual update");
+      skip(resolve(msg("needs a manual update")));
       continue;
     }
     if (selfUpdate === "desktop-managed" && !desktopAppUpdate) {
@@ -111,7 +111,9 @@ export function collectServerUpdateTargets(
     }
     const serverVersion = config.environment.serverVersion;
     if (!isServerUpdateChannelCompatible(serverVersion, targetVersion, selfUpdate)) {
-      skip(`on the ${cliReleaseChannelOf(serverVersion)} channel`);
+      skip(
+        resolve(msg("on the {channel} channel", { channel: cliReleaseChannelOf(serverVersion) })),
+      );
       continue;
     }
     targets.push({
@@ -275,7 +277,7 @@ export function collectChannelSwitchTargets(
     }
     const unavailable = unavailableReason(machine, resolve);
     if (config === null || serverVersion === undefined || unavailable !== null) {
-      skip(unavailable ?? "not connected");
+      skip(unavailable ?? resolve(msg("not connected")));
       continue;
     }
     const move = trackSwitchMove(config, sameTrack, resolve);
@@ -299,7 +301,11 @@ export function collectChannelSwitchTargets(
       compareSemverVersions(release.version, serverVersion) <= 0
     ) {
       skip(
-        `run \`supaterm update --channel ${release.channel === "nightly" ? "nightly" : "stable"} --allow-downgrade\` there`,
+        resolve(
+          msg("run `{command}` there", {
+            command: `supaterm update --channel ${release.channel === "nightly" ? "nightly" : "stable"} --allow-downgrade`,
+          }),
+        ),
       );
       continue;
     }

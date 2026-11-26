@@ -7,7 +7,7 @@ import { msg } from "gt-react";
 
 type NotificationMode = ClientSettings["notificationMode"];
 export const NOTIFICATION_MODE_LABELS = {
-  off: "Off",
+  off: msg("Off", { $context: "notification setting, no notifications or sound" }),
   notifications: msg("Notifications only"),
   sound: msg("Sound only"),
   "notifications-and-sound": msg("Notifications with sound"),

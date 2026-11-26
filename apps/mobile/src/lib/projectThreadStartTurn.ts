@@ -17,6 +17,7 @@ import { splitsSurrogatePair } from "@supaterm/shared/assistantCitations";
 
 import type { UploadedMobileAttachment } from "./attachmentUpload";
 import { m } from "../i18n/messages";
+import { msg } from "gt-react-native";
 
 export interface ProjectThreadStartTurnSpec {
   readonly projectId: ProjectId;
@@ -94,7 +95,7 @@ export function buildProjectThreadStartTurnInput(spec: ProjectThreadStartTurnSpe
 }
 
 export function deriveThreadTitleFromPrompt(value: string): string {
-  const title = threadTitleTextFromPrompt(value, m) || "New thread";
+  const title = threadTitleTextFromPrompt(value, m) || m(msg("New thread"));
   if (title.length <= 72) return title;
   const end = splitsSurrogatePair(title, 69) ? 68 : 69;
   return `${title.slice(0, end).trimEnd()}...`;

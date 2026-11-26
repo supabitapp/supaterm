@@ -66,7 +66,9 @@ function AccessScopeSummary({
   readonly label: string;
 }) {
   const gt = useGT();
-  const scopeCountLabel = `${scopes.length} ${scopes.length === 1 ? "scope" : "scopes"}`;
+  const scopeCountLabel = gt("{count, plural, one {{count} scope} other {{count} scopes}}", {
+    count: scopes.length,
+  });
 
   return (
     <Popover>
@@ -127,12 +129,13 @@ function RevokeButton({
   armedTooltip: string;
   onRevoke: () => void;
 }) {
+  const gt = useGT();
   const confirm = useInlineConfirm<"revoke">();
   const armed = confirm.armed === "revoke";
   return (
     <InlineConfirmTooltip
       armed={armed}
-      tip={pending ? "Revoking…" : tooltip}
+      tip={pending ? gt("Revoking…") : tooltip}
       armedTip={armedTooltip}
       render={
         <span className="inline-flex">
@@ -144,8 +147,8 @@ function RevokeButton({
           >
             <InlineConfirmLabel
               armed={armed}
-              idle={pending ? "Revoking…" : label}
-              confirm="Confirm revoke"
+              idle={pending ? gt("Revoking…") : label}
+              confirm={gt("Confirm revoke")}
             />
           </Button>
         </span>
@@ -556,17 +559,20 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
   onRevokeSession,
   canRevoke,
 }: ConnectedClientListRowProps) {
+  const m = useMessages();
   const gt = useGT();
   const nowMs = useNowSecond();
   const isLive = clientSession.current || clientSession.connected;
   const lastConnectedAt = clientSession.lastConnectedAt;
   const statusTooltip = isLive
     ? lastConnectedAt
-      ? `Connected for ${formatElapsedDurationLabel(lastConnectedAt, nowMs)}`
-      : "Connected"
+      ? gt("Connected for {duration}", {
+          duration: formatElapsedDurationLabel(lastConnectedAt, nowMs, m),
+        })
+      : gt("Connected")
     : lastConnectedAt
-      ? `Last connected at ${formatAccessTimestamp(lastConnectedAt)}`
-      : "Not connected yet.";
+      ? gt("Last connected at {time}", { time: formatAccessTimestamp(lastConnectedAt) })
+      : gt("Not connected yet.");
   const deviceInfoBits = [
     clientSession.client.deviceType !== "unknown"
       ? clientSession.client.deviceType[0]?.toUpperCase() + clientSession.client.deviceType.slice(1)

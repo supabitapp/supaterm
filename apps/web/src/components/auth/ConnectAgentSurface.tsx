@@ -300,7 +300,10 @@ function ConnectAgentHeading({
   readonly title: string;
   readonly description: ReactNode;
 }) {
-  return <StandalonePageHeader context="Agent sign-in" title={title} description={description} />;
+  const gt = useGT();
+  return (
+    <StandalonePageHeader context={gt("Agent sign-in")} title={title} description={description} />
+  );
 }
 
 export function AccessOption({

@@ -121,6 +121,7 @@ export async function startSideChat(input: {
     return null;
   }
   const result = await sendSideChatFirstMessage({
+    resolve: m,
     registry: appAtomRegistry,
     forkSideChat: threadEnvironment.forkSideChat,
     readThread,

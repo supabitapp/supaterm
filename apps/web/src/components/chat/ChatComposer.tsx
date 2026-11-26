@@ -917,8 +917,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     (questionAttachmentTarget && supportsAttachmentUploads
       ? needsReattachFileCount > 0
         ? needsReattachFileCount === 1
-          ? "Attach the interrupted file again or remove it"
-          : "Attach the interrupted files again or remove them"
+          ? gt("Attach the interrupted file again or remove it")
+          : gt("Attach the interrupted files again or remove them")
         : attachmentUploadBlockReason(
             {
               imageIds: [...composerImages, ...composerFiles].map((attachment) => attachment.id),
@@ -1061,7 +1061,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     environmentUnavailable !== null
       ? null
       : selectedProviderEntry?.isAvailable === false
-        ? "This provider is unavailable. Choose another provider or try again later."
+        ? gt("This provider is unavailable. Choose another provider or try again later.")
         : getAntigravitySendBlockReason(selectedProviderEntry?.snapshot, selectedModel, m);
   const sendDisabledReason =
     externalSendDisabledReason ??
@@ -1457,10 +1457,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     collapsedComposerPrimaryAction.blocked !== null;
   const collapsedComposerResumes = collapsedComposerPrimaryAction.kind === "resume";
   const collapsedComposerPrimaryActionLabel = composerSendHeld
-    ? "Sending when ready"
+    ? gt("Sending when ready")
     : collapsedComposerResumes
-      ? "Resume thread"
-      : "Send message";
+      ? gt("Resume thread")
+      : gt("Send message");
   const showMobilePendingAnswerActions =
     isMobileViewport &&
     !isComposerCollapsedMobile &&
@@ -4244,7 +4244,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               : showProviderUnavailable
                                 ? gt("Enable a provider in Settings to send a message")
                                 : phase === "disconnected"
-                                  ? DISCONNECTED_COMPOSER_PLACEHOLDER
+                                  ? m(DISCONNECTED_COMPOSER_PLACEHOLDER)
                                   : gt(
                                       "Ask anything, @tag files/folders, $use skills, or / for commands",
                                     )

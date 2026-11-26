@@ -16,6 +16,7 @@ import { EnvironmentRow, EnvironmentTransportLabel } from "./EnvironmentRow";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
 import { useSearchableSetting } from "./settingsSearch";
 import { msg, T, useGT, useMessages } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 const options: ReadonlyArray<{ value: PullRequestRoutingPermission; label: string }> = [
   { value: "off", label: msg("Off", { $context: "pull request routing permission" }) },
@@ -23,19 +24,27 @@ const options: ReadonlyArray<{ value: PullRequestRoutingPermission; label: strin
   { value: "read-write", label: msg("Read and act") },
 ];
 
-const summaryLabels = { "read-write": "read and act", read: "read PRs" } as const;
+const SUMMARY_LABELS = {
+  "read-write": msg("{environments} read and act"),
+  read: msg("{environments} read PRs"),
+} as const;
 
 function summarizePullRequestRouting(
   entries: ReadonlyArray<{
     readonly label: string;
     readonly permission: PullRequestRoutingPermission;
   }>,
+  resolve: MessageResolver,
 ): string | null {
   const groups = (["read-write", "read"] as const).flatMap((permission) => {
     const labels = entries.filter((entry) => entry.permission === permission);
     return labels.length === 0
       ? []
-      : [`${labels.map((entry) => entry.label).join(", ")} ${summaryLabels[permission]}`];
+      : [
+          resolve(SUMMARY_LABELS[permission], {
+            environments: labels.map((entry) => entry.label).join(", "),
+          }),
+        ];
   });
   return groups.length === 0 ? null : groups.join(" · ");
 }
@@ -67,6 +76,7 @@ export function PullRequestRoutingSettings({
             label: environment.label,
             permission: pullRequestRoutingPermissionFor(environment.entry, permissions),
           })),
+          m,
         ) ?? gt("Off", { $context: "pull request routing permission" })
       }
     >

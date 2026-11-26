@@ -205,7 +205,9 @@ export function ThreadLineageWorkflowRow({
           variant="ghost"
           part="secondary"
           aria-expanded={expanded}
-          aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
+          aria-label={
+            expanded ? gt("Collapse {label}", { label }) : gt("Expand {label}", { label })
+          }
           onClick={() => setExpanded((value) => !value)}
         >
           <span className="text-muted-foreground">

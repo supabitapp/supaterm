@@ -35,7 +35,7 @@ import {
   useScopedSettingsMixed,
   useUpdateScopedSettings,
 } from "./useScopedSettings";
-import { T, useGT, Var, useMessages } from "gt-react";
+import { T, useGT, Var, useMessages, msg } from "gt-react";
 
 const UNIT_MINUTES = { minutes: 1, hours: 60, days: 24 * 60 } as const;
 type DurationUnit = keyof typeof UNIT_MINUTES;
@@ -51,16 +51,16 @@ const SINGULAR_UNIT_LABELS: Record<DurationUnit, string> = {
 };
 
 const WHEN_LABELS: Record<"after" | SnoozePresetDay, string> = {
-  after: "In",
-  today: "Today",
-  tomorrow: "Tomorrow",
-  monday: "Monday",
-  tuesday: "Tuesday",
-  wednesday: "Wednesday",
-  thursday: "Thursday",
-  friday: "Friday",
-  saturday: "Saturday",
-  sunday: "Sunday",
+  after: msg("In", { $context: "snooze for a duration, as in: In 2 hours" }),
+  today: msg("Today"),
+  tomorrow: msg("Tomorrow"),
+  monday: msg("Monday"),
+  tuesday: msg("Tuesday"),
+  wednesday: msg("Wednesday"),
+  thursday: msg("Thursday"),
+  friday: msg("Friday"),
+  saturday: msg("Saturday"),
+  sunday: msg("Sunday"),
 };
 const WHEN_VALUES = ["after", ...SnoozePresetDay.literals] as const;
 
@@ -345,6 +345,7 @@ function SnoozePresetFields(props: {
   preset: SnoozePresetSetting;
   onChange: (preset: SnoozePresetSetting) => void;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const { preset, onChange } = props;
   const when = preset.kind === "after" ? "after" : preset.day;
@@ -355,7 +356,7 @@ function SnoozePresetFields(props: {
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <Select
         value={when}
-        items={WHEN_LABELS}
+        items={Object.fromEntries(WHEN_VALUES.map((value) => [value, m(WHEN_LABELS[value])]))}
         onValueChange={(value) => {
           const next = value === null ? null : withWhen(preset, value, memory);
           if (!next) return;
@@ -375,7 +376,7 @@ function SnoozePresetFields(props: {
         <SelectPopup>
           {WHEN_VALUES.map((value) => (
             <SelectItem hideIndicator key={value} value={value}>
-              {WHEN_LABELS[value]}
+              {m(WHEN_LABELS[value])}
             </SelectItem>
           ))}
         </SelectPopup>

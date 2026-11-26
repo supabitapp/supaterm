@@ -162,7 +162,7 @@ function uploadBytes(input: {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve();
       } else {
-        reject(new Error(`Upload rejected (${xhr.status})`));
+        reject(new Error(m(msg("Upload rejected ({status})", { status: xhr.status }))));
       }
     });
     xhr.addEventListener("error", () => reject(new Error(m(msg("Upload failed")))));
@@ -567,7 +567,7 @@ export async function refreshExpiredAttachmentUploads(input: {
             status: "failed",
             environmentId: input.environmentId,
             previous: upload,
-            reason: "Uploaded attachment could not be verified. Attach the file again.",
+            reason: m(msg("Uploaded attachment could not be verified. Attach the file again.")),
           });
         }
         return;
@@ -595,8 +595,10 @@ export async function refreshExpiredAttachmentUploads(input: {
         previous: upload,
         reason:
           verification.status === "missing"
-            ? "Uploaded attachment expired. Remove it and attach it again."
-            : "Uploaded attachment could not be verified. Retry when the server reconnects.",
+            ? m(msg("Uploaded attachment expired. Remove it and attach it again."))
+            : m(
+                msg("Uploaded attachment could not be verified. Retry when the server reconnects."),
+              ),
       });
     }),
   );

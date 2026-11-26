@@ -82,8 +82,19 @@ export function useAutoBalanceUpdateBanner(
   );
   const count = running || failed || machines.length;
   const status = running ? "running" : failed ? "failed" : "idle";
-  const prefix = running ? "Updating" : failed ? "Could not update" : "Update available for";
-  const title = `${prefix} ${count} ${count === 1 ? "machine" : "machines"}`;
+  const title = running
+    ? gt("{count, plural, one {Updating {count} machine} other {Updating {count} machines}}", {
+        count,
+      })
+    : failed
+      ? gt(
+          "{count, plural, one {Could not update {count} machine} other {Could not update {count} machines}}",
+          { count },
+        )
+      : gt(
+          "{count, plural, one {Update available for {count} machine} other {Update available for {count} machines}}",
+          { count },
+        );
   return {
     id: `auto-balance-server-updates-${dismissedNotices.size}`,
     variant: failed ? "error" : "default",

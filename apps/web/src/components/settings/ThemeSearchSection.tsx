@@ -424,8 +424,7 @@ export function ThemeSearchSection({
               const isInstalled = getCustomThemes().some(
                 (theme) => theme.collection?.id === extension.collectionId,
               );
-              const action = isInstalled ? "Update" : "Install";
-              const progressAction = isInstalled ? "Updating" : "Installing";
+              const action = isInstalled ? gt("Update") : gt("Install");
               return (
                 <article
                   className="group flex min-w-0 flex-col gap-3 rounded-xl border border-border/70 bg-card/60 p-3 transition-colors hover:bg-accent/20"
@@ -436,8 +435,10 @@ export function ThemeSearchSection({
                     <div className="min-w-0 flex-1">
                       <h4 className="truncate text-sm font-medium">{extension.name}</h4>
                       <p className="truncate text-muted-foreground text-xs">
-                        {extension.publisher} · {DOWNLOAD_FORMAT.format(extension.downloadCount)}{" "}
-                        downloads
+                        {gt("{publisher} · {downloads} downloads", {
+                          publisher: extension.publisher,
+                          downloads: DOWNLOAD_FORMAT.format(extension.downloadCount),
+                        })}
                       </p>
                     </div>
                   </div>
@@ -458,7 +459,15 @@ export function ThemeSearchSection({
                       ) : null}
                     </div>
                     <Button
-                      aria-label={`${isInstalling ? progressAction : action} ${extension.name}`}
+                      aria-label={
+                        isInstalled
+                          ? isInstalling
+                            ? gt("Updating {name}", { name: extension.name })
+                            : gt("Update {name}", { name: extension.name })
+                          : isInstalling
+                            ? gt("Installing {name}", { name: extension.name })
+                            : gt("Install {name}", { name: extension.name })
+                      }
                       disabled={installingId !== null}
                       size="xs"
                       variant="outline"
@@ -471,7 +480,11 @@ export function ThemeSearchSection({
                       ) : (
                         <PackagePlusIcon />
                       )}
-                      {isInstalling ? `${progressAction}...` : action}
+                      {isInstalling
+                        ? isInstalled
+                          ? gt("Updating...")
+                          : gt("Installing...")
+                        : action}
                     </Button>
                   </div>
                 </article>

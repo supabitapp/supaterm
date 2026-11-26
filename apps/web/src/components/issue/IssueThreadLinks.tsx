@@ -103,8 +103,11 @@ export function IssueThreadLinks({
   const linkedThreads = (relations.data ?? lastRelations)?.threads ?? [];
   const linkedThreadsLabel =
     linkedThreads.length > 0
-      ? `Linked from ${linkedThreads.length} ${linkedThreads.length === 1 ? "thread" : "threads"}`
-      : "Linked threads";
+      ? gt(
+          "{count, plural, one {Linked from {count} thread} other {Linked from {count} threads}}",
+          { count: linkedThreads.length },
+        )
+      : gt("Linked threads");
   // A failed read shows "?" and falls back to searching threads for the issue's link.
   const relationsKnown = (relations.data ?? lastRelations) !== null;
   return (

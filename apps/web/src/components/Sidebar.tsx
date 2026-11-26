@@ -1713,7 +1713,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     restoreDragScroll();
     const threads = contextDragThreads();
     const title =
-      threadByKeyRef.current.get(contextDragKeyRef.current ?? "")?.title.trim() || "Thread";
+      threadByKeyRef.current.get(contextDragKeyRef.current ?? "")?.title.trim() || gt("Thread");
     moveThreadContextDragGhost(
       point,
       { title, count: threads.length },
@@ -1819,11 +1819,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
   const attemptUnpin = (threadRef: ScopedThreadRef) =>
     void confirmAndUnpinThread(threadRef).then((result) =>
-      toastThreadActionFailure("Failed to unpin thread", result),
+      toastThreadActionFailure(gt("Failed to unpin thread"), result),
     );
   const attemptUnpinWithoutDialog = (threadRef: ScopedThreadRef) =>
     void unpinThread(threadRef).then((result) =>
-      toastThreadActionFailure("Failed to unpin thread", result),
+      toastThreadActionFailure(gt("Failed to unpin thread"), result),
     );
 
   const handleGroupDragStart = () => {
@@ -2132,7 +2132,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           markingDoneThreadKeysRef.current.add(activeKey);
           const navigateAfterMarkDone = planForwardNavigation(activeKey);
           if (navigateAfterMarkDone) departRouteThread(activeKey);
-          const done = await run(markThreadDone(threadRef), "Failed to mark thread as Done");
+          const done = await run(markThreadDone(threadRef), gt("Failed to mark thread as Done"));
           markingDoneThreadKeysRef.current.delete(activeKey);
           if (
             done &&
@@ -2149,16 +2149,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           return;
         }
         case "move-active":
-          if (plan.unpin && !(await run(unpinThread(threadRef), "Failed to unpin thread"))) return;
-          if (plan.reopen && !(await run(reopenThread(threadRef), "Failed to reopen thread")))
+          if (plan.unpin && !(await run(unpinThread(threadRef), gt("Failed to unpin thread"))))
             return;
-          if (plan.unsnooze) await run(unsnoozeThread(threadRef), "Failed to wake thread");
+          if (plan.reopen && !(await run(reopenThread(threadRef), gt("Failed to reopen thread"))))
+            return;
+          if (plan.unsnooze) await run(unsnoozeThread(threadRef), gt("Failed to wake thread"));
           return;
         case "pin":
           if (
             !(await run(
               pinThread(threadRef, plan.orderKey === undefined ? {} : { orderKey: plan.orderKey }),
-              "Failed to pin thread",
+              gt("Failed to pin thread"),
             ))
           )
             return;
@@ -2176,7 +2177,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               scopeThreadRef(thread.environmentId, thread.id),
               assignment.orderKey,
             ),
-            "Failed to reorder pinned threads",
+            gt("Failed to reorder pinned threads"),
           ))
         )
           return;
@@ -3130,7 +3131,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           sweepAction={actionSweep?.keys.has(threadKey) ? actionSweep.action : null}
                           snoozeWakeLabelText={
                             section === "snoozed" && thread.snoozedUntil != null
-                              ? snoozeWakeLabel(thread.snoozedUntil, { now: snoozeNow })
+                              ? snoozeWakeLabel(thread.snoozedUntil, { now: snoozeNow }, messages)
                               : null
                           }
                           // All sections: a woken thread can classify straight

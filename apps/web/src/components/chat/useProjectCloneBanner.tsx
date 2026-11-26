@@ -65,7 +65,7 @@ export function useProjectCloneBanner(activeProjectRef: ScopedProjectRef | null)
         id: `project-file-copy:${activeProjectRef.projectId}`,
         variant: "error",
         icon: <DownloadIcon />,
-        title: activeProjectFileCopy.title,
+        title: messages(activeProjectFileCopy.title),
         description: activeProjectFileCopy.failures.join("\n"),
         onDismiss: () => dismissProjectFileCopy(activeProjectRef),
       };

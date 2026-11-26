@@ -69,7 +69,8 @@ import { readUnloadedThreadCount } from "../../state/olderDoneShelf";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { isImeComposing } from "~/lib/imeComposition";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
+import { m } from "../../i18n/messages";
 
 const ProjectIconPickerDialog = lazy(() =>
   import("./ProjectIconPickerDialog").then((module) => ({
@@ -88,6 +89,7 @@ function isGroupingSelection(value: unknown): value is SidebarProjectGroupingMod
 
 // Grouping overrides are client settings, so they stay editable without project write access.
 function CheckoutGroupingSelect({ member }: { member: SidebarProjectGroupMember }) {
+  const m = useMessages();
   const gt = useGT();
   const overrideKey = derivePhysicalProjectKey(member);
   const globalMode = useClientSettings((settings) => settings.sidebarProjectGroupingMode);
@@ -129,8 +131,8 @@ function CheckoutGroupingSelect({ member }: { member: SidebarProjectGroupMember 
       >
         <SelectValue>
           {selection === "inherit"
-            ? gt("Default ({mode})", { mode: PROJECT_GROUPING_MODE_LABELS[globalMode] })
-            : PROJECT_GROUPING_MODE_LABELS[selection]}
+            ? gt("Default ({mode})", { mode: m(PROJECT_GROUPING_MODE_LABELS[globalMode]) })
+            : m(PROJECT_GROUPING_MODE_LABELS[selection])}
         </SelectValue>
       </SelectTrigger>
       <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -138,13 +140,13 @@ function CheckoutGroupingSelect({ member }: { member: SidebarProjectGroupMember 
           <T>Use global default</T>
         </SelectItem>
         <SelectItem hideIndicator value="repository">
-          {PROJECT_GROUPING_MODE_LABELS.repository}
+          {m(PROJECT_GROUPING_MODE_LABELS.repository)}
         </SelectItem>
         <SelectItem hideIndicator value="repository_path">
-          {PROJECT_GROUPING_MODE_LABELS.repository_path}
+          {m(PROJECT_GROUPING_MODE_LABELS.repository_path)}
         </SelectItem>
         <SelectItem hideIndicator value="separate">
-          {PROJECT_GROUPING_MODE_LABELS.separate}
+          {m(PROJECT_GROUPING_MODE_LABELS.separate)}
         </SelectItem>
       </SelectPopup>
     </Select>
@@ -361,14 +363,17 @@ function ProjectDetail({
     const api = readLocalApi();
     if (!api) return;
 
-    const { projectThreads, isWholeGroup, confirmationMessage } = planProjectRemoval({
-      members,
-      groupMemberCount: group.memberProjects.length,
-      hasOtherMembers,
-      displayName: group.displayName,
-      threads,
-      unloadedThreadCount: readUnloadedThreadCount(members, threads),
-    });
+    const { projectThreads, isWholeGroup, confirmationMessage } = planProjectRemoval(
+      {
+        members,
+        groupMemberCount: group.memberProjects.length,
+        hasOtherMembers,
+        displayName: group.displayName,
+        threads,
+        unloadedThreadCount: readUnloadedThreadCount(members, threads),
+      },
+      m,
+    );
     const confirmed = await settlePromise(() =>
       api.dialogs.confirm(confirmationMessage, { variant: "destructive" }),
     );
@@ -480,7 +485,10 @@ function ProjectDetail({
         const environment = environmentById.get(environmentId);
         const labels = environment
           ? settingsScopeEnvironmentLabels(environment, environments)
-          : { primary: firstMember.environmentLabel ?? "Environment", secondary: environmentId };
+          : {
+              primary: firstMember.environmentLabel ?? gt("Environment"),
+              secondary: environmentId,
+            };
         return (
           <SettingsRow
             key={environmentId}

@@ -174,7 +174,7 @@ export function worktreeSetupHandedOff(props: WorktreeSetupCardProps): boolean {
 /** The card's state on the turn's fold row: setup still running, or a failure to look at. */
 export function WorktreeSetupFoldChip(props: WorktreeSetupCardProps & SetupDetailsControl) {
   const gt = useGT();
-  const scriptName = props.snapshot.setupScript?.name ?? "Setup script";
+  const scriptName = props.snapshot.setupScript?.name ?? gt("Setup script");
   return (
     <Pressable
       accessibilityRole="button"

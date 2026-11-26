@@ -49,6 +49,7 @@ import { randomUUID, newThreadId } from "../lib/utils";
 import { assetEnvironment } from "./assets";
 import { fetchVcsRefs } from "./vcs";
 import { uploadVoiceAudio } from "./transcription";
+import { m } from "../i18n/messages";
 
 const decodeUpload = Schema.decodeUnknownSync(AttachmentCreateUploadUrlInput);
 const decodeAttachment = Schema.decodeSync(ChatAttachment);
@@ -336,6 +337,7 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
       }
       if (attachment.type === "file") {
         const step = resolveThreadOutboxDispatchStep({
+          resolve: m,
           deliveryAction: "send",
           fileAttachments: [attachment],
           serverConfig: {

@@ -15,7 +15,7 @@ import { ENVIRONMENT_REQUEST_INTERRUPTED } from "../../state/query";
 import { pullRequestLabelColor } from "../pull-requests/pullRequestList";
 import { usePullRequestConnected } from "../pull-requests/usePullRequestConnected";
 import { issueTarget, type IssueParams } from "./issueParams";
-import { msg } from "gt-react-native";
+import { msg, useMessages } from "gt-react-native";
 import { m, type MessageResolver } from "../../i18n/messages";
 
 // Open and completed wear the pull request colors for open and merged; closed any other way
@@ -51,19 +51,20 @@ export function issueStatus(state: IssueState): {
 
 /** What this device may do to the issue, and the first thing in the way when it may not. */
 export function useIssueAccess(params: IssueParams, detail: IssueDetail | null | undefined) {
+  const messages = useMessages();
   const connected = usePullRequestConnected(params.environmentId);
   const canWrite = useAtomValue(
     issueEnvironment.update.permissionAtom(issueTarget(params).environmentId),
   );
   if (!detail) return null;
-  const access = issueWriteAccess(detail, connected && canWrite);
+  const access = issueWriteAccess(detail, connected && canWrite, messages);
   return {
     ...access,
     blocked: connected
       ? canWrite
         ? access.blocked
-        : "This device isn't allowed to change source control on this environment."
-      : "Reconnect to make changes.",
+        : messages(msg("This device isn't allowed to change source control on this environment."))
+      : messages(msg("Reconnect to make changes.")),
   };
 }
 

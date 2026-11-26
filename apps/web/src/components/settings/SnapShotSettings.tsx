@@ -263,7 +263,9 @@ export function SnapShotSettings() {
   const shortcutStatus = recording
     ? gt("Press your shortcut. Esc cancels.")
     : candidateConflict
-      ? `Supaterm already uses this for "${commandLabel(candidateConflict, messages)}".`
+      ? gt('Supaterm already uses this for "{command}".', {
+          command: commandLabel(candidateConflict, messages),
+        })
       : shortcutCheck.status === "checking"
         ? gt("Checking shortcut…")
         : shortcutCheck.availability
@@ -273,7 +275,7 @@ export function SnapShotSettings() {
           : state?.mode === "portal" &&
               !state.shortcutLabel &&
               isModifierPairShortcut(displayShortcut)
-            ? "Try a shortcut such as Ctrl+Shift+2."
+            ? gt("Try a shortcut such as Ctrl+Shift+2.")
             : snapShotShortcutStatus(state, messages);
 
   const openSetup = async (requested: CaptureSetupStep | "resume" = "resume") => {
@@ -485,7 +487,7 @@ export function SnapShotSettings() {
                 control={
                   <Menu>
                     <MenuTrigger
-                      aria-label={"Snapshot sound: " + soundLabel}
+                      aria-label={gt("Snapshot sound: {sound}", { sound: soundLabel })}
                       render={<SelectButton size="sm" />}
                       className="w-auto min-w-0"
                       disabled={!captureAvailable}

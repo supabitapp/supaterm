@@ -12,7 +12,10 @@ export function PullRequestMoreReplies({
     <div className="flex flex-wrap items-baseline gap-2 py-1 text-xs text-muted-foreground">
       <span>
         {moreReplies > 0
-          ? `${moreReplies.toLocaleString()} more ${moreReplies === 1 ? "reply" : "replies"}`
+          ? gt("{count, plural, one {{formatted} more reply} other {{formatted} more replies}}", {
+              count: moreReplies,
+              formatted: moreReplies.toLocaleString(),
+            })
           : gt("More replies")}
       </span>
       {url ? (

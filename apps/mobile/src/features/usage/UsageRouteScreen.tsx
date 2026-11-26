@@ -353,7 +353,15 @@ function UsageScreen(props: {
                                 {...chart}
                                 height={WIDE_CHART_HEIGHT}
                                 fill
-                                title={`${isPast24Hours ? "Hourly" : "Daily"} ${metric === "cost" ? "cost" : "processed tokens"}`}
+                                title={
+                                  isPast24Hours
+                                    ? metric === "cost"
+                                      ? gt("Hourly cost")
+                                      : gt("Hourly processed tokens")
+                                    : metric === "cost"
+                                      ? gt("Daily cost")
+                                      : gt("Daily processed tokens")
+                                }
                               />
                             </View>
                           </View>

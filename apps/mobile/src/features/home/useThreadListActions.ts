@@ -206,14 +206,24 @@ function createDeleteThreadConfirmation(
 ) {
   return (thread: EnvironmentThreadShell) => {
     if (!checkThreadOperationPermission(thread, actionFailureTitle("delete"))) return;
-    const title = "Delete thread?";
+    const title = m(msg("Delete thread?"));
     // Deleting a thread deletes its side chats with it.
     const sideChats = appAtomRegistry.get(
       environmentThreadShells.sideChatsAtom(scopeThreadRef(thread.environmentId, thread.id)),
     ).length;
-    const alsoSideChats =
-      sideChats === 0 ? "" : ` and ${sideChats} side chat${sideChats === 1 ? "" : "s"}`;
-    const message = `“${thread.title}”${alsoSideChats} will be permanently deleted, including terminal history.`;
+    const message =
+      sideChats === 0
+        ? m(
+            msg("“{title}” will be permanently deleted, including terminal history.", {
+              title: thread.title,
+            }),
+          )
+        : m(
+            msg(
+              "{count, plural, one {“{title}” and {count} side chat will be permanently deleted, including terminal history.} other {“{title}” and {count} side chats will be permanently deleted, including terminal history.}}",
+              { title: thread.title, count: sideChats },
+            ),
+          );
     Dialog.confirm({
       title,
       message,
@@ -300,8 +310,8 @@ export function useThreadListActions(): {
                 case "snooze": {
                   const failureTitle =
                     action === "Unpinned"
-                      ? "Could not undo unpin"
-                      : "Could not undo marking as Done";
+                      ? m(msg("Could not undo unpin"))
+                      : m(msg("Could not undo marking as Done"));
                   if (!checkThreadOperationPermission(thread, failureTitle)) return false;
                   const result = await snoozeMutation({
                     environmentId: thread.environmentId,

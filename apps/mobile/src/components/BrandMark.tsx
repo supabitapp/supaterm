@@ -4,16 +4,22 @@ import { View } from "react-native";
 
 import { AppText as Text } from "./ui/AppText";
 import { SUPATERM_BRAND_MARK_SOURCE } from "./brandAssets";
-import { T } from "gt-react-native";
+import { msg, T, useMessages } from "gt-react-native";
 
 const appVariant = Constants.expoConfig?.extra?.appVariant;
 const DEFAULT_STAGE_LABEL =
-  appVariant === "development" ? "Dev" : appVariant === "preview" ? "Preview" : null;
+  appVariant === "development"
+    ? msg("Dev", { $context: "app release stage badge" })
+    : appVariant === "preview"
+      ? msg("Preview", { $context: "app release stage badge" })
+      : null;
 
 export function BrandMark(props: { readonly compact?: boolean; readonly stageLabel?: string }) {
+  const m = useMessages();
   const compact = props.compact ?? false;
   const iconSize = compact ? 32 : 44;
-  const stageLabel = props.stageLabel ?? DEFAULT_STAGE_LABEL;
+  const stageLabel =
+    props.stageLabel ?? (DEFAULT_STAGE_LABEL === null ? null : m(DEFAULT_STAGE_LABEL));
 
   return (
     <View className="flex-row items-center gap-3">

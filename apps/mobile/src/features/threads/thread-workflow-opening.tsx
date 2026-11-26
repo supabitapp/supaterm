@@ -18,7 +18,7 @@ import { useMarkdownCodeHighlight } from "./markdownCodeHighlightState";
 import { SubagentRow } from "./SubagentRow";
 import { WorkLogBlock } from "./work-log-layout";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 const FOLDED_SCRIPT_LINES = 10;
 
@@ -77,10 +77,11 @@ export function ThreadWorkflowOpening(props: {
   readonly threadId: ThreadId;
   readonly opening: WorkflowOpeningValue;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const openLinkedThread = useOpenLinkedThread();
   const { opening } = props;
-  const headline = workflowOpeningHeadline(opening);
+  const headline = workflowOpeningHeadline(opening, messages);
   const canListMembers = opening.driver !== null && opening.providerInstanceId !== null;
   const phases = (opening.group?.phases ?? []).filter((phase) => phase.members.length > 0);
   const unphased = opening.group?.unphasedMembers ?? [];

@@ -52,7 +52,15 @@ export function SubagentStopButton(props: {
       <IconButton
         icon="stop.fill"
         variant="danger"
-        accessibilityLabel={`${stopping ? "Stopping" : "Stop"} ${workflow ? "workflow" : "agent"} ${label}`}
+        accessibilityLabel={
+          workflow
+            ? stopping
+              ? gt("Stopping workflow {label}", { label })
+              : gt("Stop workflow {label}", { label })
+            : stopping
+              ? gt("Stopping agent {label}", { label })
+              : gt("Stop agent {label}", { label })
+        }
         disabled={stopping}
         onPress={() =>
           Dialog.confirm({

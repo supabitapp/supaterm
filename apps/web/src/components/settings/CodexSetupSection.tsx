@@ -616,14 +616,31 @@ function ManagedCodexSetup({
 
   const runtimeDescription =
     installation?.phase === "downloading"
-      ? `Downloading ${(installation.downloadedBytes / 1_000_000).toFixed(1)}${installation.totalBytes === null ? "" : ` of ${(installation.totalBytes / 1_000_000).toFixed(1)}`} MB.`
+      ? installation.totalBytes === null
+        ? gt("Downloading {downloaded} MB.", {
+            downloaded: (installation.downloadedBytes / 1_000_000).toFixed(1),
+          })
+        : gt("Downloading {downloaded} of {total} MB.", {
+            downloaded: (installation.downloadedBytes / 1_000_000).toFixed(1),
+            total: (installation.totalBytes / 1_000_000).toFixed(1),
+          })
       : installation?.phase === "extracting"
         ? gt("Installing Codex.")
         : installation?.phase === "verifying"
           ? gt("Checking Codex.")
           : installed
-            ? `${installation?.source === "local" ? "Using your installed Codex" : "Managed by Supaterm"}${installation?.installedVersion ? ` · v${installation.installedVersion}` : ""}.`
-            : (installation?.message ?? "Supaterm downloads and manages Codex for you.");
+            ? installation?.source === "local"
+              ? installation?.installedVersion
+                ? gt("Using your installed Codex · v{version}.", {
+                    version: installation.installedVersion,
+                  })
+                : gt("Using your installed Codex.")
+              : installation?.installedVersion
+                ? gt("Managed by Supaterm · v{version}.", {
+                    version: installation.installedVersion,
+                  })
+                : gt("Managed by Supaterm.")
+            : (installation?.message ?? gt("Supaterm downloads and manages Codex for you."));
   const accountDescription = finishingSignIn ? (
     gt("Finishing sign-in...")
   ) : installActive ? (

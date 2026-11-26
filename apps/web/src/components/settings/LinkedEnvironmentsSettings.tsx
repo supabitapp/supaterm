@@ -226,7 +226,10 @@ function LinkedEnvironmentRow({
   const [busy, setBusy] = useState(false);
   const forget = async () => {
     const confirmed = await (requestConfirmDialog(
-      `Forget ${label}? Agents here stop working there, and their session on ${label} ends too if it answers.`,
+      gt(
+        "Forget {label}? Agents here stop working there, and their session on {label} ends too if it answers.",
+        { label },
+      ),
       { variant: "destructive" },
     ) ?? Promise.resolve(false));
     if (!confirmed) return;
@@ -245,7 +248,7 @@ function LinkedEnvironmentRow({
         });
       }
     } else if (!isAtomCommandInterrupted(result)) {
-      failureToast("Could not forget the link", squashAtomCommandFailure(result));
+      failureToast(gt("Could not forget the link"), squashAtomCommandFailure(result));
     }
   };
   const status = peerLinkHealthText(health, messages);
@@ -356,11 +359,11 @@ function LinkEnvironmentAction({
     } else if (result._tag === "MintFailed" && targetId !== null) {
       setMintFailed((failed) => new Set(failed).add(targetId));
       failureToast(
-        "Could not link the environment",
+        gt("Could not link the environment"),
         linkRequestFailureMessage(result.failure, messages),
       );
     } else if (result._tag !== "Interrupted") {
-      failureToast("Could not link the environment", result.failure);
+      failureToast(gt("Could not link the environment"), result.failure);
     }
   };
   const linkWithPastedCode = async (

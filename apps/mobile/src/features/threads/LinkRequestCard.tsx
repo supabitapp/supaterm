@@ -478,8 +478,9 @@ function MachineRow(props: {
   readonly disabled: boolean;
   readonly onPress: () => void;
 }) {
+  const gt = useGT();
   const { machine } = props;
-  const status = machine.linked ? "Linked" : machine.connected ? null : "Not connected";
+  const status = machine.linked ? gt("Linked") : machine.connected ? null : gt("Not connected");
   return (
     <Pressable
       accessibilityRole="radio"

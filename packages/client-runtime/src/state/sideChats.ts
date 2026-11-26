@@ -115,7 +115,9 @@ export async function sendSideChatFirstMessage<A>(input: {
   readonly targetThreadId: ThreadId;
   readonly creationSource: OrchestrationV2CreationSource;
   readonly enqueue: () => Promise<A>;
+  readonly resolve?: MFunctionType;
 }): Promise<SideChatFirstMessageResult<A>> {
+  const resolve = input.resolve ?? mFallback;
   const targetRef = scopeThreadRef(input.parentRef.environmentId, input.targetThreadId);
   const key = scopedThreadKey(targetRef);
   if (firstMessagesInFlight.has(key)) return { kind: "busy" };
@@ -142,12 +144,13 @@ export async function sendSideChatFirstMessage<A>(input: {
       // A retry whose earlier fork landed is refused as a duplicate; its shell says so.
       if (fork._tag === "Failure" && !forked()) {
         if (isAtomCommandInterrupted(fork)) {
-          return { kind: "failed", reason: "Starting the side chat was cancelled." };
+          return { kind: "failed", reason: resolve(msg("Starting the side chat was cancelled.")) };
         }
         const error = squashAtomCommandFailure(fork);
         return {
           kind: "failed",
-          reason: error instanceof Error ? error.message : "Could not start a side chat.",
+          reason:
+            error instanceof Error ? error.message : resolve(msg("Could not start a side chat.")),
         };
       }
       if (!forked()) await input.waitForThread(targetRef);
@@ -156,7 +159,10 @@ export async function sendSideChatFirstMessage<A>(input: {
   } catch (error) {
     return {
       kind: "failed",
-      reason: error instanceof Error ? error.message : "Could not send the side chat's message.",
+      reason:
+        error instanceof Error
+          ? error.message
+          : resolve(msg("Could not send the side chat's message.")),
     };
   } finally {
     firstMessagesInFlight.delete(key);

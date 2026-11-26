@@ -102,19 +102,23 @@ export function resolveGitActionProgressPresentation(
   };
 }
 
-export function formatGitActionElapsed(startedAtMs: number | null, nowMs: number): string | null {
+export function formatGitActionElapsed(
+  startedAtMs: number | null,
+  nowMs: number,
+  resolve: MessageResolver = m,
+): string | null {
   if (startedAtMs === null) {
     return null;
   }
 
   const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedAtMs) / 1_000));
   if (elapsedSeconds < 60) {
-    return `${elapsedSeconds}s`;
+    return resolve(msg("{seconds}s", { seconds: elapsedSeconds }));
   }
 
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
-  return `${minutes}m ${seconds}s`;
+  return resolve(msg("{minutes}m {seconds}s", { minutes, seconds }));
 }
 
 export function buildMenuItems(

@@ -24,7 +24,7 @@ import {
   tokenTypeSegments,
 } from "./usageBreakdown";
 import { PROVIDER_PRESENTATION } from "./usageProviders";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, useLocale, Var } from "gt-react";
 
 export interface UsageChartWindow {
   readonly days: readonly string[];
@@ -51,6 +51,7 @@ export function UsageModelDialog({
   readonly onClose: () => void;
 }) {
   const gt = useGT();
+  const locale = useLocale();
   const usage = mergeAnsweredUsage(
     environments,
     (bucket) => bucket.provider === model.provider && bucket.model === model.model,
@@ -62,9 +63,11 @@ export function UsageModelDialog({
   const perMillion = costPerMillionTokens(model);
   const popupRef = useRef<HTMLDivElement>(null);
   const stats = [
-    { label: gt("Cost"), value: costUnknown ? "Unpriced" : formatUsd(model.costUsd) },
+    { label: gt("Cost"), value: costUnknown ? gt("Unpriced") : formatUsd(model.costUsd, locale) },
     { label: gt("Tokens"), value: formatTokens(model.totalTokens) },
-    perMillion === null ? null : { label: gt("Per 1M tokens"), value: formatUsd(perMillion) },
+    perMillion === null
+      ? null
+      : { label: gt("Per 1M tokens"), value: formatUsd(perMillion, locale) },
     hitRate === null ? null : { label: gt("Cache hit"), value: formatPercent(hitRate) },
   ].filter((stat) => stat !== null);
 

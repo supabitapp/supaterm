@@ -111,7 +111,10 @@ export function ThreadOutboxControl({
     <ComposerBanner.Drawer open={open}>
       <ComposerBanner.Root
         role="region"
-        aria-label={`${pending.length} pending ${pending.length === 1 ? "message" : "messages"}`}
+        aria-label={gt(
+          "{count, plural, one {{count} pending message} other {{count} pending messages}}",
+          { count: pending.length },
+        )}
         variant={header.variant}
       >
         <ComposerBanner.Row>

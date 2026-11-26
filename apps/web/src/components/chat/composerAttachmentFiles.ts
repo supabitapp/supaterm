@@ -225,7 +225,7 @@ export function fileAttachmentCapabilityBlockReason(
   }
   const oversizedFile = input.files.find((file) => file.sizeBytes > maxFileAttachmentBytes);
   if (oversizedFile) {
-    return fileAttachmentTooLargeMessage(oversizedFile.name, maxFileAttachmentBytes);
+    return fileAttachmentTooLargeMessage(oversizedFile.name, maxFileAttachmentBytes, m);
   }
   return null;
 }

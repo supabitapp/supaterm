@@ -61,7 +61,7 @@ import {
   movedPreparingImageThread,
   removePreparingComposerImages,
 } from "./preparingComposerImages";
-import { msg } from "gt-react";
+import { msg, useGT } from "gt-react";
 import { m } from "~/i18n/messages";
 
 /**
@@ -98,6 +98,7 @@ export function useComposerAttachmentIntake(input: {
     pendingInsertion?: ComposerAttachmentInsertion,
   ) => boolean;
 }) {
+  const gt = useGT();
   const {
     activeThreadId,
     activePendingProgress,
@@ -192,11 +193,16 @@ export function useComposerAttachmentIntake(input: {
         replacedReattachMarkerIds.add(matchingReattachMarker.id);
       }
       if (!matchingReattachMarker && reservedCount >= PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
-        error = `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`;
+        error = gt("You can attach up to {max} files per message.", {
+          max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+        });
         continue;
       }
       if (attachmentKind === "unsupported-image") {
-        error = `'${file.name}' is not a supported image type. Attach GIF, HEIC, HEIF, JPEG, PNG, or WebP images.`;
+        error = gt(
+          "''{name}'' is not a supported image type. Attach GIF, HEIC, HEIF, JPEG, PNG, or WebP images.",
+          { name: file.name },
+        );
         continue;
       }
       if (attachmentKind === "image") {
@@ -211,7 +217,7 @@ export function useComposerAttachmentIntake(input: {
           continue;
         }
         if (file.size > fileStagingLimit) {
-          error = fileAttachmentTooLargeMessage(file.name, fileStagingLimit);
+          error = fileAttachmentTooLargeMessage(file.name, fileStagingLimit, m);
           continue;
         }
         const attachmentFile =
@@ -384,7 +390,12 @@ export function useComposerAttachmentIntake(input: {
     const completionErrors = compressionError === undefined ? [] : [compressionError];
     if (unrestoredImageNames.length > 0) {
       completionErrors.push(
-        `${unrestoredImageNames.join(", ")} could not be restored: the composer is at its ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS}-attachment limit.`,
+        m(
+          msg("{names} could not be restored: the composer is at its {limit}-attachment limit.", {
+            names: unrestoredImageNames.join(", "),
+            limit: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+          }),
+        ),
       );
     }
     if (completionErrors.length > 0) {
@@ -418,7 +429,14 @@ export function useComposerAttachmentIntake(input: {
       return;
     }
     const confirmation = requestConfirmDialog(
-      `Remove ${image?.name ?? "this image"} from the message?\nIt is referenced in your text; removing it also removes every reference.`,
+      image?.name != null
+        ? gt(
+            "Remove {name} from the message?\nIt is referenced in your text; removing it also removes every reference.",
+            { name: image.name },
+          )
+        : gt(
+            "Remove this image from the message?\nIt is referenced in your text; removing it also removes every reference.",
+          ),
       { variant: "destructive" },
     );
     if (!confirmation) {

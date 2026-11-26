@@ -23,14 +23,15 @@ import { msg, T, useGT, useMessages } from "gt-react-native";
 
 const KIND_LABELS = {
   subagent: msg("Subagent"),
-  command: "Command",
-  monitor: "Monitor",
+  command: msg("Command", { $context: "noun, a running shell command" }),
+  monitor: msg("Monitor", { $context: "noun, a background watcher task" }),
   background_task: msg("Background task"),
 } as const;
 
 type BackgroundWorkTarget = { readonly environmentId: EnvironmentId; readonly threadId: ThreadId };
 
 export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<BackgroundWorkTarget>) {
+  const m = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -38,7 +39,7 @@ export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<Backgroun
   const thread = useAtomValue(
     environmentThreadShells.threadShellAtom(scopeThreadRef(target.environmentId, target.threadId)),
   );
-  const presentation = presentPendingBackgroundWork(thread?.pendingBackgroundTasks ?? []);
+  const presentation = presentPendingBackgroundWork(thread?.pendingBackgroundTasks ?? [], m);
   const openThread = (threadId: ThreadId) => {
     void Haptics.selectionAsync();
     // A thread replaces the leaf sheet so workspace back navigation still works.

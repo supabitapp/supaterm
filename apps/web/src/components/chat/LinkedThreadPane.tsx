@@ -176,7 +176,7 @@ export function LinkedThreadPane(props: {
       <h2 className="shrink-0 truncate border-b border-border px-3 py-2 text-sm font-medium">
         {linkedThreadTitle(
           { title: projection?.thread.title || surface.title },
-          `Thread on ${label}`,
+          gt("Thread on {label}", { label }),
         )}
       </h2>
       {projection === null ? (

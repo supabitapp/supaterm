@@ -161,12 +161,18 @@ function ThreadLineageGroup(props: {
   readonly pendingCount?: number;
   readonly children: (rows: ReadonlyArray<LineageRow>) => ReactNode;
 }) {
+  const gt = useGT();
   const [expanded, setExpanded] = useState(props.expanded);
   const [visibleCount, setVisibleCount] = useState(THREAD_LINEAGE_INITIAL_COUNT);
   const panelId = useId();
   const { visibleRows, hiddenCount } = resolveThreadLineageWindow(props.rows, visibleCount);
   const count = props.rows.length + (props.pendingCount ?? 0);
-  const label = props.runningCount ? `${props.label} · ${props.runningCount} running` : props.label;
+  const label = props.runningCount
+    ? gt("{label} · {runningCount} running", {
+        label: props.label,
+        runningCount: props.runningCount,
+      })
+    : props.label;
   const failedCount = props.rows.filter((row) => {
     const status = lineageRowStatus(row);
     return status === "failed" || status === "error";
@@ -181,7 +187,13 @@ function ThreadLineageGroup(props: {
         aria-controls={panelId}
         onClick={() => setExpanded(!expanded)}
         accessory={
-          failedCount > 0 ? <SectionHeaderStatus>{failedCount} failed</SectionHeaderStatus> : null
+          failedCount > 0 ? (
+            <SectionHeaderStatus>
+              <T>
+                <Var>{failedCount}</Var> failed
+              </T>
+            </SectionHeaderStatus>
+          ) : null
         }
       >
         {label}
@@ -318,7 +330,11 @@ function RemoteSubagentRow(props: {
           <span
             className={`flex max-w-1/2 shrink-0 gap-1 text-2xs ${failed ? "text-destructive" : "text-muted-foreground"}`}
           >
-            <span className="truncate">on {remoteChild.label}</span>
+            <span className="truncate">
+              <T>
+                on <Var>{remoteChild.label}</Var>
+              </T>
+            </span>
             <span className="shrink-0 tabular-nums">
               ·{" "}
               {showElapsed ? (
@@ -422,7 +438,9 @@ function DelegatedFromRow(props: {
           </span>
           {label ? (
             <span className="max-w-1/2 shrink-0 truncate text-2xs text-muted-foreground">
-              on {label}
+              <T>
+                on <Var>{label}</Var>
+              </T>
             </span>
           ) : null}
         </TooltipTrigger>
@@ -850,7 +868,9 @@ export function ThreadRelationshipsPanel(props: {
                 ? "group-hover:opacity-0 group-focus-within:opacity-0 pointer-coarse:opacity-0 [@media(hover:none)]:opacity-0"
                 : "";
               const project = projects.find((project) => project.id === node?.thread?.projectId);
-              const relationshipHint = `Open ${relationship.toLowerCase()} in this chat`;
+              const relationshipHint = gt("Open {relationship} in this chat", {
+                relationship: relationship.toLowerCase(),
+              });
               const RelationshipPopup = agent ? ThreadHoverCardPopup : TooltipPopup;
               const relationshipTooltip = agent ? (
                 <SubagentTooltipContent

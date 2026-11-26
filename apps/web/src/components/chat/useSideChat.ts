@@ -40,6 +40,7 @@ import {
 } from "../../state/threadOutboxEditing";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { useMessages } from "gt-react";
+import { m } from "../../i18n/messages";
 
 const NOT_PENDING_ATOM = Atom.make(false).pipe(Atom.withLabel("side-chat:worktree-not-pending"));
 
@@ -87,6 +88,7 @@ export async function sendSideChatDraftMessage<A>(input: {
 }) {
   const { draftId, ...send } = input;
   const result = await sendSideChatFirstMessage({
+    resolve: m,
     registry: appAtomRegistry,
     forkSideChat: threadEnvironment.forkSideChat,
     readThread: readThreadShell,

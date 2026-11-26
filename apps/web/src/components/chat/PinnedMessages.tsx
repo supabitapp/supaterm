@@ -29,11 +29,12 @@ export function useMessagePinned(
 }
 
 export function MessagePinButton({ projectedItem }: { projectedItem: PinnableProjectedItem }) {
+  const gt = useGT();
   const ctx = use(TimelineRowCtx);
   const pinned = ctx.pinnedItemIds.has(projectedItem.sourceItemId);
   if (ctx.onTogglePinnedMessage === null) return null;
   const onToggle = ctx.onTogglePinnedMessage;
-  const label = pinned ? "Unpin message" : "Pin message";
+  const label = pinned ? gt("Unpin message") : gt("Pin message");
   return (
     <Tooltip>
       <TooltipTrigger
@@ -84,7 +85,10 @@ export function PinnedMessagesMenu({
                   variant="ghost-muted"
                   size="sm"
                   className="shrink-0 [-webkit-app-region:no-drag]"
-                  aria-label={`${pins.length} pinned ${pins.length === 1 ? "message" : "messages"}`}
+                  aria-label={gt(
+                    "{count, plural, one {{count} pinned message} other {{count} pinned messages}}",
+                    { count: pins.length },
+                  )}
                 />
               }
             />

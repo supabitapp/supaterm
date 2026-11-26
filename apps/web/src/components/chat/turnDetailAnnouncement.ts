@@ -48,7 +48,9 @@ function withVerb(work: WorkLogEntry, label: string) {
   if (work.itemType === "file_change") return m(msg("Editing {label}", { label }));
   if (work.itemType !== "file_search" && work.itemType !== "web_search") return label;
   if (/^search(?:ed|ing)?\s/i.test(label)) return label;
-  return `${work.itemType === "web_search" ? "Searching the web for" : "Searching for"} ${label}`;
+  return work.itemType === "web_search"
+    ? m(msg("Searching the web for {label}", { label }))
+    : m(msg("Searching for {label}", { label }));
 }
 
 type MessageEntry = Extract<TimelineEntry, { kind: "message" }>;

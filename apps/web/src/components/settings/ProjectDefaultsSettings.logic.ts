@@ -8,7 +8,7 @@ import {
   type ProviderInstanceEntry,
 } from "../../providerInstances";
 import { msg } from "gt-react";
-import { type MessageResolver, m } from "../../i18n/messages";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export interface DefaultModelSettingsPresentation {
   readonly selection: ModelSelection | null;
@@ -58,6 +58,7 @@ export function resolveDefaultModelSettingsPresentation(
 
 function providerNote(entry: ProviderInstanceEntry | undefined, resolve: MessageResolver): string {
   if (!entry) return resolve(msg("This provider is not available on this environment."));
-  if (!entry.enabled) return `${entry.displayName} is turned off.`;
-  return `${entry.displayName} is unavailable.`;
+  if (!entry.enabled)
+    return resolve(msg("{provider} is turned off.", { provider: entry.displayName }));
+  return resolve(msg("{provider} is unavailable.", { provider: entry.displayName }));
 }
