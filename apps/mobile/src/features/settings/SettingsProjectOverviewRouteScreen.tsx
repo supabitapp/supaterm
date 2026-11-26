@@ -430,22 +430,27 @@ function ProjectOverviewContent(props: {
           );
         })}
       </SettingsSection>
-      {props.members.map((member) => {
-        const environment = props.environments.find(
-          (entry) => entry.environmentId === member.environmentId,
-        )?.label;
-        return (
-          <ProjectRepositoriesSection
-            key={`${member.environmentId}:${member.id}`}
-            member={member}
-            title={
-              props.members.length === 1
-                ? gt("Repositories")
-                : gt("Repositories · {environment}", { environment: environment ?? "Environment" })
-            }
-          />
-        );
-      })}
+      {/* Older servers omit trackedFolders and drop the folders a project update adds. */}
+      {props.members
+        .filter((member) => member.trackedFolders !== undefined)
+        .map((member) => {
+          const environment = props.environments.find(
+            (entry) => entry.environmentId === member.environmentId,
+          )?.label;
+          return (
+            <ProjectRepositoriesSection
+              key={`${member.environmentId}:${member.id}`}
+              member={member}
+              title={
+                props.members.length === 1
+                  ? gt("Repositories")
+                  : gt("Repositories · {environment}", {
+                      environment: environment ?? "Environment",
+                    })
+              }
+            />
+          );
+        })}
       <SettingsSection
         title={gt("Danger", { $context: "section heading for destructive actions" })}
       >

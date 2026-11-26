@@ -17,7 +17,8 @@ level down, and one level further inside folders that are not repositories thems
 project straight away, and one you delete is gone from it. Worktrees of another repository are left
 out.
 
-**Settings → Projects → Repositories** shows what the project covers on each machine.
+**Settings → Projects → Repositories** shows what the project covers on each machine. A machine on
+an older Supaterm has no Repositories section, because it keeps a project to its one folder.
 
 ### Folders outside the project
 
