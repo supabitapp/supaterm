@@ -20,6 +20,7 @@ import {
 } from "../../state/use-composer-drafts";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { usePrepareTriage } from "./usePrepareTriage";
+import { useGT } from "gt-react-native";
 
 const CLI_COMMAND = "npx supaterm triage";
 
@@ -33,6 +34,7 @@ function activeRootRoute() {
  * clones the matching source, then a No project draft opens with the prompt.
  */
 export function useStartTriage() {
+  const gt = useGT();
   const navigation = useNavigation();
   const selectDetail = useSelectWorkspaceDetail();
   const prepare = usePrepareTriage();
@@ -68,7 +70,7 @@ export function useStartTriage() {
             draftId,
             environmentId: String(environmentId),
             projectId: String(scratch.value.id),
-            title: "Triage",
+            title: gt("Triage", { $context: "draft thread title" }),
           },
         },
       });
@@ -86,17 +88,23 @@ export function useStartTriage() {
     if (failure !== null && !isAtomCommandInterrupted(failure)) {
       const error = squashAtomCommandFailure(failure);
       Dialog.alert(
-        "Could not start triage",
-        `${error instanceof Error ? error.message : "An error occurred."} Run ${CLI_COMMAND} in a terminal on that machine instead.`,
+        gt("Could not start triage"),
+        gt("{message} Run {command} in a terminal on that machine instead.", {
+          message: error instanceof Error ? error.message : "An error occurred.",
+          command: CLI_COMMAND,
+        }),
         [
           {
-            text: "Copy command",
+            text: gt("Copy command"),
             onPress: () =>
               void Clipboard.setStringAsync(CLI_COMMAND).catch(() =>
-                Dialog.alert("Could not copy", `Type ${CLI_COMMAND} instead.`),
+                Dialog.alert(
+                  gt("Could not copy"),
+                  gt("Type {command} instead.", { command: CLI_COMMAND }),
+                ),
               ),
           },
-          { text: "OK", style: "cancel" },
+          { text: gt("OK"), style: "cancel" },
         ],
       );
     }

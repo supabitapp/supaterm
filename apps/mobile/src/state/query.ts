@@ -1,6 +1,7 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
 import { AsyncResult, Atom } from "effect/reactivity";
+import { msg } from "gt-react-native";
 
 const EMPTY_ASYNC_RESULT_ATOM = Atom.make(AsyncResult.initial<never, never>(false)).pipe(
   Atom.withLabel("mobile-environment-query:empty"),
@@ -17,14 +18,14 @@ export interface EnvironmentQueryView<A> {
 }
 
 /** What a request cut off by a dropped connection says; it carries no error of its own. */
-export const ENVIRONMENT_REQUEST_INTERRUPTED = "The connection dropped before this finished.";
+export const ENVIRONMENT_REQUEST_INTERRUPTED = msg("The connection dropped before this finished.");
 
 export function formatEnvironmentQueryError(cause: Cause.Cause<unknown>): string {
   if (Cause.hasInterruptsOnly(cause)) return ENVIRONMENT_REQUEST_INTERRUPTED;
   const error = Cause.squash(cause);
   return error instanceof Error && error.message.trim().length > 0
     ? error.message
-    : "The environment request failed.";
+    : msg("The environment request failed.");
 }
 
 export function useEnvironmentQuery<A, E>(

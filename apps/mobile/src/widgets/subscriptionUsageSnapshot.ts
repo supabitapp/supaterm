@@ -10,6 +10,7 @@ import {
 
 import { providerColors } from "../features/usage/providerColors";
 import type { WidgetTheme } from "./widgetTheme";
+import { msg } from "gt-react-native";
 
 export interface WidgetLimitAccount {
   name: string;
@@ -149,7 +150,7 @@ function subscriptionUsageProps(
           {
             name,
             colors,
-            detail: "No limits available",
+            detail: msg("No limits available"),
             windows: [],
             expiresAt: 0,
             totalWindows: 0,
@@ -184,7 +185,7 @@ function subscriptionUsageProps(
             ? "Open Supaterm to refresh"
             : pool.accounts.length > 1
               ? `${pool.accounts.length} accounts · pooled`
-              : "Subscription remaining",
+              : msg("Subscription remaining"),
           expiresAt: fresh ? expiresAt : 0,
           totalWindows: fresh ? pool.windows.length : 0,
           windows: fresh

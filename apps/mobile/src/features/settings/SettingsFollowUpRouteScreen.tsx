@@ -12,6 +12,7 @@ import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoi
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { ComposerSettingsSection } from "./ThreadSettingsSections";
+import { msg, useGT } from "gt-react-native";
 
 const FOLLOW_UP_OPTIONS: ReadonlyArray<{
   readonly behavior: FollowUpBehavior;
@@ -21,16 +22,17 @@ const FOLLOW_UP_OPTIONS: ReadonlyArray<{
   {
     behavior: "queue",
     label: "Queue",
-    description: "Your message waits and runs after the current turn finishes.",
+    description: msg("Your message waits and runs after the current turn finishes."),
   },
   {
     behavior: "steer",
     label: "Steer",
-    description: "Your message reaches the agent right away, changing what it is working on.",
+    description: msg("Your message reaches the agent right away, changing what it is working on."),
   },
 ];
 
 export function SettingsFollowUpRouteScreen() {
+  const gt = useGT();
   const insets = useSafeAreaInsets();
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
   const savePreferences = useAtomCommand(saveMobilePreferences);
@@ -47,7 +49,7 @@ export function SettingsFollowUpRouteScreen() {
       contentContainerClassName="gap-3 px-5 pt-4"
       contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
     >
-      <SettingsSection title="While the agent is running">
+      <SettingsSection title={gt("While the agent is running")}>
         {FOLLOW_UP_OPTIONS.map((option, index) => (
           <SettingsChoiceRow
             key={option.behavior}
@@ -70,5 +72,5 @@ export function SettingsFollowUpRouteScreen() {
     </ScrollView>
   );
 
-  return <SettingsScreen title="Chat">{content}</SettingsScreen>;
+  return <SettingsScreen title={gt("Chat")}>{content}</SettingsScreen>;
 }

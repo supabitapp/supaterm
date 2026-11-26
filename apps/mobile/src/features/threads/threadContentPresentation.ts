@@ -1,5 +1,6 @@
 import { type EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import type { EnvironmentThreadStatus } from "@supaterm/client-runtime/state/threads";
+import { msg } from "gt-react-native";
 
 export type ThreadContentPresentation =
   | { readonly kind: "ready" }
@@ -22,14 +23,14 @@ export function projectThreadContentPresentation(input: {
   if (input.detailDeleted) {
     return {
       kind: "unavailable",
-      title: "Thread unavailable",
-      detail: "This thread was deleted or is no longer available.",
+      title: msg("Thread unavailable"),
+      detail: msg("This thread was deleted or is no longer available."),
     };
   }
   if (input.detailError !== null) {
     return {
       kind: "unavailable",
-      title: "Could not load conversation",
+      title: msg("Could not load conversation"),
       detail: input.detailError,
     };
   }
@@ -42,8 +43,8 @@ export function projectThreadContentPresentation(input: {
   }
   return {
     kind: "unavailable",
-    title: "Messages not cached",
-    detail: "Reconnect this environment to load the conversation.",
+    title: msg("Messages not cached"),
+    detail: msg("Reconnect this environment to load the conversation."),
   };
 }
 
@@ -54,5 +55,5 @@ export function threadSyncStatusLabel(
 ): string | null {
   if (status !== "empty" && status !== "cached" && status !== "synchronizing") return null;
   if (presentation !== "ready") return null;
-  return hasError ? "Could not sync messages" : "Syncing messages…";
+  return hasError ? msg("Could not sync messages") : msg("Syncing messages…");
 }

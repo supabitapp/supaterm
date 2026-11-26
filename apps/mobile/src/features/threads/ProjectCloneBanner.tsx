@@ -1,5 +1,4 @@
 import { projectCloneProgressSummary } from "@supaterm/client-runtime/contract-labels";
-import { useMessages } from "gt-react-native";
 import { projectCloneDisplayName, type ProjectCloneSnapshot } from "@supaterm/contracts";
 import type { ComponentProps } from "react";
 import { Pressable, View } from "react-native";
@@ -8,6 +7,7 @@ import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { cn } from "../../lib/cn";
 import { useInlineConfirm } from "../../lib/useInlineConfirm";
 import { AppText as Text } from "../../components/ui/AppText";
+import { useMessages, useGT } from "gt-react-native";
 
 export function ProjectCloneBanner(props: {
   readonly clone: ProjectCloneSnapshot;
@@ -15,6 +15,7 @@ export function ProjectCloneBanner(props: {
   readonly onRetry: () => void;
   readonly onRemove: () => void;
 }) {
+  const gt = useGT();
   const m = useMessages();
   const { clone } = props;
   const name = projectCloneDisplayName(clone);
@@ -31,7 +32,7 @@ export function ProjectCloneBanner(props: {
             {projectCloneProgressSummary(clone, m)}
           </Text>
         </View>
-        <BannerAction label="Cancel" onPress={props.onCancel} />
+        <BannerAction label={gt("Cancel")} onPress={props.onCancel} />
       </View>
     );
   }
@@ -50,7 +51,9 @@ export function ProjectCloneBanner(props: {
         )}
         numberOfLines={1}
       >
-        {cancelled ? `Cancelled cloning ${name}` : `Failed to clone ${name}`}
+        {cancelled
+          ? gt("Cancelled cloning {name}", { name })
+          : gt("Failed to clone {name}", { name })}
       </Text>
       {clone.error ? (
         <Text className="mt-0.5 text-xs text-danger-foreground" numberOfLines={3}>
@@ -59,10 +62,10 @@ export function ProjectCloneBanner(props: {
       ) : null}
       <View className="mt-2 flex-row justify-end gap-2">
         <BannerAction
-          label={confirm.armed === "remove" ? "Confirm removal" : "Remove project"}
+          label={confirm.armed === "remove" ? "Confirm removal" : gt("Remove project")}
           {...confirm.bind("remove", props.onRemove)}
         />
-        <BannerAction label="Retry" onPress={props.onRetry} />
+        <BannerAction label={gt("Retry")} onPress={props.onRetry} />
       </View>
     </View>
   );

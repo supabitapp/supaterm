@@ -20,6 +20,7 @@ import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../components/EnvironmentMachine
 import { GlassSurface } from "../../components/ui/GlassSurface";
 import { PierreEntryIcon } from "../../components/PierreEntryIcon";
 import { pullRequestStatus } from "../pull-requests/pullRequestStatus";
+import { msg } from "gt-react-native";
 export type ComposerCommandItem =
   | {
       readonly id: string;
@@ -128,14 +129,14 @@ function groupLabel(
 ): string | null {
   switch (triggerKind) {
     case "pull-request":
-      return "Pull requests";
+      return msg("Pull requests");
     case "slash-command":
-      return "Commands";
+      return msg("Commands");
     case "skill":
     case "slash-skill":
-      return "Skills";
+      return msg("Skills");
     case "path":
-      return items.every((item) => item.type === "path") ? "Files" : "Mentions";
+      return items.every((item) => item.type === "path") ? msg("Files") : msg("Mentions");
     default:
       return null;
   }
@@ -143,20 +144,20 @@ function groupLabel(
 
 function emptyText(triggerKind: ComposerTriggerKind | null, isLoading: boolean): string {
   if (isLoading) {
-    return triggerKind === "path" ? "Searching files…" : "Loading…";
+    return triggerKind === "path" ? msg("Searching files…") : msg("Loading…");
   }
   switch (triggerKind) {
     case "pull-request":
-      return "No matching pull requests.";
+      return msg("No matching pull requests.");
     case "path":
       return "No matching files or folders.";
     case "skill":
     case "slash-skill":
-      return "No skills found.";
+      return msg("No skills found.");
     case "slash-command":
-      return "No matching commands.";
+      return msg("No matching commands.");
     default:
-      return "No results.";
+      return msg("No results.");
   }
 }
 

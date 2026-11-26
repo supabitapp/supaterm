@@ -1,5 +1,6 @@
 import type { PullRequestBodySegment } from "@supaterm/client-runtime/pull-request-markdown";
 import type { MarkdownNode } from "../../lib/markdownDocument";
+import { msg } from "gt-react-native";
 
 function isWebUrl(url: string): boolean {
   try {
@@ -24,7 +25,7 @@ export function pullRequestDescriptionContent(
       if (node.url && isWebUrl(node.url) && !attachments.has(node.url)) {
         attachments.set(node.url, {
           uri: node.url,
-          caption: node.alt || node.title || "Image",
+          caption: node.alt || node.title || msg("Image"),
           kind: "image",
         });
       }
@@ -46,7 +47,7 @@ export function pullRequestDescriptionContent(
       const name = new URL(segment.url).pathname.split("/").pop();
       attachments.set(segment.url, {
         uri: segment.url,
-        caption: segment.media === "video" ? "Video" : name || "Image",
+        caption: segment.media === "video" ? msg("Video") : name || msg("Image"),
         kind: segment.media,
       });
     }

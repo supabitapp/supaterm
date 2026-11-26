@@ -134,6 +134,8 @@ import { useConnectionsReady, useWorkspaceEnvironments } from "../../state/works
 import { isSameRepository, resolveEnvironmentProjectMatch } from "./new-task-project-selection";
 import { resolveDefaultWorktreeBaseBranch } from "../../lib/worktree-base-branch";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
+import { m } from "../../i18n/messages";
+import { msg } from "gt-react-native";
 
 type WorkspaceMode = "local" | "worktree";
 
@@ -791,12 +793,12 @@ function useNewTaskFlowValue(
     if (!isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
       Dialog.alert(
-        "Could not switch machine",
+        m(msg("Could not switch machine")),
         error instanceof Error
           ? error.message
           : triage?._tag === "Failure"
-            ? "The server could not prepare triage."
-            : "The folder for threads without a project could not be created.",
+            ? m(msg("The server could not prepare triage."))
+            : m(msg("The folder for threads without a project could not be created.")),
       );
     }
     return false;

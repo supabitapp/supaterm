@@ -9,6 +9,8 @@ import * as Effect from "effect/Effect";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { readEnvironmentScope } from "./session";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 function requireAttachmentWriteAccess<W extends { readonly environmentId: EnvironmentId }, A, E>(
   command: AtomCommand<W, A, E>,
@@ -21,7 +23,7 @@ function requireAttachmentWriteAccess<W extends { readonly environmentId: Enviro
           ? command.run(registry, input)
           : Effect.fail(
               new EnvironmentAuthorizationError({
-                message: "This connection cannot change attachments.",
+                message: m(msg("This connection cannot change attachments.")),
                 requiredScope: AuthOrchestrationOperateScope,
               }),
             ),

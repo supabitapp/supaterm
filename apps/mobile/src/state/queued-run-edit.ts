@@ -28,6 +28,8 @@ import {
   setComposerDraftText,
   updateComposerDraftSettings,
 } from "./use-composer-drafts";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export interface QueuedRunEdit {
   readonly modelSelection?: ModelSelection;
@@ -123,8 +125,8 @@ function exitQueuedRunEdit(threadKey: string, edit: QueuedRunEdit): void {
   setThreadComposerError(
     threadKey,
     recovery === "kept"
-      ? "That message already started. Your edit is back in the composer."
-      : "That message already started, so the edit was discarded.",
+      ? m(msg("That message already started. Your edit is back in the composer."))
+      : m(msg("That message already started, so the edit was discarded.")),
   );
 }
 

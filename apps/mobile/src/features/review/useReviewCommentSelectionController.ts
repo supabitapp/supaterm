@@ -21,6 +21,7 @@ import {
 } from "./reviewCommentSelection";
 import type { NativeReviewDiffData } from "./nativeReviewDiffAdapter";
 import type { ReviewSectionItem } from "./reviewModel";
+import { useGT } from "gt-react-native";
 
 export function useReviewCommentSelectionController(input: {
   readonly environmentId?: EnvironmentId;
@@ -28,6 +29,7 @@ export function useReviewCommentSelectionController(input: {
   readonly selectedSection: ReviewSectionItem | null;
   readonly nativeReviewDiffData: NativeReviewDiffData;
 }) {
+  const gt = useGT();
   const { environmentId, nativeReviewDiffData, selectedSection, threadId } = input;
   const navigation = useNavigation();
   const [sheetId] = useState(nextReviewSheetId);
@@ -72,11 +74,13 @@ export function useReviewCommentSelectionController(input: {
 
   const selectionAction = hasRangeTarget
     ? {
-        title: `Comment on ${formatReviewSelectedRangeLabel(activeCommentTarget)}`,
+        title: gt("Comment on {range}", {
+          range: formatReviewSelectedRangeLabel(activeCommentTarget),
+        }),
         onOpenComment: openReviewCommentSheet,
       }
     : pendingRange
-      ? { title: "Select range end", onOpenComment: null }
+      ? { title: gt("Select range end"), onOpenComment: null }
       : null;
 
   const onPressLine = (

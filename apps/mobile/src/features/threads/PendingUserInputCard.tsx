@@ -68,6 +68,7 @@ import {
   type PendingUserInputDraftAnswer,
 } from "@supaterm/client-runtime/state/pending-user-input";
 import type { PendingUserInput } from "../../lib/threadActivity";
+import { T, useGT } from "gt-react-native";
 
 export interface PendingUserInputCardProps {
   readonly environmentId: EnvironmentId;
@@ -229,6 +230,7 @@ function QuestionText(props: {
 }
 
 export function PendingUserInputCard(props: PendingUserInputCardProps) {
+  const gt = useGT();
   const { requestId, questions } = props.pendingUserInput;
   const questionCount = questions.length;
   const canRespond = props.pendingUserInput.responseCapability !== "not_resumable";
@@ -361,7 +363,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     : null;
   const stopButton = props.onStopThread ? (
     <ControlPill
-      accessibilityLabel="Stop"
+      accessibilityLabel={gt("Stop", { $context: "verb, stops the thread" })}
       icon="stop.fill"
       variant="danger"
       className="h-9 w-9"
@@ -393,7 +395,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
             <View className="min-w-0 flex-1">
               <View className="flex-row items-center gap-2">
                 <Text className="font-supaterm-bold text-2xs uppercase tracking-[1.1px] text-foreground-secondary">
-                  User input needed
+                  <T>User input needed</T>
                 </Text>
                 <Text className="font-sans text-xs text-foreground-muted">
                   {questionCount} question{questionCount === 1 ? "" : "s"}
@@ -486,8 +488,10 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         >
           {!canRespond ? (
             <Text className="font-sans text-sm leading-5 text-foreground-muted">
-              The provider process for this request is no longer available. Interrupt or restart the
-              run to continue.
+              <T>
+                The provider process for this request is no longer available. Interrupt or restart
+                the run to continue.
+              </T>
             </Text>
           ) : null}
           {question ? (
@@ -594,7 +598,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         <View className="flex-1">
           {isLastQuestion ? (
             <Button
-              label={questionCount > 1 ? "Submit answers" : "Submit answer"}
+              label={questionCount > 1 ? gt("Submit answers") : "Submit answer"}
               fullWidth
               tone={props.answers ? "primary" : "secondary"}
               disabled={!canSubmit}
@@ -616,7 +620,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       </View>
       {props.pendingUserInput.dismissible ? (
         <Button
-          label="Dismiss without answering"
+          label={gt("Dismiss without answering")}
           tone="text"
           disabled={isResponding}
           onPress={() => {
@@ -628,7 +632,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       ) : null}
       {!props.canOperateThread ? (
         <Text className="font-sans text-xs text-foreground-tertiary">
-          This connection cannot submit answers.
+          <T>This connection cannot submit answers.</T>
         </Text>
       ) : null}
     </Animated.View>

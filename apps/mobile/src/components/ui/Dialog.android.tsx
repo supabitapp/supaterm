@@ -19,6 +19,8 @@ import { useSyncExternalStore } from "react";
 import { themeColorWithContrast } from "../../lib/mobileTheme";
 import type { Alert, AlertButton } from "react-native";
 import type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.types";
+import { msg, useGT } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 export type { ConfirmDialogRequest, TextInputDialogRequest } from "./Dialog.types";
 
@@ -79,9 +81,9 @@ function getPresented() {
 }
 
 export function alert(...[title, message, buttons, options]: Parameters<typeof Alert.alert>): void {
-  const actions = buttons?.length ? buttons.slice(0, 3) : [{ text: "OK" }];
+  const actions = buttons?.length ? buttons.slice(0, 3) : [{ text: m(msg("OK")) }];
   const normalized = actions.map((action, index) =>
-    index === actions.length - 1 ? { ...action, text: action.text || "OK" } : action,
+    index === actions.length - 1 ? { ...action, text: action.text || m(msg("OK")) } : action,
   );
   submitRequest({
     kind: "alert",
@@ -98,6 +100,7 @@ export function prompt(request: TextInputDialogRequest): void {
 }
 
 export function Host() {
+  const gt = useGT();
   const presented = useSyncExternalStore(subscribe, getPresented, getPresented);
 
   const handleCancel = () => {
@@ -123,7 +126,7 @@ export function Host() {
           message: presented.request.message ?? undefined,
           confirmText: "",
         }}
-        alertActions={presented.request.buttons ?? [{ text: "OK" }]}
+        alertActions={presented.request.buttons ?? [{ text: gt("OK") }]}
         dismissable={presented.request.options?.cancelable ?? false}
         onAlertAction={(action) => {
           dismiss(presented.id);
@@ -150,6 +153,7 @@ export function Host() {
 }
 
 function DialogPresentation(props: DialogPresentationProps) {
+  const gt = useGT();
   const { themeVariables: colors } = useAppearancePreferences();
   const titleTypography = useScaledTextRole("title");
   const bodyTypography = useScaledTextRole("footnote");
@@ -161,7 +165,7 @@ function DialogPresentation(props: DialogPresentationProps) {
     props.onConfirm(value);
   };
   const actions = props.alertActions ?? [
-    { text: props.request.cancelText ?? "Cancel", onPress: props.onCancel },
+    { text: props.request.cancelText ?? gt("Cancel"), onPress: props.onCancel },
     {
       text: props.request.confirmText,
       style: props.request.destructive ? ("destructive" as const) : ("default" as const),

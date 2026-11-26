@@ -3,6 +3,7 @@ import type {
   WorkspaceShellStatus,
   WorkspaceState,
 } from "../../state/workspaceModel";
+import { msg } from "gt-react-native";
 
 export interface WorkspaceConnectionStatusPresentation {
   readonly label: string;
@@ -13,9 +14,9 @@ const OFFLINE_LABEL = "You are offline";
 function shellSyncLabel(shell: WorkspaceShellStatus): string | null {
   switch (shell) {
     case "loading":
-      return "Loading threads...";
+      return msg("Loading threads...");
     case "syncing":
-      return "Syncing threads...";
+      return msg("Syncing threads...");
     case "none":
     case "loaded":
       return null;
@@ -32,7 +33,7 @@ function workspaceConnectionStatusLabel(phase: WorkspacePhase): string | null {
       return (
         phase.error ??
         shellSyncLabel(phase.shell) ??
-        (phase.shell === "loaded" ? "Not connected" : null)
+        (phase.shell === "loaded" ? msg("Not connected") : null)
       );
     case "connecting": {
       const [environment, ...others] = phase.environments;

@@ -1,5 +1,6 @@
 import type { ViewStyle } from "react-native";
 import type { MobileThemeVariables } from "../../lib/mobileTheme";
+import { msg } from "gt-react-native";
 
 export { CODE_FONT_FAMILY as THREAD_LIST_V2_MONO_FONT } from "../../lib/fonts";
 // Matches the filter chips' 20pt inset; rem-based spacing has no 20pt step.
@@ -25,7 +26,7 @@ export const selectedThreadRowColors = {
 };
 
 export function getThreadListV2NewBranchMenuTitle(_branch: string) {
-  return "New thread on branch";
+  return msg("New thread on branch");
 }
 
 export function getThreadListV2RowAppearance(

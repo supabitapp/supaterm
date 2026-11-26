@@ -11,8 +11,10 @@ import {
   workspaceListFilterIcon,
   type WorkspaceListHeaderProps,
 } from "./WorkspaceListHeader.types";
+import { useGT } from "gt-react-native";
 
 export function WorkspaceListHeader(props: WorkspaceListHeaderProps) {
+  const gt = useGT();
   const navigation = useNavigation();
   const workspace = useWorkspaceTabs();
   const isTabActive = workspace?.isTabActive;
@@ -78,7 +80,7 @@ export function WorkspaceListHeader(props: WorkspaceListHeaderProps) {
         connectionState.hasConnections
           ? [
               {
-                title: "Filter threads",
+                title: gt("Filter threads"),
                 icon: workspaceListFilterIcon(props.filter.customized),
                 items: props.filter.items,
               },

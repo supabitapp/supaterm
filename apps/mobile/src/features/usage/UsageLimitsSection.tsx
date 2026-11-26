@@ -1,5 +1,4 @@
 import { limitsNotice, formatResetsIn } from "@supaterm/shared/usageLimitsCopy";
-import { useMessages } from "gt-react-native";
 import { RegistryContext, useAtomMount, useAtomValue } from "@effect/atom-react";
 import { normalizeProviderAccentColor } from "@supaterm/client-runtime/state/provider-instance-display";
 import {
@@ -25,6 +24,7 @@ import {
   refreshEnvironmentLimits,
 } from "./usageLimitsRefresh";
 import { usageProviderKind, useProviderColors } from "./usageProviders";
+import { T, useGT, useMessages } from "gt-react-native";
 
 const PACE_LABEL = { ahead: "ahead of pace", on: "on pace", under: "under pace" } as const;
 
@@ -125,6 +125,7 @@ function WindowRow(props: {
 
 function AccountInstanceLabel({ value }: { readonly value: string }) {
   const [revealed, setRevealed] = useState(false);
+  const gt = useGT();
   if (!value.includes("@")) {
     return (
       <Text className="shrink text-xs text-foreground-tertiary" numberOfLines={1}>
@@ -136,7 +137,7 @@ function AccountInstanceLabel({ value }: { readonly value: string }) {
     <Pressable
       className="shrink active:opacity-60"
       accessibilityRole="button"
-      accessibilityLabel={revealed ? "Hide account label" : "Reveal account label"}
+      accessibilityLabel={revealed ? gt("Hide account label") : gt("Reveal account label")}
       onPress={() => setRevealed((current) => !current)}
     >
       <Text className="text-xs text-foreground-tertiary" numberOfLines={1}>
@@ -203,7 +204,9 @@ export function AccountLimits(props: {
           className="min-h-11 justify-center"
           onPress={() => void tryOpenExternalUrl(externalUsage.url)}
         >
-          <Text className="text-sm font-supaterm-medium text-primary">Manage usage</Text>
+          <Text className="text-sm font-supaterm-medium text-primary">
+            <T>Manage usage</T>
+          </Text>
         </Pressable>
       ) : null}
       {props.footer}

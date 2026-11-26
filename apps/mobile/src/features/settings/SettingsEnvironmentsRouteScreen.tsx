@@ -12,8 +12,10 @@ import {
   applyShowcaseLocalEnvironmentDisplayUrls,
   resolveShowcaseEnvironmentUpdateDisplayUrl,
 } from "../showcase/showcaseEnvironmentRows";
+import { useGT } from "gt-react-native";
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 export function SettingsEnvironmentsRouteScreen() {
+  const gt = useGT();
   const {
     connectedEnvironments,
     onReconnectEnvironment,
@@ -58,10 +60,10 @@ export function SettingsEnvironmentsRouteScreen() {
   };
   return (
     <SettingsScreen
-      title="Environments"
+      title={gt("Environments")}
       actions={[
         {
-          accessibilityLabel: "Add environment",
+          accessibilityLabel: gt("Add environment"),
           icon: "plus",
           tintColor: headerIconColor,
           onPress: () => navigation.navigate("SettingsEnvironmentNew"),

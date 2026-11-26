@@ -1,5 +1,6 @@
 import type { PreviewSessionSnapshot } from "@supaterm/contracts";
 import { isLoopbackHost } from "@supaterm/shared/preview";
+import { msg } from "gt-react-native";
 
 export function latestBrowserTab(tabs: ReadonlyArray<PreviewSessionSnapshot>) {
   return tabs.reduce<PreviewSessionSnapshot | null>(
@@ -13,7 +14,7 @@ export function browserTabUrl(tab: PreviewSessionSnapshot) {
 }
 
 export function browserTabTitle(tab: PreviewSessionSnapshot) {
-  if (tab.navStatus._tag === "Idle") return "New tab";
+  if (tab.navStatus._tag === "Idle") return msg("New tab");
   if (tab.navStatus.title.trim()) return tab.navStatus.title;
   try {
     return new URL(tab.navStatus.url).host || tab.navStatus.url;

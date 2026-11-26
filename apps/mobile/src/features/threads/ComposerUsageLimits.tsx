@@ -5,6 +5,7 @@ import { Pressable, ScrollView, View } from "react-native";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { ResetCredits } from "../usage/ResetCredits";
 import { AccountLimits } from "../usage/UsageLimitsSection";
+import { useGT } from "gt-react-native";
 
 export function ComposerUsageLimits({
   report,
@@ -17,10 +18,11 @@ export function ComposerUsageLimits({
   readonly maxHeight: number;
   readonly onClose: () => void;
 }) {
+  const gt = useGT();
   const now = Date.parse(report.createdAt);
   const close = (
     <Pressable
-      accessibilityLabel="Dismiss usage limits"
+      accessibilityLabel={gt("Dismiss usage limits")}
       accessibilityRole="button"
       hitSlop={12}
       onPress={onClose}

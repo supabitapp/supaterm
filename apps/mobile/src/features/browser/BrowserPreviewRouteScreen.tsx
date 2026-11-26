@@ -21,6 +21,8 @@ import { BrowserChrome } from "./BrowserBar";
 import { BrowserTabMenu } from "./BrowserTabMenu";
 import { browserTabTitle, browserTabUrl, latestBrowserTab } from "./browserTabs";
 import { PreviewStreamWebView, type PreviewStreamRef } from "./PreviewStreamWebView";
+import { msg, useGT } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 type BrowserPreviewRouteScreenProps = StaticScreenProps<{
   readonly environmentId: string;
@@ -46,6 +48,7 @@ export function BrowserPreviewRouteScreen({ route }: BrowserPreviewRouteScreenPr
 }
 
 function BrowserUnavailableScreen({ onClose }: { readonly onClose: () => void }) {
+  const gt = useGT();
   const insets = useSafeAreaInsets();
   const contentTopInset = useContentTopInset();
   return (
@@ -53,7 +56,11 @@ function BrowserUnavailableScreen({ onClose }: { readonly onClose: () => void })
       className="flex-1 bg-sheet"
       style={{ paddingTop: contentTopInset, paddingBottom: insets.bottom }}
     >
-      <SheetHeader title="Browser" onClose={onClose} accessibilityLabel="Close browser" />
+      <SheetHeader
+        title={gt("Browser", { $context: "screen title" })}
+        onClose={onClose}
+        accessibilityLabel={gt("Close browser")}
+      />
     </View>
   );
 }
@@ -69,6 +76,7 @@ function BrowserPreviewScreen({
   readonly initialTabId: string | null;
   readonly onClose: () => void;
 }) {
+  const gt = useGT();
   const { themeVariables } = useAppearancePreferences();
   const prepared = usePreparedConnection(environmentId);
   const httpBaseUrl = Option.isSome(prepared) ? prepared.value.httpBaseUrl : null;
@@ -112,7 +120,10 @@ function BrowserPreviewScreen({
           onSubmit: (value) => {
             const url = normalizedOrNull(value);
             if (url === null)
-              Dialog.alert("Could not open this address", "Enter an http or https URL.");
+              Dialog.alert(
+                m(msg("Could not open this address")),
+                m(msg("Enter an http or https URL.")),
+              );
             else command({ type: "navigate", url });
           },
           trailing: (
@@ -120,7 +131,7 @@ function BrowserPreviewScreen({
               {tabs.length > 1 ? (
                 <Menu
                   accessible
-                  accessibilityLabel="Tabs"
+                  accessibilityLabel={gt("Tabs", { $context: "browser tabs menu" })}
                   accessibilityRole="button"
                   actions={tabs.map((entry) => ({
                     id: entry.tabId,
@@ -130,7 +141,10 @@ function BrowserPreviewScreen({
                   }))}
                   onPressAction={({ nativeEvent }) => setSelectedTabId(nativeEvent.event)}
                 >
-                  <ControlPill icon="square.on.square" accessibilityLabel="Tabs" />
+                  <ControlPill
+                    icon="square.on.square"
+                    accessibilityLabel={gt("Tabs", { $context: "browser tabs menu" })}
+                  />
                 </Menu>
               ) : null}
               {tab ? (

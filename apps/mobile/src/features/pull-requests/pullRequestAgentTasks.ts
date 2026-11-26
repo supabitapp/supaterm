@@ -4,6 +4,7 @@ import {
 } from "@supaterm/client-runtime/source-control-clients";
 import type { MenuAction } from "@react-native-menu/menu";
 import type { PullRequestDetail, PullRequestLinkedThreadsResult } from "@supaterm/contracts";
+import { msg } from "gt-react-native";
 
 export type PullRequestAgentTask = "ask" | "explain" | "feedback" | "conflicts" | "watch";
 
@@ -29,19 +30,19 @@ export function pullRequestAgentThreadActions(
       id: `${task}:${thread.id}`,
       title: thread.title,
       subtitle: thread.archivedAt
-        ? "Archived thread"
+        ? msg("Archived thread")
         : thread.done
-          ? "Done thread"
-          : "Continue thread",
+          ? msg("Done thread")
+          : msg("Continue thread"),
       image: "bubble.left.and.bubble.right",
       attributes: { disabled: task !== "ask" && Boolean(thread.archivedAt) },
     };
     (thread.done ? done : active).push(action);
   }
   return [
-    ...(canAsk ? [{ id: `${task}:new`, title: "Start a new thread", image: "plus" }] : []),
+    ...(canAsk ? [{ id: `${task}:new`, title: msg("Start a new thread"), image: "plus" }] : []),
     ...active,
-    ...(done.length ? [{ id: `${task}:done`, title: "Done threads", subactions: done }] : []),
+    ...(done.length ? [{ id: `${task}:done`, title: msg("Done threads"), subactions: done }] : []),
   ];
 }
 
@@ -69,20 +70,20 @@ export function pullRequestAgentActions(pr: PullRequestDetail, canWatch: boolean
   return [
     {
       task: "ask",
-      title: "Ask a question",
+      title: msg("Ask a question"),
       icon: "bubble.left.and.text.bubble.right",
       disabled: false,
     },
     { task: "explain", title: `Explain this ${shortLabel}`, icon: "book", disabled: false },
     {
       task: "feedback",
-      title: "Address feedback",
+      title: msg("Address feedback"),
       icon: "wrench.and.screwdriver",
       disabled: pr.state !== "open",
     },
     {
       task: "conflicts",
-      title: "Resolve conflicts",
+      title: msg("Resolve conflicts"),
       icon: "arrow.triangle.branch",
       disabled: pr.state !== "open" || pr.mergeability !== "conflicting",
     },

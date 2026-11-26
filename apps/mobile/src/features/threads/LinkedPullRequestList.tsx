@@ -33,6 +33,7 @@ import {
   pullRequestConflict,
   pullRequestStatus,
 } from "../pull-requests/pullRequestStatus";
+import { useGT } from "gt-react-native";
 
 export function useLinkedPullRequestLines(
   thread: EnvironmentThreadShell | null,
@@ -63,6 +64,7 @@ export const LinkedPullRequestRow = memo(function LinkedPullRequestRow(props: {
   readonly openPullRequest: (url: string) => Promise<boolean>;
   readonly actions: LinkedPullRequestActions | null;
 }) {
+  const gt = useGT();
   const { link, depth, stack } = props.line;
   const snapshot = link.snapshot;
   const status = snapshot === null ? null : pullRequestStatus(snapshot);
@@ -88,7 +90,7 @@ export const LinkedPullRequestRow = memo(function LinkedPullRequestRow(props: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${capitalizeTerm(singular)} ${link.number}, ${snapshot?.title ?? "waiting for host state"}${status ? `, ${status.label}` : ""}${conflict ? `, ${conflict.label.toLowerCase()}` : ""}, ${link.repository}${stack ? `, stack of ${stack.size}` : ""}${watching ? ", watching" : ""}${checks ? `, checks ${snapshot?.checksState}` : ""}${review ? `, ${review.accessibleLabel}` : ""}`}
-      accessibilityHint={props.actions ? "Touch and hold for actions." : undefined}
+      accessibilityHint={props.actions ? gt("Touch and hold for actions.") : undefined}
       onPress={() => {
         void props.openPullRequest(link.url).then((opened) => {
           if (!opened)
@@ -161,7 +163,7 @@ export const LinkedPullRequestRow = memo(function LinkedPullRequestRow(props: {
           numberOfLines={2}
           ellipsizeMode="tail"
         >
-          {snapshot?.title ?? "Waiting for host state"}
+          {snapshot?.title ?? gt("Waiting for host state")}
         </Text>
       </View>
     </Pressable>

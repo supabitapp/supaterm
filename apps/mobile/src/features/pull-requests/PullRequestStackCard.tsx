@@ -9,11 +9,13 @@ import type { PullRequestParams } from "./usePullRequestDiff";
 import type { PullRequestStackState } from "./usePullRequestStack";
 import { PullRequestGlyph } from "./pullRequestGlyphs";
 import { withKnownPullRequestSummary } from "../../state/use-thread-pr";
+import { useGT } from "gt-react-native";
 
 export function PullRequestStackCard(props: {
   readonly params: PullRequestParams;
   readonly state: PullRequestStackState;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const [expanded, setExpanded] = useState(false);
   const stack = props.state.stack;
@@ -26,7 +28,7 @@ export function PullRequestStackCard(props: {
     return (
       <PullRequestCardGroup>
         <PullRequestCardRow
-          title="Stack"
+          title={gt("Stack", { $context: "stacked pull requests" })}
           icon={PullRequestGlyph.stack}
           value={`${summary.position} of ${summary.size}`}
           last
@@ -38,7 +40,7 @@ export function PullRequestStackCard(props: {
   return (
     <PullRequestCardGroup>
       <PullRequestCardRow
-        title="Stack"
+        title={gt("Stack", { $context: "stacked pull requests" })}
         icon={PullRequestGlyph.stack}
         value={`${position} of ${stack.layers.length}`}
         accessibilityLabel={`Stack, ${position} of ${stack.layers.length}${props.state.isFresh ? "" : ", showing saved stack"}`}

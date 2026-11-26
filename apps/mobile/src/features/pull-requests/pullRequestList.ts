@@ -12,6 +12,7 @@ import {
 } from "@supaterm/contracts";
 import type { PullRequestListControls } from "../../persistence/mobile-preferences";
 import { compareTimestamps } from "../../lib/time";
+import { msg } from "gt-react-native";
 
 export const PR_LIST_PAGE_SIZE = 30;
 export type { PullRequestListControls } from "../../persistence/mobile-preferences";
@@ -467,28 +468,28 @@ export function pullRequestListReviewStatus(
   if (entry.reviewDecision === "changes-requested")
     return {
       label: "Changes",
-      accessibleLabel: "Changes requested",
+      accessibleLabel: msg("Changes requested"),
       icon: "person.fill.xmark",
       tint: "accent-danger-foreground",
     } as const;
   if (entry.reviewDecision === "approved")
     return {
       label: "Approved",
-      accessibleLabel: "Reviews approved",
+      accessibleLabel: msg("Reviews approved"),
       icon: "person.fill.checkmark",
       tint: "accent-adaptive-emerald-600-400",
     } as const;
   if (entry.viewerReviewRequested)
     return {
-      label: "Your review",
-      accessibleLabel: "Your review requested",
+      label: msg("Your review"),
+      accessibleLabel: msg("Your review requested"),
       icon: "person.badge.clock",
       tint: "accent-warning-foreground",
     } as const;
   if (entry.reviewDecision === "review-required")
     return {
       label: "Review",
-      accessibleLabel: "Review required",
+      accessibleLabel: msg("Review required"),
       icon: "person.badge.clock",
       tint: "accent-icon-muted",
     } as const;

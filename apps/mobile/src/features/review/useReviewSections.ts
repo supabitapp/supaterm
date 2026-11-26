@@ -25,6 +25,7 @@ import {
   type ReviewSectionItem,
 } from "./reviewModel";
 import { setReviewSelectedSectionId, type ReviewCacheForThread } from "./reviewState";
+import { msg } from "gt-react-native";
 
 const NO_GIT_SECTIONS_ATOM = Atom.make<ReadonlyArray<ReviewDiffPreviewSource>>([]).pipe(
   Atom.keepAlive,
@@ -184,7 +185,7 @@ export function useReviewSections(input: {
         ? activeTurnDiff.error
         : (selectedGitPreview?.error ?? null)) ??
       (selectedSection === null && !fileAccess.isPending && !canReadFiles
-        ? (fileAccess.error ?? "This connection cannot read local diffs.")
+        ? (fileAccess.error ?? msg("This connection cannot read local diffs."))
         : null),
     isSelectedSectionPending:
       selectedSection?.kind === "turn"

@@ -32,12 +32,14 @@ import type { AppSymbolName } from "../../components/ui/AppSymbol";
 import type { PullRequestStackState } from "./usePullRequestStack";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import * as Haptics from "expo-haptics";
+import { useGT } from "gt-react-native";
 
 export function PullRequestMergeControls(props: {
   readonly pr: PullRequestDetail;
   readonly params: PullRequestParams;
   readonly stack: PullRequestStackState;
 }) {
+  const gt = useGT();
   const { pr, stack } = props;
   const terminology = sourceControlClients.get(pr.provider).changeRequest;
   const target = pullRequestTarget(props.params);
@@ -78,14 +80,14 @@ export function PullRequestMergeControls(props: {
       : mergeUnavailableReason(pr, permissions.canWrite, terminology)) ??
     (stack.stack
       ? !stack.supportsStackActions
-        ? "This environment can display stacks but cannot merge them."
+        ? gt("This environment can display stacks but cannot merge them.")
         : !stack.isFresh
-          ? "Refresh the stack before merging."
+          ? gt("Refresh the stack before merging.")
           : scope?.reason
       : !canMergeSingle
         ? stack.error
-          ? "Couldn't check stack membership. Refresh before merging."
-          : "Checking stack membership…"
+          ? gt("Couldn't check stack membership. Refresh before merging.")
+          : gt("Checking stack membership…")
         : null);
   const canMerge = !busy && method !== undefined && !reason;
   const label = method
@@ -111,20 +113,31 @@ export function PullRequestMergeControls(props: {
           action: nextAction,
         }
       : pr.state === "merged"
-        ? { label: "Merged", icon: PullRequestGlyph.merged, final: true }
+        ? {
+            label: gt("Merged", { $context: "pull request state" }),
+            icon: PullRequestGlyph.merged,
+            final: true,
+          }
         : pr.state === "closed"
-          ? { label: "Closed", icon: PullRequestGlyph.closed, final: true }
+          ? {
+              label: gt("Closed", { $context: "pull request state" }),
+              icon: PullRequestGlyph.closed,
+              final: true,
+            }
           : pr.isDraft
-            ? { label: "Draft", icon: PullRequestGlyph.draft }
+            ? {
+                label: gt("Draft", { $context: "pull request state" }),
+                icon: PullRequestGlyph.draft,
+              }
             : pr.mergeability === "conflicting"
-              ? { label: "Resolve conflicts to merge", icon: PullRequestGlyph.conflicting }
+              ? { label: gt("Resolve conflicts to merge"), icon: PullRequestGlyph.conflicting }
               : pr.autoMergeEnabled
                 ? {
                     label: `Auto-merge pending${pr.autoMergeMethod ? ` (${pr.autoMergeMethod})` : ""}`,
                     icon: "clock",
                   }
                 : checkingStack && !busy
-                  ? { label: "Checking stack…", icon: PullRequestGlyph.merged }
+                  ? { label: gt("Checking stack…"), icon: PullRequestGlyph.merged }
                   : null;
   const autoAction = pr.autoMergeEnabled ? "disable-auto-merge" : "enable-auto-merge";
   // A stack auto-merge request on this layer also covers the open layers below it.
@@ -206,8 +219,8 @@ export function PullRequestMergeControls(props: {
     if (AsyncResult.isFailure(response)) {
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
-        "Couldn't complete the merge action",
-        cause instanceof Error ? cause.message : "Try again.",
+        gt("Couldn't complete the merge action"),
+        cause instanceof Error ? cause.message : gt("Try again."),
       );
     }
   };
@@ -220,8 +233,8 @@ export function PullRequestMergeControls(props: {
           ? `Merge ${scope.layers.length} stack layers?`
           : `${pullRequestActionLabel("merge", terminology)}?`
         : action === "enable-auto-merge"
-          ? "Enable auto-merge?"
-          : "Disable auto-merge?";
+          ? gt("Enable auto-merge?")
+          : gt("Disable auto-merge?");
     const message =
       action === "merge" && scope
         ? `Merge ${scope.layers.map((layer) => `#${layer.number}`).join(" → ")} into ${stack.stack?.base} using ${method}. Layers above #${pr.number} stay open.`
@@ -234,7 +247,7 @@ export function PullRequestMergeControls(props: {
               : `Merge #${pr.number} into ${pr.baseBranch} using ${method}.`;
     Dialog.alert(title, message, [
       {
-        text: "Cancel",
+        text: gt("Cancel"),
         style: "cancel",
       },
       {
@@ -248,9 +261,9 @@ export function PullRequestMergeControls(props: {
       <SplitButton
         label={
           busy || stateAction.busy
-            ? "Working…"
+            ? gt("Working…")
             : !permissions.connected
-              ? "Reconnect to merge"
+              ? gt("Reconnect to merge")
               : (status?.label ?? label)
         }
         accessibilityLabel={
@@ -266,7 +279,7 @@ export function PullRequestMergeControls(props: {
         onPress={() =>
           status?.action ? void stateAction.perform(status.action) : confirm("merge")
         }
-        menuTitle="Merge options"
+        menuTitle={gt("Merge options")}
         actions={
           status?.final
             ? []
@@ -281,7 +294,9 @@ export function PullRequestMergeControls(props: {
                   ? [
                       {
                         id: autoAction,
-                        title: pr.autoMergeEnabled ? "Disable auto-merge" : "Enable auto-merge",
+                        title: pr.autoMergeEnabled
+                          ? gt("Disable auto-merge")
+                          : gt("Enable auto-merge"),
                         image: "clock",
                       },
                     ]
@@ -301,7 +316,7 @@ export function PullRequestMergeControls(props: {
         <Text className="px-1 text-xs text-foreground-muted">{reason}</Text>
       ) : null}
       {stack.error && stack.supportsStackActions ? (
-        <Button label="Retry stack lookup" tone="text" onPress={stack.refresh} />
+        <Button label={gt("Retry stack lookup")} tone="text" onPress={stack.refresh} />
       ) : null}
     </View>
   );

@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { AppText as Text } from "../../components/ui/AppText";
+import { T } from "gt-react-native";
 
 const FOLDED_HEIGHT = 176;
 
@@ -66,7 +67,7 @@ export function CollapsibleUserMessageBody(props: {
           className="mt-1.5 min-h-11 items-end justify-center active:opacity-70"
         >
           <Text className="font-supaterm-medium text-xs text-user-bubble-foreground-muted">
-            {props.expanded ? "Show less" : "Show full message"}
+            {props.expanded ? <T>Show less</T> : <T>Show full message</T>}
           </Text>
         </Pressable>
       ) : null}

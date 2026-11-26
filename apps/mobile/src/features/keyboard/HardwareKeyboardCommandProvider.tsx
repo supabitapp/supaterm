@@ -49,6 +49,8 @@ import {
   type HardwareKeyboardCommand,
 } from "./hardwareKeyboardCommands";
 import { selectWorkspaceDetail } from "../layout/workspace/workspace-detail-selection";
+import { msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const EMPTY_COPY_FEEDBACK: GitActionProgress = {
   phase: "idle",
@@ -231,7 +233,7 @@ export function HardwareKeyboardCommandProvider({
               : {
                   phase: "error",
                   label: copyTarget.failureTitle,
-                  description: "Try again.",
+                  description: m(msg("Try again.")),
                 },
           );
         });

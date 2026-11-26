@@ -10,6 +10,7 @@ import { FilePreviewLoading, FilePreviewNotice } from "./FilePreviewFeedback";
 import { pdfInitialPage, pdfLinkUrl, preparePdfPreview } from "../lib/pdfPreview";
 import { tryOpenExternalUrl } from "../lib/openExternalUrl";
 import { ControlPill } from "./ui/ControlPill";
+import { useGT } from "gt-react-native";
 
 const preparedPdfAtom = Atom.family((uri: string) =>
   Atom.make(
@@ -43,6 +44,7 @@ const preparedPdfAtom = Atom.family((uri: string) =>
 );
 
 export function PdfPreview(props: { readonly uri: string }) {
+  const gt = useGT();
   const atom = preparedPdfAtom(props.uri);
   const prepared = useAtomValue(atom);
   const refresh = useAtomRefresh(atom);
@@ -51,23 +53,24 @@ export function PdfPreview(props: { readonly uri: string }) {
   const file = prepared._tag === "Success" && !prepared.waiting ? prepared.value : null;
   const error =
     file !== null && unrenderable === file
-      ? "The PDF could not be rendered. It may be damaged or password protected."
+      ? gt("The PDF could not be rendered. It may be damaged or password protected.")
       : prepared._tag === "Failure" && !prepared.waiting
-        ? Option.getOrElse(AsyncResult.error(prepared), () => "The PDF could not be loaded.")
+        ? Option.getOrElse(AsyncResult.error(prepared), () => gt("The PDF could not be loaded."))
         : null;
   const localUri = file?.uri ?? null;
 
   if (error) {
     return (
       <View className="flex-1 gap-4 bg-card">
-        <FilePreviewNotice title="Could not load PDF">{error}</FilePreviewNotice>
+        <FilePreviewNotice title={gt("Could not load PDF")}>{error}</FilePreviewNotice>
         <View className="items-center">
-          <ControlPill label="Try again" variant="pill" onPress={refresh} />
+          <ControlPill label={gt("Try again")} variant="pill" onPress={refresh} />
         </View>
       </View>
     );
   }
-  if (localUri === null) return <FilePreviewLoading message="Loading PDF..." background="card" />;
+  if (localUri === null)
+    return <FilePreviewLoading message={gt("Loading PDF...")} background="card" />;
 
   return (
     <Pdf

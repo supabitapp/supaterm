@@ -21,6 +21,7 @@ import {
   readThreadUndoNotice,
   useThreadUndoNotice,
 } from "./thread-undo-notice";
+import { useGT } from "gt-react-native";
 
 type Notice = NonNullable<ReturnType<typeof useThreadUndoNotice>>;
 
@@ -40,6 +41,7 @@ export function ThreadUndoNotice(props: { readonly visible: boolean }) {
 }
 
 function SwipeableUndoNotice(props: { readonly notice: Notice }) {
+  const gt = useGT();
   const { notice } = props;
   const content = NOTICE_CONTENT[notice.action];
   const insets = useSafeAreaInsets();
@@ -125,7 +127,7 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
             variant="capsule"
             message={content.message}
             icon={content.icon}
-            action={{ label: "Undo", onPress: () => void notice.undo() }}
+            action={{ label: gt("Undo"), onPress: () => void notice.undo() }}
           />
         </Animated.View>
       </GestureDetector>

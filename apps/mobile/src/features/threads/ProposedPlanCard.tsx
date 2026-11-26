@@ -14,6 +14,7 @@ import * as Dialog from "../../components/ui/Dialog";
 import { projectEnvironment } from "../../state/projects";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { CopyTextButton } from "./CopyTextButton";
+import { useGT } from "gt-react-native";
 
 export function ProposedPlanCard(props: {
   readonly environmentId: EnvironmentId;
@@ -21,6 +22,7 @@ export function ProposedPlanCard(props: {
   readonly markdown: string;
   readonly renderMarkdown: (text: string) => ReactNode;
 }) {
+  const gt = useGT();
   const canWrite = useAtomValue(projectEnvironment.writeFile.permissionAtom(props.environmentId));
   const writeFile = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
   const inFlight = useRef(false);
@@ -32,7 +34,7 @@ export function ProposedPlanCard(props: {
     const relativePath = path.trim();
     if (!canWrite || !props.workspaceRoot || inFlight.current) return;
     if (!relativePath) {
-      Dialog.alert("Enter a workspace path");
+      Dialog.alert(gt("Enter a workspace path"));
       return;
     }
     inFlight.current = true;
@@ -46,10 +48,13 @@ export function ProposedPlanCard(props: {
       setSaving(false);
     });
     if (result._tag === "Success") {
-      Dialog.alert("Plan saved to workspace", result.value.relativePath);
+      Dialog.alert(gt("Plan saved to workspace"), result.value.relativePath);
     } else if (!isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
-      Dialog.alert("Could not save plan", error instanceof Error ? error.message : String(error));
+      Dialog.alert(
+        gt("Could not save plan"),
+        error instanceof Error ? error.message : String(error),
+      );
     }
   };
 
@@ -60,24 +65,25 @@ export function ProposedPlanCard(props: {
           accessibilityRole="header"
           className="flex-1 font-supaterm-bold text-base text-foreground"
         >
-          {proposedPlanTitle(props.markdown) ?? "Proposed plan"}
+          {proposedPlanTitle(props.markdown) ?? gt("Proposed plan")}
         </Text>
-        <CopyTextButton accessibilityLabel="Copy plan" text={contents} />
+        <CopyTextButton accessibilityLabel={gt("Copy plan")} text={contents} />
       </View>
       {props.renderMarkdown(stripDisplayedPlanMarkdown(props.markdown))}
       <View className="flex-row">
         <Button
-          label={saving ? "Saving..." : "Save to workspace"}
+          label={saving ? gt("Saving...") : gt("Save to workspace")}
           tone="secondary"
           disabled={!canWrite || !props.workspaceRoot || saving}
           onPress={() =>
             Dialog.prompt({
-              title: "Save plan to workspace",
+              title: gt("Save plan to workspace"),
               // The write replaces an existing file, and the RPC has no create-only mode.
-              message:
+              message: gt(
                 "Enter a path relative to the thread's workspace. A file already at that path is replaced.",
+              ),
               initialValue: lastPath,
-              confirmText: "Save",
+              confirmText: gt("Save", { $context: "verb, confirm button" }),
               onConfirm: (path) => void save(path),
             })
           }

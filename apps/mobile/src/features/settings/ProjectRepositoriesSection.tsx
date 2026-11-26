@@ -27,9 +27,10 @@ import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "./components/SettingsSection";
+import { msg, useGT } from "gt-react-native";
 
 const FOLDER_STATE_LABELS: Record<WorkspaceFolderState, string> = {
-  git: "Git repository",
+  git: msg("Git repository"),
   plain: "Folder",
   missing: "Missing",
 };
@@ -39,6 +40,7 @@ export function ProjectRepositoriesSection(props: {
   readonly member: EnvironmentProject;
   readonly title: string;
 }) {
+  const gt = useGT();
   const { member } = props;
   const tracked = member.trackedFolders ?? [];
   const canEdit = useEnvironmentScope(member.environmentId, AuthOrchestrationOperateScope);
@@ -90,8 +92,8 @@ export function ProjectRepositoriesSection(props: {
       if (!isAtomCommandInterrupted(result)) {
         const error = squashAtomCommandFailure(result);
         Dialog.alert(
-          "Failed to update repositories",
-          error instanceof Error ? error.message : "An error occurred.",
+          gt("Failed to update repositories"),
+          error instanceof Error ? error.message : gt("An error occurred."),
         );
       }
       return;
@@ -101,8 +103,10 @@ export function ProjectRepositoriesSection(props: {
 
   const remove = (folder: ProjectTrackedFolder) =>
     Dialog.confirm({
-      title: "Remove folder",
-      message: `Agents in this project stop working in ${folder.name}. Files on disk are not touched.`,
+      title: gt("Remove folder"),
+      message: gt("Agents in this project stop working in {name}. Files on disk are not touched.", {
+        name: folder.name,
+      }),
       confirmText: "Remove",
       destructive: true,
       onConfirm: () => void save({ untrack: folder.path }),
@@ -112,8 +116,8 @@ export function ProjectRepositoriesSection(props: {
     const next = appendTrackedFolders(added, [folder]);
     if (next === null) {
       Dialog.alert(
-        "Too many folders",
-        `A project can cover up to ${PROJECT_TRACKED_FOLDERS_MAX} folders.`,
+        gt("Too many folders"),
+        gt("A project can cover up to {max} folders.", { max: PROJECT_TRACKED_FOLDERS_MAX }),
       );
       return;
     }
@@ -145,7 +149,7 @@ export function ProjectRepositoriesSection(props: {
             folder.discovered === true ? undefined : (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Remove ${folder.name} from the project`}
+                accessibilityLabel={gt("Remove {name} from the project", { name: folder.name })}
                 disabled={!canEdit || isBusy}
                 onPress={() => remove(folder)}
                 className="rounded-full border border-border bg-card px-3 py-1.5 disabled:opacity-40"
@@ -160,8 +164,8 @@ export function ProjectRepositoriesSection(props: {
         <ListActionRow
           key={folder.path}
           icon="plus"
-          label={`Add ${folder.name}`}
-          description={`Listed in the workspace file · ${folder.path}`}
+          label={gt("Add {name}", { name: folder.name })}
+          description={gt("Listed in the workspace file · {path}", { path: folder.path })}
           disabled={!canEdit || isBusy}
           onPress={() => add(folder)}
         />

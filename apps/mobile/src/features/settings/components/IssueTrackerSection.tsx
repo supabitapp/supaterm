@@ -34,6 +34,7 @@ import type { SettingsTarget } from "../settings-environment-filter";
 import { SettingsProviderRow } from "./SettingsProviderRow";
 import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
+import { useGT } from "gt-react-native";
 
 const UNBOUND = "";
 const ThemedSvg = withUniwind(Svg);
@@ -50,6 +51,7 @@ const TRACKER_MARKS: Partial<Record<string, string>> = {
  * credential, then pick which of its scopes each project lists beside its repository's issues.
  */
 export function IssueTrackerSection(props: { readonly environments: readonly SettingsTarget[] }) {
+  const gt = useGT();
   return (
     <>
       {props.environments.map((environment) =>
@@ -59,8 +61,8 @@ export function IssueTrackerSection(props: { readonly environments: readonly Set
             environment={environment}
             title={
               props.environments.length > 1
-                ? `Issue trackers · ${environment.label}`
-                : "Issue trackers"
+                ? gt("Issue trackers · {environment}", { environment: environment.label })
+                : gt("Issue trackers")
             }
           />
         ) : null,
@@ -73,6 +75,7 @@ function EnvironmentTrackers(props: {
   readonly environment: SettingsTarget;
   readonly title: string;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const { environmentId } = props.environment;
   const query = useEnvironmentQuery(
@@ -87,7 +90,7 @@ function EnvironmentTrackers(props: {
     return query.error ? (
       <SettingsSection title={props.title} footer={query.error}>
         <View className="p-4">
-          <Button label="Try again" tone="secondary" onPress={query.refresh} />
+          <Button label={gt("Try again")} tone="secondary" onPress={query.refresh} />
         </View>
       </SettingsSection>
     ) : null;
@@ -143,6 +146,7 @@ export function IssueTrackerCredentialForm(props: {
   /** Saves the credential as a new account instead of replacing this one's. */
   readonly addAccount?: boolean;
 }) {
+  const gt = useGT();
   const { environmentId, tracker } = props;
   const connect = useAtomCommand(issueTrackerEnvironment.connect, { reportFailure: false });
   const [draft, setDraft] = useState("");
@@ -163,7 +167,7 @@ export function IssueTrackerCredentialForm(props: {
       return;
     }
     const error = squashAtomCommandFailure(result);
-    setFailure(error instanceof Error ? error.message : "The request failed.");
+    setFailure(error instanceof Error ? error.message : gt("The request failed."));
   };
   const helpUrl = tracker.credential.helpUrl;
   const locked = props.disabled || busy;
@@ -173,7 +177,7 @@ export function IssueTrackerCredentialForm(props: {
       <SecretTextInput
         accessibilityLabel={tracker.credential.label}
         placeholder={
-          replacing ? "Saved. Enter a new value to replace it" : tracker.credential.label
+          replacing ? gt("Saved. Enter a new value to replace it") : tracker.credential.label
         }
         value={draft}
         onChangeText={setDraft}
@@ -190,7 +194,7 @@ export function IssueTrackerCredentialForm(props: {
       <View className="flex-row flex-wrap justify-end gap-2">
         {helpUrl ? (
           <Button
-            label="Create one"
+            label={gt("Create one")}
             tone="text"
             size="compact"
             onPress={() => void tryOpenExternalUrl(helpUrl)}
@@ -198,7 +202,7 @@ export function IssueTrackerCredentialForm(props: {
         ) : null}
         {replacing ? (
           <Button
-            label="Disconnect"
+            label={gt("Disconnect")}
             tone="secondary"
             size="compact"
             disabled={locked}
@@ -206,7 +210,11 @@ export function IssueTrackerCredentialForm(props: {
           />
         ) : null}
         <Button
-          label={replacing ? "Replace" : "Connect"}
+          label={
+            replacing
+              ? gt("Replace", { $context: "verb, replaces a saved credential" })
+              : gt("Connect", { $context: "verb, connects an issue tracker" })
+          }
           tone="primary"
           size="compact"
           loading={busy}
@@ -227,6 +235,7 @@ export function IssueTrackerProjectRows(props: {
   readonly refreshFailed: boolean;
   readonly disabled: boolean;
 }) {
+  const gt = useGT();
   const { environmentId, tracker } = props;
   const bind = useAtomCommand(issueTrackerEnvironment.bindProject, {
     label: `bind project to ${tracker.displayName}`,
@@ -273,7 +282,7 @@ export function IssueTrackerProjectRows(props: {
         actions={[
           {
             id: UNBOUND,
-            title: "Not bound",
+            title: gt("Not bound"),
             state: value.length === 0 ? "on" : "off",
             attributes: { disabled: locked },
           },
@@ -292,7 +301,7 @@ export function IssueTrackerProjectRows(props: {
           valuePosition="trailing"
           value={
             value.length === 0
-              ? "Not bound"
+              ? gt("Not bound")
               : value
                   .map((key) => tracker.scopes.find((scope) => scope.key === key)?.name ?? key)
                   .join(", ")

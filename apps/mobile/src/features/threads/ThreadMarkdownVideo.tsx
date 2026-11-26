@@ -7,6 +7,7 @@ import {
   mediaVideoThumbnailKey,
   type MediaVideoPreviewSource,
 } from "../../lib/videoPreviewSource";
+import { useGT } from "gt-react-native";
 
 export const ThreadMediaVisibleContext = createContext(false);
 /** Asks the feed to keep this row out of list recycling while its media holds playback state. */
@@ -20,6 +21,7 @@ export function ThreadMarkdownVideo(props: {
   readonly onPlaybackStart?: () => void;
   readonly borderRadius?: number;
 }) {
+  const gt = useGT();
   const { source } = props;
   const feedVisible = useContext(ThreadMediaVisibleContext);
   const visible = props.thumbnailVisible ?? feedVisible;

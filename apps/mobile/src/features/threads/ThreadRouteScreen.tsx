@@ -140,6 +140,7 @@ import {
 } from "./thread-inspector-preview";
 import { useThreadStatusAnnouncements } from "./useThreadStatusAnnouncements";
 import type { ThreadInspectorMode, ThreadInspectorTarget } from "./thread-inspector-navigation";
+import { useGT } from "gt-react-native";
 
 interface ThreadInspectorSelection {
   readonly routeThreadIdentity: string | null;
@@ -159,13 +160,14 @@ const RECONNECT_ERROR_DELAY_MS = 5_000;
 const InspectorHeaderShownContext = createContext(false);
 
 function ThreadRouteFallbackLayout(props: { readonly children: ReactNode }) {
+  const gt = useGT();
   const goBack = useWorkspaceBackNavigation();
   const inspectorHeaderShown = use(InspectorHeaderShownContext);
   return (
     <ThreadScreenFallback
       header={
         inspectorHeaderShown ? undefined : (
-          <AppBar title="Thread" onBackToList={goBack} hideBottomBorder />
+          <AppBar title={gt("Thread")} onBackToList={goBack} hideBottomBorder />
         )
       }
     >
@@ -175,9 +177,10 @@ function ThreadRouteFallbackLayout(props: { readonly children: ReactNode }) {
 }
 
 function OpeningThreadLoadingScreen() {
+  const gt = useGT();
   return (
     <ThreadRouteFallbackLayout>
-      <LoadingScreen message="Opening thread…" messagePlacement="above-spinner" embedded />
+      <LoadingScreen message={gt("Opening thread…")} messagePlacement="above-spinner" embedded />
     </ThreadRouteFallbackLayout>
   );
 }
@@ -200,6 +203,7 @@ function ThreadUnavailableScreen(props: {
   readonly actionLabel: string;
   readonly onAction: () => void;
 }) {
+  const gt = useGT();
   return (
     <ThreadRouteFallbackLayout>
       <ScrollView
@@ -213,8 +217,8 @@ function ThreadUnavailableScreen(props: {
         className="bg-screen flex-1 android:bg-transparent"
       >
         <EmptyState
-          title="Thread unavailable"
-          detail="This thread is not available in the current mobile snapshot."
+          title={gt("Thread unavailable")}
+          detail={gt("This thread is not available in the current mobile snapshot.")}
           actionLabel={props.actionLabel}
           onAction={props.onAction}
         />
@@ -264,6 +268,7 @@ export function ThreadRouteScreen(props: ThreadRouteScreenProps) {
 }
 
 function LiveThreadRouteController(props: ThreadRouteScreenProps) {
+  const gt = useGT();
   useAndroidWorkspaceBack();
   const connectionsReady = useConnectionsReady();
   const { connectionState } = useRemoteConnectionStatus();
@@ -299,7 +304,7 @@ function LiveThreadRouteController(props: ThreadRouteScreenProps) {
     props.inspectorPresentation ? (
       <InspectorHeaderShownContext value>
         <ThreadInspectorHeader
-          title={selectedThread?.title ?? "Thread"}
+          title={selectedThread?.title ?? gt("Thread")}
           {...props.inspectorPresentation}
         />
         {content}
@@ -356,7 +361,7 @@ function LiveThreadRouteController(props: ThreadRouteScreenProps) {
   return withInspectorHeader(
     <ThreadUnavailableScreen
       actionLabel={
-        routeEnvironmentRuntime === null ? "Manage environments" : "Reconnect environment"
+        routeEnvironmentRuntime === null ? gt("Manage environments") : gt("Reconnect environment")
       }
       onAction={() => {
         if (routeEnvironmentRuntime !== null) {
@@ -374,6 +379,7 @@ function ThreadRouteContent(
     readonly selectedThreadDetailState: ReturnType<typeof useSelectedThreadDetailState>;
   },
 ) {
+  const gt = useGT();
   const { layout, showInspector, toggleAuxiliaryPane } = useAdaptiveWorkspaceLayout();
   const { connectionState } = useRemoteConnectionStatus();
   const { onReconnectEnvironment } = useRemoteConnections();
@@ -737,7 +743,7 @@ function ThreadRouteContent(
           <ThreadFileNavigatorPane
             cwd={selectedThreadCwd}
             environmentId={selectedThread.environmentId}
-            projectName={selectedThreadProject?.title ?? "Files"}
+            projectName={selectedThreadProject?.title ?? gt("Files")}
             selectedPath={null}
             onSelectFile={(path) =>
               closeInspectorSheet
@@ -831,8 +837,8 @@ function ThreadRouteContent(
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
       Dialog.alert(
-        "Could not resume thread",
-        error instanceof Error ? error.message : "Try again.",
+        gt("Could not resume thread"),
+        error instanceof Error ? error.message : gt("Try again."),
       );
     }
   };
@@ -969,7 +975,7 @@ function ThreadRouteContent(
       await recoverFailedThreadDraft(creation);
     } catch (error) {
       Dialog.alert(
-        "Could not restore draft",
+        gt("Could not restore draft"),
         error instanceof Error ? error.message : String(error),
       );
       return;
@@ -1118,7 +1124,7 @@ function ThreadRouteContent(
   );
   const inspectorHeader = props.inspectorPresentation ? (
     <ThreadInspectorHeader
-      title={selectedThread?.title ?? "Thread"}
+      title={selectedThread?.title ?? gt("Thread")}
       subtitle={threadStatusLabel ?? undefined}
       {...props.inspectorPresentation}
     />

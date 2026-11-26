@@ -6,6 +6,7 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { cn } from "../../lib/cn";
 import { useSideChats } from "../../state/entities";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
+import { T } from "gt-react-native";
 
 /**
  * The thread's side chats, started on web or desktop. Each opens as a normal thread, so its
@@ -30,7 +31,9 @@ export function ThreadSideChatsRow(props: {
         size={12}
         tintColorClassName="accent-foreground-muted"
       />
-      <Text className="text-xs text-foreground-muted">Side chats</Text>
+      <Text className="text-xs text-foreground-muted">
+        <T>Side chats</T>
+      </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-1">
         <View className="flex-row gap-1 pr-4">
           {sideChats.map((sideChat) => {

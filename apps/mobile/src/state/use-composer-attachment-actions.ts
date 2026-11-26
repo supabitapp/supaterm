@@ -22,6 +22,8 @@ import {
   type ComposerDraftInsertion,
 } from "./use-composer-drafts";
 import { startComposerDraftOperation } from "./composerDraftOperations";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export function useComposerAttachmentActions(props: {
   readonly draftKey: string | null;
@@ -77,7 +79,7 @@ export function useComposerAttachmentActions(props: {
         maxVideoBytes: maxUploadBytes,
       });
       report(
-        "Could not attach photo or video",
+        m(msg("Could not attach photo or video")),
         result.error,
         await append(key, signal, result.attachments, insertion),
       );
@@ -87,7 +89,10 @@ export function useComposerAttachmentActions(props: {
     const key = props.draftKey;
     if (!key || props.locked) return;
     if (maxUploadBytes === undefined) {
-      Dialog.alert("Could not attach file", "This server does not support file attachments.");
+      Dialog.alert(
+        m(msg("Could not attach file")),
+        m(msg("This server does not support file attachments.")),
+      );
       return;
     }
     const insertion = captureComposerDraftInsertion(key);
@@ -97,7 +102,7 @@ export function useComposerAttachmentActions(props: {
         maxBytes: maxUploadBytes,
       });
       report(
-        "Could not attach file",
+        m(msg("Could not attach file")),
         result.error,
         await append(key, signal, result.files, insertion),
       );
@@ -118,8 +123,8 @@ export function useComposerAttachmentActions(props: {
         return result.attachments.length > 0;
       } catch (error) {
         Dialog.alert(
-          "Could not paste images",
-          error instanceof Error ? error.message : "Try again.",
+          m(msg("Could not paste images")),
+          error instanceof Error ? error.message : m(msg("Try again.")),
         );
         return false;
       }
@@ -148,8 +153,8 @@ export function useComposerAttachmentActions(props: {
         report("Could not attach pasted text", null, appended);
       } catch (error) {
         Dialog.alert(
-          "Could not attach pasted text",
-          error instanceof Error ? error.message : "Try again.",
+          m(msg("Could not attach pasted text")),
+          error instanceof Error ? error.message : m(msg("Try again.")),
         );
       }
     });

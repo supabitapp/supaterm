@@ -8,6 +8,7 @@ import type {
 } from "@supaterm/contracts";
 import type { AppSymbolName } from "../../components/ui/AppSymbol";
 import { PullRequestGlyph } from "./pullRequestGlyphs";
+import { msg } from "gt-react-native";
 
 const STATES = {
   open: {
@@ -54,7 +55,7 @@ export function pullRequestConflict(pr: {
   readonly baseBranch?: string | undefined;
 }) {
   if (pr.state !== "open" || pr.isDraft || pr.mergeability !== "conflicting") return null;
-  return { label: pr.baseBranch ? `Conflicts with ${pr.baseBranch}` : "Has conflicts" };
+  return { label: pr.baseBranch ? `Conflicts with ${pr.baseBranch}` : msg("Has conflicts") };
 }
 
 export function checkStatus(check: PullRequestCheck) {
@@ -109,7 +110,7 @@ export function pullRequestChecksSummary(pr: Pick<PullRequestDetail, "checks">) 
   if (required)
     return {
       label: `${required} need attention`,
-      title: "Checks need attention",
+      title: msg("Checks need attention"),
       count: `${required} awaiting action`,
       icon: "exclamationmark.circle",
       tint: "accent-warning-foreground",
@@ -117,7 +118,7 @@ export function pullRequestChecksSummary(pr: Pick<PullRequestDetail, "checks">) 
   if (pending)
     return {
       label: `${pending} pending`,
-      title: "Checks running",
+      title: msg("Checks running"),
       count: `${pending} pending`,
       icon: "clock",
       tint: "accent-warning-foreground",
@@ -125,14 +126,14 @@ export function pullRequestChecksSummary(pr: Pick<PullRequestDetail, "checks">) 
   if (passed)
     return {
       label: `${passed} of ${pr.checks.length} passed`,
-      title: passed === pr.checks.length ? "All checks passed" : "Checks completed",
+      title: passed === pr.checks.length ? msg("All checks passed") : msg("Checks completed"),
       count,
       icon: "checkmark.circle",
       tint: "accent-adaptive-emerald-600-400",
     } as const;
   return {
-    label: pr.checks.length ? `${pr.checks.length} completed` : "No checks reported",
-    title: pr.checks.length ? "Checks completed" : "No checks reported",
+    label: pr.checks.length ? `${pr.checks.length} completed` : msg("No checks reported"),
+    title: pr.checks.length ? msg("Checks completed") : msg("No checks reported"),
     count,
     icon: "minus",
     tint: "accent-icon-muted",
@@ -182,7 +183,7 @@ export function pullRequestReviewSummary(
   );
   if (requested.length)
     return {
-      title: "Changes requested",
+      title: msg("Changes requested"),
       count: `${requested.length} ${requested.length === 1 ? "reviewer" : "reviewers"}`,
       icon: "xmark.circle.fill",
       tint: "accent-danger-foreground",
@@ -193,7 +194,7 @@ export function pullRequestReviewSummary(
       title:
         approved.length === 1 && approved[0]?.author
           ? `Approved by ${approved[0].author.login}`
-          : "Reviews approved",
+          : msg("Reviews approved"),
       count: `${approved.length} approved`,
       icon: "checkmark.circle",
       tint: "accent-adaptive-emerald-600-400",
@@ -202,14 +203,14 @@ export function pullRequestReviewSummary(
   const commented = reviews.filter((review) => review.reviewState === "COMMENTED");
   if (commented.length && !pr.reviewers.length)
     return {
-      title: "Reviews",
+      title: msg("Reviews"),
       count: `${commented.length} commented`,
       icon: "bubble.left",
       tint: "accent-icon-muted",
       reviews,
     } as const;
   return {
-    title: pr.reviewers.length ? "Awaiting review" : "Request a review",
+    title: pr.reviewers.length ? msg("Awaiting review") : msg("Request a review"),
     count: pr.reviewers.length ? `${pr.reviewers.length} requested` : "None assigned",
     icon: "person.2",
     tint: "accent-icon-muted",
@@ -220,10 +221,10 @@ export function pullRequestReviewSummary(
 export function pullRequestBranchSummary(
   pr: Pick<PullRequestDetail, "mergeability" | "baseComparison" | "behindBy" | "baseBranch">,
 ) {
-  if (pr.mergeability === "conflicting") return "Has conflicts";
+  if (pr.mergeability === "conflicting") return msg("Has conflicts");
   if (pr.baseComparison === "behind") return `${pr.behindBy ?? ""} behind ${pr.baseBranch}`.trim();
-  if (pr.baseComparison === "up-to-date") return "Up to date";
-  return pr.mergeability === "mergeable" ? "No conflicts" : "Not reported";
+  if (pr.baseComparison === "up-to-date") return msg("Up to date");
+  return pr.mergeability === "mergeable" ? msg("No conflicts") : msg("Not reported");
 }
 
 export function pullRequestChecksStatus(state: PullRequestChecksState) {

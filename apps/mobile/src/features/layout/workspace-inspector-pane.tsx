@@ -14,6 +14,7 @@ import { WORKSPACE_PANE_TIMING } from "./workspace-pane-animation";
 import { WorkspacePaneDivider } from "./workspace-pane-divider";
 import { InspectorPanes } from "./inspector-host";
 import type { InspectorContent } from "./inspector-panes";
+import { useGT } from "gt-react-native";
 
 // CSS form of WORKSPACE_PANE_TIMING's Easing.inOut(Easing.cubic).
 const PANE_EASING = cubicBezier(0.65, 0, 0.35, 1);
@@ -28,6 +29,7 @@ export function WorkspaceInspectorPane(props: {
   readonly content: InspectorContent | undefined;
   readonly setAuxiliaryPaneWidth: (width: number) => void;
 }) {
+  const gt = useGT();
   const { panes, setAuxiliaryPaneWidth } = props;
   const inspectorWidth = panes.auxiliaryPaneWidth;
   const inspectorSupported = props.content !== undefined && inspectorWidth !== null;
@@ -99,7 +101,7 @@ export function WorkspaceInspectorPane(props: {
     <>
       {inspectorVisible ? (
         <WorkspacePaneDivider
-          accessibilityLabel="Resize detail pane"
+          accessibilityLabel={gt("Resize detail pane")}
           currentWidth={inspectorWidth ?? 0}
           resizeDirection={-1}
           onResizeStart={beginResize}

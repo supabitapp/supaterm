@@ -9,17 +9,18 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
+import { useGT, msg } from "gt-react-native";
 
 function noticeTitle(phase: EnvironmentConnectionPhase, environmentLabel: string): string {
   switch (phase) {
     case "offline":
-      return "You are offline";
+      return msg("You are offline");
     case "connecting":
       return `Connecting to ${environmentLabel}...`;
     case "reconnecting":
       return `Reconnecting to ${environmentLabel}...`;
     case "unsupported":
-      return "Client not supported";
+      return msg("Client not supported");
     case "error":
       return `${environmentLabel} is unavailable`;
     case "available":
@@ -45,7 +46,7 @@ function noticeDetail(
     case "reconnecting":
       return `The ${resourceName} will load as soon as the environment is ready.`;
     case "unsupported":
-      return "Use compatible versions of the app and server to connect.";
+      return msg("Use compatible versions of the app and server to connect.");
     case "available":
     case "error":
       return `Reconnect the environment to load the ${resourceName}.`;
@@ -60,6 +61,7 @@ export function EnvironmentConnectionNotice(props: {
   readonly resourceName: string;
   readonly onRetry: () => void;
 }) {
+  const gt = useGT();
   const isRetrying =
     props.connection.phase === "connecting" || props.connection.phase === "reconnecting";
 
@@ -89,7 +91,7 @@ export function EnvironmentConnectionNotice(props: {
 
         {props.connection.phase !== "offline" && props.connection.phase !== "unsupported" ? (
           <View className="mt-1">
-            <Button label="Retry now" tone="secondary" onPress={props.onRetry} />
+            <Button label={gt("Retry now")} tone="secondary" onPress={props.onRetry} />
           </View>
         ) : null}
       </View>

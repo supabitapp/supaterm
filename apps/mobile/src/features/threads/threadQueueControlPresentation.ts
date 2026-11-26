@@ -5,8 +5,9 @@ import {
   replaceComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
 import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
+import { msg } from "gt-react-native";
 
-export const REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL = "Remove queued message";
+export const REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL = msg("Remove queued message");
 
 export interface ThreadQueueRowControls {
   readonly canDismiss: boolean;

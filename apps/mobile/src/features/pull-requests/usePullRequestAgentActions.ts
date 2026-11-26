@@ -9,12 +9,14 @@ import {
 import type { PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestConnected } from "./usePullRequestConnected";
 import { usePullRequestThreads } from "./usePullRequestThreads";
+import { msg, useMessages } from "gt-react-native";
 
 export function usePullRequestAgentActions(
   params: PullRequestParams,
   pr: PullRequestDetail | null,
   filePath?: string,
 ) {
+  const m = useMessages();
   const links = usePullRequestThreads(params, pr, filePath);
   const connected = usePullRequestConnected(params.environmentId);
   const actions = pr ? pullRequestAgentActions(pr, links.canWatch) : [];
@@ -44,13 +46,13 @@ export function usePullRequestAgentActions(
             (item) =>
               item.subactions?.map((child) => ({
                 ...child,
-                title: `Done: ${child.title}`,
+                title: m(msg("Done: {title}", { title: child.title })),
               })) ?? [item],
           )
         : items;
     return {
       id: task,
-      title: action?.title ?? "Open thread",
+      title: action?.title ?? m(msg("Open thread")),
       image: action?.icon,
       attributes: { disabled: disabled || !links.canAsk || action?.disabled },
       ...(chooseThread ? { subactions } : {}),

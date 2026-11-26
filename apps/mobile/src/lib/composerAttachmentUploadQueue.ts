@@ -3,6 +3,7 @@ import { clampFileAttachmentUploadBytes } from "@supaterm/client-runtime/state/a
 import type { AttachmentUploadStatus } from "@supaterm/client-runtime/state/attachment-uploads";
 
 import type { DraftComposerAttachment } from "./composerImages";
+import { msg } from "gt-react-native";
 
 export interface ComposerAttachmentUploadRequest {
   readonly environmentId: EnvironmentId;
@@ -84,7 +85,7 @@ export function composerAttachmentUploadBlockReason(input: {
   for (const attachment of input.attachments) {
     if (!canUploadComposerAttachment(attachment, input.serverConfig)) continue;
     const state = input.states[composerAttachmentUploadKey(input.environmentId, attachment.id)];
-    if (state?.status === "failed") return "Retry or remove the failed attachment";
+    if (state?.status === "failed") return msg("Retry or remove the failed attachment");
   }
   return null;
 }

@@ -18,6 +18,8 @@ import {
 } from "@supaterm/shared/model";
 import { resolveModelShortName } from "@supaterm/client-runtime/provider-clients";
 import { resolveProvidersForCwd } from "@supaterm/client-runtime/providerSkills";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export type ModelOption = {
   readonly key: string;
@@ -186,8 +188,8 @@ export function describeUnavailableModelSelection(
   );
   return isDisabledForProject(config, provider, selection.instanceId, projectId)
     ? {
-        title: "Model turned off for this project",
-        detail: "Turn it back on from web or desktop, or choose another model.",
+        title: m(msg("Model turned off for this project")),
+        detail: m(msg("Turn it back on from web or desktop, or choose another model.")),
       }
     : {
         title: "Antigravity model unavailable",

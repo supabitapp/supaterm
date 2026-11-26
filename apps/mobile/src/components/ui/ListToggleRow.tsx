@@ -4,6 +4,7 @@ import { Pressable } from "react-native";
 import { AppText } from "./AppText";
 import { ListRowLayout, type ListRowContentProps } from "./ListRowLayout";
 import { ThemedSwitch } from "./ThemedSwitch";
+import { T } from "gt-react-native";
 
 /**
  * A mixed row flips the value last picked on it, so a pick that some environments dropped can be
@@ -38,7 +39,7 @@ export function ListToggleRow(
             onPress={() => pick(!picked)}
           >
             <AppText className="text-sm font-supaterm-medium text-foreground">
-              {picked ? "Mixed · Set off" : "Mixed · Set on"}
+              {picked ? <T>Mixed · Set off</T> : <T>Mixed · Set on</T>}
             </AppText>
           </Pressable>
         ) : (

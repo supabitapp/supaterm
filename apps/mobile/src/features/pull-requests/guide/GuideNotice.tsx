@@ -6,10 +6,12 @@ import { SymbolView } from "../../../components/ui/AppSymbol";
 import { PR_ROW_EXIT, PR_ROW_LAYOUT } from "../pullRequestAnimations";
 import { guideNoticeState } from "./reviewGuideState";
 import type { useReviewGuide } from "./useReviewGuide";
+import { useGT } from "gt-react-native";
 
 const NOTICE_ENTER = FadeIn.delay(180).duration(120).reduceMotion(ReduceMotion.System);
 
 export function GuideNotice({ state }: { readonly state: ReturnType<typeof useReviewGuide> }) {
+  const gt = useGT();
   const notice = guideNoticeState(state);
   if (notice.kind === "ready") return null;
   const compact = state.data?.guide != null;
@@ -33,7 +35,7 @@ export function GuideNotice({ state }: { readonly state: ReturnType<typeof useRe
           tintColorClassName={failed ? "accent-danger-foreground" : "accent-icon-muted"}
         />
         <Text className="text-base font-supaterm-semibold">
-          {compact ? notice.title : "Review guide"}
+          {compact ? notice.title : gt("Review guide")}
         </Text>
       </View>
       <View className="pt-3 pb-4">
@@ -51,8 +53,8 @@ export function GuideNotice({ state }: { readonly state: ReturnType<typeof useRe
         ) : (
           <Text className="text-xs text-foreground-muted">
             {notice.kind === "failed"
-              ? "Reconnect or ask someone with write access to retry."
-              : "Writing a guide requires a connection and write access."}
+              ? gt("Reconnect or ask someone with write access to retry.")
+              : gt("Writing a guide requires a connection and write access.")}
           </Text>
         )}
         {notice.kind === "writing" && state.data?.run?._tag === "Running" ? (

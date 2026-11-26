@@ -9,6 +9,7 @@ import { PullRequestAvatar } from "../pull-requests/PullRequestPresentation";
 import { pullRequestLabelColor } from "../pull-requests/pullRequestList";
 import { IssueCandidatesSheet } from "./IssueCandidatesSheet";
 import { issueListFiltersAtom, unofferedIssueFilters } from "./issueListFilters";
+import { useGT } from "gt-react-native";
 
 const matches = (needle: string, ...fields: ReadonlyArray<string | null | undefined>) =>
   needle.length === 0 || fields.some((field) => field?.toLowerCase().includes(needle));
@@ -20,6 +21,7 @@ export function IssueFilterSearchScreen({
   readonly kind: "labels" | "assignee";
   readonly scopes: ReadonlyArray<IssueCandidatesTarget>;
 }>) {
+  const gt = useGT();
   const navigation = useNavigation();
   const { kind, scopes } = route.params;
   const known = useIssueFilterCandidates(scopes);
@@ -64,7 +66,7 @@ export function IssueFilterSearchScreen({
   const loaded = labels ? known.labels.length > 0 : known.assignees.length > 0;
   return (
     <IssueCandidatesSheet
-      title={labels ? "Filter by label" : "Filter by assignee"}
+      title={labels ? gt("Filter by label") : gt("Filter by assignee")}
       noun={labels ? "labels" : "people"}
       query={query}
       onQueryChange={setQuery}

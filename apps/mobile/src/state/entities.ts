@@ -1,5 +1,4 @@
 import { relabelThreadLinks } from "@supaterm/shared/threadLinksCopy";
-import { useMessages } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 
 import { appAtomRegistry } from "./atom-registry";
@@ -37,6 +36,7 @@ import { projectMonogramColorAtom } from "./projectIdentity";
 import { environmentProjects } from "./projects";
 import { environmentServerConfigsAtom, serverEnvironment } from "./server";
 import { environmentThreadShells } from "./threads";
+import { useMessages } from "gt-react-native";
 
 const EMPTY_PROJECT_ATOM = Atom.make<EnvironmentProject | null>(null).pipe(
   Atom.withLabel("mobile-project:empty"),

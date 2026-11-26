@@ -7,6 +7,7 @@ import { AppText as Text } from "./ui/AppText";
 import { IPAD_HOME_TITLE_OFFSET } from "../lib/layoutMetrics";
 import { resolveMobileStageLabel } from "../lib/mobileBranding";
 import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
+import { useGT } from "gt-react-native";
 
 /**
  * Horizontal correction applied to content rendered in the brand title slot,
@@ -31,6 +32,7 @@ export function CompactBrandTitle(
     readonly fit?: boolean;
   } = {},
 ) {
+  const gt = useGT();
   const stageLabel = resolveMobileStageLabel(Constants.expoConfig?.extra?.appVariant);
   const titleOffset = brandTitleOffset();
   const { scale } = useAndroidControlSizing();
@@ -49,7 +51,7 @@ export function CompactBrandTitle(
         props.fit && showStage ? (event) => setFullWidth(event.nativeEvent.layout.width) : undefined
       }
       aria-level={1}
-      accessibilityLabel={props.accessibilityLabel ?? "Supaterm, Threads"}
+      accessibilityLabel={props.accessibilityLabel ?? gt("Supaterm, Threads")}
       accessible
       role="heading"
       className="flex-row items-center gap-1.5"

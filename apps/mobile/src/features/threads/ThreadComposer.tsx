@@ -133,6 +133,7 @@ import {
   useThreadSettingsSheetPresentation,
   type NavigationWithFinishTransitioning,
 } from "./use-thread-settings-sheet-presentation";
+import { msg, T, useGT } from "gt-react-native";
 
 export const COMPOSER_COLLAPSED_CHROME = 60;
 
@@ -231,14 +232,14 @@ const AnimatedGlassSurface = Animated.createAnimatedComponent(GlassSurface);
 
 const FOLLOW_UP_ACTION_LABEL = {
   queue: "Queue",
-  steer: "Steer now",
-  restart: "Restart turn",
+  steer: msg("Steer now"),
+  restart: msg("Restart turn"),
 } as const;
 
 const FOLLOW_UP_ACTION_SUBTITLE = {
-  queue: "Run after the current turn",
-  steer: "Interrupt what the agent is doing",
-  restart: "Start the turn over with this message",
+  queue: msg("Run after the current turn"),
+  steer: msg("Interrupt what the agent is doing"),
+  restart: msg("Start the turn over with this message"),
 } as const;
 
 function SendActionButton(props: {
@@ -248,6 +249,7 @@ function SendActionButton(props: {
   readonly disabled: boolean;
   readonly onSend: (followUp?: ActiveTurnComposerAction) => void;
 }) {
+  const gt = useGT();
   const { presentation } = props;
   const button = (
     <ComposerActionButton
@@ -270,7 +272,7 @@ function SendActionButton(props: {
   );
   return (
     <Menu
-      accessibilityLabel="Choose how to send this message"
+      accessibilityLabel={gt("Choose how to send this message")}
       shouldOpenOnLongPress
       preservesKeyboard
       onOpenMenu={() => {
@@ -373,6 +375,7 @@ function focusComposerEditor(editorRef: RefObject<ComposerEditorHandle | null>) 
 export const THREAD_COMPOSER_BOTTOM_GUTTER = 6;
 
 export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps) {
+  const gt = useGT();
   const project = useProject(scopeProjectRef(props.environmentId, props.selectedThread.projectId));
   const { themeVariables: materialTheme } = useAppearancePreferences();
   const composerPanel = materialTheme["--color-composer-panel"];
@@ -530,7 +533,10 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     );
     onShowUsageLimits(report);
     if (!report) {
-      Dialog.alert("Usage limits unavailable", "This provider does not currently report limits.");
+      Dialog.alert(
+        gt("Usage limits unavailable"),
+        gt("This provider does not currently report limits."),
+      );
     }
     return report !== null;
   };
@@ -563,7 +569,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   });
   const voiceInput = useVoiceInputController({
     ownerKey: composerDraftKey,
-    label: props.selectedThread.title || "Untitled thread",
+    label: props.selectedThread.title || gt("Untitled thread"),
     readDraftMessage: () => getComposerDraftSnapshot(composerDraftKey).text,
     selection: composerMenu.selection,
     onChangeDraftMessage: (text) => setComposerDraftText(composerDraftKey, text),
@@ -620,9 +626,9 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   });
   const contextImports = useAtomValue(composerContextImportsAtom);
   const sendBlockedReason =
-    (queuedEdit?.saving === true ? "Saving…" : null) ??
+    (queuedEdit?.saving === true ? gt("Saving…") : null) ??
     props.sendBlockedReason ??
-    (pendingPastedTextAttachmentCount > 0 ? "Attaching pasted text" : null) ??
+    (pendingPastedTextAttachmentCount > 0 ? gt("Attaching pasted text") : null) ??
     attachmentBlockReason;
   const canSubmitDraft =
     (props.canOperateThread || props.connectionState !== "connected") &&
@@ -815,7 +821,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       {showStopAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Stop agent"
+          accessibilityLabel={gt("Stop agent")}
           disabled={!props.canOperateThread}
           icon="stop.fill"
           variant="danger"
@@ -827,7 +833,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       ) : showResumeAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Resume thread"
+          accessibilityLabel={gt("Resume thread")}
           disabled={resumingQueue || !props.canOperateThread}
           icon="play"
           variant="primary"
@@ -917,7 +923,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
         ) : null}
         {modelUnavailable ? (
           <Button
-            label="Model unavailable. Open model settings."
+            label={gt("Model unavailable. Open model settings.")}
             tone="text"
             onPress={openSettings}
           />
@@ -1121,8 +1127,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                       insertPaste();
                     } else {
                       Dialog.alert(
-                        "Pasted text is too large for this message",
-                        "Remove some text or an attachment, then paste again.",
+                        gt("Pasted text is too large for this message"),
+                        gt("Remove some text or an attachment, then paste again."),
                       );
                     }
                     return;
@@ -1282,7 +1288,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
 
         {props.connectionState === "connected" && operateDenied ? (
           <Text className="pt-2 text-xs text-foreground-muted">
-            This connection cannot control this task. You can still edit your draft.
+            <T>This connection cannot control this task. You can still edit your draft.</T>
           </Text>
         ) : null}
       </Animated.View>

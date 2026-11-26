@@ -9,6 +9,7 @@ import { ComposerDictationStartAction } from "../voice-input/ComposerDictationCo
 import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
+import { useGT } from "gt-react-native";
 
 const COMPOSER_BOTTOM_GUTTER = 8;
 
@@ -31,6 +32,7 @@ export function IssueCommentComposer(props: {
   readonly onHeightChange: (height: number) => void;
   readonly onFocusChange: (focused: boolean) => void;
 }) {
+  const gt = useGT();
   const [draft, setDraft] = useState("");
   // Read by dictation and by send after an await, when the render's `draft` may be stale.
   const latestDraft = useRef(draft);
@@ -96,7 +98,7 @@ export function IssueCommentComposer(props: {
               multiline
               scrollEnabled
               textAlignVertical="top"
-              placeholder="Leave a comment"
+              placeholder={gt("Leave a comment")}
               placeholderTextColorClassName="accent-foreground-muted"
               className="max-h-40 min-h-11 min-w-0 flex-1 py-2.5 font-sans text-base text-foreground"
             />
@@ -110,7 +112,7 @@ export function IssueCommentComposer(props: {
               />
             ) : null}
             <ComposerActionButton
-              accessibilityLabel={props.posting ? "Posting comment" : "Post comment"}
+              accessibilityLabel={props.posting ? gt("Posting comment") : gt("Post comment")}
               icon="arrow.up"
               variant="primary"
               disabled={!canSend}

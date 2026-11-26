@@ -18,6 +18,8 @@ import { localAttachmentPreviewAtom, localAttachmentPreviewState } from "./local
 import { downloadAndShareAttachment, shareLocalAttachment } from "./attachmentDownload";
 import { refreshAssetUrl, useFreshAssetUrl, useRefreshAssetUrl } from "../state/assets";
 import { attachmentDocumentPresentation } from "./attachmentDocumentPresentation";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 const isLocalUri = (uri: string) => /^(file|content):/.test(uri);
 
@@ -45,7 +47,7 @@ async function readAttachmentText(key: AttachmentTextKey, signal: AbortSignal) {
       key.environmentId === null
         ? null
         : await refreshAssetUrl(key.environmentId, key.resource, signal).catch(() => null);
-    if (!refreshed) throw new Error("Reconnect to this environment and try again.");
+    if (!refreshed) throw new Error(m(msg("Reconnect to this environment and try again.")));
     target = refreshed;
   }
   const response = await fetch(target, {
@@ -166,8 +168,8 @@ export function useAttachmentDocument(input: {
     if (AsyncResult.isFailure(result)) {
       const cause = squashAtomCommandFailure(result);
       Dialog.alert(
-        "Could not share file",
-        cause instanceof Error ? cause.message : "Please try again.",
+        m(msg("Could not share file")),
+        cause instanceof Error ? cause.message : m(msg("Please try again.")),
       );
     }
   };

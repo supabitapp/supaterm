@@ -27,6 +27,7 @@ import { linkedEnvironmentPrefillAtom } from "./linkedEnvironmentPrefill";
 import { leaveSettingsPage } from "../settings/settings-navigation";
 import { workspaceHasColumns } from "../layout/workspace/workspace-selection-store";
 import { SymbolView } from "../../components/ui/AppSymbol";
+import { T, useGT } from "gt-react-native";
 
 type ConnectionsNewRouteParams = {
   readonly mode?: string;
@@ -64,6 +65,7 @@ function PairingForm({
   readonly routeFor: EnvironmentId | undefined;
   readonly linked: { readonly label: string; readonly host: string | null } | null;
 }) {
+  const gt = useGT();
   const { connectionPairingUrl, onChangeConnectionPairingUrl, onConnectPress } =
     useRemoteConnections();
   const navigation = useNavigation();
@@ -137,11 +139,11 @@ function PairingForm({
     }
     if (permission.canAskAgain) return;
     Dialog.alert(
-      "Camera access needed",
-      "Camera access was denied for this app. Open Settings to enable it.",
+      gt("Camera access needed"),
+      gt("Camera access was denied for this app. Open Settings to enable it."),
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Open Settings", onPress: () => void Linking.openSettings() },
+        { text: gt("Cancel"), style: "cancel" },
+        { text: gt("Open Settings"), onPress: () => void Linking.openSettings() },
       ],
     );
   };
@@ -195,8 +197,8 @@ function PairingForm({
     } catch (error) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Dialog.alert(
-        "Invalid QR code",
-        error instanceof Error ? error.message : "Scanned QR code was not recognized.",
+        gt("Invalid QR code"),
+        error instanceof Error ? error.message : gt("Scanned QR code was not recognized."),
       );
       setTimeout(() => {
         scannerLockedRef.current = false;
@@ -210,10 +212,18 @@ function PairingForm({
 
   return (
     <SettingsScreen
-      title={linked ? `Connect to ${linked.label}` : routeFor ? "Add route" : "Add environment"}
+      title={
+        linked
+          ? gt("Connect to {environment}", { environment: linked.label })
+          : routeFor
+            ? "Add route"
+            : gt("Add environment")
+      }
       actions={[
         {
-          accessibilityLabel: connecting ? "Connecting" : "Add environment",
+          accessibilityLabel: connecting
+            ? gt("Connecting", { $context: "connection status" })
+            : gt("Add environment"),
           loading: connecting,
           icon: "checkmark",
           tintColor: headerIconColor,
@@ -249,7 +259,7 @@ function PairingForm({
 
           <View collapsable={false} className="gap-2">
             <Text className="px-4 text-sm font-supaterm-medium text-foreground-muted">
-              Or enter it
+              <T>Or enter it</T>
             </Text>
             <View
               collapsable={false}
@@ -259,7 +269,7 @@ function PairingForm({
               )}
             >
               <PairingInputRow
-                label="Address"
+                label={gt("Address")}
                 keyboardType="url"
                 placeholder="192.168.1.100:7007"
                 value={hostInput}
@@ -267,8 +277,8 @@ function PairingForm({
               />
               <View className="ml-4 border-t border-border-subtle" />
               <PairingInputRow
-                label="Code"
-                placeholder="Pairing code"
+                label={gt("Code", { $context: "pairing code field" })}
+                placeholder={gt("Pairing code")}
                 returnKeyType="go"
                 value={codeInput}
                 onChangeText={handleCodeChange}
@@ -287,7 +297,9 @@ function PairingForm({
               {pairingConnectionError ??
                 (linked
                   ? `Create a pairing code on ${linked.label}, in its Settings → Sharing & access or with \`supaterm auth pairing create\`, and enter it here.`
-                  : "For machines on your local network or tailnet. The machine keeps its own provider credentials.")}
+                  : gt(
+                      "For machines on your local network or tailnet. The machine keeps its own provider credentials.",
+                    ))}
             </Text>
           </View>
         </View>
@@ -306,11 +318,12 @@ function PairingScanCard(props: {
   readonly onScan: (result: { readonly data: string }) => void;
   readonly onScanPress: () => void;
 }) {
+  const gt = useGT();
   const light = useAppearancePreferences().themeAppearance === "light";
   return (
     <Pressable
       accessibilityRole={props.cameraActive ? undefined : "button"}
-      accessibilityLabel={props.cameraActive ? undefined : "Scan QR code"}
+      accessibilityLabel={props.cameraActive ? undefined : gt("Scan QR code")}
       disabled={props.cameraActive}
       onPress={props.onScanPress}
       className={cn(
@@ -378,7 +391,7 @@ function PairingScanCard(props: {
                   light ? "text-black/70" : "text-white/80",
                 )}
               >
-                Tap to scan
+                <T>Tap to scan</T>
               </Text>
             </>
           )}

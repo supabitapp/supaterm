@@ -6,7 +6,6 @@ import {
 } from "@supaterm/client-runtime/zip/bounded-zip";
 import { isZipError } from "@supaterm/client-runtime/zip/error";
 import { zipErrorText } from "@supaterm/client-runtime/zip/error-messages";
-import { m } from "../../i18n/messages";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { filePreviewDelimiter, parseDelimitedPreview } from "@supaterm/shared/delimitedPreview";
 import {
@@ -55,6 +54,8 @@ import {
   type ZipEntry,
   type ZipTreeRow,
 } from "./zipTree";
+import { msg, useGT } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 export function isZipFile(file: { readonly name: string; readonly mimeType: string }) {
   const mime = file.mimeType.split(";", 1)[0]?.trim().toLowerCase();
@@ -79,18 +80,18 @@ type ZipFailure = typeof ZipFailure.Type;
 
 const SAVE_ZIP_HINT = "Save the ZIP to open it in another app.";
 const TOO_LARGE: ZipFailure = {
-  title: "Too large to browse here",
+  title: msg("Too large to browse here"),
   detail: `Browsing works up to ${formatAttachmentSize(ARCHIVE_MAX_BYTES)}. ${SAVE_ZIP_HINT}`,
   retry: false,
 };
 const CANCELLED: ZipFailure = {
-  title: "Download cancelled",
-  detail: "The ZIP wasn't downloaded. Try again to list its files.",
+  title: msg("Download cancelled"),
+  detail: msg("The ZIP wasn't downloaded. Try again to list its files."),
   retry: true,
 };
 const NETWORK: ZipFailure = {
-  title: "Couldn't download this ZIP",
-  detail: "Check the connection to this environment and try again.",
+  title: msg("Couldn't download this ZIP"),
+  detail: msg("Check the connection to this environment and try again."),
   retry: true,
 };
 
@@ -143,7 +144,7 @@ async function openArchive(bytes: ArrayBuffer): Promise<ZipArchive> {
   } catch (cause) {
     throw new ZipFailureError({
       failure: {
-        title: "Couldn't browse this ZIP",
+        title: msg("Couldn't browse this ZIP"),
         detail: `${isZipError(cause) ? zipErrorText(cause.code, m) : errorMessage(cause, "It may be incomplete or damaged.")} ${SAVE_ZIP_HINT}`,
         retry: false,
       },
@@ -300,6 +301,7 @@ function ZipArchiveHeader(props: {
   readonly onSave: () => void;
   readonly onRemove: (() => void) | null;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   return (
     <AppBar
@@ -309,11 +311,11 @@ function ZipArchiveHeader(props: {
         if (navigation.canGoBack()) navigation.goBack();
       }}
       actions={[
-        { accessibilityLabel: "Save ZIP", icon: "square.and.arrow.up", onPress: props.onSave },
+        { accessibilityLabel: gt("Save ZIP"), icon: "square.and.arrow.up", onPress: props.onSave },
         ...(props.onRemove
           ? [
               {
-                accessibilityLabel: "Remove from draft",
+                accessibilityLabel: gt("Remove from draft"),
                 icon: "trash" as const,
                 onPress: props.onRemove,
                 destructive: true,
@@ -332,6 +334,7 @@ function ZipArchiveProgress(props: {
   readonly timeLeft: string | null;
   readonly onCancel: () => void;
 }) {
+  const gt = useGT();
   const { timeLeft } = props;
   return (
     <View className="flex-1 justify-center gap-3 bg-sheet px-8">
@@ -345,12 +348,12 @@ function ZipArchiveProgress(props: {
       </Text>
       <Progress
         value={props.totalBytes > 0 ? props.receivedBytes / props.totalBytes : undefined}
-        label="ZIP download progress"
+        label={gt("ZIP download progress")}
       />
       <Text className="text-sm text-foreground-muted">
         {`Downloading the ZIP so its files can be listed.${timeLeft ? ` ${timeLeft} on this connection.` : ""}`}
       </Text>
-      <Button label="Cancel" onPress={props.onCancel} />
+      <Button label={gt("Cancel")} onPress={props.onCancel} />
     </View>
   );
 }
@@ -360,6 +363,7 @@ function ZipArchiveFailure(props: {
   readonly onRetry: () => void;
   readonly onSave: () => void;
 }) {
+  const gt = useGT();
   return (
     <View className="flex-1 items-center justify-center bg-sheet px-6">
       <EmptyState
@@ -369,11 +373,11 @@ function ZipArchiveFailure(props: {
         action={
           <View className="flex-row gap-3">
             {props.failure.retry ? (
-              <Button tone="primary" label="Try again" onPress={props.onRetry} />
+              <Button tone="primary" label={gt("Try again")} onPress={props.onRetry} />
             ) : null}
             <Button
               tone={props.failure.retry ? "secondary" : "primary"}
-              label="Save ZIP"
+              label={gt("Save ZIP")}
               onPress={props.onSave}
             />
           </View>
@@ -388,6 +392,7 @@ function ZipArchiveList(props: {
   readonly headerInset: number;
   readonly onOpen: (entry: ZipEntry) => void;
 }) {
+  const gt = useGT();
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const { archive } = props;
@@ -421,7 +426,7 @@ function ZipArchiveList(props: {
             <View className="h-[38px] flex-row items-center gap-2 rounded-[10px] bg-subtle px-3">
               <SymbolView name="magnifyingglass" size={15} tintColorClassName="accent-icon-muted" />
               <TextInput
-                accessibilityLabel="Filter files in ZIP"
+                accessibilityLabel={gt("Filter files in ZIP")}
                 autoCapitalize="none"
                 autoCorrect={false}
                 placeholder={`Filter ${fileCount} ${fileCount === 1 ? "file" : "files"}`}
@@ -434,7 +439,7 @@ function ZipArchiveList(props: {
               {query ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Clear filter"
+                  accessibilityLabel={gt("Clear filter")}
                   hitSlop={10}
                   onPress={() => setQuery("")}
                 >
@@ -460,12 +465,16 @@ function ZipArchiveList(props: {
           query ? (
             <EmptyState
               variant="plain"
-              title={`No files match “${query.trim()}”`}
-              detail="The filter checks file names and folder paths."
-              action={<Button label="Clear filter" onPress={() => setQuery("")} />}
+              title={gt("No files match “{query}”", { query: query.trim() })}
+              detail={gt("The filter checks file names and folder paths.")}
+              action={<Button label={gt("Clear filter")} onPress={() => setQuery("")} />}
             />
           ) : (
-            <EmptyState variant="plain" title="This ZIP is empty" detail="It has no files." />
+            <EmptyState
+              variant="plain"
+              title={gt("This ZIP is empty")}
+              detail={gt("It has no files.")}
+            />
           )
         }
       />
@@ -486,6 +495,7 @@ export function ZipArchiveView(props: {
   readonly onSave: () => void;
   readonly onRemove: (() => void) | null;
 }) {
+  const gt = useGT();
   const { state, retry, cancel } = useZipArchive(props);
   const [selection, setSelection] = useState<{
     readonly archive: ZipArchive;
@@ -523,7 +533,7 @@ export function ZipArchiveView(props: {
         <View className="flex-1" style={{ paddingTop: headerInset }}>
           {state.status === "loading" ? (
             props.isLocal || state.receivedBytes === 0 ? (
-              <FilePreviewLoading message="Opening ZIP..." />
+              <FilePreviewLoading message={gt("Opening ZIP...")} />
             ) : (
               <ZipArchiveProgress
                 receivedBytes={state.receivedBytes}
@@ -605,6 +615,7 @@ function ZipEntryView(props: {
   readonly maxAttachmentBytes: number | undefined;
   readonly onBack: () => void;
 }) {
+  const gt = useGT();
   const { entry, draftKey, maxAttachmentBytes } = props;
   const { mimeType } = entry;
   const previewKind = filePreviewKind({ name: entry.name, mimeType });
@@ -617,8 +628,10 @@ function ZipEntryView(props: {
     tooBig
       ? {
           status: "failed",
-          title: "Too big to preview",
-          message: `Previews stop at ${formatAttachmentSize(ARCHIVE_ENTRY_MAX_BYTES)}. Save the file to open it in another app.`,
+          title: gt("Too big to preview"),
+          message: gt("Previews stop at {size}. Save the file to open it in another app.", {
+            size: formatAttachmentSize(ARCHIVE_ENTRY_MAX_BYTES),
+          }),
         }
       : { status: "loading" },
   );
@@ -656,7 +669,7 @@ function ZipEntryView(props: {
         if (!controller.signal.aborted)
           setContent({
             status: "failed",
-            title: "Couldn't read this file",
+            title: gt("Couldn't read this file"),
             message: errorMessage(cause, "Could not read this file."),
           });
       });
@@ -681,8 +694,8 @@ function ZipEntryView(props: {
         if (controller.signal.aborted) return;
         setBusy(null);
         Dialog.alert(
-          kind === "save" ? "Could not save file" : "Could not add file to chat",
-          errorMessage(cause, "Please try again."),
+          kind === "save" ? m(msg("Could not save file")) : m(msg("Could not add file to chat")),
+          errorMessage(cause, m(msg("Please try again."))),
         );
       },
     );
@@ -727,14 +740,14 @@ function ZipEntryView(props: {
         onBack={props.onBack}
         menus={[
           {
-            title: "File actions",
+            title: gt("File actions"),
             icon: "ellipsis",
             items: [
               ...(renderedMode
                 ? [
                     {
                       id: "toggle-rendered",
-                      title: rendered ? "Show source" : "Show preview",
+                      title: rendered ? gt("Show source") : gt("Show preview"),
                       icon: rendered ? "doc.text" : "eye",
                       onPress: () => setRendered((value) => !value),
                     },
@@ -744,7 +757,7 @@ function ZipEntryView(props: {
                 ? [
                     {
                       id: "add-to-chat",
-                      title: "Add to chat",
+                      title: gt("Add to chat"),
                       icon: "plus.bubble",
                       disabled: busy !== null,
                       onPress: addToChat,
@@ -753,7 +766,7 @@ function ZipEntryView(props: {
                 : []),
               {
                 id: "save",
-                title: "Save file",
+                title: gt("Save file"),
                 icon: "square.and.arrow.up",
                 disabled: busy !== null,
                 onPress: save,
@@ -769,7 +782,12 @@ function ZipEntryView(props: {
             title={content.title}
             detail={content.message}
             action={
-              <Button tone="primary" label="Save file" loading={busy === "save"} onPress={save} />
+              <Button
+                tone="primary"
+                label={gt("Save file")}
+                loading={busy === "save"}
+                onPress={save}
+              />
             }
           />
         </ScrollView>
@@ -777,9 +795,9 @@ function ZipEntryView(props: {
         // Closing the viewer stays here so Save and Add to chat remain reachable.
         <View className="flex-1 items-center justify-center bg-sheet px-6">
           <EmptyState
-            title={viewerError ? "No preview for this file" : entry.name}
-            detail={viewerError ?? "Open it in the file viewer, save it, or add it to chat."}
-            actionLabel="Open in file viewer"
+            title={viewerError ? gt("No preview for this file") : entry.name}
+            detail={viewerError ?? gt("Open it in the file viewer, save it, or add it to chat.")}
+            actionLabel={gt("Open in file viewer")}
             onAction={openViewer}
           />
         </View>

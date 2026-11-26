@@ -1,5 +1,4 @@
 import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
-import { useMessages } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 import {
   deriveWorkflowGroups,
@@ -33,6 +32,7 @@ import { linkedThreadRouteParams } from "./LinkedThreadSheet";
 import { useLinkedThreadReach } from "../../state/linkedThread";
 
 import { useOpenThreadInspector } from "./thread-inspector-navigation";
+import { useMessages, useGT, T } from "gt-react-native";
 
 type AgentsTarget = { readonly environmentId: EnvironmentId; readonly threadId: ThreadId };
 
@@ -41,6 +41,7 @@ function useThreadTurnSubagents(target: AgentsTarget): ThreadTurnSubagents | nul
 }
 
 export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
+  const gt = useGT();
   const target = route.params;
   const navigation = useNavigation();
   const openInspector = useOpenThreadInspector();
@@ -94,7 +95,7 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
     >
       {subagents.length === 0 ? (
         <Text className="px-5 pt-6 text-center text-sm text-foreground-muted">
-          No agents in this turn.
+          <T>No agents in this turn.</T>
         </Text>
       ) : (
         subagents.map((subagent, index) => {
@@ -127,7 +128,7 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
 
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
-      <SheetHeader title="Agents" onClose={() => navigation.goBack()} />
+      <SheetHeader title={gt("Agents")} onClose={() => navigation.goBack()} />
       <ScreenContent>{content}</ScreenContent>
     </View>
   );
@@ -140,6 +141,7 @@ function AgentRow(props: {
   readonly isLast: boolean;
   readonly onOpen: (child: SubagentThreadTarget, title: string | null) => void;
 }) {
+  const gt = useGT();
   const { subagent } = props;
   const reach = useLinkedThreadReach(props.environmentId, [subagent]);
   const target = subagentThreadTarget(
@@ -172,7 +174,7 @@ function AgentRow(props: {
         className="min-w-0 flex-1"
         accessibilityHint={
           subagent.remoteChild === undefined
-            ? "Provider-managed agent. Its work appears in the transcript."
+            ? gt("Provider-managed agent. Its work appears in the transcript.")
             : `Runs on ${subagent.remoteChild.label}. Connect to it to open its thread.`
         }
       >
@@ -183,7 +185,7 @@ function AgentRow(props: {
         accessibilityRole="link"
         accessibilityHint={
           target.linked === undefined
-            ? "Opens this agent's thread"
+            ? gt("Opens this agent's thread")
             : `Opens a read-only view of this agent's thread on ${target.linked.label}`
         }
         onPress={() => props.onOpen(target, subagent.title)}

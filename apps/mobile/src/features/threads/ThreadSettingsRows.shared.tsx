@@ -4,6 +4,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { cn } from "../../lib/cn";
 import type { ModelOption } from "../../lib/modelOptions";
+import { useGT } from "gt-react-native";
 
 export type ModelRowProps = {
   readonly option: ModelOption;
@@ -39,6 +40,7 @@ export function ModelRowContent(
       readonly selectedClassName?: string;
     },
 ) {
+  const gt = useGT();
   return (
     <View
       style={props.minimumHeight === undefined ? undefined : { minHeight: props.minimumHeight }}
@@ -71,19 +73,27 @@ export function ModelRowContent(
             </Text>
             {props.option.isDefault ? (
               <View className="rounded-md bg-subtle-strong px-1.5 py-0.5">
-                <Text className="text-3xs font-supaterm-bold text-foreground-muted">Default</Text>
+                <Text className="text-3xs font-supaterm-bold text-foreground-muted">
+                  {gt("Default", { $context: "badge on the default model" })}
+                </Text>
               </View>
             ) : null}
             {props.option.isLegacy ? (
               <View className="rounded-md bg-subtle px-1.5 py-0.5">
-                <Text className="text-3xs font-supaterm-bold text-foreground-muted">Legacy</Text>
+                <Text className="text-3xs font-supaterm-bold text-foreground-muted">
+                  {gt("Legacy", { $context: "badge on an older model" })}
+                </Text>
               </View>
             ) : null}
             {props.option.isHidden ? (
-              <Text className="text-xs text-foreground-muted">Hidden</Text>
+              <Text className="text-xs text-foreground-muted">
+                {gt("Hidden", { $context: "model is hidden from the picker" })}
+              </Text>
             ) : null}
             {props.option.isUnavailable ? (
-              <Text className="text-xs text-foreground">Unavailable</Text>
+              <Text className="text-xs text-foreground">
+                {gt("Unavailable", { $context: "model cannot be used" })}
+              </Text>
             ) : null}
           </View>
           {props.option.subtitle ? (

@@ -21,6 +21,7 @@ import { ListRow } from "../../components/ui/ListRow";
 import { SettingsScreen } from "./components/SettingsScreen";
 
 import { getMobileThirdPartyLicenses } from "./mobileThirdPartyLicenses";
+import { T, useGT } from "gt-react-native";
 
 function useMobileThirdPartyLicenses() {
   return useMemo(() => {
@@ -48,15 +49,16 @@ function LicenseRow(props: {
 }
 
 export function SettingsOpenSourceLicensesRouteScreen() {
+  const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const search = {
     value: query,
     onChangeText: setQuery,
-    placeholder: "Search packages",
-    accessibilityLabel: "Search open-source licenses",
-    clearAccessibilityLabel: "Clear package search",
+    placeholder: gt("Search packages"),
+    accessibilityLabel: gt("Search open-source licenses"),
+    clearAccessibilityLabel: gt("Clear package search"),
   };
   const searchInset = useSearchToolbarInset(search);
   const manifest = useMobileThirdPartyLicenses();
@@ -75,10 +77,10 @@ export function SettingsOpenSourceLicensesRouteScreen() {
 
   if (!manifest) {
     return (
-      <SettingsScreen title="Open source licenses">
+      <SettingsScreen title={gt("Open source licenses")}>
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-center text-base text-foreground-muted">
-            License notices are unavailable in this build.
+            <T>License notices are unavailable in this build.</T>
           </Text>
         </View>
       </SettingsScreen>
@@ -86,7 +88,7 @@ export function SettingsOpenSourceLicensesRouteScreen() {
   }
 
   return (
-    <SettingsScreen title="Open source licenses" search={search}>
+    <SettingsScreen title={gt("Open source licenses")} search={search}>
       <LegendList
         renderScrollComponent={NativeScrollView}
         className="flex-1"
@@ -103,7 +105,7 @@ export function SettingsOpenSourceLicensesRouteScreen() {
         ListEmptyComponent={
           <View className="items-center px-6 py-12">
             <Text className="text-center text-base text-foreground-muted">
-              No licenses match that search.
+              <T>No licenses match that search.</T>
             </Text>
           </View>
         }
@@ -117,6 +119,7 @@ export function SettingsOpenSourceLicensesRouteScreen() {
 type LicenseDetailProps = StaticScreenProps<{ readonly entryKey: string }>;
 
 export function SettingsOpenSourceLicenseRouteScreen({ route }: LicenseDetailProps) {
+  const gt = useGT();
   const insets = useSafeAreaInsets();
   const manifest = useMobileThirdPartyLicenses();
   const entry = manifest
@@ -126,10 +129,10 @@ export function SettingsOpenSourceLicenseRouteScreen({ route }: LicenseDetailPro
 
   if (!entry) {
     return (
-      <SettingsScreen title="License notice">
+      <SettingsScreen title={gt("License notice")}>
         <View className="flex-1 items-center justify-center px-6">
           <Text className="text-center text-base text-foreground-muted">
-            This license notice is unavailable.
+            <T>This license notice is unavailable.</T>
           </Text>
         </View>
       </SettingsScreen>
@@ -137,7 +140,7 @@ export function SettingsOpenSourceLicenseRouteScreen({ route }: LicenseDetailPro
   }
 
   return (
-    <SettingsScreen title="License notice">
+    <SettingsScreen title={gt("License notice")}>
       <ScrollView
         className="flex-1"
         contentInsetAdjustmentBehavior="automatic"
@@ -154,12 +157,14 @@ export function SettingsOpenSourceLicenseRouteScreen({ route }: LicenseDetailPro
           </Text>
           {sourceUrl ? (
             <Pressable
-              accessibilityHint="Opens the project website"
+              accessibilityHint={gt("Opens the project website")}
               accessibilityRole="link"
               onPress={() => void tryOpenExternalUrl(sourceUrl)}
               className="min-h-12 flex-row items-center gap-2 self-start py-2 active:opacity-60"
             >
-              <Text className="font-supaterm-medium text-primary-text">Project source</Text>
+              <Text className="font-supaterm-medium text-primary-text">
+                <T>Project source</T>
+              </Text>
               <SymbolView
                 name="arrow.up.right"
                 size={16}

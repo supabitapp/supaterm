@@ -22,6 +22,7 @@ import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { usePullRequestReviewDraft } from "./usePullRequestReviewDraft";
 import { usePullRequestAgentActions } from "./usePullRequestAgentActions";
+import { useGT } from "gt-react-native";
 
 export function PullRequestCardGroup(props: { readonly children: ReactNode }) {
   return (
@@ -124,6 +125,7 @@ export function PullRequestActionToolbar(props: {
   readonly onOpenFiles?: () => void;
   readonly onHeightChange?: (height: number) => void;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const { draft } = usePullRequestReviewDraft(props.params);
   const { themeVariables: colors } = useAppearancePreferences();
@@ -178,7 +180,7 @@ export function PullRequestActionToolbar(props: {
           <View className="flex-row items-center gap-2">
             {showAgentControls ? (
               <Menu
-                title="AI helpers"
+                title={gt("AI helpers")}
                 actions={agentActions.map((action) => agent.menuAction(action.task))}
                 onPressAction={({ nativeEvent }) => agent.select(nativeEvent.event)}
               >
@@ -195,7 +197,7 @@ export function PullRequestActionToolbar(props: {
               <View className="min-w-0 shrink">
                 {!pendingReview && chooseThread ? (
                   <Menu
-                    title="Open thread"
+                    title={gt("Open thread")}
                     actions={threadMenuItems}
                     onPressAction={({ nativeEvent }) => agent.select(nativeEvent.event)}
                   >
@@ -206,7 +208,11 @@ export function PullRequestActionToolbar(props: {
                 )}
               </View>
             ) : null}
-            <IconButton icon="file.diff" accessibilityLabel="Changed files" onPress={openFiles} />
+            <IconButton
+              icon="file.diff"
+              accessibilityLabel={gt("Changed files")}
+              onPress={openFiles}
+            />
           </View>
         </Toolbar>
       </View>
@@ -256,7 +262,7 @@ export function PullRequestActionToolbar(props: {
     <Toolbar.Menu
       identifier="pull-request-agent"
       icon="ellipsis.bubble"
-      title="AI helpers"
+      title={gt("AI helpers")}
       accessibilityLabel={`${shortLabel} agent actions`}
       disabled={agent.disabled}
       separateBackground
@@ -283,7 +289,7 @@ export function PullRequestActionToolbar(props: {
     <Toolbar.Button
       identifier="workspace-trailing-action"
       icon={{ type: "image", source: require("../../../assets/icons/file-diff.png") }}
-      accessibilityLabel="Changed files"
+      accessibilityLabel={gt("Changed files")}
       onPress={openFiles}
       separateBackground
     />
@@ -299,7 +305,7 @@ export function PullRequestActionToolbar(props: {
           items: [
             {
               id: "changed-files",
-              title: "Changed files",
+              title: gt("Changed files"),
               icon: "doc.text.magnifyingglass",
               onPress: openFiles,
             },
@@ -307,7 +313,7 @@ export function PullRequestActionToolbar(props: {
               ? [
                   {
                     id: "ai-helpers",
-                    title: "AI helpers",
+                    title: gt("AI helpers"),
                     icon: "ellipsis.bubble",
                     items: agentActions.map((action): AppBarMenuItem =>
                       chooseThread && !action.disabled

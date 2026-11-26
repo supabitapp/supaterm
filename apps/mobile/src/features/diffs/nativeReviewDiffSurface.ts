@@ -13,6 +13,7 @@ import { requireNativeView } from "expo";
 
 import { EmptyState } from "../../components/ui/EmptyState";
 import { NativeViewResolutionError } from "../../native/nativeViewResolutionError";
+import { msg } from "gt-react-native";
 
 const NATIVE_REVIEW_DIFF_MODULE_NAME = "SupatermReviewDiffSurface";
 const NATIVE_REVIEW_DIFF_PAYLOAD_RETRY_FRAMES = 60;
@@ -306,10 +307,10 @@ function NativeReviewDiffView(props: NativeReviewDiffViewProps) {
         ],
       },
       createElement(EmptyState, {
-        title: "Could not display diff",
-        detail: "Try loading the diff view again.",
+        title: msg("Could not display diff"),
+        detail: msg("Try loading the diff view again."),
         variant: "plain",
-        actionLabel: "Retry diff",
+        actionLabel: msg("Retry diff"),
         onAction: () => {
           props.onDebug?.({
             nativeEvent: { message: "surface-retry" },

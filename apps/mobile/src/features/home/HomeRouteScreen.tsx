@@ -27,8 +27,10 @@ import { useSelectWorkspaceTab } from "../layout/workspace/useSelectWorkspaceTab
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { WorkspaceListEmptyDetail } from "../layout/workspace/WorkspaceListEmptyDetail";
 import { WorkspaceListHeader } from "../layout/workspace/WorkspaceListHeader";
+import { useGT } from "gt-react-native";
 
 export function HomeRouteScreen() {
+  const gt = useGT();
   const nativePrimaryColumn = use(NativePrimaryColumnContext);
   const { layout, setPrimarySidebarSearchQuery, startNewTask } = useAdaptiveWorkspaceLayout();
   const { primarySidebarSearchQuery } = useWorkspacePaneState();
@@ -106,13 +108,13 @@ export function HomeRouteScreen() {
     <AndroidHomeFabLayout onStartNewTask={startNewTask}>
       <>
         <WorkspaceListHeader
-          accessibilityLabel="Supaterm, Threads"
+          accessibilityLabel={gt("Supaterm, Threads")}
           onOpenEnvironments={() => openSettings(navigation, "SettingsEnvironments")}
           search={{
             value: searchQuery,
             onChangeText: setSearchQuery,
-            placeholder: "Search",
-            accessibilityLabel: "Search threads",
+            placeholder: gt("Search", { $context: "search field placeholder" }),
+            accessibilityLabel: gt("Search threads"),
           }}
           filter={filter}
         />

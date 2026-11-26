@@ -47,6 +47,7 @@ import {
   enrichedSkillLinkRegex,
   enrichedLinkVariantPattern,
 } from "../lib/enrichedLinkPresentation";
+import { useGT } from "gt-react-native";
 
 function enrichedStyle(
   style: SelectableMarkdownTextProps["textStyle"],
@@ -230,6 +231,7 @@ function sameStrings(left: ReadonlyArray<string>, right: ReadonlyArray<string>) 
 }
 
 export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
+  const gt = useGT();
   const { renderImage, resolveImageSource, fileEmbedLabel } = props;
   const { themeAppearance, mathRenderingEnabled } = useAppearancePreferences();
   const {
@@ -309,9 +311,9 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
             const menu = fileContextMenu?.(url) ?? {
               title: url,
               actions: [
-                { id: "enriched-open-link", title: "Open link" },
-                { id: "enriched-copy-link", title: "Copy link" },
-                { id: "enriched-share-link", title: "Share link" },
+                { id: "enriched-open-link", title: gt("Open link") },
+                { id: "enriched-copy-link", title: gt("Copy link") },
+                { id: "enriched-share-link", title: gt("Share link") },
               ],
             };
             return [
@@ -428,8 +430,8 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
             const menu = props.fileContextMenu?.(url) ?? {
               title: url,
               actions: [
-                { id: "enriched-open-link", title: "Open link" },
-                { id: "enriched-copy-link", title: "Copy link" },
+                { id: "enriched-open-link", title: gt("Open link") },
+                { id: "enriched-copy-link", title: gt("Copy link") },
               ],
             };
             setActiveMenu({ url, menu });

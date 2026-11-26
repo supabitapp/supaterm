@@ -51,6 +51,7 @@ import {
 } from "./threadListV2";
 import { useThreadListNow } from "./use-thread-list-now";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { useGT } from "gt-react-native";
 
 const keyOf = (thread: EnvironmentThreadShell) => scopedThreadKey(thread.environmentId, thread.id);
 type Section = "pinned" | "active" | "snoozed" | "done";
@@ -132,6 +133,7 @@ function useDragHandlePan(latest: RefObject<DragHandleProps>, disabled: boolean)
 }
 
 function DragHandle(props: DragHandleProps) {
+  const gt = useGT();
   const latest = useRef(props);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes committed props to the ref the memoized pan gesture's JS callbacks read
   useLayoutEffect(() => {
@@ -144,13 +146,15 @@ function DragHandle(props: DragHandleProps) {
         collapsable={false}
         accessible
         accessibilityRole="adjustable"
-        accessibilityLabel={`Reorder ${props.title}`}
-        accessibilityHint="Move up and Move down reorder within this section. Other actions move between sections."
+        accessibilityLabel={gt("Reorder {title}", { title: props.title })}
+        accessibilityHint={gt(
+          "Move up and Move down reorder within this section. Other actions move between sections.",
+        )}
         accessibilityState={{ disabled: props.disabled }}
         accessibilityActions={[
           ...props.sectionActions,
-          ...(props.canMoveUp ? [{ name: "decrement", label: "Move up" }] : []),
-          ...(props.canMoveDown ? [{ name: "increment", label: "Move down" }] : []),
+          ...(props.canMoveUp ? [{ name: "decrement", label: gt("Move up") }] : []),
+          ...(props.canMoveDown ? [{ name: "increment", label: gt("Move down") }] : []),
         ]}
         onAccessibilityAction={({ nativeEvent }) => {
           if (props.disabled) return;
@@ -180,6 +184,7 @@ function DragHandle(props: DragHandleProps) {
 }
 
 function ThreadArrangementSheet(props: { onClose: () => void }) {
+  const gt = useGT();
   const { appearance } = useAppearancePreferences();
   const { fontScale } = useWindowDimensions();
   const { rowHeight, headerHeight } = deriveThreadArrangementSizing({
@@ -414,9 +419,9 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
             <SafeAreaView style={{ flex: 1 }}>
               <SheetHeader
                 presentation="inline"
-                title="Arrange threads"
+                title={gt("Arrange threads")}
                 onClose={props.onClose}
-                accessibilityLabel="Close arrange threads"
+                accessibilityLabel={gt("Close arrange threads")}
               />
               <Text className="px-5 pb-3 text-sm text-foreground-muted">
                 Drag to reorder, pin, or mark as Done. Changes save when you drop.
@@ -551,9 +556,9 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                           >
                             <Text className="text-sm text-foreground-muted">
                               {olderDoneShelf.loading
-                                ? "Loading"
+                                ? gt("Loading", { $context: "older threads are loading" })
                                 : olderDoneShelf.failed
-                                  ? "Could not load older threads. Retry"
+                                  ? gt("Could not load older threads. Retry")
                                   : `Show more (${doneCount - visibleDone.length} Done hidden)`}
                             </Text>
                           </Pressable>

@@ -2,6 +2,7 @@ import { sanitizeNewRefName } from "@supaterm/shared/git";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { resolveSendEnvMode } from "@supaterm/shared/projectSettings";
 import type { ComposerDraftWorkspaceSelection } from "../../state/use-composer-drafts";
+import { msg } from "gt-react-native";
 
 type WorkspaceMode = "local" | "worktree";
 
@@ -95,7 +96,7 @@ export function resolveNewTaskBranchLabel(input: {
     if (parsed) return `From ${parsed.definition.changeRequest.shortLabel} #${parsed.link.number}`;
   }
   if (!input.branchName) {
-    return input.workspaceMode === "worktree" ? "Default branch" : "Choose branch";
+    return input.workspaceMode === "worktree" ? "Default branch" : msg("Choose branch");
   }
 
   if (input.workspaceMode === "local") {

@@ -33,22 +33,24 @@ import { StandaloneStack } from "../layout/nested-stacks";
 import { ScrollView, useWindowDimensions, View } from "react-native";
 
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { msg, useGT } from "gt-react-native";
 
 const durationAmounts = Array.from({ length: 99 }, (_, index) => index + 1);
 const modes = [
-  { value: "date", label: "Date and time" },
-  { value: "duration", label: "Duration" },
+  { value: "date", label: msg("Date and time") },
+  { value: "duration", label: msg("Duration") },
 ] as const;
 const units = [
-  { value: "minutes", label: "Minutes" },
-  { value: "hours", label: "Hours" },
-  { value: "days", label: "Days" },
+  { value: "minutes", label: msg("Minutes") },
+  { value: "hours", label: msg("Hours") },
+  { value: "days", label: msg("Days") },
 ] as const;
 
 export function CustomSnoozeSheet(props: {
   readonly onClose: () => void;
   readonly onSnooze: (snoozedUntil: string) => void;
 }) {
+  const gt = useGT();
   const { width, height } = useWindowDimensions();
   const [mode, setMode] = useState<CustomSnoozeInput["mode"]>("date");
   const [date, setDate] = useState(() => new Date(Date.now() + 3_600_000));
@@ -71,7 +73,9 @@ export function CustomSnoozeSheet(props: {
     const snoozedUntil = resolveCustomSnooze(input, new Date());
     if (!snoozedUntil) {
       setError(
-        mode === "date" ? "Choose a date and time in the future." : "Enter a positive duration.",
+        mode === "date"
+          ? gt("Choose a date and time in the future.")
+          : gt("Enter a positive duration."),
       );
       return;
     }
@@ -113,7 +117,7 @@ export function CustomSnoozeSheet(props: {
                 modifiers={[padding({ all: 16 }), foregroundStyle(colors["--color-foreground"])]}
               >
                 <Picker
-                  label="Snooze mode"
+                  label={gt("Snooze mode")}
                   selection={mode}
                   onSelectionChange={(value: CustomSnoozeInput["mode"]) => {
                     setMode(value);
@@ -129,7 +133,7 @@ export function CustomSnoozeSheet(props: {
                 </Picker>
                 {mode === "date" ? (
                   <DatePicker
-                    title="Snooze until"
+                    title={gt("Snooze until")}
                     selection={date}
                     displayedComponents={["date", "hourAndMinute"]}
                     onDateChange={updateDate}
@@ -142,7 +146,7 @@ export function CustomSnoozeSheet(props: {
                 ) : (
                   <HStack spacing={0}>
                     <Picker
-                      label="Duration amount"
+                      label={gt("Duration amount")}
                       selection={amount}
                       onSelectionChange={(value: number) => {
                         setAmount(value);
@@ -165,7 +169,7 @@ export function CustomSnoozeSheet(props: {
                       ))}
                     </Picker>
                     <Picker
-                      label="Duration unit"
+                      label={gt("Duration unit")}
                       selection={unit}
                       onSelectionChange={(value: typeof unit) => {
                         setUnit(value);
@@ -218,16 +222,20 @@ function SnoozePopoverNavigation(props: {
   readonly onSubmit: () => void;
   readonly children: ReactNode;
 }) {
+  const gt = useGT();
   return (
     <VStack modifiers={[frame({ width: props.width, height: props.height })]}>
       <RNHostView>
         <View style={{ width: props.width, height: props.height }}>
           <StandaloneStack>
             <SheetHeader
-              title="Custom snooze"
+              title={gt("Custom snooze")}
               onCancel={props.onClose}
-              accessibilityLabel="Cancel custom snooze"
-              confirm={{ label: "Snooze", onPress: props.onSubmit }}
+              accessibilityLabel={gt("Cancel custom snooze")}
+              confirm={{
+                label: gt("Snooze", { $context: "verb, confirm button" }),
+                onPress: props.onSubmit,
+              }}
             />
             <ScrollView
               contentInsetAdjustmentBehavior="automatic"

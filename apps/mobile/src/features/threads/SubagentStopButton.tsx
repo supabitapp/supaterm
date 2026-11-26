@@ -12,12 +12,14 @@ import {
   resolveSubagentRowPresentation,
   resolveSubagentStopTarget,
 } from "./threadAgentsPresentation";
+import { useGT } from "gt-react-native";
 
 export function SubagentStopButton(props: {
   readonly environmentId: EnvironmentId;
   readonly subagent: OrchestrationV2Subagent;
   readonly className?: string;
 }) {
+  const gt = useGT();
   const target = resolveSubagentStopTarget(props.subagent);
   const canStop = useAtomValue(
     orchestrationEnvironment.stopWorkflow.permissionAtom(props.environmentId),
@@ -39,7 +41,7 @@ export function SubagentStopButton(props: {
         : interruptTurn({ environmentId: props.environmentId, input: target.input })
     ).finally(() => setStopping(false));
     if (result._tag === "Failure") {
-      Dialog.alert(workflow ? "Could not stop workflow" : "Could not stop agent");
+      Dialog.alert(workflow ? gt("Could not stop workflow") : gt("Could not stop agent"));
     }
   };
 
@@ -52,9 +54,11 @@ export function SubagentStopButton(props: {
         disabled={stopping}
         onPress={() =>
           Dialog.confirm({
-            title: workflow ? "Stop workflow?" : "Stop agent?",
-            message: workflow ? `Every running agent in ${label} stops.` : `Stop ${label}?`,
-            confirmText: "Stop",
+            title: workflow ? gt("Stop workflow?") : gt("Stop agent?"),
+            message: workflow
+              ? gt("Every running agent in {label} stops.", { label })
+              : gt("Stop {label}?", { label }),
+            confirmText: gt("Stop", { $context: "verb, confirm button" }),
             destructive: true,
             onConfirm: () => void stop(),
           })

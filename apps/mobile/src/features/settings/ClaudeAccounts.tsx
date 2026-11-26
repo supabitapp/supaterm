@@ -25,6 +25,7 @@ import {
   type ClaudeAccountDraft,
 } from "./claude-accounts";
 import type { SettingsTarget } from "./settings-environment-filter";
+import { useGT } from "gt-react-native";
 
 function useProviderInstanceMutation(environment: SettingsTarget) {
   const mutate = useAtomCommand(serverEnvironment.mutateProviderInstance, {
@@ -62,28 +63,29 @@ export function ClaudeAccount({
   readonly environment: SettingsTarget;
   readonly provider: ServerProvider;
 }) {
+  const gt = useGT();
   const [editing, setEditing] = useState(false);
   const { run, pending, error } = useProviderInstanceMutation(environment);
   const instance = environment.serverConfig.settings.providerInstances[provider.instanceId];
   const configDir = claudeConfigDir(instance);
   const name = provider.displayName ?? "Claude";
   const status = !provider.enabled
-    ? "Turned off"
+    ? gt("Turned off")
     : provider.auth.status === "authenticated"
-      ? "Signed in"
+      ? gt("Signed in")
       : provider.auth.status === "unauthenticated"
-        ? "Not signed in"
+        ? gt("Not signed in")
         : !provider.installed
-          ? "Not installed"
+          ? gt("Not installed")
           : null;
   const removable = provider.instanceId !== DEFAULT_CLAUDE_INSTANCE_ID;
   const actions: MenuAction[] = [
-    { id: "edit", title: "Edit", image: "pencil" },
+    { id: "edit", title: gt("Edit"), image: "pencil" },
     ...(removable
       ? [
           {
             id: "remove",
-            title: "Remove",
+            title: gt("Remove"),
             image: "trash",
             attributes: { destructive: true },
           } satisfies MenuAction,
@@ -92,12 +94,15 @@ export function ClaudeAccount({
   ];
   function remove() {
     Dialog.alert(
-      `Remove ${name}?`,
-      `It leaves the model picker on ${environment.label}. The config folder and its sign-in stay on the server.`,
+      gt("Remove {account}?", { account: name }),
+      gt(
+        "It leaves the model picker on {environment}. The config folder and its sign-in stay on the server.",
+        { environment: environment.label },
+      ),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: gt("Cancel"), style: "cancel" },
         {
-          text: "Remove",
+          text: gt("Remove"),
           style: "destructive",
           onPress: () => {
             void run({ operation: "remove", instanceId: provider.instanceId });
@@ -114,7 +119,7 @@ export function ClaudeAccount({
             {name}
           </Text>
           <Text textRole="footnote" className="text-foreground-muted" numberOfLines={2}>
-            {[status, configDir || "Default config folder"].filter(Boolean).join(" · ")}
+            {[status, configDir || gt("Default config folder")].filter(Boolean).join(" · ")}
           </Text>
         </View>
         {editing ? null : (
@@ -188,6 +193,7 @@ function ClaudeAccountForm({
   readonly initial: ClaudeAccountDraft;
   readonly onDone: () => void;
 }) {
+  const gt = useGT();
   const [draft, setDraft] = useState(initial);
   const { run, pending, error, setError } = useProviderInstanceMutation(environment);
   function save() {
@@ -232,10 +238,10 @@ function ClaudeAccountForm({
         </Text>
       ) : null}
       <View className="flex-row justify-end gap-2">
-        <ControlPill variant="pill" label="Cancel" disabled={pending} onPress={onDone} />
+        <ControlPill variant="pill" label={gt("Cancel")} disabled={pending} onPress={onDone} />
         <ControlPill
           variant="primary"
-          label={instanceId === null ? "Add" : "Save"}
+          label={instanceId === null ? gt("Add") : gt("Save")}
           disabled={pending}
           onPress={save}
         />

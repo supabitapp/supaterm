@@ -44,6 +44,7 @@ import {
 import { WorkspaceTabDock } from "./WorkspaceTabDock";
 import { useSidebarWorkspaceTabs, useSystemWorkspaceTabBar } from "./useSystemWorkspaceTabBar";
 import { openSettings } from "../../settings/settings-navigation";
+import { useGT } from "gt-react-native";
 
 const TAB_TITLES = { ...WORKSPACE_TAB_LABELS, pullRequests: "Pull requests" };
 
@@ -51,11 +52,12 @@ function WorkspaceRootTitle(props: {
   readonly columnWidth: number;
   readonly onOpenEnvironments: () => void;
 }) {
+  const gt = useGT();
   const { state, settingsOpen } = useWorkspaceTabs()!;
   const maxWidth = Math.max(0, props.columnWidth - (use(HeaderItemsWidthContext) ?? 160));
   const enabled = useEnabledNavigationTabs();
   const tabTitle = settingsOpen
-    ? "Settings"
+    ? gt("Settings")
     : enabled.length
       ? TAB_TITLES[state.selectedTab]
       : "Navigation";
@@ -77,6 +79,7 @@ function WorkspaceRootTitle(props: {
 }
 
 function WorkspaceRootContent() {
+  const gt = useGT();
   const navigation = useNavigation();
   const { width: windowWidth } = useWindowDimensions();
   const { layout, startNewTask } = useAdaptiveWorkspaceLayout();
@@ -137,10 +140,12 @@ function WorkspaceRootContent() {
           ]}
           options={{
             title: settingsOpen
-              ? "Settings"
+              ? gt("Settings")
               : enabled.length
                 ? TAB_TITLES[state.selectedTab]
-                : "Navigation",
+                : gt("Navigation", {
+                    $context: "screen title when every navigation tab is hidden",
+                  }),
             headerShown: true,
             headerTransparent: NATIVE_LIQUID_GLASS_SUPPORTED,
             headerStyle: NATIVE_LIQUID_GLASS_SUPPORTED

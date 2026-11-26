@@ -63,6 +63,7 @@ import {
   issueStatus,
   useIssueAccess,
 } from "./issuePresentation";
+import { T, useGT } from "gt-react-native";
 
 type IssueAccess = NonNullable<ReturnType<typeof useIssueAccess>>;
 
@@ -105,12 +106,13 @@ function IssueStateControl(props: {
   readonly busy: boolean;
   readonly onMove: (state: string) => void;
 }) {
+  const gt = useGT();
   const status = issueStatus(props.state);
   const moves = props.states;
   const trigger = (
     <Pressable
       accessibilityRole={moves.length ? "button" : undefined}
-      accessibilityLabel={`Issue state, ${status.label}`}
+      accessibilityLabel={gt("Issue state, {state}", { state: status.label })}
       disabled={!moves.length || props.busy}
       className="min-h-8 flex-row items-center gap-1.5 active:opacity-70"
     >
@@ -126,7 +128,7 @@ function IssueStateControl(props: {
     // As wide as the trigger: iOS anchors the menu to this view, not to the text inside it.
     <View className="self-start">
       <Menu
-        title="Issue state"
+        title={gt("Issue state")}
         // The name is the id: unique within a workflow, and a NUL separator would end the native string.
         actions={moves.map((move) => ({ id: move.name, title: move.name }))}
         onPressAction={({ nativeEvent }) => {
@@ -148,6 +150,7 @@ function IssueIdentity(props: {
   readonly onEditLabels: () => void;
   readonly onEditAssignees: () => void;
 }) {
+  const gt = useGT();
   const { issue, access } = props;
   const canLabel = access?.labels === true;
   const canAssign = access?.assignees === true;
@@ -165,7 +168,7 @@ function IssueIdentity(props: {
       <View className="flex-row items-center gap-2">
         <PullRequestAvatar actor={issue.author} size={20} />
         <Text className="min-w-0 flex-1 text-xs font-supaterm-medium" numberOfLines={1}>
-          {issue.author?.login ?? "Unknown author"}
+          {issue.author?.login ?? gt("Unknown author")}
         </Text>
         <Text className="shrink text-right text-2xs text-foreground-muted" numberOfLines={1}>
           {issue.closedAt ? (
@@ -186,17 +189,23 @@ function IssueIdentity(props: {
           ))}
           {canLabel ? (
             <Chip
-              label={issue.labels.length ? "Edit" : "Add labels"}
+              label={
+                issue.labels.length
+                  ? gt("Edit", { $context: "verb, edits labels" })
+                  : gt("Add labels")
+              }
               icon="tag"
               size="small"
-              accessibilityLabel="Edit labels"
+              accessibilityLabel={gt("Edit labels")}
               onPress={props.onEditLabels}
             />
           ) : null}
         </View>
       ) : null}
       <View className="flex-row flex-wrap items-center gap-2">
-        <Text className="text-xs text-foreground-muted">Assignees</Text>
+        <Text className="text-xs text-foreground-muted">
+          <T>Assignees</T>
+        </Text>
         {issue.assignees.length === 0 ? (
           <Text className="text-xs text-foreground-muted">none</Text>
         ) : null}
@@ -208,10 +217,14 @@ function IssueIdentity(props: {
         ))}
         {canAssign ? (
           <Chip
-            label={issue.assignees.length ? "Edit" : "Assign"}
+            label={
+              issue.assignees.length
+                ? gt("Edit", { $context: "verb, edits assignees" })
+                : gt("Assign", { $context: "verb, assigns people to an issue" })
+            }
             icon="person.badge.plus"
             size="small"
-            accessibilityLabel="Edit assignees"
+            accessibilityLabel={gt("Edit assignees")}
             onPress={props.onEditAssignees}
           />
         ) : null}
@@ -224,19 +237,26 @@ function LinkedPullRequests(props: {
   readonly params: IssueParams;
   readonly links: ReadonlyArray<IssueLinkedPullRequest>;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   // Only a git host's tracker shares its host with the change request it links.
   const sameHost = sourceControlClients.find(props.params.tracker) !== undefined;
   return (
     <View className="gap-2">
-      <PullRequestSectionHeading>Linked pull requests</PullRequestSectionHeading>
+      <PullRequestSectionHeading>
+        <T>Linked pull requests</T>
+      </PullRequestSectionHeading>
       {props.links.map((link) => {
         const status = pullRequestStatus(link);
         return (
           <Pressable
             key={`${link.repository}#${link.number}`}
             accessibilityRole="button"
-            accessibilityLabel={`${status.label} pull request ${link.number}, ${link.title}`}
+            accessibilityLabel={gt("{status} pull request {number}, {title}", {
+              status: status.label,
+              number: link.number,
+              title: link.title,
+            })}
             onPress={() =>
               sameHost
                 ? navigation.dispatch(
@@ -272,6 +292,7 @@ function LinkedPullRequests(props: {
 
 /** The threads this issue is linked to, most recently active first; hidden while there are none. */
 function LinkedThreads(props: { readonly params: IssueParams; readonly host: string }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const { environmentId, input } = issueTarget(props.params);
   const listsThreads =
@@ -288,14 +309,16 @@ function LinkedThreads(props: { readonly params: IssueParams; readonly host: str
   if (threads.length === 0) return null;
   return (
     <View className="gap-2">
-      <PullRequestSectionHeading>Linked threads</PullRequestSectionHeading>
+      <PullRequestSectionHeading>
+        <T>Linked threads</T>
+      </PullRequestSectionHeading>
       {threads.map((thread) => {
-        const title = thread.title || "Untitled thread";
+        const title = thread.title || gt("Untitled thread");
         return (
           <Pressable
             key={thread.id}
             accessibilityRole="button"
-            accessibilityLabel={`Open thread ${title}`}
+            accessibilityLabel={gt("Open thread {title}", { title })}
             onPress={() =>
               navigation.dispatch(
                 StackActions.push("Thread", {
@@ -313,7 +336,7 @@ function LinkedThreads(props: { readonly params: IssueParams; readonly host: str
               </Text>
               {thread.archivedAt !== null ? (
                 <Text className="text-2xs text-foreground-muted" numberOfLines={1}>
-                  Archived thread
+                  <T>Archived thread</T>
                 </Text>
               ) : null}
             </View>
@@ -330,13 +353,14 @@ function IssueCommentCard(props: {
   readonly comment: IssueComment;
   readonly canReact: boolean;
 }) {
+  const gt = useGT();
   const { comment } = props;
   return (
     <View className="gap-3 rounded-2xl bg-grouped-card p-3">
       <View accessible accessibilityRole="header" className="flex-row items-center gap-2">
         <PullRequestAvatar actor={comment.author} size={22} />
         <Text className="min-w-0 flex-1 text-sm font-supaterm-medium" numberOfLines={1}>
-          {comment.author?.login ?? "Unknown author"}
+          {comment.author?.login ?? gt("Unknown author")}
         </Text>
         <Text className="text-2xs text-foreground-tertiary">{relativeTime(comment.createdAt)}</Text>
       </View>
@@ -360,6 +384,7 @@ function IssueEventRow({
   readonly params: IssueParams;
   readonly event: IssueEvent;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const sentence = issueEventSentence(event);
   const source = event.reference;
@@ -397,7 +422,9 @@ function IssueEventRow({
     <View className="flex-row items-center gap-2 px-1">
       <PullRequestAvatar actor={event.actor} size={18} />
       <Text className="min-w-0 flex-1 text-xs text-foreground-muted">
-        <Text className="text-xs font-supaterm-medium">{event.actor?.login ?? "Someone"}</Text>{" "}
+        <Text className="text-xs font-supaterm-medium">
+          {event.actor?.login ?? gt("Someone", { $context: "an unknown person" })}
+        </Text>{" "}
         {source === undefined || event.detail === null || at < 0 ? (
           sentence
         ) : (
@@ -421,10 +448,17 @@ function IssueEventRow({
 }
 
 function IssueLoadingBody() {
+  const gt = useGT();
   return (
-    <View className="gap-5" accessibilityLabel="Loading issue" accessibilityState={{ busy: true }}>
+    <View
+      className="gap-5"
+      accessibilityLabel={gt("Loading issue")}
+      accessibilityState={{ busy: true }}
+    >
       <View className="gap-3">
-        <PullRequestSectionHeading>Description</PullRequestSectionHeading>
+        <PullRequestSectionHeading>
+          <T>Description</T>
+        </PullRequestSectionHeading>
         <View className="gap-3 py-1">
           <View className="h-4 w-full rounded bg-subtle-strong" />
           <View className="h-4 w-full rounded bg-subtle-strong" />
@@ -432,7 +466,9 @@ function IssueLoadingBody() {
         </View>
       </View>
       <View className="gap-3">
-        <PullRequestSectionHeading>Activity</PullRequestSectionHeading>
+        <PullRequestSectionHeading>
+          <T>Activity</T>
+        </PullRequestSectionHeading>
         <View className="h-20 rounded-2xl bg-subtle-strong" />
         <View className="h-20 rounded-2xl bg-subtle-strong" />
       </View>
@@ -446,6 +482,7 @@ export function IssueRouteScreen({ route }: StaticScreenProps<IssueParams>) {
 }
 
 function IssueRoute({ params }: { readonly params: IssueParams }) {
+  const gt = useGT();
   const identity = issueIdentity(params);
   const target = issueTarget(params);
   const navigation = useNavigation();
@@ -519,7 +556,7 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
       setOlderCommentsError(null);
       return loadComments({ ...target, input: { ...target.input, cursor } });
     });
-    if (failure) setOlderCommentsError("Older comments could not be read.");
+    if (failure) setOlderCommentsError(gt("Older comments could not be read."));
   };
   const submitComment = (body: string) =>
     access?.comment === true
@@ -530,7 +567,7 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
 
   const showComposer = detail?.capabilities.comment === true;
   const commentBlocked =
-    access?.comment === true ? null : (access?.blocked ?? "You cannot comment here.");
+    access?.comment === true ? null : (access?.blocked ?? gt("You cannot comment here."));
   const contentMaxWidth =
     Platform.OS === "android"
       ? ANDROID_READING_MAX_WIDTH
@@ -551,25 +588,25 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
       <View className="flex-1 bg-screen">
         <AppBar
           title={issue?.displayKey ?? params.issueKey}
-          subtitle={connected ? params.scope : `${params.scope} · Offline`}
+          subtitle={connected ? params.scope : gt("{scope} · Offline", { scope: params.scope })}
           onBack={layout.usesSplitView ? undefined : returnToList}
           menus={[
             {
-              title: "Issue actions",
+              title: gt("Issue actions"),
               icon: "ellipsis",
               items: [
                 ...(access?.edit
                   ? [
                       {
                         id: "edit-title",
-                        title: "Edit title",
+                        title: gt("Edit title"),
                         icon: "pencil",
                         onPress: () =>
                           navigation.navigate("IssueEdit", { ...identity, field: "title" }),
                       },
                       {
                         id: "edit-description",
-                        title: "Edit description",
+                        title: gt("Edit description"),
                         icon: "doc.text",
                         onPress: () =>
                           navigation.navigate("IssueEdit", { ...identity, field: "body" }),
@@ -580,19 +617,19 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
                   ? [
                       {
                         id: "open-on-host",
-                        title: "Open on the tracker",
+                        title: gt("Open on the tracker"),
                         icon: "arrow.up.right",
                         onPress: () => void tryOpenExternalUrl(url),
                       },
                       {
                         id: "copy-link",
-                        title: "Copy link",
+                        title: gt("Copy link"),
                         icon: "link",
                         onPress: () => copyTextWithHaptic(url, { target: "issue link" }),
                       },
                       {
                         id: "share",
-                        title: "Share…",
+                        title: gt("Share…"),
                         icon: "square.and.arrow.up",
                         onPress: () =>
                           // Android ignores `url`; iOS shows a `message` URL as plain text.
@@ -631,7 +668,7 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
             {!issue ? (
               detailQuery.error && !detailQuery.isPending ? (
                 <EmptyState
-                  title="Couldn't load this issue"
+                  title={gt("Couldn't load this issue")}
                   detail={detailQuery.error}
                   variant="plain"
                 />
@@ -656,7 +693,7 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
                 {!detail ? (
                   detailQuery.error && !detailQuery.isPending ? (
                     <EmptyState
-                      title="Couldn't load this issue"
+                      title={gt("Couldn't load this issue")}
                       detail={detailQuery.error}
                       variant="plain"
                     />
@@ -689,14 +726,14 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
                       </PullRequestSectionHeading>
                       {nextCursor !== null ? (
                         <Button
-                          label={loadingOlder ? "Loading…" : "Load older comments"}
+                          label={loadingOlder ? gt("Loading…") : gt("Load older comments")}
                           disabled={busy !== null || !canLoadOlder}
                           onPress={() => void loadOlder()}
                         />
                       ) : null}
                       {timeline.length === 0 ? (
                         <Text className="text-sm text-foreground-muted">
-                          Nothing has happened here yet.
+                          <T>Nothing has happened here yet.</T>
                         </Text>
                       ) : null}
                       {timeline.map((item) => (

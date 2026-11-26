@@ -4,9 +4,11 @@ import { resolveEnvironmentMachineKind } from "@supaterm/contracts";
 import type { AppBarMenu } from "../../../components/ui/AppBar.types";
 import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../../components/EnvironmentMachineSymbol";
 import { useSettingsEnvironmentFilter } from "../settings-environment-filter";
+import { useGT } from "gt-react-native";
 
 /** The settings scope filter, as an `AppBar` menu. */
 export function useSettingsEnvironmentMenu(): AppBarMenu {
+  const gt = useGT();
   const {
     availableTargets,
     selectedTargets,
@@ -18,7 +20,7 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
     selectProject,
   } = useSettingsEnvironmentFilter();
   return {
-    title: "Filter settings environments and projects",
+    title: gt("Filter settings environments and projects"),
     icon:
       selectedIds === null && selectedProjectKey === null
         ? "line.3.horizontal.decrease"
@@ -28,12 +30,12 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
         id: "environments",
         title:
           selectedIds === null
-            ? "All environments"
+            ? gt("All environments")
             : `${selectedTargets.length} ${selectedTargets.length === 1 ? "environment" : "environments"}`,
         items: [
           {
             id: "all",
-            title: "All connected environments",
+            title: gt("All connected environments"),
             selected: selectedIds === null,
             onPress: selectAll,
           },
@@ -51,11 +53,11 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
         id: "projects",
         title:
           selectableProjectGroups.find((group) => group.key === selectedProjectKey)?.label ??
-          (selectedProjectKey === null ? "All projects" : "Unavailable project"),
+          (selectedProjectKey === null ? gt("All projects") : gt("Unavailable project")),
         items: [
           {
             id: "project:all",
-            title: "All projects",
+            title: gt("All projects"),
             selected: selectedProjectKey === null,
             onPress: () => selectProject(null),
           },

@@ -48,6 +48,8 @@ import {
   removeIncomingShareDraft,
   writeIncomingShareDraft,
 } from "./incoming-share-storage";
+import { m } from "../../i18n/messages";
+import { msg } from "gt-react-native";
 
 function receiveSharingEnabled(): boolean {
   if (Platform.OS === "android") {
@@ -251,10 +253,11 @@ function reportRefreshFailure(cause: unknown) {
     cause,
     cause instanceof Error ? cause.cause : null,
   );
-  const error = cause instanceof Error ? cause : new Error("Could not import shared content.");
-  Dialog.alert("Could not import shared content", error.message, [
-    { text: "Dismiss", style: "cancel" },
-    { text: "Retry", onPress: () => void refreshIncomingShares() },
+  const error =
+    cause instanceof Error ? cause : new Error(m(msg("Could not import shared content.")));
+  Dialog.alert(m(msg("Could not import shared content")), error.message, [
+    { text: m(msg("Dismiss")), style: "cancel" },
+    { text: m(msg("Retry")), onPress: () => void refreshIncomingShares() },
   ]);
 }
 
@@ -335,30 +338,32 @@ export const incomingShareImports = makeIncomingShareImports({
     }),
   releaseUnusedAttachments: scheduleUnusedComposerAttachmentCleanup,
   onWarnings: (warnings) => {
-    Dialog.alert("Some shared content was skipped", warnings.join("\n"));
+    Dialog.alert(m(msg("Some shared content was skipped")), warnings.join("\n"));
   },
   onImportFailure: (target, error) => {
     Dialog.alert(
-      "Could not import shared content",
-      error instanceof Error ? error.message : "The shared content could not be saved.",
+      m(msg("Could not import shared content")),
+      error instanceof Error ? error.message : m(msg("The shared content could not be saved.")),
       [
         {
-          text: "Cancel import",
+          text: m(msg("Cancel import")),
           style: "cancel",
           onPress: () => void incomingShareImports.cancel(target),
         },
-        { text: "Retry", onPress: () => incomingShareImports.retry(target) },
+        { text: m(msg("Retry")), onPress: () => incomingShareImports.retry(target) },
       ],
       { cancelable: false },
     );
   },
   onCancelFailure: (target, error) => {
     Dialog.alert(
-      "Could not cancel import",
-      error instanceof Error ? error.message : "The shared content could not be restored safely.",
+      m(msg("Could not cancel import")),
+      error instanceof Error
+        ? error.message
+        : m(msg("The shared content could not be restored safely.")),
       [
-        { text: "Retry import", onPress: () => incomingShareImports.retry(target) },
-        { text: "Retry cancel", onPress: () => void incomingShareImports.cancel(target) },
+        { text: m(msg("Retry import")), onPress: () => incomingShareImports.retry(target) },
+        { text: m(msg("Retry cancel")), onPress: () => void incomingShareImports.cancel(target) },
       ],
       { cancelable: false },
     );

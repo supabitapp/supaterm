@@ -89,6 +89,7 @@ import { useAssetUrl } from "../../state/assets";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
 import { startShimmerSteps } from "./work-shimmer-steps";
+import { T, useGT } from "gt-react-native";
 
 const SHIMMER_WIDTH = 72;
 const SHIMMER_ICON_AND_GAP_WIDTH = 30;
@@ -719,6 +720,7 @@ function WorkspacePreparationRetryButton(props: {
   readonly threadId: ThreadId;
   readonly runId: RunId;
 }) {
+  const gt = useGT();
   const retryable = useAtomValue(
     environmentThreadDetails.threadAtom(scopeThreadRef(props.environmentId, props.threadId)),
     (thread) => {
@@ -732,9 +734,9 @@ function WorkspacePreparationRetryButton(props: {
   return (
     <View className="ml-7 mt-2">
       <Button
-        label="Retry"
+        label={gt("Retry")}
         tone="secondary"
-        accessibilityLabel="Retry workspace preparation"
+        accessibilityLabel={gt("Retry workspace preparation")}
         disabled={busy}
         onPress={() => {
           setBusy(true);
@@ -769,6 +771,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
     readonly expanded: boolean;
   },
 ) {
+  const gt = useGT();
   const { row, expanded } = props;
   const openLinkedThread = useOpenLinkedThread();
   const motion = useNoticeMotion();
@@ -806,7 +809,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
     return (
       <WorkLogPressable
         accessibilityLabel={warning ? label : `${row.summary}: ${failureItem.failure.message}`}
-        accessibilityHint="Long press to copy."
+        accessibilityHint={gt("Long press to copy.")}
         onLongPress={() => props.onCopyRow(row.id, row.getCopyText())}
       >
         <View className="flex-1 py-1">
@@ -829,7 +832,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
             </Text>
             {props.copied ? (
               <Text className="pr-1 font-supaterm-medium text-3xs text-adaptive-emerald-600-400">
-                Copied
+                <T>Copied</T>
               </Text>
             ) : null}
             <Text
@@ -918,19 +921,19 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
         }
         accessibilityLabel={
           failed
-            ? `${accessiblePreview}, tool call failed`
+            ? gt("{preview}, tool call failed", { preview: accessiblePreview })
             : mcpSignInTarget !== null && mcpSignedIn
-              ? `${accessiblePreview}, signed in`
+              ? gt("{preview}, signed in", { preview: accessiblePreview })
               : accessiblePreview
         }
         accessibilityHint={
           notifiedSubagentThreadId !== undefined
-            ? "Opens this agent's thread. Long press to copy."
+            ? gt("Opens this agent's thread. Long press to copy.")
             : opensMcpSignIn
-              ? "Opens the sign-in. Long press to copy."
+              ? gt("Opens the sign-in. Long press to copy.")
               : canExpand
                 ? `Double tap to ${expanded ? "hide" : "show"} full details. Long press to copy.`
-                : "Long press to copy."
+                : gt("Long press to copy.")
         }
         accessibilityState={canExpand ? { expanded } : undefined}
         onPress={() => {
@@ -1013,7 +1016,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
         <View className="shrink-0 flex-row items-center gap-px">
           {props.copied ? (
             <Text className="pr-1 font-supaterm-medium text-3xs text-adaptive-emerald-600-400">
-              Copied
+              <T>Copied</T>
             </Text>
           ) : mcpSignInTarget !== null ? (
             <Text
@@ -1022,7 +1025,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
                 mcpSignedIn ? "text-adaptive-emerald-600-400" : "text-primary",
               )}
             >
-              {mcpSignedIn ? "Signed in" : "Sign in"}
+              {mcpSignedIn ? <T>Signed in</T> : <T>Sign in</T>}
             </Text>
           ) : null}
           {failed && (toolIcon !== undefined || icon === "supaterm") ? (

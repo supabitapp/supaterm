@@ -41,6 +41,7 @@ import {
 } from "../../native/SelectableMarkdownText";
 import { fileRoutePathSegments, resolveWorkspaceFilePath } from "./filePath";
 import { SourceFileSurface } from "./SourceFileSurface";
+import { useGT } from "gt-react-native";
 
 interface MarkdownPreviewStyles {
   readonly nativeTextStyle: NativeMarkdownTextStyle;
@@ -87,6 +88,7 @@ export function FileMarkdownPreview(props: {
   readonly threadId: ThreadId | null;
   readonly onRefresh?: () => Promise<void> | void;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [expandedFile, setExpandedFile] = useState<FilePreviewSource | null>(null);
@@ -124,11 +126,11 @@ export function FileMarkdownPreview(props: {
       (!props.captured && fileLink.kind === "file" && fileLink.line !== undefined)
     ) {
       const name =
-        preview?.source.name ?? (fileLink.kind === "file" ? fileLink.label : "Open file");
+        preview?.source.name ?? (fileLink.kind === "file" ? fileLink.label : gt("Open file"));
       return (
         <Text
           accessibilityRole="link"
-          accessibilityLabel={`Open ${name}`}
+          accessibilityLabel={gt("Open {name}", { name })}
           onPress={() => openMedia(image.href, true)}
           style={{ color: styles.nativeTextStyle.linkColor }}
         >

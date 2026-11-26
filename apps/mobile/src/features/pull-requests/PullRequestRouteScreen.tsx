@@ -101,6 +101,7 @@ import {
   capitalizeTerm,
   sourceControlClients,
 } from "@supaterm/client-runtime/source-control-clients";
+import { T, useGT } from "gt-react-native";
 
 function usePullRequestActivityRows(params: PullRequestParams, filter: ActivityFilter) {
   const navigation = useNavigation();
@@ -123,7 +124,7 @@ function usePullRequestActivityRows(params: PullRequestParams, filter: ActivityF
         date: "",
         content: (
           <Text className="py-6 text-sm text-foreground-muted">
-            No activity matches these filters.
+            <T>No activity matches these filters.</T>
           </Text>
         ),
       });
@@ -168,6 +169,7 @@ function PullRequestIdentity(props: {
   readonly pr: PullRequestDetail | PullRequestListEntry | PullRequestSummary;
   readonly params: PullRequestParams;
 }) {
+  const gt = useGT();
   const { pr } = props;
   const status = pullRequestStatus({ state: pr.state, isDraft: pr.isDraft === true });
   return (
@@ -196,7 +198,7 @@ function PullRequestIdentity(props: {
       <View className="flex-row items-center gap-2">
         <PullRequestAvatar actor={pr.author ?? null} size={20} />
         <Text className="min-w-0 flex-1 text-xs font-supaterm-medium" numberOfLines={1}>
-          {pr.author?.login ?? "Unknown author"}
+          {pr.author?.login ?? gt("Unknown author")}
         </Text>
         <Text className="shrink text-right text-2xs text-foreground-muted" numberOfLines={1}>
           Updated <RelativeTime timestamp={pr.updatedAt} /> ago
@@ -205,7 +207,7 @@ function PullRequestIdentity(props: {
       <View className="flex-row items-start gap-1.5">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Copy base branch ${pr.baseBranch}`}
+          accessibilityLabel={gt("Copy base branch {branch}", { branch: pr.baseBranch })}
           onPress={() => void Clipboard.setStringAsync(pr.baseBranch)}
           className="max-w-[50%] active:opacity-70"
           hitSlop={8}
@@ -217,7 +219,7 @@ function PullRequestIdentity(props: {
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Copy head branch ${pr.headBranch}`}
+          accessibilityLabel={gt("Copy head branch {branch}", { branch: pr.headBranch })}
           onPress={() => void Clipboard.setStringAsync(pr.headBranch)}
           className="min-w-0 shrink active:opacity-70"
           hitSlop={8}
@@ -233,6 +235,7 @@ function PullRequestLabels(props: {
   readonly pr: PullRequestDetail;
   readonly params: PullRequestParams;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const connected = usePullRequestConnected(props.params.environmentId);
   const canWrite = useAtomValue(
@@ -266,10 +269,14 @@ function PullRequestLabels(props: {
       })}
       {editable ? (
         <Chip
-          label={props.pr.labels.length ? "Edit" : "Add labels"}
+          label={
+            props.pr.labels.length
+              ? gt("Edit", { $context: "verb, edit labels" })
+              : gt("Add labels")
+          }
           icon="tag"
           size="small"
-          accessibilityLabel="Edit labels"
+          accessibilityLabel={gt("Edit labels")}
           onPress={() => navigation.navigate("PullRequestLabels", props.params)}
         />
       ) : null}
@@ -322,6 +329,7 @@ function PullRequestOverview(props: {
 }
 
 export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestParams>) {
+  const gt = useGT();
   const returnToList = useAndroidWorkspaceBack();
   const { layout } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
@@ -540,7 +548,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         ? [
             {
               id: "submit-review",
-              title: "Submit review",
+              title: gt("Submit review"),
               icon: "text.bubble",
               onPress: () =>
                 navigation.navigate("PullRequestReview", {
@@ -555,7 +563,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         ? [
             {
               id: "add-comment",
-              title: "Add comment",
+              title: gt("Add comment"),
               icon: "plus.bubble",
               onPress: () =>
                 navigation.navigate("PullRequestReview", { ...params, mode: "comment" }),
@@ -566,16 +574,16 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         ? [
             {
               id: "edit-title",
-              title: "Edit title",
+              title: gt("Edit title"),
               icon: "pencil",
               onPress: () => navigation.navigate("PullRequestEdit", { ...params, field: "title" }),
             },
             {
               id: "edit-description",
-              title: "Edit description",
+              title: gt("Edit description"),
               icon: "doc.text",
               disabled: description.pending,
-              subtitle: description.pending ? "Saving…" : undefined,
+              subtitle: description.pending ? gt("Saving…") : undefined,
               onPress: () => navigation.navigate("PullRequestEdit", { ...params, field: "body" }),
             },
           ]
@@ -584,7 +592,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         ? [
             {
               id: "maintainer-edits",
-              title: "Allow edits from maintainers",
+              title: gt("Allow edits from maintainers"),
               icon: "pencil",
               selected: maintainerEdits.value,
               disabled: maintainerEdits.saving,
@@ -603,13 +611,13 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
             },
             {
               id: "copy-link",
-              title: "Copy link",
+              title: gt("Copy link"),
               icon: "link",
               onPress: () => copyPullRequestLink(identity),
             },
             {
               id: "share",
-              title: "Share…",
+              title: gt("Share…"),
               icon: "square.and.arrow.up",
               onPress: () => sharePullRequestLink(identity),
             },
@@ -635,10 +643,10 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
               destructive: true,
               disabled: !action.available("delete-branch"),
               subtitle: action.busy
-                ? "Deleting…"
+                ? gt("Deleting…")
                 : connected
                   ? pr.headBranch
-                  : "Reconnect to delete this branch.",
+                  : gt("Reconnect to delete this branch."),
               onPress: confirmDeleteBranch,
             },
           ]
@@ -650,7 +658,11 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
       <View className="flex-1 android:bg-header ios:bg-screen">
         <AppBar
           title={`#${params.number}`}
-          subtitle={connected ? params.repository : `${params.repository} · Offline`}
+          subtitle={
+            connected
+              ? params.repository
+              : gt("{repository} · Offline", { repository: params.repository })
+          }
           onBack={layout.usesSplitView ? undefined : returnToList}
           menus={verticalControls ? undefined : [pullRequestMenu]}
         />
@@ -862,11 +874,16 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                           {Platform.OS !== "ios" || section === tab ? (
                             <SegmentedControl
                               options={[
-                                { value: "overview", label: "Overview" },
+                                { value: "overview", label: gt("Overview") },
                                 ...(guidesEnabled
-                                  ? [{ value: "guide" as const, label: "Guide" }]
+                                  ? [
+                                      {
+                                        value: "guide" as const,
+                                        label: gt("Guide", { $context: "review guide tab" }),
+                                      },
+                                    ]
                                   : []),
-                                { value: "activity", label: "Activity" },
+                                { value: "activity", label: gt("Activity") },
                               ]}
                               selected={section}
                               onSelect={selectSection}

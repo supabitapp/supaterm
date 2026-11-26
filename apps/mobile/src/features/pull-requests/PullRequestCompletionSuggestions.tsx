@@ -5,19 +5,20 @@ import { GlassSurface } from "../../components/ui/GlassSurface";
 import { PullRequestAvatar } from "./PullRequestPresentation";
 import type { PullRequestCompletion } from "@supaterm/shared/pullRequestComposerTrigger";
 import type { usePullRequestCompletions } from "./usePullRequestCompletions";
+import { msg, useGT } from "gt-react-native";
 
 const COPY = {
   mention: {
-    label: "Mention a user",
-    pending: "Searching users...",
-    failed: "Couldn't search users on the host",
-    none: "No matching users",
+    label: msg("Mention a user"),
+    pending: msg("Searching users..."),
+    failed: msg("Couldn't search users on the host"),
+    none: msg("No matching users"),
   },
   reference: {
-    label: "Reference an issue or change request",
-    pending: "Searching...",
-    failed: "Couldn't search the host",
-    none: "No matching issues or change requests",
+    label: msg("Reference an issue or change request"),
+    pending: msg("Searching..."),
+    failed: msg("Couldn't search the host"),
+    none: msg("No matching issues or change requests"),
   },
 } as const;
 
@@ -62,6 +63,7 @@ export function PullRequestCompletionSuggestions({
 }: {
   readonly completions: ReturnType<typeof usePullRequestCompletions>;
 }) {
+  const gt = useGT();
   if (completions.kind === null) return null;
   const copy = COPY[completions.kind];
   return (
@@ -81,7 +83,7 @@ export function PullRequestCompletionSuggestions({
             <Pressable
               key={completion.token}
               accessibilityRole="button"
-              accessibilityLabel={`Insert ${completion.token}`}
+              accessibilityLabel={gt("Insert {token}", { token: completion.token })}
               onPress={() => completions.select(completion)}
               className="flex-row items-center gap-2.5 border-border px-3.5 py-2.5 active:opacity-60"
               style={{

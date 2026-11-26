@@ -21,6 +21,7 @@ import { useAssetUrlState, useRefreshAssetUrl } from "../../state/assets";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { webViewDecelerationRate } from "../../lib/webViewDecelerationRate";
 import { annotateHtmlRenderText, type HtmlRenderAnnotation } from "./annotateAssistantText";
+import { T, useGT } from "gt-react-native";
 
 const ROW_BOTTOM_MARGIN = 8;
 const ACTION_ROW_HEIGHT = 32;
@@ -200,6 +201,7 @@ export function ThreadHtmlRender(props: {
   readonly frameWidth: number;
   readonly iconColor: ColorValue;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const annotation =
     props.annotationDraftKey === undefined
@@ -247,7 +249,7 @@ export function ThreadHtmlRender(props: {
         {uri !== null && !failed ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Open ${title}`}
+            accessibilityLabel={gt("Open {title}", { title })}
             hitSlop={8}
             className="h-7 w-7 items-center justify-center rounded-full border border-border/60 bg-card/80"
             onPress={() =>
@@ -290,7 +292,7 @@ export function ThreadHtmlRender(props: {
         ) : failed || asset._tag === "Failure" ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Reload ${title}`}
+            accessibilityLabel={gt("Reload {title}", { title })}
             className="flex-1 items-center justify-center"
             onPress={() => {
               retried.current = false;
@@ -298,7 +300,9 @@ export function ThreadHtmlRender(props: {
               if (uri === null) void refresh().then((next) => next !== null && setUri(next));
             }}
           >
-            <Text className="text-sm text-foreground-muted">Page unavailable</Text>
+            <Text className="text-sm text-foreground-muted">
+              <T>Page unavailable</T>
+            </Text>
           </Pressable>
         ) : (
           <View className="flex-1 items-center justify-center">

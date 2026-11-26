@@ -1,5 +1,4 @@
 import { usageSourceMessages, formatUsageContractMismatch } from "@supaterm/shared/usageFormatCopy";
-import { useMessages } from "gt-react-native";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { ChatGptUsageSummary } from "./ChatGptUsageSummary";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
@@ -45,6 +44,7 @@ import { useRefreshLimits } from "./UsageLimitsSection";
 import { UsageLimitsSection } from "./UsageLimitsPooled";
 import type { UsageChartMetric } from "./usageChartData";
 import { PROVIDER_LABEL, useProviderColors, useUsageMixColors } from "./usageProviders";
+import { msg, T, useMessages, useGT } from "gt-react-native";
 
 type UsageView = UsageChartMetric | "limits";
 const VIEW_OPTIONS = [
@@ -54,10 +54,10 @@ const VIEW_OPTIONS = [
 ] as const satisfies readonly { value: UsageView; label: string }[];
 
 const WINDOW_OPTIONS = [
-  { value: 1, label: "24h", accessibilityLabel: "Past 24 hours" },
-  { value: 7, label: "7d", accessibilityLabel: "Past 7 days" },
-  { value: 30, label: "30d", accessibilityLabel: "Past 30 days" },
-  { value: 90, label: "90d", accessibilityLabel: "Past 90 days" },
+  { value: 1, label: "24h", accessibilityLabel: msg("Past 24 hours") },
+  { value: 7, label: "7d", accessibilityLabel: msg("Past 7 days") },
+  { value: 30, label: "30d", accessibilityLabel: msg("Past 30 days") },
+  { value: 90, label: "90d", accessibilityLabel: msg("Past 90 days") },
 ] as const;
 
 const CHART_HEIGHT = 180;
@@ -76,6 +76,7 @@ function UsageScreen(props: {
   readonly workspace?: boolean;
   readonly tabParam: string | undefined;
 }) {
+  const gt = useGT();
   const m = useMessages();
   const insets = useSafeAreaInsets();
   const headerOnly = use(NativeWorkspaceTabActivityContext)?.headerOnly === true;
@@ -190,7 +191,7 @@ function UsageScreen(props: {
     setSelectedEnvironmentIds((selected) => toggleUsageEnvironment(selected, environments, id));
   };
   const environmentMenu = {
-    title: "Filter usage environments",
+    title: gt("Filter usage environments"),
     icon:
       selectedEnvironmentIds === null
         ? ("line.3.horizontal.decrease" as const)
@@ -198,7 +199,7 @@ function UsageScreen(props: {
     items: [
       {
         id: "all",
-        title: "All environments",
+        title: gt("All environments"),
         selected: selectedEnvironmentIds === null,
         onPress: () => selectEnvironment("all"),
       },
@@ -215,7 +216,7 @@ function UsageScreen(props: {
 
   return (
     <SettingsScreen
-      title="Usage"
+      title={gt("Usage", { $context: "screen title" })}
       menus={showEnvironmentFilter ? [environmentMenu] : undefined}
       workspaceRoot={props.workspace}
     >
@@ -298,13 +299,13 @@ function UsageScreen(props: {
                   ) : null}
                   {isPending ? (
                     <Text className="py-16 text-center text-base text-foreground-muted">
-                      Scanning provider transcripts…
+                      <T>Scanning provider transcripts…</T>
                     </Text>
                   ) : selectedEnvironments.length === 0 ? (
                     <Text className="py-16 text-center text-base text-foreground-muted">
                       {environments.length === 0
-                        ? "Connect an environment to see usage."
-                        : "Select an environment to see usage."}
+                        ? gt("Connect an environment to see usage.")
+                        : gt("Select an environment to see usage.")}
                     </Text>
                   ) : !canReadDiagnostics ? (
                     <View className="gap-2 py-16">
@@ -415,6 +416,7 @@ function ProviderSection(props: {
   /** Drops the share bar so the list fits beside the chart. */
   readonly compact: boolean;
 }) {
+  const gt = useGT();
   const { merged, metric } = props;
   const colors = useProviderColors();
   if (merged.providers.length === 0) return null;
@@ -425,7 +427,7 @@ function ProviderSection(props: {
   );
 
   return (
-    <SettingsSection title="Providers">
+    <SettingsSection title={gt("Providers")}>
       {ordered.map((provider, index) => {
         const share = metric === "cost" ? provider.costShare : provider.tokenShare;
         return (
@@ -473,8 +475,14 @@ function ProviderSection(props: {
             )}
             <Text className="text-sm text-foreground-muted">
               {metric === "cost"
-                ? `${formatPercent(share)} of cost · ${formatTokens(provider.totalTokens)} tokens`
-                : `${formatPercent(share)} of tokens · ${formatUsd(provider.costUsd)}`}
+                ? gt("{share} of cost · {tokens} tokens", {
+                    share: formatPercent(share),
+                    tokens: formatTokens(provider.totalTokens),
+                  })
+                : gt("{share} of tokens · {cost}", {
+                    share: formatPercent(share),
+                    cost: formatUsd(provider.costUsd),
+                  })}
             </Text>
           </View>
         );
@@ -488,6 +496,7 @@ function TotalsSection(props: {
   readonly isPast24Hours: boolean;
   readonly columns: number;
 }) {
+  const gt = useGT();
   const { merged } = props;
   const activePeriods = (props.isPast24Hours ? merged.hourly : merged.daily).filter(
     (period) => period.totalTokens > 0,
@@ -497,47 +506,54 @@ function TotalsSection(props: {
   const cachedShare = observedInput === 0 ? 0 : merged.cachedInputTokens / observedInput;
 
   return (
-    <SettingsSection title="Totals">
+    <SettingsSection title={gt("Totals")}>
       <View className="flex-row flex-wrap">
         <MetricCell
           columns={props.columns}
-          label="Processed tokens"
+          label={gt("Processed tokens")}
           value={formatTokens(merged.totalTokens)}
           detail={`${formatTokens(periodAverage)} per active ${props.isPast24Hours ? "hour" : "day"}`}
         />
         <MetricCell
           columns={props.columns}
-          label="Cache savings"
+          label={gt("Cache savings")}
           value={formatUsd(merged.costQuality.cacheSavingsUsd)}
           detail={
             merged.costUsd > 0
-              ? `${(merged.costQuality.cacheSavingsUsd / merged.costUsd).toFixed(1)}x the raw cost`
-              : "vs full input rates"
+              ? gt("{ratio}x the raw cost", {
+                  ratio: (merged.costQuality.cacheSavingsUsd / merged.costUsd).toFixed(1),
+                })
+              : gt("vs full input rates", {
+                  $context:
+                    "detail under the cache savings amount, compared with full input prices",
+                })
           }
         />
         <MetricCell
           columns={props.columns}
-          label="Cached input"
+          label={gt("Cached input")}
           value={formatTokens(merged.cachedInputTokens)}
-          detail={`${formatPercent(cachedShare)} of observed input`}
+          detail={gt("{share} of observed input", { share: formatPercent(cachedShare) })}
         />
         <MetricCell
           columns={props.columns}
-          label="Uncached input"
+          label={gt("Uncached input")}
           value={formatTokens(merged.uncachedInputTokens)}
-          detail={`${formatTokens(merged.cacheCreationTokens)} cache writes`}
+          detail={gt("{tokens} cache writes", { tokens: formatTokens(merged.cacheCreationTokens) })}
         />
         <MetricCell
           columns={props.columns}
-          label="Output"
+          label={gt("Output", { $context: "output tokens" })}
           value={formatTokens(merged.outputTokens)}
-          detail={`incl. ${formatTokens(merged.reasoningTokens)} reasoning`}
+          detail={gt("incl. {tokens} reasoning", { tokens: formatTokens(merged.reasoningTokens) })}
         />
         <MetricCell
           columns={props.columns}
-          label="Unpriced"
+          label={gt("Unpriced", { $context: "share of usage records with no known price" })}
           value={formatPercent(merged.costQuality.unpricedShare)}
-          detail="of records, excluded from cost"
+          detail={gt("of records, excluded from cost", {
+            $context: "detail under a percentage of usage records that have no known price",
+          })}
         />
       </View>
     </SettingsSection>
@@ -545,33 +561,54 @@ function TotalsSection(props: {
 }
 
 function CostSection(props: { readonly merged: MergedUsage; readonly wide: boolean }) {
+  const gt = useGT();
   const { categoryCost, speedCost } = props.merged;
   const colors = useUsageMixColors();
   const byType = [
-    { label: "Input", value: categoryCost.input, color: colors.input },
-    { label: "Cache read", value: categoryCost.cacheRead, color: colors.cacheRead },
-    { label: "Cache write", value: categoryCost.cacheWrite, color: colors.cacheWrite },
-    { label: "Output", value: categoryCost.output, color: colors.output },
+    {
+      label: gt("Input", { $context: "input tokens" }),
+      value: categoryCost.input,
+      color: colors.input,
+    },
+    { label: gt("Cache read"), value: categoryCost.cacheRead, color: colors.cacheRead },
+    { label: gt("Cache write"), value: categoryCost.cacheWrite, color: colors.cacheWrite },
+    {
+      label: gt("Output", { $context: "output tokens" }),
+      value: categoryCost.output,
+      color: colors.output,
+    },
     // Reported cost with no rates to split it, or from older servers. Below a
     // cent it is rounding, not usage.
     {
-      label: "Other",
+      label: gt("Other", { $context: "cost category" }),
       value: categoryCost.unsplit >= 0.005 ? categoryCost.unsplit : 0,
       color: colors.other,
     },
   ];
   const bySpeed = [
-    { label: "Standard", value: speedCost.standard, color: colors.standard },
-    { label: "Fast", value: speedCost.fast, color: colors.fast },
-    { label: "Ultrafast", value: speedCost.ultrafast, color: colors.ultrafast },
+    {
+      label: gt("Standard", { $context: "model speed tier" }),
+      value: speedCost.standard,
+      color: colors.standard,
+    },
+    {
+      label: gt("Fast", { $context: "model speed tier" }),
+      value: speedCost.fast,
+      color: colors.fast,
+    },
+    {
+      label: gt("Ultrafast", { $context: "model speed tier" }),
+      value: speedCost.ultrafast,
+      color: colors.ultrafast,
+    },
   ];
   if (props.merged.costUsd <= 0) return null;
 
   return (
-    <SettingsSection title="Cost">
+    <SettingsSection title={gt("Cost", { $context: "section heading" })}>
       <View className={props.wide ? "flex-row" : undefined}>
         <View className={props.wide ? "min-w-0 flex-1" : undefined}>
-          <ShareBar label="By type" segments={byType} />
+          <ShareBar label={gt("By type")} segments={byType} />
         </View>
         {speedCost.fast + speedCost.ultrafast > 0 ? (
           <View
@@ -582,7 +619,7 @@ function CostSection(props: { readonly merged: MergedUsage; readonly wide: boole
             }
           >
             <ShareBar
-              label="By speed"
+              label={gt("By speed")}
               segments={bySpeed}
               aside={`${formatUsd(speedCost.premium)} premium`}
             />
@@ -653,6 +690,7 @@ function ModelsSection(props: {
   readonly metric: UsageChartMetric;
   readonly columns: 1 | 2;
 }) {
+  const gt = useGT();
   const { merged, metric } = props;
   const colors = useProviderColors();
   if (merged.models.length === 0) return null;
@@ -665,7 +703,7 @@ function ModelsSection(props: {
   );
 
   return (
-    <SettingsSection title="By model">
+    <SettingsSection title={gt("By model")}>
       <View className="flex-row flex-wrap">
         {ordered.map((model, index) => (
           <View
@@ -687,19 +725,25 @@ function ModelsSection(props: {
               </Text>
               <Text className="text-sm text-foreground-muted">
                 {metric === "tokens"
-                  ? `${formatPercent(model.tokenShare)} of tokens · ${
-                      isModelCostUnknown(model) ? "no known rates" : formatUsd(model.costUsd)
-                    }`
+                  ? gt("{share} of tokens · {cost}", {
+                      share: formatPercent(model.tokenShare),
+                      cost: isModelCostUnknown(model) ? "no known rates" : formatUsd(model.costUsd),
+                    })
                   : isModelCostUnknown(model)
-                    ? `no known rates · ${formatTokens(model.totalTokens)} tokens`
-                    : `${formatPercent(model.costShare)} of cost · ${formatTokens(model.totalTokens)} tokens`}
+                    ? gt("no known rates · {tokens} tokens", {
+                        tokens: formatTokens(model.totalTokens),
+                      })
+                    : gt("{share} of cost · {tokens} tokens", {
+                        share: formatPercent(model.costShare),
+                        tokens: formatTokens(model.totalTokens),
+                      })}
               </Text>
             </View>
             <Text className="text-base tabular-nums text-foreground">
               {metric === "tokens"
                 ? formatTokens(model.totalTokens)
                 : isModelCostUnknown(model)
-                  ? "Unpriced"
+                  ? gt("Unpriced", { $context: "model with no known price" })
                   : formatUsd(model.costUsd)}
             </Text>
           </View>
@@ -724,11 +768,13 @@ function usageEnvironmentStatus(environment: EnvironmentUsageStatus, refreshing:
   if (environment.error)
     return environment.summary ? `${environment.error} Showing saved totals.` : environment.error;
   if (!environment.isConnected)
-    return environment.summary ? "Disconnected · showing saved usage" : "Waiting for connection…";
+    return environment.summary
+      ? msg("Disconnected · showing saved usage")
+      : msg("Waiting for connection…");
   const progress = usageEnvironmentProgress(environment, refreshing);
-  if (progress.phase === "loading") return "Loading usage…";
-  if (progress.phase === "stale") return "Updating usage…";
+  if (progress.phase === "loading") return msg("Loading usage…");
+  if (progress.phase === "stale") return msg("Updating usage…");
   if (progress.phase === "partway")
     return updatingProvidersLabel(progress.providers, providerLabel);
-  return "Usage up to date";
+  return msg("Usage up to date");
 }

@@ -5,6 +5,8 @@ import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";
 
 import { findEnvironmentUpdate } from "./environment-maintenance";
+import { msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 export interface EnvironmentReleaseCheck {
   readonly fromVersion: string;
@@ -44,7 +46,7 @@ export const environmentReleaseCheckAtom = Atom.family((environmentId: Environme
           orElse: () =>
             Effect.fail(
               new EnvironmentUpdateCheckError({
-                message: "Checking for updates timed out. Try again.",
+                message: m(msg("Checking for updates timed out. Try again.")),
               }),
             ),
         }),

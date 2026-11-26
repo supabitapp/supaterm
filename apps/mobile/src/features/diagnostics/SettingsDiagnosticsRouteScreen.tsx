@@ -22,6 +22,7 @@ import {
   parseStartupCrashRecords,
   type StartupCrashRecord,
 } from "./crash-log-model";
+import { T, useGT } from "gt-react-native";
 
 // expo-updates retains only seven days of logs.
 const LOG_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -76,6 +77,7 @@ function appIdentity() {
 export function SettingsDiagnosticsRouteScreen() {
   const insets = useSafeAreaInsets();
   const state = useCrashLogState();
+  const gt = useGT();
   const [copied, setCopied] = useState(false);
 
   const records = state.status === "ready" ? state.records : [];
@@ -87,7 +89,7 @@ export function SettingsDiagnosticsRouteScreen() {
   };
 
   return (
-    <SettingsScreen title="Diagnostics">
+    <SettingsScreen title={gt("Diagnostics")}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
@@ -95,23 +97,25 @@ export function SettingsDiagnosticsRouteScreen() {
         contentContainerClassName="gap-6 px-5 pt-4"
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
-        <SettingsSection title="Startup crashes">
+        <SettingsSection title={gt("Startup crashes")}>
           {state.status === "loading" ? (
             <View className="items-center gap-3 px-6 py-8">
               <AppActivityIndicator />
-              <Text className="text-center text-sm text-foreground-muted">Reading crash log…</Text>
+              <Text className="text-center text-sm text-foreground-muted">
+                <T>Reading crash log…</T>
+              </Text>
             </View>
           ) : state.status === "unavailable" ? (
             <EmptyState
               icon="exclamationmark.triangle"
-              title="Crash log unavailable"
-              detail="Startup crash records are only kept in store and TestFlight builds."
+              title={gt("Crash log unavailable")}
+              detail={gt("Startup crash records are only kept in store and TestFlight builds.")}
             />
           ) : records.length === 0 ? (
             <EmptyState
               icon="checkmark.circle"
-              title="No startup crashes"
-              detail="Nothing has taken the app down during launch in the last 7 days."
+              title={gt("No startup crashes")}
+              detail={gt("Nothing has taken the app down during launch in the last 7 days.")}
             />
           ) : (
             records.map((record, index) => (
@@ -121,18 +125,20 @@ export function SettingsDiagnosticsRouteScreen() {
         </SettingsSection>
 
         <View className="gap-3">
-          <SettingsSection title="Actions">
+          <SettingsSection title={gt("Actions")}>
             <SettingsActionRow
               icon={copied ? "checkmark" : "doc.on.doc"}
-              label={copied ? "Copied" : "Copy crash report"}
+              label={copied ? gt("Copied") : gt("Copy crash report")}
               disabled={state.status !== "ready"}
               onPress={() => void copyReport()}
             />
           </SettingsSection>
           <Text className="px-2 text-sm leading-normal text-foreground-muted">
-            Paste the report into a GitHub issue. It contains the app version, the JavaScript error
-            message, and the component stack. Error messages can quote values from the app, so read
-            it over before sharing.
+            <T>
+              Paste the report into a GitHub issue. It contains the app version, the JavaScript
+              error message, and the component stack. Error messages can quote values from the app,
+              so read it over before sharing.
+            </T>
           </Text>
         </View>
       </ScrollView>

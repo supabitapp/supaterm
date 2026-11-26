@@ -28,6 +28,7 @@ import {
   shownPatchIndices,
 } from "../pull-requests/pullRequestFileFilters";
 import { useHideTestFilesPreference } from "../pull-requests/usePullRequestFileFilter";
+import { msg } from "gt-react-native";
 
 const EMPTY_INLINE_REVIEW_COMMENTS = Object.freeze([]);
 const NO_REVIEW_FILES: ReadonlyArray<ReviewRenderableFile> = Object.freeze([]);
@@ -76,15 +77,15 @@ function getCachedReviewFile(
     deletions: stat.deletions,
     ...(patch?._tag === "Success"
       ? patch.value.source.truncated
-        ? { notice: "File preview exceeds the size limit. Counts include all changes." }
+        ? { notice: msg("File preview exceeds the size limit. Counts include all changes.") }
         : loaded
           ? {}
-          : { notice: "Could not display file preview." }
+          : { notice: msg("Could not display file preview.") }
       : {
           notice:
             patch?._tag === "Failure"
-              ? "Could not load diff. Select the file to retry."
-              : "Loading diff…",
+              ? msg("Could not load diff. Select the file to retry.")
+              : msg("Loading diff…"),
         }),
   };
   if (patch) normalizedFiles.set(patch, { stat, diffHash, file });

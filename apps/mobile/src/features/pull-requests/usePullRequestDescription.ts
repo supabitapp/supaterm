@@ -14,6 +14,7 @@ import * as Dialog from "../../components/ui/Dialog";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
+import { useGT } from "gt-react-native";
 
 /** The description with checkbox ticks shown before the host confirms them. */
 export function usePullRequestDescription(
@@ -22,6 +23,7 @@ export function usePullRequestDescription(
   canEdit: boolean,
 ) {
   const target = pullRequestTarget(params);
+  const gt = useGT();
   const update = useAtomCommand(composerPullRequests.update, { reportFailure: false });
   const refreshDetail = useAtomRefresh(composerPullRequests.detail(target));
   const reading = useAtomValue(composerPullRequests.detailReadVersion(target));
@@ -42,8 +44,8 @@ export function usePullRequestDescription(
     if (AsyncResult.isFailure(response)) {
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
-        "Could not save the description",
-        cause instanceof Error ? cause.message : "Try again.",
+        gt("Could not save the description"),
+        cause instanceof Error ? cause.message : gt("Try again."),
       );
     }
     if (savesRunning.current === 0) refreshDetail();

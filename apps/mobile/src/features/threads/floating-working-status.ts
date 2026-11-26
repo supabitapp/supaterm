@@ -1,4 +1,5 @@
 import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
+import { msg } from "gt-react-native";
 
 export interface FloatingStatusAction {
   readonly label: string;
@@ -42,7 +43,7 @@ export function connectionRetryLabel(input: {
   if (input.connectionState !== "connecting" && input.connectionState !== "reconnecting") {
     return null;
   }
-  return input.connectionError === null ? "Reconnecting…" : "Retrying connection…";
+  return input.connectionError === null ? msg("Reconnecting…") : msg("Retrying connection…");
 }
 
 export function connectionFloatingStatus(input: {

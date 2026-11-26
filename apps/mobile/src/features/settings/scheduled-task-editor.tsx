@@ -19,8 +19,9 @@ import {
   readScheduledTaskEditor,
   type ScheduledTaskEditor,
 } from "./scheduled-task-editor-state";
+import { msg, useMessages } from "gt-react-native";
 
-export const NEW_THREAD_DESTINATION_LABEL = "New thread each run";
+export const NEW_THREAD_DESTINATION_LABEL = msg("New thread each run");
 
 export function useScheduledTaskThread(
   environmentId: EnvironmentId | null,
@@ -42,9 +43,10 @@ export function useScheduledTaskDestinationLabel(
   environmentId: EnvironmentId | null,
   threadId: ThreadId | null,
 ): string {
+  const m = useMessages();
   const thread = useScheduledTaskThread(environmentId, threadId);
   if (environmentId === null || threadId === null) return NEW_THREAD_DESTINATION_LABEL;
-  return thread?.title.trim() || `Thread ${threadId}`;
+  return thread?.title.trim() || m(msg("Thread {id}", { id: threadId }));
 }
 
 /** The form draft lives in an atom, so it survives while its native picker routes are on top. */

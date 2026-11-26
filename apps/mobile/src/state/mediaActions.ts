@@ -29,6 +29,8 @@ import {
 import { copyTextWithHaptic } from "../lib/copyTextWithHaptic";
 import { loadLocalAttachmentPreview } from "../lib/localAttachmentPreview";
 import { canSaveImageToLibrary, saveImageToLibrary } from "../lib/saveImageToLibrary";
+import { useGT, msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 function allowsHostMedia(session: SessionGrantInput | null) {
   return session === null || sessionGrantsScope(session, AuthFilesystemReadScope);
@@ -46,6 +48,7 @@ export function useMediaActions(
   options?: { readonly getSaveImageSignal: () => AbortSignal },
 ) {
   const navigation = useNavigation();
+  const gt = useGT();
   const hostEnvironmentId =
     source &&
     "resource" in source &&
@@ -80,8 +83,8 @@ export function useMediaActions(
       .catch((error: unknown) => {
         if (!signal.aborted) {
           Dialog.alert(
-            kind === "share" ? "Could not share file" : "Could not save image",
-            error instanceof Error ? error.message : "Try again.",
+            kind === "share" ? m(msg("Could not share file")) : m(msg("Could not save image")),
+            error instanceof Error ? error.message : m(msg("Try again.")),
           );
         }
       })
@@ -156,7 +159,7 @@ export function useMediaActions(
             ? [
                 {
                   id: "copy-full-path" as const,
-                  title: "Copy full path",
+                  title: gt("Copy full path"),
                   run: () => copyTextWithHaptic(formatFilePathForClipboard(reference.path)),
                 },
               ]
@@ -165,7 +168,7 @@ export function useMediaActions(
             ? [
                 {
                   id: "copy-relative-path" as const,
-                  title: "Copy relative path",
+                  title: gt("Copy relative path"),
                   run: () =>
                     copyTextWithHaptic(formatFilePathForClipboard(relativePath, reference.path)),
                 },
@@ -175,7 +178,7 @@ export function useMediaActions(
             ? [
                 {
                   id: "copy-url" as const,
-                  title: "Copy URL",
+                  title: gt("Copy URL"),
                   run: () => copyTextWithHaptic(reference.url),
                 },
               ]
@@ -184,7 +187,7 @@ export function useMediaActions(
             ? [
                 {
                   id: "open-file" as const,
-                  title: "Open in file viewer",
+                  title: gt("Open in file viewer"),
                   disabled: !canReadMedia,
                   run: () => {
                     if (!canReadHostMedia(hostEnvironmentId)) return;
@@ -202,7 +205,7 @@ export function useMediaActions(
             ? [
                 {
                   id: "save-image" as const,
-                  title: busy === "save-image" ? "Saving image…" : "Save image",
+                  title: busy === "save-image" ? gt("Saving image…") : gt("Save image"),
                   run: saveImage,
                   disabled: busy !== null || !canReadMedia,
                 },
@@ -212,10 +215,10 @@ export function useMediaActions(
             id: "save" as const,
             title:
               busy === "share"
-                ? "Opening share sheet…"
+                ? gt("Opening share sheet…")
                 : canSaveImageToLibrary(source.mimeType)
-                  ? "Share"
-                  : "Save or share",
+                  ? gt("Share", { $context: "verb, opens the system share sheet" })
+                  : gt("Save or share"),
             run: share,
             disabled: busy !== null || !canReadMedia,
           },

@@ -34,6 +34,7 @@ import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { MotionPresence } from "../../components/ui/MotionPresence";
 
 import { useOpenThreadInspector } from "./thread-inspector-navigation";
+import { useGT } from "gt-react-native";
 
 type SubagentItem = Extract<OrchestrationV2TurnItem, { type: "subagent" }>;
 type AgentTiming = Pick<OrchestrationV2Subagent, "status" | "startedAt" | "completedAt">;
@@ -109,6 +110,7 @@ export function ThreadSubagentGroup(props: {
   readonly iconSubtleColor: ColorValue;
   readonly onToggleRow: (rowId: string, anchorKey: string) => void;
 }) {
+  const gt = useGT();
   const config = useAtomValue(serverEnvironment.configValueAtom(props.environmentId));
   const navigation = useNavigation();
   const openInspector = useOpenThreadInspector();
@@ -205,9 +207,9 @@ export function ThreadSubagentGroup(props: {
                     target === null
                       ? agent.remoteChild !== undefined
                         ? `Runs on ${agent.remoteChild.label}`
-                        : "Provider-managed agent"
+                        : gt("Provider-managed agent")
                       : target.linked === undefined
-                        ? "Opens this agent's thread"
+                        ? gt("Opens this agent's thread")
                         : `Opens a read-only view of this agent's thread on ${target.linked.label}`
                   }
                   disabled={target === null}

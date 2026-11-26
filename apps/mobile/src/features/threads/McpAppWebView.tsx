@@ -43,6 +43,8 @@ import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { MCP_APP_INLINE_MAX_HEIGHT, mcpAppInlineHeight } from "./mcpAppSizing";
+import { msg, useGT } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const ROW_BOTTOM_MARGIN = 8;
 
@@ -73,7 +75,7 @@ const confirm = (title: string, message: string, action: string) =>
       title,
       message,
       [
-        { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+        { text: m(msg("Cancel")), style: "cancel", onPress: () => resolve(false) },
         { text: action, onPress: () => resolve(true) },
       ],
 
@@ -98,6 +100,7 @@ export function ThreadMcpApp(props: {
 
   readonly height?: number;
 }) {
+  const gt = useGT();
   const [height, setHeight] = useState(MCP_APP_INLINE_MAX_HEIGHT);
   const [documentKey, setDocumentKeyState] = useState(0);
   const [uri, setUri] = useState<string | null>(null);
@@ -288,13 +291,13 @@ export function ThreadMcpApp(props: {
       commands: () => latest.current,
       confirmTool: ({ name, title, arguments: args }) =>
         confirm(
-          `Allow ${app.server} to run ${title ?? name}?`,
+          m(msg("Allow {server} to run {tool}?", { server: app.server, tool: title ?? name })),
           JSON.stringify(args, null, 2),
           "Allow",
         ),
       confirmDownload: (files) =>
         confirm(
-          `Save a file from ${app.server}?`,
+          m(msg("Save a file from {server}?", { server: app.server })),
           files.map((file) => file.name).join(", "),
           "Save",
         ),
@@ -318,7 +321,13 @@ export function ThreadMcpApp(props: {
       hostContext,
       ...requests,
       openLink: async (url) => {
-        if (!(await confirm(`Open a link from ${app.server}?`, url, "Open"))) {
+        if (
+          !(await confirm(
+            m(msg("Open a link from {server}?", { server: app.server })),
+            url,
+            "Open",
+          ))
+        ) {
           throw new McpAppHostRefusal({ message: "Declined by the user." });
         }
         if (!(await tryOpenExternalUrl(url, "mcp-app"))) {
@@ -326,7 +335,13 @@ export function ThreadMcpApp(props: {
         }
       },
       sendMessage: async (text) => {
-        if (!(await confirm(`Send this message from ${app.server}?`, text, "Send"))) {
+        if (
+          !(await confirm(
+            m(msg("Send this message from {server}?", { server: app.server })),
+            text,
+            "Send",
+          ))
+        ) {
           throw new McpAppHostRefusal({ message: "Declined by the user." });
         }
 
@@ -439,7 +454,7 @@ export function ThreadMcpApp(props: {
         <Text className="text-sm text-foreground-muted">The {app.server} app was closed</Text>
         <View className="items-center">
           <Button
-            label="Show app"
+            label={gt("Show app")}
             tone="secondary"
             onPress={() => {
               setDocumentKey((value) => value + 1);

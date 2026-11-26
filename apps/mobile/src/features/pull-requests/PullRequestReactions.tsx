@@ -28,6 +28,7 @@ import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff"
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import * as Haptics from "expo-haptics";
+import { useGT, T } from "gt-react-native";
 
 const EMPTY_PENDING: ReadonlyMap<PullRequestReactionContent, PendingPullRequestReaction> =
   new Map();
@@ -40,6 +41,7 @@ export function ReactionPills(props: {
   readonly onReact: (content: PullRequestReactionContent, reacted: boolean) => Promise<boolean>;
   readonly onChanged?: () => void;
 }) {
+  const gt = useGT();
   // Keyed by what the host last reported, so a refresh that lands the change drops the overlay.
   const [pending, setPending] = useState({ signature: "", values: EMPTY_PENDING });
   const signature = pullRequestReactionsSignature(props.reactions);
@@ -57,7 +59,7 @@ export function ReactionPills(props: {
         return { signature: current.signature, values: next };
       });
       playOutcomeHaptic(false);
-      Dialog.alert("Couldn't save the reaction", "Try again in a moment.");
+      Dialog.alert(gt("Couldn't save the reaction"), gt("Try again in a moment."));
       return;
     }
     props.onChanged?.();
@@ -87,7 +89,7 @@ export function ReactionPills(props: {
       ))}
       {props.canReact ? (
         <Menu
-          accessibilityLabel="Add a reaction"
+          accessibilityLabel={gt("Add a reaction")}
           actions={PULL_REQUEST_REACTION_ORDER.map((content) => ({
             id: content,
             title: `${pullRequestReactionEmoji(content)}  ${pullRequestReactionName(content)}`,
@@ -167,6 +169,7 @@ export function PullRequestCommentFooter(props: {
   readonly onEdit?: () => void;
 }) {
   const navigation = useNavigation();
+  const gt = useGT();
   const { comment } = props;
   const reactions = comment.reactions ?? [];
   const editableKind = comment.kind === "review" ? null : comment.kind;
@@ -185,7 +188,7 @@ export function PullRequestCommentFooter(props: {
       {canEdit && editableKind !== null ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Edit comment"
+          accessibilityLabel={gt("Edit comment")}
           onPress={() => {
             props.onEdit?.();
             navigation.navigate("PullRequestEdit", {
@@ -203,7 +206,9 @@ export function PullRequestCommentFooter(props: {
           className={cn(PILL, "ml-auto border-transparent")}
         >
           <SymbolView name="pencil" size={13} tintColorClassName="accent-icon-muted" />
-          <Text className="text-xs font-supaterm-medium text-foreground-muted">Edit</Text>
+          <Text className="text-xs font-supaterm-medium text-foreground-muted">
+            <T context="verb, edit a comment">Edit</T>
+          </Text>
         </Pressable>
       ) : null}
     </View>

@@ -15,6 +15,8 @@ import { DraftComposerAttachmentSchema } from "../../lib/composer-image-schema";
 import { fitComposerImage } from "../../lib/composerImageFit";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
 import { estimateBase64ByteSize } from "../../lib/base64";
+import { msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 export interface IncomingShareDraft {
   readonly schemaVersion: 1;
@@ -306,7 +308,7 @@ export async function buildIncomingShareDraft(input: {
           : undefined;
       const name = resolved?.originalName ?? sharedFileName ?? fallbackName(uri, index, mimeType);
       if (!uri) {
-        warnings.push("One shared file could not be read.");
+        warnings.push(m(msg("One shared file could not be read.")));
         continue;
       }
       let persistedFileUri: string | undefined;
@@ -382,7 +384,7 @@ export async function buildIncomingShareDraft(input: {
       continue;
     }
     if (!uri || !mimeType.startsWith("image/")) {
-      warnings.push("One shared item was not a supported image.");
+      warnings.push(m(msg("One shared item was not a supported image.")));
       await releaseOwnedFiles(input.fileReader, [uri, payload.value]);
       continue;
     }

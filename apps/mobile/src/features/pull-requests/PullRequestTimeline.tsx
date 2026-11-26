@@ -26,6 +26,7 @@ import { pullRequestDescriptionContent } from "./pullRequestDescriptionContent";
 import { normalizedReviewState } from "./pullRequestStatus";
 import type { PullRequestParams } from "./usePullRequestDiff";
 import { formatCommentCount } from "./pullRequestDiffComments";
+import { T, useGT } from "gt-react-native";
 
 function TimelineEvent(props: {
   icon: AppSymbolName | "commit";
@@ -81,6 +82,7 @@ function TimelineComment({
   params: PullRequestParams;
   actions: CommentActions;
 }) {
+  const gt = useGT();
   const target = parsePullRequestAnchor(params.navigationUrl);
   const linked =
     target?.kind === "timeline" && pullRequestAnchorMatchesUrl(target.anchor, comment.url);
@@ -193,7 +195,7 @@ function TimelineComment({
               className="flex-row items-center justify-center gap-1 py-2 active:opacity-70"
             >
               <Text className="text-xs font-supaterm-medium text-foreground">
-                {expanded ? "Show less" : "Show more"}
+                {expanded ? gt("Show less") : gt("Show more")}
               </Text>
               <SymbolView
                 name={expanded ? "chevron.up" : "chevron.down"}
@@ -275,7 +277,9 @@ export function pullRequestTimelineRows(
           >
             <View className="flex-row items-center gap-2">
               {thread.path === null ? (
-                <Text className="flex-1 text-xs">Overview</Text>
+                <Text className="flex-1 text-xs">
+                  <T>Overview</T>
+                </Text>
               ) : (
                 <>
                   <SymbolView name="doc.text" size={14} tintColorClassName="accent-icon-muted" />
@@ -329,7 +333,7 @@ export function pullRequestTimelineRows(
       date: "",
       content: (
         <Text className="py-3 text-xs text-foreground-muted">
-          More activity is available on the provider.
+          <T>More activity is available on the provider.</T>
         </Text>
       ),
     });

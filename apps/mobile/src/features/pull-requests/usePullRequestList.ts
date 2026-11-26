@@ -34,6 +34,8 @@ import {
   type EnvironmentPullRequestListEntry,
   type PullRequestListPages,
 } from "./pullRequestList";
+import { msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 type ListTarget = { readonly environmentId: EnvironmentId; readonly input: PullRequestListInput };
 type Read = <A>(atom: Atom.Atom<A>) => A;
@@ -118,7 +120,7 @@ async function loadNextPages(
         JSON.stringify(Object.entries(input.cursors).sort()) ===
           JSON.stringify(Object.entries(next.nextCursors).sort())
       )
-        throw new Error("Couldn't advance the list. Try again.");
+        throw new Error(m(msg("Couldn't advance the list. Try again.")));
     }),
   );
   return requestErrors(responses);

@@ -47,21 +47,22 @@ import { IssueListRow } from "./IssueListRow";
 import type { WorkspaceFilterMenu } from "../layout/workspace/workspace-filter-menu";
 import { WorkspaceHeaderActions } from "../layout/workspace/WorkspaceHeaderActions";
 import { issueListFiltersAtom } from "./issueListFilters";
+import { msg, useGT } from "gt-react-native";
 
 const DEFAULT_ISSUE_LIST_INPUT = { state: "open", involvement: "all", limit: 50 } as const;
 const STATES = {
   open: "Open",
   closed: "Closed",
-  all: "All states",
+  all: msg("All states"),
 } as const satisfies Record<IssueListState, string>;
 const INVOLVEMENT = {
   all: "Everyone",
-  assigned: "Assigned to you",
-  authored: "Opened by you",
-  mentioned: "Mentioning you",
+  assigned: msg("Assigned to you"),
+  authored: msg("Opened by you"),
+  mentioned: msg("Mentioning you"),
 } as const satisfies Record<IssueInvolvement, string>;
 const SORTS = {
-  updated: "Recently updated",
+  updated: msg("Recently updated"),
   created: "Newest",
 } as const satisfies Record<IssueListSort, string>;
 
@@ -95,6 +96,7 @@ export function IssuesScreen(
     readonly renderFrame?: IssuesFrameRender;
   } = {},
 ) {
+  const gt = useGT();
   const primaryColumn = use(NativePrimaryColumnContext);
   const workspace = useWorkspaceTabs()!;
   const { environments } = useWorkspaceState();
@@ -222,22 +224,34 @@ export function IssuesScreen(
     title: STATES[state],
     accessibilityLabel: "Filter issues",
     actions: [
-      { id: "state", title: "State", subactions: choices(STATES, state, "state") },
+      {
+        id: "state",
+        title: gt("State", { $context: "issue state filter" }),
+        subactions: choices(STATES, state, "state"),
+      },
       {
         id: "involvement",
-        title: "Involvement",
+        title: gt("Involvement"),
         subactions: choices(INVOLVEMENT, involvement, "involvement"),
       },
       {
         id: "labels",
-        title: labels.length === 0 ? "Labels…" : `Labels (${labels.length})…`,
+        title:
+          labels.length === 0 ? gt("Labels…") : gt("Labels ({count})…", { count: labels.length }),
       },
       {
         id: "assignee",
-        title: assignee === null ? "Assignee…" : `Assignee: ${assignee.name ?? assignee.login}…`,
+        title:
+          assignee === null
+            ? gt("Assignee…")
+            : gt("Assignee: {name}…", { name: assignee.name ?? assignee.login }),
       },
-      { id: "sort", title: "Sort", subactions: choices(SORTS, sort, "sort") },
-      { id: "reset", title: "Reset filters", attributes: { disabled: !customized } },
+      {
+        id: "sort",
+        title: gt("Sort", { $context: "noun, sort order menu" }),
+        subactions: choices(SORTS, sort, "sort"),
+      },
+      { id: "reset", title: gt("Reset filters"), attributes: { disabled: !customized } },
     ],
     onPressAction: ({ nativeEvent }) => {
       const [field, value] = nativeEvent.event.split(":");
@@ -318,15 +332,15 @@ export function IssuesScreen(
             <View className="items-center py-5">
               <AppActivityIndicator
                 colorClassName="accent-icon"
-                accessibilityLabel="Loading more issues"
+                accessibilityLabel={gt("Loading more issues")}
               />
             </View>
           ) : moreFailure ? (
             <View className="items-center gap-2 px-8 py-4">
               <Text className="text-xs text-foreground-muted">{moreFailure}</Text>
               <Button
-                label="Try again"
-                accessibilityLabel="Retry loading more issues"
+                label={gt("Try again")}
+                accessibilityLabel={gt("Retry loading more issues")}
                 onPress={() => void loadMore(true)}
               />
             </View>
@@ -334,8 +348,8 @@ export function IssuesScreen(
             // A filtered page can be too short to scroll, which leaves nothing to reach the end of.
             <View className="items-center py-4">
               <Button
-                label="Load more"
-                accessibilityLabel="Load more issues"
+                label={gt("Load more")}
+                accessibilityLabel={gt("Load more issues")}
                 onPress={() => void loadMore()}
               />
             </View>
@@ -351,26 +365,26 @@ export function IssuesScreen(
               <EmptyState
                 title={
                   list.error
-                    ? "Couldn't load issues"
+                    ? gt("Couldn't load issues")
                     : connected.length > 0
                       ? query
-                        ? "No results"
-                        : "No matching issues"
+                        ? gt("No results")
+                        : gt("No matching issues")
                       : capable.length > 0
-                        ? "Environment offline"
+                        ? gt("Environment offline")
                         : environments.length > 0
-                          ? "Issues unavailable"
-                          : "Connect an environment"
+                          ? gt("Issues unavailable")
+                          : gt("Connect an environment")
                 }
                 detail={
                   list.error ??
                   (connected.length > 0
-                    ? "Issues from your environments' projects appear here."
+                    ? gt("Issues from your environments' projects appear here.")
                     : capable.length > 0
-                      ? "Reconnect to load issues."
+                      ? gt("Reconnect to load issues.")
                       : environments.length > 0
-                        ? "Update the environment's Supaterm server to browse issues."
-                        : "Add an environment in Settings to browse its issues.")
+                        ? gt("Update the environment's Supaterm server to browse issues.")
+                        : gt("Add an environment in Settings to browse its issues."))
                 }
                 variant="plain"
               />

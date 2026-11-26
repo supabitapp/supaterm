@@ -1,6 +1,5 @@
 import { codexArtifactTemplatePresentationLabel } from "@supaterm/shared/codexArtifactTemplatesCopy";
 import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
-import { useMessages } from "gt-react-native";
 import { CollapsibleUserMessageBody } from "./CollapsibleUserMessageBody";
 import { toServerClock } from "@supaterm/client-runtime/clock";
 import { Button } from "../../components/ui/Button";
@@ -359,6 +358,8 @@ import {
   THREAD_FEED_MAINTAIN_SCROLL_AT_END_THRESHOLD,
 } from "./threadFeedEndFollow";
 import { useMessageTimeFormatter } from "./useMessageTimeFormatter";
+import { T, useMessages, useGT, msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const WIDE_MARKDOWN_BLOCK_OPTIONS = {
   // Native iOS blockquotes and adjacent selectable text are separate layout
@@ -456,7 +457,7 @@ async function waitForThreadShell(
 
 const COPY_PROMPT_LINK_MENU_ACTION = {
   id: "copy-prompt-link",
-  title: "Copy prompt link",
+  title: msg("Copy prompt link"),
   image: "link",
 };
 const PIN_MESSAGE_MENU_ACTION = { id: "toggle-pin", title: "Pin message", image: "pin" };
@@ -516,9 +517,10 @@ function UserMessageCopyButton(props: {
   readonly tintColor: ColorValue;
   readonly pin?: MessagePinToggle | null;
 }) {
+  const gt = useGT();
   const button = (
     <CopyTextButton
-      accessibilityLabel="Copy message"
+      accessibilityLabel={gt("Copy message")}
       text={props.text}
       onCopy={props.onCopy}
       tintColor={props.tintColor}
@@ -555,6 +557,7 @@ function AssistantForkButton(props: {
   readonly projectedItem: OrchestrationV2ProjectedTurnItem;
   readonly sourceTitle: string;
 }) {
+  const gt = useGT();
   const support = useV2ItemSupport({
     environmentId: props.environmentId,
     sourceThreadId: props.projectedItem.sourceThreadId,
@@ -574,7 +577,7 @@ function AssistantForkButton(props: {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Fork from this response"
+      accessibilityLabel={gt("Fork from this response")}
       disabled={busy}
       onPress={() => {
         const targetThreadId = ThreadId.make(uuidv4());
@@ -594,16 +597,18 @@ function AssistantForkButton(props: {
             if (isAtomCommandInterrupted(result)) return;
             if (result._tag !== "Success") {
               Dialog.alert(
-                "Could not confirm fork",
-                "Reconnect and check the thread list before trying again.",
+                gt("Could not confirm fork"),
+                gt("Reconnect and check the thread list before trying again."),
               );
               return;
             }
             const targetThreadReady = await waitForThreadShell(props.environmentId, targetThreadId);
             if (!targetThreadReady) {
               Dialog.alert(
-                "Fork created",
-                "Its thread data did not reach this client. Reconnect and try opening it from the thread list.",
+                gt("Fork created"),
+                gt(
+                  "Its thread data did not reach this client. Reconnect and try opening it from the thread list.",
+                ),
               );
               return;
             }
@@ -789,6 +794,7 @@ function MessageAttachmentFile(props: {
   readonly standaloneFile?: boolean;
   readonly available?: boolean;
 }) {
+  const gt = useGT();
   const sourceIdentifier = useId();
   const navigation = useNavigation();
   const { selectedThread } = useThreadSelection();
@@ -839,7 +845,7 @@ function MessageAttachmentFile(props: {
     setOpening(true);
     const finish = (message: string | null) => {
       if (message !== null && !controller.signal.aborted) {
-        Dialog.alert("Could not open attachment", message);
+        Dialog.alert(gt("Could not open attachment"), message);
       }
       if (openingRef.current === controller) {
         openingRef.current = null;
@@ -864,7 +870,7 @@ function MessageAttachmentFile(props: {
         return finish(error instanceof Error ? error.message : "The attachment is unavailable.");
       }
       const url = resolveAssetUrl(httpBaseUrl, result.value.relativeUrl);
-      if (url === null) return finish("The attachment could not be opened.");
+      if (url === null) return finish(gt("The attachment could not be opened."));
       const shared = await settlePromise(() =>
         downloadAndShareAttachment({
           url,
@@ -985,7 +991,7 @@ function MessageAttachmentFile(props: {
         {props.standaloneFile ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Download ${attachment.name}`}
+            accessibilityLabel={gt("Download {name}", { name: attachment.name })}
             accessibilityState={{ disabled, busy: opening }}
             disabled={disabled}
             className="mr-1 min-h-11 w-11 items-center justify-center rounded-lg active:bg-subtle disabled:opacity-40"
@@ -1328,6 +1334,7 @@ function ArtifactTemplateCard(props: {
   readonly template: CodexArtifactTemplate;
   readonly onUse?: ((template: CodexArtifactTemplate) => void) | undefined;
 }) {
+  const gt = useGT();
   const messages = useMessages();
   const direction = textDirection(props.template.displayName);
   return (
@@ -1353,9 +1360,9 @@ function ArtifactTemplateCard(props: {
       </View>
       {props.onUse ? (
         <Button
-          label="Use template"
+          label={gt("Use template")}
           tone="secondary"
-          accessibilityLabel={`Use ${props.template.displayName} template`}
+          accessibilityLabel={gt("Use {name} template", { name: props.template.displayName })}
           onPress={() => props.onUse?.(props.template)}
         />
       ) : null}
@@ -1666,7 +1673,9 @@ function OpenSenderThreadButton(props: {
         })
       }
     >
-      <Text className="font-supaterm-medium text-xs text-foreground-secondary">Open thread</Text>
+      <Text className="font-supaterm-medium text-xs text-foreground-secondary">
+        <T>Open thread</T>
+      </Text>
     </Pressable>
   );
 }
@@ -1690,6 +1699,7 @@ function ThreadAutomationMessageRow(props: {
   readonly linkHandlers: MarkdownLinkHandlers;
   readonly renderImage: MarkdownImageRenderer;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const tasks = useEnvironmentQuery(
     props.scheduledTaskId
@@ -1711,7 +1721,7 @@ function ThreadAutomationMessageRow(props: {
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Automation: ${summary}`}
+          accessibilityLabel={gt("Automation: {summary}", { summary })}
           accessibilityHint={`Double tap to ${props.expanded ? "hide" : "show"} the prompt.`}
           accessibilityState={{ expanded: props.expanded }}
           hitSlop={4}
@@ -1729,7 +1739,7 @@ function ThreadAutomationMessageRow(props: {
             type="monochrome"
           />
           <Text className="font-supaterm-medium text-sm text-user-bubble-foreground-muted">
-            Automation
+            <T>Automation</T>
           </Text>
           <Text numberOfLines={1} className="min-w-0 shrink text-sm text-user-bubble-foreground">
             {summary}
@@ -1767,7 +1777,7 @@ function ThreadAutomationMessageRow(props: {
               onPress={() => openSettings(navigation, "SettingsScheduledTasks")}
             >
               <Text className="font-supaterm-medium text-xs text-foreground-secondary">
-                Open automation
+                <T>Open automation</T>
               </Text>
             </Pressable>
           ) : null}
@@ -1800,6 +1810,7 @@ function RunFoldButton({
   rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
   iconColor: ColorValue;
 }) {
+  const gt = useGT();
   const loadWork = useAtomCommand(threadEnvironment.loadEarlierHistory, { reportFailure: false });
   const anchorsKey = entry.deferredWorkItemIds?.join("\n") ?? "";
   const [failed, setFailed] = useState(false);
@@ -1820,7 +1831,7 @@ function RunFoldButton({
   useEffect(() => {
     if (entry.expanded && anchorsKey && environmentId && threadId) loadOnExpand();
   }, [entry.expanded, anchorsKey, environmentId, threadId]);
-  const error = anchorsKey && failed ? "Couldn't load work. Tap to retry." : null;
+  const error = anchorsKey && failed ? gt("Couldn't load work. Tap to retry.") : null;
   const loading = entry.expanded && anchorsKey !== "" && !failed;
   const toggle = () => {
     setFailed(false);
@@ -1980,7 +1991,7 @@ function renderFeedEntry(
             numberOfLines={1}
             className="shrink font-supaterm-medium text-sm text-foreground-muted"
           >
-            Pending
+            {m(msg("Pending", { $context: "message not yet sent" }))}
           </Text>
         </View>
       </View>
@@ -2209,7 +2220,7 @@ function renderFeedEntry(
       const active = props.inProgressTurnId !== null && message.runId === props.inProgressTurnId;
       return (
         <ThreadContextDivider
-          label={active ? "Compacting context" : "Context compaction"}
+          label={active ? m(msg("Compacting context")) : m(msg("Context compaction"))}
           icon="arrow.down.right.and.arrow.up.left"
           iconColor={iconSubtleColor}
           active={active}
@@ -2295,7 +2306,7 @@ function renderFeedEntry(
         >
           {presentation.attribution === "supaterm" ? (
             <Text className="mb-1 pr-1 font-supaterm-medium text-2xs text-foreground-muted opacity-60">
-              Sent by Supaterm
+              {m(msg("Sent by Supaterm"))}
             </Text>
           ) : null}
           {mediaAttachments.length + pendingMedia.length > 0 ? (
@@ -2500,7 +2511,7 @@ function renderFeedEntry(
                 entry.id !== props.pendingFoldMessageId
                   ? entry.pendingMessage.failure !== undefined
                     ? "Not sent"
-                    : "Pending"
+                    : m(msg("Pending", { $context: "message not yet sent" }))
                   : timestampLabel}
               </Text>
               {entry.pendingMessage &&
@@ -2515,7 +2526,7 @@ function renderFeedEntry(
               entry.pendingMessage.messageId !== props.dispatchingMessageId ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Edit pending message"
+                  accessibilityLabel={m(msg("Edit pending message"))}
                   hitSlop={8}
                   className="size-7 items-center justify-center"
                   onPress={() => {
@@ -2702,6 +2713,7 @@ type UserMessageContentProps = {
 };
 
 function UserMessageContent(props: UserMessageContentProps) {
+  const gt = useGT();
   const [selected, setSelected] = useState<{ contextId: string; label: string } | null>(null);
   const navigation = useNavigation();
   const openThreadLink = useOpenThreadLink(props.environmentId);
@@ -2739,7 +2751,10 @@ function UserMessageContent(props: UserMessageContentProps) {
       });
       return;
     }
-    setSelected({ contextId: reference.contextId, label: record?.label ?? "Context unavailable" });
+    setSelected({
+      contextId: reference.contextId,
+      label: record?.label ?? gt("Context unavailable"),
+    });
   };
   return (
     <>
@@ -2756,10 +2771,10 @@ function UserMessageContent(props: UserMessageContentProps) {
               (item) => item.contextId === reference.contextId,
             );
             return {
-              title: record?.label ?? "Context unavailable",
+              title: record?.label ?? gt("Context unavailable"),
               actions: [
-                { id: "open-context", title: "Open context" },
-                { id: "copy-context", title: "Copy context", disabled: !record },
+                { id: "open-context", title: gt("Open context") },
+                { id: "copy-context", title: gt("Copy context"), disabled: !record },
               ],
             };
           },
@@ -2784,7 +2799,7 @@ function UserMessageContent(props: UserMessageContentProps) {
               )
                 .then(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success))
                 .catch(() => {
-                  Dialog.alert("Could not copy context", "Try copying this context again.");
+                  Dialog.alert(gt("Could not copy context"), gt("Try copying this context again."));
                 });
             }
           },
@@ -2935,6 +2950,7 @@ function useThreadFeedPresentation(
 let lastSplitViewport: { windowWidth: number; width: number; height: number } | null = null;
 
 export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
+  const gt = useGT();
   const formatMessageTime = useMessageTimeFormatter();
   const { listRef, onIsAtEndChange, onHeaderMaterialVisibilityChange } = props;
   const workflowOpening = useWorkflowOpening(props.environmentId, props.threadId);
@@ -3327,10 +3343,10 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
           actions: [
             {
               id: "open-skill",
-              title: "View instructions",
+              title: gt("View instructions"),
               disabled: !enrichedSkillInstructionsPath(skill),
             },
-            { id: "copy-skill", title: "Copy skill" },
+            { id: "copy-skill", title: gt("Copy skill") },
           ],
         };
       }
@@ -3338,10 +3354,11 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       if (thread) {
         return {
           title:
-            appAtomRegistry.get(environmentThreadShells.threadShellAtom(thread))?.title ?? "Thread",
+            appAtomRegistry.get(environmentThreadShells.threadShellAtom(thread))?.title ??
+            gt("Thread"),
           actions: [
-            { id: "open-thread", title: "Open thread" },
-            { id: "copy-thread-link", title: "Copy link" },
+            { id: "open-thread", title: gt("Open thread") },
+            { id: "copy-thread-link", title: gt("Copy link") },
           ],
         };
       }
@@ -3350,8 +3367,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         return {
           title: href,
           actions: [
-            { id: "open-on-device", title: "Open on this device" },
-            { id: "copy-link", title: "Copy link" },
+            { id: "open-on-device", title: gt("Open on this device") },
+            { id: "copy-link", title: gt("Copy link") },
           ],
         };
       }
@@ -3460,7 +3477,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       (media && (media.kind === "pdf" || media.kind === "document" || media.kind === "file")) ||
       (fileLink.kind === "file" && fileLink.line !== undefined)
     ) {
-      const name = media?.source.name ?? (fileLink.kind === "file" ? fileLink.label : "Open file");
+      const name =
+        media?.source.name ?? (fileLink.kind === "file" ? fileLink.label : gt("Open file"));
       return (
         <Text
           accessibilityRole="link"
@@ -4060,7 +4078,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
           info.item.message.projectedItem?.item.type === "user_message" &&
           info.item.message.projectedItem.item.freshContext ? (
             <ThreadContextDivider
-              label="New session"
+              label={gt("New session")}
               icon="arrow.clockwise"
               iconColor={iconSubtleColor}
             />
@@ -4256,7 +4274,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
                       endpoints={props.pendingHandoff}
                       iconColor={iconSubtleColor}
                       surfaceColor={screenColor}
-                      label="Context handoff pending"
+                      label={gt("Context handoff pending")}
                     />
                   ) : null}
                   {props.statusLines?.map((line) => (
@@ -4302,8 +4320,10 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             style={[StyleSheet.absoluteFill, { left: contentLeftInset, right: contentRightInset }]}
           >
             <ThreadFeedPlaceholder
-              title="No conversation yet"
-              detail="Ask the agent to inspect the repo, run a command, or continue the active thread."
+              title={gt("No conversation yet")}
+              detail={gt(
+                "Ask the agent to inspect the repo, run a command, or continue the active thread.",
+              )}
               topInset={topContentInset}
               bottomInset={bottomContentInset}
               horizontalPadding={horizontalPadding}
@@ -4324,6 +4344,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
 });
 
 function ThreadFeedLoadEarlierControl(props: ThreadFeedHistoryControls) {
+  const gt = useGT();
   const theme = useUniwindTheme();
   const mutedColor = theme["--color-icon-subtle"];
   if (!props.loading && props.error === null) {
@@ -4334,7 +4355,9 @@ function ThreadFeedLoadEarlierControl(props: ThreadFeedHistoryControls) {
       {props.hasMoreHistory || props.loading ? (
         <View className="self-center">
           <Button
-            label={props.loading ? "Loading earlier activity…" : "Retry loading earlier activity"}
+            label={
+              props.loading ? gt("Loading earlier activity…") : "Retry loading earlier activity"
+            }
             tone="secondary"
             accessibilityLabel={
               props.loading ? "Loading earlier activity" : "Retry loading earlier activity"

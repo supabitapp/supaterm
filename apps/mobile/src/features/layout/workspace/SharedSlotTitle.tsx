@@ -6,11 +6,13 @@ import { Menu } from "../../../components/ui/Menu";
 import { useAndroidControlSizing } from "../../../components/ui/useAndroidControlSizing";
 import { isSharedSlotTab, type SharedSlotTab } from "./navigation-tab-order";
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
+import { useGT } from "gt-react-native";
 
 const TITLES = { pullRequests: "Pull requests", issues: "Issues" } as const;
 
 /** The header title of the tab pull requests and issues share: names the list and switches it. */
 export function SharedSlotTitle(props: { readonly tab: SharedSlotTab }) {
+  const gt = useGT();
   const selectTab = useSelectWorkspaceTab();
   const { scale } = useAndroidControlSizing();
   return (
@@ -27,7 +29,7 @@ export function SharedSlotTitle(props: { readonly tab: SharedSlotTab }) {
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${TITLES[props.tab]}, switch list`}
+        accessibilityLabel={gt("{list}, switch list", { list: TITLES[props.tab] })}
         hitSlop={8}
         className="flex-row items-center gap-1.5"
       >

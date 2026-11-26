@@ -1,5 +1,6 @@
 import type { StatusTone } from "../../components/StatusPill";
 import type { RemoteClientConnectionState } from "../../lib/connection";
+import { msg } from "gt-react-native";
 
 export function connectionTone(state: RemoteClientConnectionState): StatusTone {
   switch (state) {
@@ -23,13 +24,13 @@ export function connectionTone(state: RemoteClientConnectionState): StatusTone {
       };
     case "unsupported":
       return {
-        label: "Client not supported",
+        label: msg("Client not supported"),
         pillClassName: "bg-subtle",
         textClassName: "text-foreground-secondary",
       };
     case "error":
       return {
-        label: "Connection failed",
+        label: msg("Connection failed"),
         pillClassName: "bg-danger",
         textClassName: "text-danger-foreground",
       };

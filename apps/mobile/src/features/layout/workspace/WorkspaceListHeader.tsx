@@ -11,6 +11,7 @@ import {
   workspaceListFilterMenu,
   type WorkspaceListHeaderProps,
 } from "./WorkspaceListHeader.types";
+import { useGT } from "gt-react-native";
 
 export function WorkspaceListHeader(props: WorkspaceListHeaderProps) {
   return props.sidebar ? (
@@ -25,6 +26,7 @@ function SidebarColumnHeader(
     readonly sidebar: NonNullable<WorkspaceListHeaderProps["sidebar"]>;
   },
 ) {
+  const gt = useGT();
   const { search, sidebar } = props;
   const searchBarRef = useRef<SearchBarCommands>(null);
   useHardwareKeyboardCommand("focusSearch", () => {
@@ -40,9 +42,9 @@ function SidebarColumnHeader(
   });
   const items = createWorkspaceListHeaderItems({
     filter: {
-      accessibilityLabel: "Filter threads",
+      accessibilityLabel: gt("Filter threads"),
       icon: workspaceListFilterIcon(props.filter.customized),
-      title: "Thread list options",
+      title: gt("Thread list options"),
       items: props.filter.items,
     },
     onOpenSettings: props.onOpenSettings,

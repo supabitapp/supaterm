@@ -27,6 +27,7 @@ import { AndroidWorkspaceSidebar } from "./AndroidWorkspaceSidebar.android";
 import type { WorkspaceTab } from "./workspace-tabs-state";
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 import { useHardwareBack } from "../../../lib/backHandler";
+import { useGT } from "gt-react-native";
 
 const TABS: readonly WorkspaceTab[] = NAVIGATION_TAB_ORDER;
 
@@ -35,6 +36,7 @@ export function WorkspaceRootScreen() {
 }
 
 function WorkspaceRoot() {
+  const gt = useGT();
   const floatingTabsEnabled = useAndroidFloatingTabs();
   const { layout, startNewTask, workspacePageWidth } = useAdaptiveWorkspaceLayout();
   const workspace = useWorkspaceTabs()!;
@@ -103,7 +105,14 @@ function WorkspaceRoot() {
                   ) : layout.usesSplitView ? (
                     <>
                       <NativeStackScreenOptions options={{ headerShown: false }} />
-                      <AppBar embedded title={tab === "issues" ? "Issues" : "Pull requests"} />
+                      <AppBar
+                        embedded
+                        title={
+                          tab === "issues"
+                            ? gt("Issues", { $context: "screen title, list of issues" })
+                            : gt("Pull requests")
+                        }
+                      />
                       <WorkspaceEmptyDetail tab={tab} />
                     </>
                   ) : tab === "issues" ? (

@@ -1,5 +1,4 @@
 import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
-import { useMessages } from "gt-react-native";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
   isActiveSubagentStatus,
@@ -35,6 +34,7 @@ import {
   type WorkflowRailTone,
 } from "./threadAgentsPresentation";
 import { useVisibleSecondClock } from "./use-visible-second-clock";
+import { T, useMessages, useGT } from "gt-react-native";
 
 const RAIL_ICON = {
   working: "circle.inset.filled",
@@ -50,6 +50,7 @@ export function ThreadWorkflowGroup(props: {
   readonly group: SubagentWorkflowGroup;
   readonly onOpen: (threadId: ThreadId) => void;
 }) {
+  const gt = useGT();
   const { group } = props;
   const provider = useEnvironmentServerConfig(props.environmentId)?.providers.find(
     (candidate) => candidate.instanceId === props.subagent.providerInstanceId,
@@ -67,7 +68,7 @@ export function ThreadWorkflowGroup(props: {
           <RowPressable
             accessibilityRole="button"
             accessibilityLabel={`${label} workflow, ${statusLabel}`}
-            accessibilityHint={open ? "Collapses the workflow" : "Opens the current phase"}
+            accessibilityHint={open ? gt("Collapses the workflow") : gt("Opens the current phase")}
             accessibilityState={{ expanded: open !== undefined }}
             disabled={rail.length === 0}
             onPress={() => setSelected(nextWorkflowSelection(rail, selected))}
@@ -123,7 +124,7 @@ export function ThreadWorkflowGroup(props: {
             textRole="footnote"
             className="border-t border-border-subtle px-4 py-3 text-foreground-muted"
           >
-            No agents yet
+            <T>No agents yet</T>
           </Text>
         ) : (
           open.members.map((member) => (
@@ -147,6 +148,7 @@ function WorkflowMemberRow(props: {
   readonly provider: ServerProvider | undefined;
   readonly onOpen: (threadId: ThreadId) => void;
 }) {
+  const gt = useGT();
   const { member } = props;
   const threadId = member.childThreadId === null ? null : ThreadId.make(member.childThreadId);
   const shell = useThreadShell(
@@ -173,7 +175,9 @@ function WorkflowMemberRow(props: {
         ...(metadata.speed === null ? [] : [metadata.speed]),
         ...(error === null ? [] : [error]),
       ].join(", ")}
-      accessibilityHint={canOpen ? "Opens this agent's thread" : "Its thread is not available yet"}
+      accessibilityHint={
+        canOpen ? gt("Opens this agent's thread") : gt("Its thread is not available yet")
+      }
       disabled={!canOpen}
       onPress={() => threadId !== null && props.onOpen(threadId)}
       className="min-h-11 flex-row gap-3 border-t border-border-subtle px-4 py-3 active:opacity-70"

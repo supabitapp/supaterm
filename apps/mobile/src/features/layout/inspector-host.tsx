@@ -17,6 +17,7 @@ import {
   type InspectorContent,
   type InspectorPane,
 } from "./inspector-panes";
+import { useGT } from "gt-react-native";
 
 // A pane without an AppBar has no bar; one with it gets the glass the workspace's screens get.
 const PANE_HEADER_OPTIONS = { ...GLASS_HEADER_OPTIONS, headerShown: false };
@@ -38,13 +39,14 @@ function PaneScreenContent(props: {
   readonly resetKeys: ReadonlyArray<unknown> | undefined;
   readonly onClose: () => void;
 }) {
+  const gt = useGT();
   const { store, slot } = useInspectorBarSlot();
   const content = (
     <WorkspaceSlotOptionsContext value={slot}>
       <RenderErrorBoundary
         resetKeys={props.resetKeys}
         renderFallback={(fallback) => (
-          <RenderFailureView {...fallback} title="The inspector couldn't be displayed" />
+          <RenderFailureView {...fallback} title={gt("The inspector couldn't be displayed")} />
         )}
       >
         {props.pane.render()}

@@ -17,6 +17,7 @@ import { AppText } from "./AppText";
 import { NativeAppBar } from "./NativeAppBar.android";
 import { useControlTheme } from "./useControlTheme";
 import { useToolbarLayout } from "./useToolbarLayout";
+import { useGT } from "gt-react-native";
 
 const SEARCH_ICON = require("../../../assets/icons/search.xml");
 const FILTER_ICON = require("../../../assets/icons/filter.xml");
@@ -128,6 +129,7 @@ export function WorkspaceAppBar(props: WorkspaceAppBarProps) {
  * by a frame whenever its size changes, which showed as the filter jumping between tabs.
  */
 function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
+  const gt = useGT();
   const { search, filter } = props;
   const searching = search?.active === true;
   const { colors } = useControlTheme();
@@ -171,7 +173,7 @@ function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
           style={{ height, paddingHorizontal: ACTION_END_INSET }}
         >
           <AndroidHeaderIconButton
-            accessibilityLabel="Close search"
+            accessibilityLabel={gt("Close search")}
             icon="arrow.left"
             onPress={search.onClose}
           />

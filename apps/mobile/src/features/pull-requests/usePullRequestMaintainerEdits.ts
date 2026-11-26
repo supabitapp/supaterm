@@ -13,12 +13,14 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import * as Haptics from "expo-haptics";
+import { useGT } from "gt-react-native";
 
 export function usePullRequestMaintainerEdits(
   params: PullRequestParams,
   pr: PullRequestDetail | null,
   canEdit: boolean,
 ) {
+  const gt = useGT();
   const target = pullRequestTarget(params);
   const update = useAtomCommand(composerPullRequests.update, { reportFailure: false });
   const refreshDetail = useAtomRefresh(composerPullRequests.detail(target));
@@ -48,8 +50,8 @@ export function usePullRequestMaintainerEdits(
       playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
-        "Could not save maintainer access",
-        cause instanceof Error ? cause.message : "Try again.",
+        gt("Could not save maintainer access"),
+        cause instanceof Error ? cause.message : gt("Try again."),
       );
       return;
     }
@@ -60,8 +62,10 @@ export function usePullRequestMaintainerEdits(
     value,
     saving,
     subtitle: saving
-      ? "Saving…"
-      : "Maintainers can push to this branch. If your fork has workflows, this can also give access to its secrets.",
+      ? gt("Saving…")
+      : gt(
+          "Maintainers can push to this branch. If your fork has workflows, this can also give access to its secrets.",
+        ),
     toggle: () => void save(!value),
   };
 }

@@ -21,8 +21,11 @@ import { IssueCandidatesSheet } from "./IssueCandidatesSheet";
 import { issueParamsKey, issueTarget, type IssueParams } from "./issueParams";
 import { issueLabelPicksFamily } from "./issuePicks";
 import { issueCommandError, useIssueAccess } from "./issuePresentation";
+import { msg, useGT } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 export function IssueLabelsScreen({ route }: StaticScreenProps<IssueParams>) {
+  const gt = useGT();
   const navigation = useNavigation();
   const target = issueTarget(route.params);
   const detail = useEnvironmentQuery(issueEnvironment.detail(target)).data;
@@ -66,14 +69,14 @@ export function IssueLabelsScreen({ route }: StaticScreenProps<IssueParams>) {
           if (failure === null) return refreshIssueLists(target.environmentId);
           // Picks made after this write was sent are kept.
           setStored((latest) => issuePicksAfterFailedWrite(latest, sent));
-          Dialog.alert("Couldn't change labels", failure);
+          Dialog.alert(m(msg("Couldn't change labels")), failure);
         });
       }),
     [navigation, detail, draft, current, setStored, update, target],
   );
   return (
     <IssueCandidatesSheet
-      title="Labels"
+      title={gt("Labels")}
       noun="labels"
       query={query}
       onQueryChange={setQuery}
@@ -88,7 +91,7 @@ export function IssueLabelsScreen({ route }: StaticScreenProps<IssueParams>) {
       allowed={allowed}
       notice={
         detail && !allowed
-          ? (access?.blocked ?? "Changing labels needs triage access on this tracker.")
+          ? (access?.blocked ?? gt("Changing labels needs triage access on this tracker."))
           : null
       }
       pending={result.isPending && !result.data}

@@ -30,6 +30,7 @@ import {
 } from "./composerEditorRevision";
 import { DEFAULT_COMPOSER_ENTER_BEHAVIOR } from "../lib/composerEnterBehavior";
 import type { ComposerEditorProps, ComposerEditorSelection } from "./SupatermComposerEditor.types";
+import { useGT } from "gt-react-native";
 
 const NATIVE_MODULE_NAME = "SupatermComposerEditor";
 const EMPTY_SKILLS: NonNullable<ComposerEditorProps["skills"]> = [];
@@ -144,6 +145,7 @@ export function ComposerEditor({
   readResetGeneration = NO_RESET,
   ...props
 }: ComposerEditorProps) {
+  const gt = useGT();
   const nativeRef = useRef<NativeComposerEditorRef>(null);
   const mostRecentEventCountRef = useRef(0);
   const [mostRecentEventCount, setMostRecentEventCount] = useState(0);
@@ -318,8 +320,8 @@ export function ComposerEditor({
       editable={props.editable ?? true}
       readOnly={props.readOnly ?? false}
       enterBehavior={props.enterBehavior ?? DEFAULT_COMPOSER_ENTER_BEHAVIOR}
-      submitTitle={props.submitTitle ?? "Send Message"}
-      alternateSubmitTitle={props.alternateSubmitTitle ?? props.submitTitle ?? "Send Message"}
+      submitTitle={props.submitTitle ?? gt("Send Message")}
+      alternateSubmitTitle={props.alternateSubmitTitle ?? props.submitTitle ?? gt("Send Message")}
       scrollEnabled={props.scrollEnabled ?? true}
       autoFocus={props.autoFocus ?? false}
       autoCorrect={props.autoCorrect ?? true}

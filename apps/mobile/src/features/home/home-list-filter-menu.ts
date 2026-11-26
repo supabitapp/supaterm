@@ -6,6 +6,7 @@ import * as Order from "effect/Order";
 
 import type { AppBarMenuItem } from "../../components/ui/AppBar.types";
 import type { WorkspaceEnvironment } from "../../state/workspaceModel";
+import { msg } from "gt-react-native";
 
 export interface HomeListFilterMenuEnvironment {
   readonly environmentId: EnvironmentId;
@@ -90,8 +91,8 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
       {
         type: "action",
         id: "environment:all",
-        title: "All environments",
-        subtitle: "Show threads from every environment",
+        title: msg("All environments"),
+        subtitle: msg("Show threads from every environment"),
         state: props.selectedEnvironmentId === null ? "on" : "off",
         onPress: () => props.onEnvironmentChange(null),
       },
@@ -123,8 +124,8 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
         {
           type: "action",
           id: "project:all",
-          title: "All projects",
-          subtitle: "Show threads from every project",
+          title: msg("All projects"),
+          subtitle: msg("Show threads from every project"),
           state: props.selectedProjectKey === null ? "on" : "off",
           onPress: () => props.onProjectChange(null),
         },

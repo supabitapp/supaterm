@@ -24,6 +24,8 @@ import { environmentSession, usePreparedConnection } from "./session";
 import { useEnvironmentPresentation } from "./presentation";
 import { useEnvironmentQuery } from "./query";
 import { useAtomQueryRunner } from "./use-atom-query-runner";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export type { AssetUrlFailureReason, AssetUrlState } from "./asset-url-state";
 
@@ -178,7 +180,7 @@ const freshAssetUrlFamily = Atom.family((key: FreshAssetUrlKey) =>
             }))
           : Effect.fail(
               new AssetUrlUnavailableError({
-                message: "Reconnect to this environment and try again.",
+                message: m(msg("Reconnect to this environment and try again.")),
               }),
             ),
       ),

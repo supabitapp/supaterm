@@ -2,18 +2,20 @@ import { Pressable, View } from "react-native";
 
 import { AppText } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
+import { useGT } from "gt-react-native";
 
 export function DevicePreviewButton(props: {
   readonly count: number;
   readonly onPress: () => void;
   readonly compact?: boolean;
 }) {
+  const gt = useGT();
   const compact = props.compact ?? true;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.count === 1 ? "View device" : `View ${props.count} devices`}
-      accessibilityHint="Watch and control devices open in this thread"
+      accessibilityHint={gt("Watch and control devices open in this thread")}
       onPress={props.onPress}
       className={
         compact

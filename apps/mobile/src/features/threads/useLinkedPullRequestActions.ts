@@ -34,6 +34,7 @@ import type { EnvironmentRuntimeState } from "../../state/remote-runtime-types";
 import { useEnvironmentScope } from "../../state/session";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { useGT } from "gt-react-native";
 
 type MenuAction = MenuProps["actions"][number];
 
@@ -42,6 +43,7 @@ export function useLinkedPullRequestActions(input: {
   readonly project: EnvironmentProject | null;
   readonly runtime: EnvironmentRuntimeState | null;
 }) {
+  const gt = useGT();
   const { thread, project, runtime } = input;
   const terminology = sourceControlClients.get(project?.repositoryIdentity?.provider).changeRequest;
   const canOperate = useEnvironmentScope(
@@ -65,7 +67,7 @@ export function useLinkedPullRequestActions(input: {
     const result = await pending;
     if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
     const cause = squashAtomCommandFailure(result);
-    Dialog.alert(failureTitle, cause instanceof Error ? cause.message : "Try again.");
+    Dialog.alert(failureTitle, cause instanceof Error ? cause.message : gt("Try again."));
   };
 
   const setLinked = (
@@ -95,7 +97,7 @@ export function useLinkedPullRequestActions(input: {
       message: `Paste a ${singular} URL, or enter 123 / #123 for this thread's repository.`,
       placeholder: `${capitalizeTerm(singular)} URL or #42`,
       initialValue: "",
-      confirmText: "Link",
+      confirmText: gt("Link", { $context: "verb, confirms linking a pull request" }),
       onConfirm: (reference) => {
         const resolved = resolveLinkPullRequestInput({
           reference,
@@ -119,13 +121,13 @@ export function useLinkedPullRequestActions(input: {
     const open = link.snapshot === null || link.snapshot.state === "open";
     const watching = link.watch !== undefined;
     return [
-      { id: "copy", title: "Copy link", image: "link" },
-      { id: "browser", title: "Open in browser", image: "safari" },
+      { id: "copy", title: gt("Copy link"), image: "link" },
+      { id: "browser", title: gt("Open in browser"), image: "safari" },
       ...((watching ? canEdit : canStartWatch) && open
         ? [
             {
               id: "watch",
-              title: watching ? "Stop watching" : "Watch for changes",
+              title: watching ? gt("Stop watching") : gt("Watch for changes"),
               image: watching ? "eye.slash" : "eye",
             },
           ]
@@ -134,7 +136,7 @@ export function useLinkedPullRequestActions(input: {
         ? [
             {
               id: "unlink",
-              title: link.source === "stack" ? "Dismiss from thread" : "Unlink from thread",
+              title: link.source === "stack" ? gt("Dismiss from thread") : gt("Unlink from thread"),
               image: "xmark",
               attributes: { destructive: true },
             },
@@ -157,7 +159,7 @@ export function useLinkedPullRequestActions(input: {
       });
     else if (action === "watch" && thread !== null)
       void run(
-        "Couldn't change watching",
+        gt("Couldn't change watching"),
         watch({
           environmentId: thread.environmentId,
           input: {

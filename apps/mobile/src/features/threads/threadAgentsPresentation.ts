@@ -19,6 +19,7 @@ import type {
 } from "@supaterm/contracts";
 import { splitsSurrogatePair } from "@supaterm/shared/assistantCitations";
 import { resolveSelectableModel } from "@supaterm/shared/model";
+import { msg } from "gt-react-native";
 
 const PROMPT_TITLE_LIMIT = 80;
 
@@ -77,7 +78,7 @@ function rowTitle(subagent: Pick<OrchestrationV2Subagent, "title" | "prompt">): 
   const title = subagent.title?.trim();
   if (title) return formatSubagentDisplayTitle(title);
   const prompt = subagent.prompt.trim();
-  if (prompt.length === 0) return "Subagent";
+  if (prompt.length === 0) return msg("Subagent");
   if (prompt.length <= PROMPT_TITLE_LIMIT) return prompt;
   const end = PROMPT_TITLE_LIMIT - 1;
   return `${prompt.slice(0, splitsSurrogatePair(prompt, end) ? end - 1 : end).trimEnd()}…`;
@@ -158,7 +159,7 @@ export function workflowRail(group: SubagentWorkflowGroup): ReadonlyArray<Workfl
   if (group.unphasedMembers.length > 0) {
     items.push({
       key: "unphased",
-      title: items.length === 0 ? "Agents" : "Other",
+      title: items.length === 0 ? msg("Agents") : "Other",
       members: group.unphasedMembers,
     });
   }

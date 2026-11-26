@@ -26,6 +26,8 @@ import { fitComposerImage, renderPhoto } from "./composerImageFit";
 import { beginForegroundHandoff } from "./foreground-handoff";
 import { uuidv4 } from "./uuid";
 import { writeFileAtomically } from "./atomic-file";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export interface DraftComposerImageAttachment extends Omit<UploadChatImageAttachment, "dataUrl"> {
   readonly id: string;
@@ -57,7 +59,7 @@ export async function createPastedTextComposerAttachment(input: {
 }): Promise<DraftComposerFileAttachment> {
   const bytes = new TextEncoder().encode(input.text).byteLength;
   if (bytes <= 0) {
-    throw new Error("Clipboard is empty.");
+    throw new Error(m(msg("Clipboard is empty.")));
   }
   if (bytes > input.maxBytes) {
     throw new Error(fileAttachmentTooLargeMessage(input.name, input.maxBytes));
@@ -328,7 +330,11 @@ export async function pickComposerFiles(input: {
   if (remainingSlots <= 0) {
     return {
       files: [],
-      error: `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`,
+      error: m(
+        msg("You can attach up to {max} files per message.", {
+          max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+        }),
+      ),
     };
   }
 
@@ -341,7 +347,7 @@ export async function pickComposerFiles(input: {
   } catch (cause) {
     return {
       files: [],
-      error: cause instanceof Error ? cause.message : "Could not open the file picker.",
+      error: cause instanceof Error ? cause.message : m(msg("Could not open the file picker.")),
     };
   } finally {
     endHandoff();
@@ -414,7 +420,7 @@ async function loadImagePicker() {
   try {
     return await import("expo-image-picker");
   } catch (error) {
-    throw new Error("The photo library is unavailable right now.", { cause: error });
+    throw new Error(m(msg("The photo library is unavailable right now.")), { cause: error });
   }
 }
 
@@ -441,7 +447,11 @@ export async function pickComposerMedia(input: {
   if (remainingSlots <= 0) {
     return {
       attachments: [],
-      error: `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} attachments per message.`,
+      error: m(
+        msg("You can attach up to {max} attachments per message.", {
+          max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+        }),
+      ),
     };
   }
 
@@ -451,7 +461,10 @@ export async function pickComposerMedia(input: {
   } catch (error) {
     return {
       attachments: [],
-      error: error instanceof Error ? error.message : "The photo library is unavailable right now.",
+      error:
+        error instanceof Error
+          ? error.message
+          : m(msg("The photo library is unavailable right now.")),
     };
   }
 
@@ -471,7 +484,7 @@ export async function pickComposerMedia(input: {
   } catch (error) {
     return {
       attachments: [],
-      error: error instanceof Error ? error.message : "Could not open the photo library.",
+      error: error instanceof Error ? error.message : m(msg("Could not open the photo library.")),
     };
   } finally {
     endHandoff();
@@ -495,7 +508,7 @@ export async function pickComposerMedia(input: {
     const mimeType = asset.mimeType?.toLowerCase();
     if (asset.type === "video" || mimeType?.startsWith("video/")) {
       if (input.maxVideoBytes === undefined) {
-        error = "Video attachments are unavailable here.";
+        error = m(msg("Video attachments are unavailable here."));
         continue;
       }
       try {
@@ -680,8 +693,8 @@ export async function convertPastedImagesToAttachments(input: {
       if (sizeBytes <= 0 || sizeBytes > PROVIDER_SEND_TURN_MAX_IMAGE_BYTES) {
         error =
           sizeBytes > 0
-            ? "A pasted image exceeds the 10 MB attachment limit."
-            : "Could not read a pasted image.";
+            ? m(msg("A pasted image exceeds the 10 MB attachment limit."))
+            : m(msg("Could not read a pasted image."));
         continue;
       }
       const name = `pasted-image.${mimeType.split("/")[1] ?? "png"}`;
@@ -697,7 +710,7 @@ export async function convertPastedImagesToAttachments(input: {
       );
     } catch (cause) {
       console.warn("Failed to read pasted image", uri, cause);
-      error = "Could not read a pasted image.";
+      error = m(msg("Could not read a pasted image."));
     } finally {
       for (const temporaryUri of temporaryUris) {
         try {

@@ -19,17 +19,19 @@ import { orchestrationEnvironment } from "../../state/orchestration";
 import { environmentThreadShells } from "../../state/threads";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { ThreadCommandOutput } from "./thread-command-output";
+import { msg, T, useGT } from "gt-react-native";
 
 const KIND_LABELS = {
-  subagent: "Subagent",
+  subagent: msg("Subagent"),
   command: "Command",
   monitor: "Monitor",
-  background_task: "Background task",
+  background_task: msg("Background task"),
 } as const;
 
 type BackgroundWorkTarget = { readonly environmentId: EnvironmentId; readonly threadId: ThreadId };
 
 export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<BackgroundWorkTarget>) {
+  const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const target = route.params;
@@ -54,7 +56,7 @@ export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<Backgroun
     >
       {presentation === null ? (
         <Text className="pt-6 text-center text-sm text-foreground-muted">
-          Nothing running in the background.
+          <T>Nothing running in the background.</T>
         </Text>
       ) : (
         presentation.items.map((item) => (
@@ -72,7 +74,7 @@ export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<Backgroun
   );
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
-      <SheetHeader title="Background work" onClose={() => navigation.goBack()} />
+      <SheetHeader title={gt("Background work")} onClose={() => navigation.goBack()} />
       <ScreenContent>{content}</ScreenContent>
     </View>
   );
@@ -84,6 +86,7 @@ function BackgroundWorkRow(props: {
   readonly initiallyShowingOutput: boolean;
   readonly onOpen: (threadId: ThreadId) => void;
 }) {
+  const gt = useGT();
   const { item, target } = props;
   const childThreadId = item.childThreadId;
   const [showingOutput, setShowingOutput] = useState(props.initiallyShowingOutput);
@@ -111,7 +114,7 @@ function BackgroundWorkRow(props: {
     return (
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel={`Open subagent ${item.label}`}
+        accessibilityLabel={gt("Open subagent {label}", { label: item.label })}
         onPress={() => props.onOpen(childThreadId)}
         className="border-b border-border active:opacity-70"
       >

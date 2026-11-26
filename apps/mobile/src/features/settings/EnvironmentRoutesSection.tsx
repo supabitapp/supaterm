@@ -38,6 +38,7 @@ import { connectionTone } from "../connection/connectionTone";
 import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
 import { SettingsDragHandle } from "./components/SettingsDragHandle";
 import { SettingsSection } from "./components/SettingsSection";
+import { T, useGT } from "gt-react-native";
 
 const NO_LATENCY = Atom.make("");
 
@@ -67,6 +68,7 @@ export function EnvironmentRoutesSection({
   readonly connected: boolean;
   readonly onAddRoute: () => void;
 }) {
+  const gt = useGT();
   const registry = useContext(RegistryContext);
   const entry = useAtomValue(environmentCatalog.catalogValueAtom).entries.get(environmentId);
   const prepared = useAtomValue(environmentSession.preparedConnectionValueAtom(environmentId));
@@ -127,12 +129,12 @@ export function EnvironmentRoutesSection({
   };
   const confirmRemove = (route: ConnectionRoute) =>
     Dialog.alert(
-      `Remove ${connectionRouteLabel(route)}?`,
+      gt("Remove {route}?", { route: connectionRouteLabel(route) }),
       connectionRouteAddress(route) ?? undefined,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: gt("Cancel"), style: "cancel" },
         {
-          text: "Remove",
+          text: gt("Remove"),
           style: "destructive",
           onPress: () =>
             void removeRoute({ environmentId, routeId: connectionRouteId(route.target) }),
@@ -145,7 +147,7 @@ export function EnvironmentRoutesSection({
 
   return (
     <SettingsSection
-      title="Routes"
+      title={gt("Routes")}
       trailing={
         <View className="flex-row items-center gap-2">
           <Button
@@ -160,7 +162,7 @@ export function EnvironmentRoutesSection({
           />
           {routes.length > 1 ? (
             <Button
-              label={editing ? "Done" : "Edit"}
+              label={editing ? gt("Done") : gt("Edit")}
               tone="text"
               onPress={() => setEditing((value) => !value)}
             />
@@ -170,7 +172,7 @@ export function EnvironmentRoutesSection({
     >
       <SettingsActionRow
         icon="checkmark.circle"
-        label="Your permissions"
+        label={gt("Your permissions")}
         onPress={() => setPermissionsOpen((open) => !open)}
       />
       {permissionsOpen ? (
@@ -181,8 +183,10 @@ export function EnvironmentRoutesSection({
           session?.authenticated ? (
             <>
               <Text className="text-sm text-foreground-muted">
-                Applies to the route marked In use. Other routes may have different permissions and
-                have not been checked.
+                <T>
+                  Applies to the route marked In use. Other routes may have different permissions
+                  and have not been checked.
+                </T>
               </Text>
               {AUTH_SCOPE_OPTIONS.map(({ scope, title }) => (
                 <Text key={scope} className="text-sm text-foreground">
@@ -250,7 +254,7 @@ export function EnvironmentRoutesSection({
           />
         );
       })}
-      <SettingsActionRow icon="plus" label="Add route" onPress={onAddRoute} />
+      <SettingsActionRow icon="plus" label={gt("Add route")} onPress={onAddRoute} />
     </SettingsSection>
   );
 }
@@ -272,6 +276,7 @@ function RouteRow(props: {
   readonly onStep: (direction: "up" | "down") => void;
   readonly onRemove: (() => void) | undefined;
 }) {
+  const gt = useGT();
   const { route, lifted, offset } = props;
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
@@ -282,7 +287,7 @@ function RouteRow(props: {
   const direct = useAtomValue(environmentSession.relayRouteTransportAtom(route)) === "direct";
   const refusedHint =
     props.refused && address !== null
-      ? "The host refused this device's sign-in. Pair this address again with Add route."
+      ? gt("The host refused this device's sign-in. Pair this address again with Add route.")
       : null;
   const style = useAnimatedStyle(() => ({
     transform: [
@@ -303,7 +308,7 @@ function RouteRow(props: {
       {props.editing && props.onRemove ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Remove ${label} route`}
+          accessibilityLabel={gt("Remove {route} route", { route: label })}
           hitSlop={8}
           onPress={props.onRemove}
           className="active:opacity-70"
@@ -358,19 +363,23 @@ function RouteRow(props: {
               {label}
             </Text>
             {props.inUse ? (
-              <StatusPill {...connectionTone("connected")} label="In use" size="compact" />
+              <StatusPill {...connectionTone("connected")} label={gt("In use")} size="compact" />
             ) : null}
             {direct ? <Text className="shrink-0 text-sm text-foreground-muted">Direct</Text> : null}
             {props.unused ? (
               <StatusPill {...connectionTone("unsupported")} label="Not used" size="compact" />
             ) : null}
             {props.refused ? (
-              <StatusPill {...connectionTone("error")} label="Sign-in refused" size="compact" />
+              <StatusPill
+                {...connectionTone("error")}
+                label={gt("Sign-in refused")}
+                size="compact"
+              />
             ) : null}
           </View>
           {address !== null ? (
             <Text numberOfLines={1} className="text-sm text-foreground-muted">
-              {isLearned(route) ? `${address} · found automatically` : address}
+              {isLearned(route) ? gt("{address} · found automatically", { address }) : address}
             </Text>
           ) : null}
           {refusedHint !== null ? (

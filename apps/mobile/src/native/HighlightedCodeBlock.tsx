@@ -9,6 +9,7 @@ import type { HighlightScheme } from "../lib/highlights";
 import { CodeBlockFrame, CodeBlockHeaderButton } from "./CodeBlockFrame";
 import { fencedCodeMarkdown } from "./codeBlockMarkdown";
 import type { NativeMarkdownTextStyle } from "./SelectableMarkdownText.types";
+import { useGT, msg } from "gt-react-native";
 
 // Header names from enriched-markdown's CodeBlockLanguages.cpp that are not the fence capitalized.
 const FENCE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
@@ -31,7 +32,7 @@ const FENCE_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 // The native block's long-press menu, with its labels and iOS symbols.
 const CODE_MENU_ACTIONS = [
   { id: "copy-code", title: "Copy", image: "doc.on.doc" },
-  { id: "copy-markdown", title: "Copy as Markdown", image: "doc.text" },
+  { id: "copy-markdown", title: msg("Copy as Markdown"), image: "doc.text" },
 ];
 
 /** A fence in a language enriched-markdown cannot colour, drawn like its native block. */
@@ -45,6 +46,7 @@ export function HighlightedCodeBlock(props: {
   readonly textStyle: NativeMarkdownTextStyle;
   readonly codeStyle: NonNullable<MarkdownStyle["codeBlock"]>;
 }) {
+  const gt = useGT();
   const { code, codeStyle, textStyle } = props;
   const [wrapped, setWrapped] = useState(true);
   const lines = useMarkdownCodeHighlight({
@@ -106,14 +108,14 @@ export function HighlightedCodeBlock(props: {
         <>
           <CodeBlockHeaderButton
             icon="text.alignleft"
-            label={wrapped ? "Disable line wrap" : "Wrap lines"}
+            label={wrapped ? gt("Disable line wrap") : gt("Wrap lines")}
             textStyle={textStyle}
             active={wrapped}
             onPress={() => setWrapped((value) => !value)}
           />
           <CodeBlockHeaderButton
             icon="doc.on.doc"
-            label="Copy code"
+            label={gt("Copy code")}
             textStyle={textStyle}
             onPress={() => copyTextWithHaptic(code)}
           />

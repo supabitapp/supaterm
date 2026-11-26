@@ -88,6 +88,7 @@ import {
   mcpAppFromToolItem,
 } from "@supaterm/shared/toolOutput";
 import * as DateTime from "effect/DateTime";
+import { msg } from "gt-react-native";
 
 export type PendingApproval = ThreadPendingApproval;
 export type PendingUserInput = ThreadPendingUserInput;
@@ -297,7 +298,7 @@ export function workEntryRowDisplay(
 ): { readonly text: string; readonly path?: true } {
   if (entry.itemType === "fork") return { text: entry.label };
   if (expanded && entry.itemType === "reasoning")
-    return { text: entry.toolLifecycleStatus === "inProgress" ? "Thinking" : "Thought" };
+    return { text: entry.toolLifecycleStatus === "inProgress" ? msg("Thinking") : msg("Thought") };
   const presentation = resolveWorkEntryToolPresentation(entry);
   if (presentation) return { text: presentation.displayName };
   if (entry.command?.trim())
@@ -328,7 +329,7 @@ export function workEntryRowDisplay(
         path: true,
       };
     }
-    if (!expanded) return { text: "Read file" };
+    if (!expanded) return { text: msg("Read file") };
   }
   const textPreview =
     entry.command ??
@@ -632,7 +633,7 @@ function itemSummary(
   if (title) return toolPresentation?.displayName ?? capitalizePhrase(title);
   switch (item.type) {
     case "reasoning":
-      return "Thinking";
+      return msg("Thinking");
     case "command_execution":
       return "Command";
     case "file_change":
@@ -640,27 +641,29 @@ function itemSummary(
         ? `Changed ${item.changes.length} files`
         : `Changed ${item.fileName}`;
     case "file_search":
-      return item.title?.trim() || formatSearchToolLabel(item) || "Searched files";
+      return item.title?.trim() || formatSearchToolLabel(item) || msg("Searched files");
     case "web_search":
-      return "Searched the web";
+      return msg("Searched the web");
     case "approval_request":
-      return "Approval requested";
+      return msg("Approval requested");
     case "user_input_request":
-      return "Input requested";
+      return msg("Input requested");
     case "checkpoint":
-      return "Checkpoint captured";
+      return msg("Checkpoint captured");
     case "run_interrupt_request":
-      return "Interrupt requested";
+      return msg("Interrupt requested");
     case "run_interrupt_result":
-      return "Run interrupted";
+      return msg("Run interrupted");
     case "error":
-      return item.failure.class === "usage_limit" ? "Usage limit reached" : "Provider error";
+      return item.failure.class === "usage_limit"
+        ? msg("Usage limit reached")
+        : msg("Provider error");
     case "handoff":
-      return "Context handed off";
+      return msg("Context handed off");
     case "fork":
-      return "Thread forked";
+      return msg("Thread forked");
     case "thread_created":
-      return "Thread created";
+      return msg("Thread created");
     case "secret_request":
       return item.label;
     case "link_request":
@@ -675,18 +678,18 @@ function itemSummary(
         return formatReadToolLabel(path ?? "");
       }
       if (classified === "search") {
-        return formatSearchToolLabel({ input: item.input }) ?? item.toolName ?? "Tool call";
+        return formatSearchToolLabel({ input: item.input }) ?? item.toolName ?? msg("Tool call");
       }
-      return toolPresentation?.displayName ?? item.toolName ?? "Tool call";
+      return toolPresentation?.displayName ?? item.toolName ?? msg("Tool call");
     }
     case "proposed_plan":
-      return "Proposed plan";
+      return msg("Proposed plan");
     case "todo_list":
-      return "Plan updated";
+      return msg("Plan updated");
     case "user_message":
-      return "User message";
+      return msg("User message");
     case "assistant_message":
-      return "Assistant message";
+      return msg("Assistant message");
   }
 }
 
@@ -779,21 +782,21 @@ function toWorkLogEntry(
         changedFiles: item.changes?.length
           ? item.changes.map((change) => change.path)
           : [item.fileName],
-        toolTitle: title ?? "File change",
+        toolTitle: title ?? msg("File change"),
         toolData: item,
       };
     case "file_search":
       return {
         ...common,
         ...(item.pattern ? { detail: item.pattern } : {}),
-        toolTitle: title ?? "File search",
+        toolTitle: title ?? msg("File search"),
         toolData: item,
       };
     case "web_search":
       return {
         ...common,
         ...(item.patterns?.length ? { detail: item.patterns.join(", ") } : {}),
-        toolTitle: title ?? "Web search",
+        toolTitle: title ?? msg("Web search"),
         toolData: item,
       };
     case "checkpoint":
@@ -899,8 +902,8 @@ function toFeedActivity(
 function singleToolCallLabel(activity: ThreadFeedActivity, expanded: boolean): string {
   if (activity.workEntry.itemType === "reasoning")
     return expanded
-      ? "Thought"
-      : compactWorkEntryText(activity.workEntry.detail ?? "") || "Thought";
+      ? msg("Thought")
+      : compactWorkEntryText(activity.workEntry.detail ?? "") || msg("Thought");
   const presentation = resolveWorkEntryToolPresentation(activity.workEntry, "completed");
   if (presentation) return presentation.displayName;
   const command = activity.workEntry.command?.trim();
@@ -1325,7 +1328,8 @@ function deriveThreadFeedRunFolds(
         return {
           runId: steerFoldRunId(runId, steer.id),
           entries,
-          label: segmentMs !== null ? `Continued for ${formatDuration(segmentMs)}` : "Continued",
+          label:
+            segmentMs !== null ? `Continued for ${formatDuration(segmentMs)}` : msg("Continued"),
         };
       }),
     ];
@@ -1365,7 +1369,7 @@ function deriveThreadFeedRunFolds(
       runId: RunId.make(`deferred-work:${entry.id}`),
       createdAt: entry.createdAt,
       hiddenEntryIds: new Set([entry.id]),
-      label: "Earlier work",
+      label: msg("Earlier work"),
       deferredWorkItemIds,
     });
   }
@@ -2019,7 +2023,7 @@ function liveRunFoldRow(runId: RunId, startedAt: string) {
       id: `run-fold:${runId}`,
       createdAt: startedAt,
       runId,
-      label: "Working",
+      label: msg("Working"),
       expanded: false,
       workingSince: startedAt,
     };

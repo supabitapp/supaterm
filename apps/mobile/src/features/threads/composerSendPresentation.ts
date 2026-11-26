@@ -4,6 +4,7 @@ import {
 } from "@supaterm/client-runtime/state/composer-dispatch";
 
 import type { FollowUpBehavior } from "../../lib/followUpBehavior";
+import { msg } from "gt-react-native";
 
 export interface ComposerSendPresentation {
   readonly label: string;
@@ -33,7 +34,7 @@ export function resolveComposerSendPresentation(input: {
 }): ComposerSendPresentation {
   if (input.editingQueuedMessage) {
     return {
-      label: "Update queued message",
+      label: msg("Update queued message"),
       icon: "checkmark",
       action: null,
       alternate: null,

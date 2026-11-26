@@ -30,6 +30,7 @@ import { useAppearanceCodeSurface } from "../settings/appearance/useAppearanceCo
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { changeTone, DiffTokenText, ReviewChangeBar } from "./reviewDiffRendering";
 import { highlightReviewSelectedLines } from "./highlightReviewSelectedLines";
+import { T, useGT } from "gt-react-native";
 
 const REVIEW_COMMENT_PREVIEW_MAX_LINES = 5;
 const NO_LINES: ReturnType<typeof getSelectedReviewCommentLines> = [];
@@ -41,6 +42,7 @@ type ReviewCommentComposerSheetProps = StaticScreenProps<{
 }>;
 
 export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProps) {
+  const gt = useGT();
   const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const { themeAppearance: selectedTheme } = useAppearancePreferences();
@@ -123,7 +125,7 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
       if (result === null) return;
       appendImages(result.attachments);
       if (result.error && isMountedRef.current) {
-        Dialog.alert("Could not paste image", result.error);
+        Dialog.alert(gt("Could not paste image"), result.error);
       }
     })();
   });
@@ -154,21 +156,21 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
 
   return (
     <View className="flex-1 bg-sheet">
-      <SheetHeader title="Add Comment" onClose={dismissComposer} />
+      <SheetHeader title={gt("Add Comment")} onClose={dismissComposer} />
       <KeyboardSheetBody
         toolbar={
           target ? (
             <>
               <ControlPill
-                accessibilityLabel="Add image"
+                accessibilityLabel={gt("Add image")}
                 icon="plus"
                 onPress={() => void handlePickImages()}
               />
               <View className="flex-1" />
               <ControlPill
-                accessibilityLabel="Comment"
+                accessibilityLabel={gt("Comment", { $context: "verb, submit button" })}
                 icon="arrow.up"
-                label="Comment"
+                label={gt("Comment", { $context: "verb, submit button" })}
                 variant="primary"
                 disabled={!canSubmit}
                 onPress={handleSubmit}
@@ -179,9 +181,11 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
       >
         {!target ? (
           <View className="rounded-[22px] border border-border bg-card px-4 py-5">
-            <Text className="text-base font-supaterm-bold text-foreground">No selection</Text>
+            <Text className="text-base font-supaterm-bold text-foreground">
+              <T>No selection</T>
+            </Text>
             <Text className="mt-1 text-sm leading-normal text-foreground-muted">
-              Select a diff line or range first.
+              <T>Select a diff line or range first.</T>
             </Text>
           </View>
         ) : (
@@ -256,7 +260,7 @@ export function ReviewCommentComposerSheet(props: ReviewCommentComposerSheetProp
                       autoFocus
                       multiline
                       scrollEnabled
-                      placeholder="Leave a comment..."
+                      placeholder={gt("Leave a comment...")}
                       textAlignVertical="top"
                       value={commentText}
                       onChangeText={setCommentText}

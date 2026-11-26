@@ -9,6 +9,8 @@ import { useEnvironmentQuery } from "../../../state/query";
 import { serverEnvironment } from "../../../state/server";
 import { useAtomCommand } from "../../../state/use-atom-command";
 import { pullRequestTarget, type PullRequestParams } from "../usePullRequestDiff";
+import { m } from "../../../i18n/messages";
+import { msg } from "gt-react-native";
 export function useReviewGuidesEnabled(params: PullRequestParams) {
   const settings = useAtomValue(
     serverEnvironment.settingsValueAtom(pullRequestTarget(params).environmentId),
@@ -50,7 +52,9 @@ export function useReviewGuide(params: PullRequestParams, visible = true) {
     setStarting(false);
     if (AsyncResult.isFailure(result)) {
       const cause = squashAtomCommandFailure(result);
-      setError(cause instanceof Error ? cause.message : "Could not start the review guide.");
+      setError(
+        cause instanceof Error ? cause.message : m(msg("Could not start the review guide.")),
+      );
     }
   };
   return {

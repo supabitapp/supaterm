@@ -24,6 +24,7 @@ import { pullRequestTarget } from "./usePullRequestDiff";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { useOpenWorkspaceDetail } from "../layout/useOpenWorkspaceDetail";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import { useGT } from "gt-react-native";
 export function usePullRequestListActions(
   environmentIds: readonly EnvironmentId[],
   onChanged: (
@@ -31,6 +32,7 @@ export function usePullRequestListActions(
     patch: Partial<EnvironmentPullRequestListEntry>,
   ) => void,
 ) {
+  const gt = useGT();
   const registry = use(RegistryContext);
   const selectDetail = useSelectWorkspaceDetail();
   const openDetail = useOpenWorkspaceDetail();
@@ -118,7 +120,7 @@ export function usePullRequestListActions(
       const cause = squashAtomCommandFailure(result);
       Dialog.alert(
         `Couldn't update this ${terminology.singular}`,
-        cause instanceof Error ? cause.message : "Try again.",
+        cause instanceof Error ? cause.message : gt("Try again."),
       );
     }
   };
@@ -152,7 +154,7 @@ export function usePullRequestListActions(
       sourceControlClients.get(entry.provider).changeRequest,
     );
     Dialog.alert(`${label}?`, `#${entry.number} · ${entry.title}`, [
-      { text: "Cancel", style: "cancel" },
+      { text: gt("Cancel"), style: "cancel" },
       {
         text: label,
         style: supported === "close" ? "destructive" : "default",
@@ -172,12 +174,12 @@ export function usePullRequestListActions(
         ? [
             {
               id: "request-review",
-              title: "Request review",
+              title: gt("Request review"),
               image: "person.badge.plus",
             },
             {
               id: entry.isDraft ? "ready" : "draft",
-              title: entry.isDraft ? "Mark ready for review" : "Convert to draft",
+              title: entry.isDraft ? gt("Mark ready for review") : gt("Convert to draft"),
               image: "pencil",
             },
             {
@@ -198,10 +200,10 @@ export function usePullRequestListActions(
           : []),
       {
         id: "share",
-        title: "Share…",
+        title: gt("Share…"),
         image: "square.and.arrow.up",
       },
-      { id: "copy", title: "Copy link", image: "link" },
+      { id: "copy", title: gt("Copy link"), image: "link" },
       {
         id: "provider",
         title: openOnProviderLabel(entry.provider),

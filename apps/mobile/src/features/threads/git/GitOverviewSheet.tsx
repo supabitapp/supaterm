@@ -52,6 +52,7 @@ import {
   useLinkedPullRequestLines,
 } from "../LinkedPullRequestList";
 import { useLinkedPullRequestActions } from "../useLinkedPullRequestActions";
+import { useGT } from "gt-react-native";
 
 type GitOverviewSheetProps = StaticScreenProps<
   {
@@ -75,6 +76,7 @@ export function GitOverviewSheet(props: GitOverviewSheetProps) {
 }
 
 function GitOverviewSheetContent(props: GitOverviewSheetProps) {
+  const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const presentation = props.presentation ?? "sheet";
@@ -145,8 +147,8 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
         ? // A task folder's plain project folder has no branch; its repositories are on the thread's.
           ((taskFolder === null ? null : selectedThread?.branch) ??
           selectedThreadProject?.title ??
-          "Repositories")
-        : (gitStatus.data?.refName ?? selectedThread?.branch ?? "Detached HEAD");
+          gt("Repositories"))
+        : (gitStatus.data?.refName ?? selectedThread?.branch ?? gt("Detached HEAD"));
   const currentStatusSummary =
     repository !== undefined
       ? gitStatus.data?.isRepo
@@ -172,7 +174,7 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
     },
     disabledReason:
       !canWriteSourceControl && item.kind !== "open_pr"
-        ? "This connection cannot change source control."
+        ? gt("This connection cannot change source control.")
         : getGitActionDisabledReason({
             item,
             gitStatus: gitStatus.data,
@@ -329,11 +331,11 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
           {behindCount > 0 ? (
             <ListRow
               icon="arrow.down.circle"
-              label="Pull latest"
+              label={gt("Pull latest")}
               description={
                 canWriteSourceControl
                   ? `${behindCount} commit${behindCount === 1 ? "" : "s"} behind upstream`
-                  : "This connection cannot change source control."
+                  : gt("This connection cannot change source control.")
               }
               disabled={!canWriteSourceControl || busy || !isRepo}
               onPress={() => void gitActions.onPullSelectedThreadBranch()}
@@ -361,11 +363,11 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
             <>
               <ListRow
                 icon="text.bubble"
-                label="Review changes"
+                label={gt("Review changes")}
                 description={
                   trackedRepositoryCount > 0
-                    ? "Inspect turn diffs"
-                    : "Inspect changes, uncommitted edits, and turn diffs"
+                    ? gt("Inspect turn diffs")
+                    : gt("Inspect changes, uncommitted edits, and turn diffs")
                 }
                 disabled={busy || !(isRepo || trackedRepositoryCount > 0)}
                 onPress={() => {
@@ -381,11 +383,11 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
               />
               <ListRow
                 icon="point.topleft.down.curvedto.point.bottomright.up"
-                label="Branches & worktrees"
+                label={gt("Branches & worktrees")}
                 description={
                   canChangeThreadBranch
-                    ? "Switch branch, create branch, or move to a worktree"
-                    : "View branches and worktrees"
+                    ? gt("Switch branch, create branch, or move to a worktree")
+                    : gt("View branches and worktrees")
                 }
                 disabled={busy || !isRepo}
                 onPress={() =>
@@ -409,8 +411,8 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
           ) : isPinnedRepository ? (
             <ListRow
               icon="pin.slash"
-              label="Remove from this thread"
-              description="The repository stays tracked by the project"
+              label={gt("Remove from this thread")}
+              description={gt("The repository stays tracked by the project")}
               disabled={busy}
               onPress={() => {
                 unpinRepositoryFromThread(threadRef, repository.key);
@@ -422,7 +424,7 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
       ) : null}
 
       {repository === undefined && linkedPrLines.length > 0 ? (
-        <ListSection title={`Linked ${linkedPrActions.terminology.plural}`}>
+        <ListSection title={gt("Linked {terms}", { terms: linkedPrActions.terminology.plural })}>
           {linkedPrLines.map((line, index) => (
             <LinkedPullRequestRow
               key={linkedPullRequestKey(line)}
@@ -437,7 +439,7 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
       ) : null}
 
       {currentWorktreePath ? (
-        <ListSection title="Worktree">
+        <ListSection title={gt("Worktree")}>
           <Text selectable textRole="footnote" className="p-4 text-foreground-muted">
             {currentWorktreePath}
           </Text>
@@ -447,7 +449,7 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
   );
 
   const refresh = {
-    accessibilityLabel: "Refresh repository status",
+    accessibilityLabel: gt("Refresh repository status"),
     disabled: busy || isRefreshing,
     onPress: () => void handleRefresh(),
   };

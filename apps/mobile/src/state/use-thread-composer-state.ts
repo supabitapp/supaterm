@@ -124,6 +124,8 @@ import { enqueueVoiceThreadOutboxMessage } from "./thread-outbox-audio";
 import { dispatchingQueuedMessageIdsAtom, useThreadOutboxMessages } from "./use-thread-outbox";
 import { threadEnvironment } from "./threads";
 import { useAtomCommand } from "./use-atom-command";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 const EMPTY_QUEUE_WORKFLOW_ATOM = Atom.make<null>(null).pipe(
   Atom.withLabel("mobile-thread-queue-workflow:empty"),
@@ -144,7 +146,10 @@ export function appendReviewCommentToDraft(input: {
       reidentifyComposerContext(upgraded.text, upgraded.records, uuidv4),
     )
   ) {
-    Dialog.alert("Too many context items", "Remove some context from the draft and try again.");
+    Dialog.alert(
+      m(msg("Too many context items")),
+      m(msg("Remove some context from the draft and try again.")),
+    );
     return;
   }
   if (input.attachments && input.attachments.length > 0) {
@@ -437,7 +442,7 @@ export function useThreadComposerState() {
       edit.existingAttachments.length === 0 &&
       draft.attachments.length === 0
     ) {
-      Dialog.alert("Add a message", "A queued message cannot be left empty.");
+      Dialog.alert(m(msg("Add a message")), m(msg("A queued message cannot be left empty.")));
       return;
     }
     if (
@@ -445,15 +450,19 @@ export function useThreadComposerState() {
       PROVIDER_SEND_TURN_MAX_ATTACHMENTS
     ) {
       Dialog.alert(
-        "Too many attachments",
-        `Remove attachments until there are at most ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS}.`,
+        m(msg("Too many attachments")),
+        m(
+          msg("Remove attachments until there are at most {max}.", {
+            max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+          }),
+        ),
       );
       return;
     }
     // A queued message stays in its thread, so saving `/side` would send it to main.
     if (parseSideChatCommand(text)) {
       Dialog.alert(
-        "Queued message not updated",
+        m(msg("Queued message not updated")),
         "A queued message can't move to a side chat. Remove /side or /btw to save it.",
       );
       return;
@@ -478,8 +487,8 @@ export function useThreadComposerState() {
       finishSave(false);
       const error = squashAtomCommandFailure(prepared);
       Dialog.alert(
-        "Could not save the queued message",
-        error instanceof Error ? error.message : "Your edit is still in the composer.",
+        m(msg("Could not save the queued message")),
+        error instanceof Error ? error.message : m(msg("Your edit is still in the composer.")),
       );
       return;
     }
@@ -517,8 +526,8 @@ export function useThreadComposerState() {
       // The run left the queue during the save; its exit already told the composer what happened.
       if (!finishSave(false)) return;
       Dialog.alert(
-        "Could not save the queued message",
-        "It may have already started. Your edit is still in the composer.",
+        m(msg("Could not save the queued message")),
+        m(msg("It may have already started. Your edit is still in the composer.")),
       );
       return;
     }
@@ -675,15 +684,19 @@ export function useThreadComposerState() {
     // here until the user removes attachments.
     if (attachments.length > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
       Dialog.alert(
-        "Too many attachments",
-        `Remove attachments until there are at most ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS}.`,
+        m(msg("Too many attachments")),
+        m(
+          msg("Remove attachments until there are at most {max}.", {
+            max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
+          }),
+        ),
       );
       return null;
     }
 
     const contextBlockReason = composerContextSendBlockReason(draft.context);
     if (contextBlockReason) {
-      Dialog.alert("Too much context", contextBlockReason);
+      Dialog.alert(m(msg("Too much context")), contextBlockReason);
       return null;
     }
 
@@ -712,7 +725,10 @@ export function useThreadComposerState() {
       if (!readEnvironmentScope(selectedThreadShell.environmentId, AuthOrchestrationOperateScope))
         return null;
       if (thread.activeProviderThreadId === null) {
-        Dialog.alert("Start a Codex thread first", "Send a message before you submit feedback.");
+        Dialog.alert(
+          "Start a Codex thread first",
+          m(msg("Send a message before you submit feedback.")),
+        );
         return null;
       }
       const metadata = makeQueuedMessageMetadata();
@@ -814,7 +830,7 @@ export function useThreadComposerState() {
         if (freshContext) setFreshSessionPending(threadKey, true);
         setThreadComposerError(
           threadKey,
-          error instanceof Error ? error.message : "Failed to save the queued message.",
+          error instanceof Error ? error.message : m(msg("Failed to save the queued message.")),
         );
       },
     );

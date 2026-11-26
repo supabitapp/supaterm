@@ -40,6 +40,7 @@ import { useEnvironmentQuery } from "../../state/query";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
 import { ReadOnlyComposerBar } from "./ReadOnlyComposerBar";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
+import { T, useGT } from "gt-react-native";
 
 type LinkedThreadRouteParams = {
   readonly viaEnvironmentId: string;
@@ -66,6 +67,7 @@ function ActivityRow(props: {
   readonly activity: ThreadFeedActivity;
   readonly target: LinkedThreadTarget;
 }) {
+  const gt = useGT();
   const { activity, target } = props;
   const [open, setOpen] = useState(false);
   const row = activity.projectedItem;
@@ -111,12 +113,12 @@ function ActivityRow(props: {
     : !activity.fetchesDetail
       ? turnItemOutputText(row.item)
       : fetchedItem
-        ? (turnItemOutputText(fetchedItem) ?? "No output.")
+        ? (turnItemOutputText(fetchedItem) ?? gt("No output."))
         : fetched.error
           ? `Couldn't load output: ${fetched.error}`
           : fetched.data
-            ? "Output is no longer available."
-            : "Loading output…";
+            ? gt("Output is no longer available.")
+            : gt("Loading output…");
   return (
     <Pressable
       accessibilityRole="button"
@@ -147,7 +149,12 @@ function ActivityRow(props: {
       ) : null}
       {open && fetched.error ? (
         <View className="mt-1.5 self-start">
-          <Button size="compact" tone="secondary" label="Try again" onPress={fetched.refresh} />
+          <Button
+            size="compact"
+            tone="secondary"
+            label={gt("Try again")}
+            onPress={fetched.refresh}
+          />
         </View>
       ) : null}
     </Pressable>
@@ -194,6 +201,7 @@ function FailureCard(props: {
   readonly stale: boolean;
   readonly onRetry: () => void;
 }) {
+  const gt = useGT();
   return (
     <View
       accessibilityLiveRegion="polite"
@@ -204,11 +212,11 @@ function FailureCard(props: {
       </Text>
       <Text className="text-sm text-danger-foreground">
         {props.failure.detail}
-        {props.stale ? " Showing what was read before." : ""}
+        {props.stale ? gt(" Showing what was read before.") : ""}
       </Text>
       {props.failure.retryable ? (
         <View className="mt-2 self-start">
-          <Button size="compact" tone="secondary" label="Try again" onPress={props.onRetry} />
+          <Button size="compact" tone="secondary" label={gt("Try again")} onPress={props.onRetry} />
         </View>
       ) : null}
     </View>
@@ -235,7 +243,7 @@ function LinkedThreadComposer(props: {
       <ReadOnlyComposerBar>
         <View accessible className="min-w-0 flex-1 gap-0.5">
           <Text numberOfLines={1} className="font-supaterm-bold text-sm text-foreground">
-            Read-only
+            <T>Read-only</T>
           </Text>
           <Text numberOfLines={1} className="font-sans text-xs text-foreground-secondary">
             {`On ${label} via ${via}${props.working ? " · Working" : ""}`}
@@ -254,13 +262,14 @@ const subscribeAppState = (onChange: () => void) => {
 const appIsActive = () => AppState.currentState === "active";
 
 export function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
+  const gt = useGT();
   const { target } = props;
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const via =
     useEnvironments().environments.find(
       (environment) => environment.environmentId === target.viaEnvironmentId,
-    )?.label ?? "this environment";
+    )?.label ?? gt("this environment");
   // The stream runs only while this screen is the one being looked at.
   const focused = useIsFocused();
   const appActive = useSyncExternalStore(subscribeAppState, appIsActive);
@@ -302,7 +311,7 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
       <SheetHeader
-        title={projection?.thread.title || target.title || `Thread on ${label}`}
+        title={projection?.thread.title || target.title || gt("Thread on {label}", { label })}
         onClose={() => navigation.goBack()}
       />
       <ScreenContent>
@@ -341,7 +350,7 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
                   <Button
                     size="compact"
                     tone="text"
-                    label={view.history.loading ? "Loading earlier…" : "Load earlier"}
+                    label={view.history.loading ? "Loading earlier…" : gt("Load earlier")}
                     disabled={view.history.loading}
                     onPress={view.loadEarlier}
                   />
@@ -351,13 +360,15 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
                       accessibilityRole="alert"
                       className="w-full text-center text-xs text-danger-foreground"
                     >
-                      Could not load earlier turns. Try again.
+                      {gt("Could not load earlier turns. Try again.")}
                     </Text>
                   ) : null}
                 </View>
               ) : null}
               {feed.length === 0 ? (
-                <Text className="text-sm text-foreground-muted">Nothing in this thread yet.</Text>
+                <Text className="text-sm text-foreground-muted">
+                  <T>Nothing in this thread yet.</T>
+                </Text>
               ) : null}
               {feed.map((entry) => (
                 <LinkedThreadEntry key={entry.id} entry={entry} target={target} />
@@ -377,7 +388,7 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
             action={
               <Button
                 tone="secondary"
-                label="Connect to interact"
+                label={gt("Connect to interact")}
                 disabled={connectState.phase === "connecting"}
                 onPress={() => void connect()}
               />
@@ -396,11 +407,13 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
                   className="gap-1 rounded-2xl border border-danger-border bg-danger px-3.5 py-3"
                 >
                   <Text className="font-supaterm-medium text-sm text-danger-foreground">
-                    {`${connectState.label} is not reachable from this device`}
+                    {gt("{label} is not reachable from this device", { label: connectState.label })}
                   </Text>
                   <Text className="text-sm text-danger-foreground">
-                    Join a network it is on, such as its Tailscale network, and try again. You can
-                    keep reading here.
+                    <T>
+                      Join a network it is on, such as its Tailscale network, and try again. You can
+                      keep reading here.
+                    </T>
                   </Text>
                 </View>
               ) : null

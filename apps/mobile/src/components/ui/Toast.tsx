@@ -9,6 +9,7 @@ import { GlassSurface } from "./GlassSurface";
 import { IconButton } from "./IconButton";
 import { AppActivityIndicator } from "./AppActivityIndicator";
 import { SymbolView, type AppSymbolName } from "./AppSymbol";
+import { useGT } from "gt-react-native";
 
 export interface ToastProps {
   readonly message: string;
@@ -23,6 +24,7 @@ export interface ToastProps {
 }
 
 export function Toast(props: ToastProps) {
+  const gt = useGT();
   const { fontScale } = useWindowDimensions();
   // A one-line message keeps its action on the same row. Descriptions and
   // accessibility text sizes need the full width, so the action moves below.
@@ -82,7 +84,11 @@ export function Toast(props: ToastProps) {
         </View>
         {inlineAction && action ? <View className="self-center">{action}</View> : null}
         {props.onDismiss ? (
-          <IconButton accessibilityLabel="Dismiss message" icon="xmark" onPress={props.onDismiss} />
+          <IconButton
+            accessibilityLabel={gt("Dismiss message")}
+            icon="xmark"
+            onPress={props.onDismiss}
+          />
         ) : null}
       </View>
       {action && !inlineAction ? <View className="mt-2 self-end">{action}</View> : null}

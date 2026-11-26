@@ -8,6 +8,7 @@ import type {
   ProviderInteractionMode,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
+import { msg } from "gt-react-native";
 
 export function draftThreadShell(input: {
   readonly environmentId: EnvironmentId;
@@ -24,7 +25,7 @@ export function draftThreadShell(input: {
   return presentThreadShell(input.environmentId, {
     id: input.threadId,
     projectId: input.projectId,
-    title: "New thread",
+    title: msg("New thread"),
     providerInstanceId: input.modelSelection.instanceId,
     modelSelection: input.modelSelection,
     runtimeMode: input.runtimeMode,

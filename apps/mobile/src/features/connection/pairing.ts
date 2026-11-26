@@ -1,5 +1,7 @@
 import { readHostedPairingRequest } from "@supaterm/shared/remote";
 import * as Schema from "effect/Schema";
+import { msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const MOBILE_PAIRING_URL_PARAM = "pairingUrl";
 
@@ -23,7 +25,7 @@ export class PairingQrPayloadEmptyError extends Schema.TaggedError<PairingQrPayl
   {},
 ) {
   override get message(): string {
-    return "Scanned QR code did not contain a pairing URL.";
+    return m(msg("Scanned QR code did not contain a pairing URL."));
   }
 }
 

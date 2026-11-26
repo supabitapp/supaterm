@@ -47,6 +47,7 @@ import { useDebouncedValue } from "../../state/queries";
 import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
 import { useSearchScrollRestoration } from "../layout/workspace/useSearchScrollRestoration";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
+import { useGT } from "gt-react-native";
 
 function PullRequestListError(props: { readonly message: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -92,6 +93,7 @@ export function PullRequestsScreen(
   } = {},
 ) {
   const navigation = useNavigation();
+  const gt = useGT();
   const primaryColumn = use(NativePrimaryColumnContext);
   const workspace = useWorkspaceTabs()!;
   const { environments } = useWorkspaceState();
@@ -347,7 +349,7 @@ export function PullRequestsScreen(
                 {result.data.errors.map((error) => (
                   <PullRequestListError
                     key={`${error.environmentId} ${error.projectTitle} ${error.message}`}
-                    message={`${error.projectTitle || environments.find((environment) => environment.environmentId === error.environmentId)?.environmentLabel || "Environment"}: ${error.message}`}
+                    message={`${error.projectTitle || environments.find((environment) => environment.environmentId === error.environmentId)?.environmentLabel || gt("Environment", { $context: "fallback name for a server" })}: ${error.message}`}
                   />
                 ))}
               </View>
@@ -359,15 +361,15 @@ export function PullRequestsScreen(
             <View className="items-center py-5">
               <AppActivityIndicator
                 colorClassName="accent-icon"
-                accessibilityLabel="Loading more pull requests"
+                accessibilityLabel={gt("Loading more pull requests")}
               />
             </View>
           ) : result.loadMoreError ? (
             <View className="items-center gap-2 px-8 py-4">
               <Text className="text-xs text-foreground-muted">{result.loadMoreError}</Text>
               <Button
-                label="Try again"
-                accessibilityLabel="Retry loading more pull requests"
+                label={gt("Try again")}
+                accessibilityLabel={gt("Retry loading more pull requests")}
                 onPress={() => void result.loadMore(true)}
               />
             </View>
@@ -375,8 +377,8 @@ export function PullRequestsScreen(
             // A filtered page can be too short to scroll, which leaves nothing to reach the end of.
             <View className="items-center py-4">
               <Button
-                label="Load more"
-                accessibilityLabel="Load more pull requests"
+                label={gt("Load more")}
+                accessibilityLabel={gt("Load more pull requests")}
                 onPress={() => void result.loadMore()}
               />
             </View>
@@ -392,26 +394,26 @@ export function PullRequestsScreen(
               <EmptyState
                 title={
                   result.error
-                    ? "Couldn't load pull requests"
+                    ? gt("Couldn't load pull requests")
                     : targets.length && connectedTargets.length === 0
-                      ? "Environment offline"
+                      ? gt("Environment offline")
                       : targets.length
                         ? query
-                          ? "No results"
-                          : "No matching pull requests"
+                          ? gt("No results")
+                          : gt("No matching pull requests")
                         : environments.length
                           ? "Pull requests unavailable"
-                          : "Connect an environment"
+                          : gt("Connect an environment")
                 }
                 detail={
                   result.error ??
                   (targets.length && connectedTargets.length === 0
-                    ? "Reconnect to load pull requests that aren't saved on this device."
+                    ? gt("Reconnect to load pull requests that aren't saved on this device.")
                     : targets.length
-                      ? "Pull requests from the selected environments' projects appear here."
+                      ? gt("Pull requests from the selected environments' projects appear here.")
                       : environments.length
                         ? "No selected environment supports pull request browsing. Connect a supported environment or update its server."
-                        : "Add an environment in Settings to browse its pull requests.")
+                        : gt("Add an environment in Settings to browse its pull requests."))
                 }
                 variant="plain"
               />

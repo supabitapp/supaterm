@@ -115,6 +115,8 @@ import {
 } from "./use-thread-outbox";
 import { clearThreadComposerError, setThreadComposerError } from "./thread-composer-error";
 import { workspaceConnections } from "./workspace";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 const threadOutboxDebug = createDebugLogger("thread-outbox");
 
@@ -505,7 +507,12 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
       if (existingAttachmentIds.size + addedAttachmentCount > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
         setThreadComposerError(
           threadKey,
-          `Remove attachments from the draft before restoring this message. Messages can contain at most ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} attachments.`,
+          m(
+            msg(
+              "Remove attachments from the draft before restoring this message. Messages can contain at most {max} attachments.",
+              { max: PROVIDER_SEND_TURN_MAX_ATTACHMENTS },
+            ),
+          ),
           queuedMessage.messageId,
         );
         return "blocked" as const;
@@ -617,7 +624,7 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
             threadKey,
             error.cause instanceof Error
               ? error.cause.message
-              : "The unsent message could not be restored.",
+              : m(msg("The unsent message could not be restored.")),
             queuedMessage.messageId,
           );
           return "retry" as const;
@@ -898,7 +905,7 @@ function reportCommandFailure(
   });
   return {
     action,
-    message: error instanceof Error ? error.message : "The message could not be sent.",
+    message: error instanceof Error ? error.message : m(msg("The message could not be sent.")),
   };
 }
 
@@ -1756,11 +1763,15 @@ function loadThreadOutbox(isActive: () => boolean): void {
     }
     if (!isActive()) return;
     Dialog.alert(
-      "Some queued messages could not be loaded",
-      "Unreadable records and attachment files are still saved. Other messages can still be sent.",
+      m(msg("Some queued messages could not be loaded")),
+      m(
+        msg(
+          "Unreadable records and attachment files are still saved. Other messages can still be sent.",
+        ),
+      ),
       [
-        { text: "Dismiss", style: "cancel" },
-        { text: "Retry", onPress: () => loadThreadOutbox(isActive) },
+        { text: m(msg("Dismiss")), style: "cancel" },
+        { text: m(msg("Retry")), onPress: () => loadThreadOutbox(isActive) },
       ],
     );
   });

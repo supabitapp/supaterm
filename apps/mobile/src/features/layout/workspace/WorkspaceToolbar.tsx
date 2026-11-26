@@ -23,18 +23,20 @@ import { WorkspaceTabToolbarButtons } from "./WorkspaceSectionToolbar";
 import { useThreadListFilter } from "../../home/useThreadListFilter";
 import { workspaceFilterToolbarMenu } from "./WorkspaceFilterToolbarMenu.ios";
 import { workspaceListFilterMenu } from "./WorkspaceListHeader.types";
+import { msg, useGT } from "gt-react-native";
 
 const SEARCH_LABELS = {
-  threads: "Search threads",
-  pullRequests: "Search pull requests",
-  issues: "Search issues",
-  settings: "Search settings",
+  threads: msg("Search threads"),
+  pullRequests: msg("Search pull requests"),
+  issues: msg("Search issues"),
+  settings: msg("Search settings"),
 } as const;
 
 export function WorkspaceToolbar(props: {
   readonly onNewTask: () => void;
   readonly sidebar?: boolean;
 }) {
+  const gt = useGT();
   const workspace = useWorkspaceTabs()!;
   const activeNewTask = useActiveNewTask();
   const deviceType = useDeviceType();
@@ -145,7 +147,7 @@ export function WorkspaceToolbar(props: {
   const searchButton = foldedSearch ? (
     <Toolbar.Button
       identifier="workspace-search"
-      accessibilityLabel={searchVisible ? "Close search" : searchLabel}
+      accessibilityLabel={searchVisible ? gt("Close search") : searchLabel}
       icon={searchVisible ? "xmark" : "magnifyingglass"}
       onPress={searchVisible ? () => searchRef.current?.cancelSearch() : focusSearch}
       separateBackground

@@ -13,6 +13,7 @@ import {
   type ThreadGitControlsProps,
 } from "./ThreadGitControls";
 import { pinnedMessageCaption, pinnedMessageTitle } from "./pinnedMessageLabels";
+import { useGT } from "gt-react-native";
 
 export function ThreadHeader(props: {
   readonly title: string;
@@ -26,6 +27,7 @@ export function ThreadHeader(props: {
   readonly pinnedMessages?: ReadonlyArray<ThreadPinnedMessage>;
   readonly onJumpToPinnedMessage?: (pin: ThreadPinnedMessage) => void;
 }) {
+  const gt = useGT();
   const goBack = useWorkspaceBackNavigation();
   const { toggleAuxiliaryPane, startNewTask } = useAdaptiveWorkspaceLayout();
   const { panes } = useWorkspacePaneState();
@@ -35,7 +37,7 @@ export function ThreadHeader(props: {
   const actions: AppBarAction[] = props.hasThreadCwd
     ? [
         {
-          accessibilityLabel: filesVisible ? "Close files" : "Open files",
+          accessibilityLabel: filesVisible ? gt("Close files") : gt("Open files"),
           icon: "folder",
           selected: filesVisible,
           disabled: !props.gitControls.canOpenFiles,
@@ -71,7 +73,7 @@ export function ThreadHeader(props: {
       backInSplitView={
         props.onReturnToThread
           ? {
-              accessibilityLabel: "Return to chat",
+              accessibilityLabel: gt("Return to chat"),
               icon: "chevron.left",
               onPress: props.onReturnToThread,
             }

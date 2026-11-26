@@ -44,6 +44,8 @@ import {
   type ThreadDevicePreview,
 } from "./threadDevicePreviews";
 import { createShakeDetector } from "./shakeDetector";
+import { msg, T, useGT } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 const OVERLAY_ENTERING = FadeIn.duration(160).reduceMotion(ReduceMotion.System);
 const OVERLAY_EXITING = FadeOut.duration(120).reduceMotion(ReduceMotion.System);
@@ -87,6 +89,7 @@ export function DevicePreviewScreen({
   readonly onMaximize?: (deviceKey: string | null) => void;
   readonly initialDeviceKey?: string;
 }) {
+  const gt = useGT();
   const embedded = onMaximize !== undefined;
   const insets = useSafeAreaInsets();
   // In a pane the stream sits below the pane's bar, which content otherwise slides under.
@@ -144,7 +147,7 @@ export function DevicePreviewScreen({
       },
     }).finally(() => setShuttingDown(false));
     if (result._tag === "Failure") {
-      Dialog.alert("Could not shut down device", String(Cause.squash(result.cause)));
+      Dialog.alert(m(msg("Could not shut down device")), String(Cause.squash(result.cause)));
     }
   };
 
@@ -156,7 +159,7 @@ export function DevicePreviewScreen({
       )
       .map((host) => ({
         id: `retry-${host.id}`,
-        title: `Retry ${host.label}`,
+        title: gt("Retry {host}", { host: host.label }),
         icon: "arrow.clockwise" as const,
         onPress: () => {
           void retryHost({ environmentId, input: { retryHostId: host.id } });
@@ -166,7 +169,7 @@ export function DevicePreviewScreen({
       ? [
           {
             id: "check-device-tools",
-            title: "Check device tool versions",
+            title: gt("Check device tool versions"),
             icon: "arrow.clockwise" as const,
             onPress: () => {
               void retryHost({ environmentId, input: { inspectOnly: true } });
@@ -176,7 +179,7 @@ export function DevicePreviewScreen({
       : []),
     {
       id: "device-tools",
-      title: "Device tool versions",
+      title: gt("Device tool versions"),
       icon: "info.circle",
       onPress: () =>
         Dialog.alert(
@@ -199,7 +202,7 @@ export function DevicePreviewScreen({
     },
     {
       id: "reload",
-      title: "Reload stream",
+      title: gt("Reload stream"),
       icon: "arrow.clockwise" as const,
       disabled: !preview || shuttingDown,
       onPress: () => {
@@ -211,7 +214,7 @@ export function DevicePreviewScreen({
       ? [
           {
             id: "back",
-            title: "Back",
+            title: gt("Back", { $context: "Android back button" }),
             icon: "arrow.left",
             disabled: !inputConnected,
             onPress: () => streamRef.current?.back(),
@@ -220,7 +223,7 @@ export function DevicePreviewScreen({
       : []),
     {
       id: "app-switcher",
-      title: "App switcher",
+      title: gt("App switcher"),
       icon: "square.on.square",
       disabled: !inputConnected,
       onPress: () => streamRef.current?.appSwitcher(),
@@ -229,7 +232,7 @@ export function DevicePreviewScreen({
       ? [
           {
             id: "rotate",
-            title: "Rotate device",
+            title: gt("Rotate device"),
             icon: "arrow.clockwise" as const,
             disabled: !inputConnected,
             onPress: () => streamRef.current?.rotate(),
@@ -238,7 +241,7 @@ export function DevicePreviewScreen({
       : []),
     {
       id: "shutdown",
-      title: shuttingDown ? "Shutting down…" : "Shut down device",
+      title: shuttingDown ? gt("Shutting down…") : gt("Shut down device"),
       icon: "power",
       disabled: !preview || shuttingDown,
       onPress: () => void shutDownDevice(),
@@ -250,7 +253,7 @@ export function DevicePreviewScreen({
       ? [
           {
             id: "devices",
-            title: "Devices",
+            title: gt("Devices", { $context: "device list heading" }),
             inline: true,
             items: previews.map((device) => ({
               id: device.key,
@@ -270,10 +273,10 @@ export function DevicePreviewScreen({
       {embedded ? (
         <>
           <AppBar
-            title={preview?.name ?? "Devices"}
+            title={preview?.name ?? gt("Devices", { $context: "screen title" })}
             actions={[
               {
-                accessibilityLabel: "Maximize device",
+                accessibilityLabel: gt("Maximize device"),
                 icon: "arrow.up.left.and.arrow.down.right",
                 onPress: () => onMaximize(preview?.key ?? null),
               },
@@ -298,7 +301,7 @@ export function DevicePreviewScreen({
                 {state.error}
               </AppText>
               <View className="items-center">
-                <Button label="Retry" tone="secondary" onPress={state.refresh} />
+                <Button label={gt("Retry")} tone="secondary" onPress={state.refresh} />
               </View>
             </>
           ) : focused && foreground ? (
@@ -312,7 +315,7 @@ export function DevicePreviewScreen({
           style={{ paddingBottom: Math.max(insets.bottom, 8) }}
         >
           <ControlPill
-            accessibilityLabel="Home"
+            accessibilityLabel={gt("Home", { $context: "device home button" })}
             icon="house"
             disabled={!inputConnected}
             onPress={pressHome}
@@ -328,22 +331,22 @@ export function DevicePreviewScreen({
         >
           {inputConnected ? (
             <Pressable
-              accessibilityLabel="Hide device controls"
+              accessibilityLabel={gt("Hide device controls")}
               className="absolute inset-0 bg-black/30"
               onPress={() => setControlsVisible(false)}
             />
           ) : null}
           <View className="px-3" style={{ paddingTop: Math.max(insets.top, 12) }}>
             <GlassSurface className="flex-row items-center gap-1 p-1">
-              <SheetCloseButton accessibilityLabel="Close device preview" onClose={onClose} />
+              <SheetCloseButton accessibilityLabel={gt("Close device preview")} onClose={onClose} />
               <AppText
                 numberOfLines={1}
                 className="flex-1 text-center font-supaterm-medium text-base"
               >
-                {preview?.name ?? "Devices"}
+                {preview?.name ?? gt("Devices", { $context: "screen title" })}
               </AppText>
               <ControlPill
-                accessibilityLabel="Home"
+                accessibilityLabel={gt("Home", { $context: "device home button" })}
                 icon="house"
                 disabled={!inputConnected}
                 onPress={pressHome}
@@ -362,9 +365,9 @@ export function DevicePreviewScreen({
           }}
         >
           <GlassSurface className="flex-row items-center gap-1 p-1">
-            <SheetCloseButton accessibilityLabel="Close device preview" onClose={onClose} />
+            <SheetCloseButton accessibilityLabel={gt("Close device preview")} onClose={onClose} />
             <ControlPill
-              accessibilityLabel="Show device controls"
+              accessibilityLabel={gt("Show device controls")}
               icon="chevron.down"
               onPress={() => setControlsVisible(true)}
             />
@@ -376,17 +379,18 @@ export function DevicePreviewScreen({
 }
 
 function DeviceOptionsMenu({ items }: { readonly items: ReadonlyArray<AppBarMenuItem> }) {
+  const gt = useGT();
   return (
     <Menu
       actions={menuActionsFromAppBarItems(items)}
       isAnchoredToRight
-      title="Device options"
+      title={gt("Device options")}
       onPressAction={({ nativeEvent }) => {
         const action = findAppBarMenuItem(items, nativeEvent.event);
         if (action && !action.disabled) action.onPress();
       }}
     >
-      <ControlPill icon="ellipsis" accessibilityLabel="Device options" />
+      <ControlPill icon="ellipsis" accessibilityLabel={gt("Device options")} />
     </Menu>
   );
 }
@@ -402,6 +406,7 @@ function OpenDevicePreview({
   readonly streamRef: RefObject<DeviceStreamRef | null>;
   readonly onInputConnected: (connected: boolean) => Promise<void>;
 }) {
+  const gt = useGT();
   const { session } = preview;
   const { themeVariables } = useAppearancePreferences();
   const [viewer] = useState(uuidv4);
@@ -432,13 +437,15 @@ function OpenDevicePreview({
             {error}
           </AppText>
           <View className="items-center">
-            <Button label="Retry" tone="secondary" onPress={refresh} />
+            <Button label={gt("Retry")} tone="secondary" onPress={refresh} />
           </View>
         </>
       ) : (
         <>
           <AppActivityIndicator color={themeVariables["--color-icon"]} />
-          <AppText className="text-sm text-foreground-muted">Connecting to device...</AppText>
+          <AppText className="text-sm text-foreground-muted">
+            <T>Connecting to device...</T>
+          </AppText>
         </>
       )}
     </View>

@@ -15,7 +15,9 @@ import { canPerformPullRequestAction, pullRequestActionLabel } from "./pullReque
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import { useGT } from "gt-react-native";
 export function usePullRequestAction(params: PullRequestParams, pr: PullRequestDetail | null) {
+  const gt = useGT();
   const target = pullRequestTarget(params);
   const permissions = usePullRequestPermissions(params, pr);
   const run = useAtomCommand(composerPullRequests.runAction, {
@@ -49,7 +51,7 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
         `Couldn't update this ${sourceControlClients.get(pr?.provider).changeRequest.singular}`,
-        cause instanceof Error ? cause.message : "Try again.",
+        cause instanceof Error ? cause.message : gt("Try again."),
       );
       return;
     }
@@ -58,7 +60,7 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
   const confirm = (action: PullRequestAction, title: string, message: string) =>
     Dialog.alert(title, message, [
       {
-        text: "Cancel",
+        text: gt("Cancel"),
         style: "cancel",
       },
       {

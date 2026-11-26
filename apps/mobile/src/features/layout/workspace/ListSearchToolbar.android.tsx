@@ -9,6 +9,7 @@ import { SharedSlotTitle } from "./SharedSlotTitle";
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { type WorkspaceFilterMenu, workspaceFilterAppBarMenu } from "./workspace-filter-menu";
 import { openSettings } from "../../settings/settings-navigation";
+import { useGT } from "gt-react-native";
 
 /** Pull request and issue search share the thread list's Android header. */
 export function ListSearchToolbar(props: {
@@ -16,6 +17,7 @@ export function ListSearchToolbar(props: {
   readonly filters?: WorkspaceFilterMenu | null;
   readonly onRequestVisibility?: () => void;
 }) {
+  const gt = useGT();
   const navigation = useNavigation();
   const { filters, tab: section } = props;
   const workspace = useWorkspaceTabs()!;
@@ -67,7 +69,7 @@ export function ListSearchToolbar(props: {
       search={{
         value: tab.query,
         onChangeText: (query) => dispatch({ type: "query", tab: section, query }),
-        placeholder: section === "issues" ? "Search issues" : "Search pull requests",
+        placeholder: section === "issues" ? gt("Search issues") : gt("Search pull requests"),
         active: searching,
         onOpen: openSearch,
         onClose: closeSearch,

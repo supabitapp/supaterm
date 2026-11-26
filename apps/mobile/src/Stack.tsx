@@ -147,6 +147,7 @@ import { useNativeLayoutMetrics } from "./native/native-layout-metrics";
 import { isPresentedRoute } from "./native/workspace-stack-projection";
 import { runningThreadKeepAliveAtom } from "./state/threads";
 import { workspaceDetailRouter } from "./features/layout/workspace/workspace-detail-selection";
+import { T, useGT, msg } from "gt-react-native";
 
 const settingsPage = (title: string) => pageRoute({ title, itemStyle: "standard" });
 
@@ -168,7 +169,7 @@ const SETTINGS_SCREENS = {
     screen: SettingsRouteScreen,
     linking: "settings",
     options: {
-      ...pageRoute({ title: "Settings", itemStyle: "standard", root: true }),
+      ...pageRoute({ title: msg("Settings"), itemStyle: "standard", root: true }),
       ...(Platform.OS === "android" ? { animation: "none" as const } : {}),
     },
   }),
@@ -445,13 +446,15 @@ function NotFoundScreen() {
       style={[{ flex: 1 }, screenBgStyle]}
     >
       <Text className="text-3xl font-supaterm-bold text-foreground" selectable>
-        Route not found
+        <T>Route not found</T>
       </Text>
       <Pressable
         style={returnHomeButtonStyle}
         onPress={() => navigation.dispatch(StackActions.replace("Home"))}
       >
-        <Text className="text-base font-supaterm-bold text-primary-foreground">Return home</Text>
+        <Text className="text-base font-supaterm-bold text-primary-foreground">
+          <T>Return home</T>
+        </Text>
       </Pressable>
     </ScrollView>
   );
@@ -473,7 +476,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
           ComponentCatalog: createNativeStackScreen({
             screen: ComponentCatalogScreen,
             linking: "dev/components",
-            options: { title: "UI components" },
+            options: { title: msg("UI components") },
           }),
         }
       : {}),
@@ -572,28 +575,28 @@ const RootStackConfig = createWorkspaceStackNavigator({
     NewTaskProject: createNativeStackScreen({
       screen: NewTaskRouteScreen,
       linking: { path: "new", alias: ["new/project"] },
-      options: pageRoute({ title: "Choose project" }),
+      options: pageRoute({ title: msg("Choose project") }),
     }),
     NewTaskEnvironment: createNativeStackScreen({
       linking: "new/draft/environment",
       screen: NewTaskEnvironmentPickerRouteScreen,
-      options: pageRoute({ title: "Environment" }),
+      options: pageRoute({ title: msg("Environment") }),
     }),
     NewTaskBranch: createNativeStackScreen({
       linking: "new/draft/branch",
       screen: NewTaskBranchPickerRouteScreen,
-      options: pageRoute({ title: "Branch" }),
+      options: pageRoute({ title: msg("Branch") }),
     }),
     NewTaskRepositories: createNativeStackScreen({
       linking: "new/draft/repositories",
       screen: NewTaskRepositoriesPickerRouteScreen,
-      options: pageRoute({ title: "Repositories" }),
+      options: pageRoute({ title: msg("Repositories") }),
     }),
     AddProject: createNativeStackScreen({
       linking: "new/add-project",
       screen: AddProjectSourceRoute,
 
-      options: pageRoute({ title: "Add project" }),
+      options: pageRoute({ title: msg("Add project") }),
     }),
     AddProjectRepository: createNativeStackScreen({
       linking: "new/add-project/repository",
@@ -675,7 +678,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
     ThreadFiles: createNativeStackScreen({
       screen: ThreadFilesTreeScreen,
       linking: `${THREAD_LINKING_PREFIX}/files`,
-      options: pageRoute({ title: "Files" }),
+      options: pageRoute({ title: msg("Files") }),
     }),
     ThreadFile: createNativeStackScreen({
       screen: ThreadFileScreen,
@@ -745,17 +748,22 @@ const RootStackConfig = createWorkspaceStackNavigator({
     SettingsLegal: createNativeStackScreen({
       screen: SettingsLegalRouteScreen,
       linking: "settings/legal",
-      options: modalRoute({ header: "solid", title: "Legal" }),
+      options: modalRoute({ header: "solid", title: msg("Legal") }),
     }),
     Connections: createNativeStackScreen({
       screen: ConnectionsRouteScreen,
       linking: "connections",
-      options: sheetRoute({ title: "Environments", detent: 0.55, maxDetent: 0.7, android: "card" }),
+      options: sheetRoute({
+        title: msg("Environments"),
+        detent: 0.55,
+        maxDetent: 0.7,
+        android: "card",
+      }),
     }),
     ConnectionsNew: createNativeStackScreen({
       screen: ConnectionsNewRouteScreen,
       linking: "connections/new",
-      options: sheetRoute({ title: "Add Environment", detent: 0.55, maxDetent: 0.7 }),
+      options: sheetRoute({ title: msg("Add Environment"), detent: 0.55, maxDetent: 0.7 }),
     }),
     NotFound: createNativeStackScreen({
       screen: NotFoundScreen,
@@ -790,12 +798,13 @@ function renderGuardedScreenLayout(props: GuardedScreenLayoutProps) {
 
 function ScreenRenderFallback(props: RenderFailureProps & { readonly routeName: string }) {
   const navigation = useNavigation();
+  const gt = useGT();
   const exit = navigation.canGoBack()
-    ? { label: "Go back", onPress: () => navigation.goBack() }
+    ? { label: gt("Go back"), onPress: () => navigation.goBack() }
     : props.routeName === "Home"
       ? // Home itself failed, and the Settings list renders inside it; open a Settings page.
         {
-          label: "Open settings",
+          label: gt("Open settings"),
           onPress: () => openSettings(navigation, DEFAULT_SETTINGS_PAGE),
         }
       : { label: "Return home", onPress: () => navigation.dispatch(StackActions.replace("Home")) };

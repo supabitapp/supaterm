@@ -12,6 +12,7 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import { browserTabTitle } from "./browserTabs";
 import { PreviewStreamWebView } from "./PreviewStreamWebView";
 import { usePreparedConnection } from "../../state/session";
+import { useGT } from "gt-react-native";
 
 const PLAYER_LONG_SIDE = 184;
 
@@ -82,6 +83,7 @@ function FloatingBrowserPlayer(props: {
 }
 
 function FloatingBrowserStream(props: ComponentProps<typeof FloatingBrowserPlayer>) {
+  const gt = useGT();
   const { themeVariables } = useAppearancePreferences();
   const prepared = usePreparedConnection(props.environmentId);
   const httpBaseUrl = Option.isSome(prepared) ? prepared.value.httpBaseUrl : null;
@@ -107,8 +109,8 @@ function FloatingBrowserStream(props: ComponentProps<typeof FloatingBrowserPlaye
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Open browser, ${browserTabTitle(props.tab)}`}
-        accessibilityHint="Opens the browser tab full screen"
+        accessibilityLabel={gt("Open browser, {title}", { title: browserTabTitle(props.tab) })}
+        accessibilityHint={gt("Opens the browser tab full screen")}
         onPress={props.onOpen}
         className="flex-1"
       >
@@ -134,7 +136,7 @@ function FloatingBrowserStream(props: ComponentProps<typeof FloatingBrowserPlaye
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Close floating preview"
+        accessibilityLabel={gt("Close floating preview")}
         hitSlop={8}
         onPress={props.onClose}
         className="absolute right-1.5 top-1.5 size-6 items-center justify-center rounded-full bg-black/55"

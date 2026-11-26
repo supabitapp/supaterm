@@ -16,6 +16,8 @@ import {
   releaseComposerDraftModelSelection,
   updateComposerDraftSettings,
 } from "./use-composer-drafts";
+import { m } from "../i18n/messages";
+import { msg } from "gt-react-native";
 
 /** Sets an existing thread's pick on the thread, so any next turn runs on it. */
 export function selectThreadModel(
@@ -58,8 +60,12 @@ export function selectThreadModel(
     } else {
       const error = squashAtomCommandFailure(result);
       Dialog.alert(
-        "Could not apply model selection",
-        `This model pick was not saved. ${error instanceof Error ? error.message : "Try again."}`,
+        m(msg("Could not apply model selection")),
+        m(
+          msg("This model pick was not saved. {detail}", {
+            detail: error instanceof Error ? error.message : "Try again.",
+          }),
+        ),
       );
     }
   });

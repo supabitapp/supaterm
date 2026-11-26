@@ -5,6 +5,7 @@ import type {
 
 import type { AppBarMenuItem } from "../../../components/ui/AppBar.types";
 import { withNativeGlassHeaderItem } from "../native-glass-header-items";
+import { msg } from "gt-react-native";
 
 type NativeHeaderMenuItems = NativeStackHeaderItemMenu["menu"]["items"];
 type NativeHeaderIcon = NonNullable<Extract<NativeStackHeaderItem, { type: "button" }>["icon"]>;
@@ -58,8 +59,8 @@ export function createWorkspaceListHeaderItems(input: {
           withNativeGlassHeaderItem({
             type: "button",
             axisBehavior: "horizontalOnly",
-            label: "Settings",
-            accessibilityLabel: "Open settings",
+            label: msg("Settings"),
+            accessibilityLabel: msg("Open settings"),
             icon: sfSymbolIcon("gearshape"),
             onPress: input.onOpenSettings,
           }),

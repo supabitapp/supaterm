@@ -10,6 +10,7 @@ import {
   workspaceConnectionStatusPresentation,
   type WorkspaceConnectionStatusPresentation,
 } from "./workspace-connection-status";
+import { useGT } from "gt-react-native";
 
 const FADE_IN_MS = 250;
 
@@ -71,6 +72,7 @@ export function WorkspaceConnectionTitle(props: {
   readonly statusOffset?: number;
   readonly maxWidth?: number;
 }) {
+  const gt = useGT();
   const status = useDelayedConnectionStatus();
   const size = props.size ?? "navbar";
   const { scale } = useAndroidControlSizing();
@@ -93,7 +95,7 @@ export function WorkspaceConnectionTitle(props: {
       {status !== null ? (
         <StatusFadeIn>
           <Pressable
-            accessibilityHint="Opens environment settings"
+            accessibilityHint={gt("Opens environment settings")}
             accessibilityLabel={status.label}
             accessibilityRole="button"
             disabled={props.onPress === undefined}

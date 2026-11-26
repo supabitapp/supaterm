@@ -6,6 +6,7 @@ import {
   type ReviewParsedDiff,
   type ReviewRenderableFile,
 } from "../review/reviewModel";
+import { msg } from "gt-react-native";
 
 export interface PullRequestDiffPage {
   readonly cursor: string | null;
@@ -145,12 +146,12 @@ function parseWithheldFile(result: PullRequestDiffResult, scope: string) {
 function withheldFileNotice(load: WithheldFileLoad | undefined, canLoad: boolean): string {
   if (load === undefined) {
     return canLoad
-      ? "Diff too large to display. Tap to load it."
-      : "Diff too large to display here.";
+      ? msg("Diff too large to display. Tap to load it.")
+      : msg("Diff too large to display here.");
   }
-  if (load.status === "loading") return "Loading diff…";
-  if (load.status === "error") return "Couldn't load this diff. Tap to try again.";
-  return "No text diff for this file.";
+  if (load.status === "loading") return msg("Loading diff…");
+  if (load.status === "error") return msg("Couldn't load this diff. Tap to try again.");
+  return msg("No text diff for this file.");
 }
 
 /**

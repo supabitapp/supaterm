@@ -20,6 +20,7 @@ import {
 } from "./autoMarkDoneSettingsSync";
 import { uniformMobileSetting, type ScopedMobileSettingsTarget } from "./settings-scoped-server";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
+import { T, useGT } from "gt-react-native";
 
 const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_SERVER_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 7;
 
@@ -38,6 +39,7 @@ export function ThreadBehaviorSettingsRows(props: {
     },
   ) => void;
 }) {
+  const gt = useGT();
   const { projectSelected, disabled, write: writeToAll } = props;
   const displayTargets = props.targets;
   const reference = displayTargets[0] ?? null;
@@ -66,17 +68,17 @@ export function ThreadBehaviorSettingsRows(props: {
   return (
     <View className="gap-6">
       {!projectSelected ? (
-        <SettingsSection title="Usage limits">
+        <SettingsSection title={gt("Usage limits")}>
           <SettingsSwitchRow
             icon="clock"
-            label="Resume after usage limits"
+            label={gt("Resume after usage limits")}
             value={uniformMobileSetting(displayTargets, "autoResumeLimitedThreads")}
             disabled={disabled}
             onValueChange={(value) => writeToAll({ autoResumeLimitedThreads: value })}
           />
           <SettingsSwitchRow
             icon="clock"
-            label="Snooze until limits reset"
+            label={gt("Snooze until limits reset")}
             value={uniformMobileSetting(displayTargets, "snoozeLimitedThreads")}
             disabled={disabled}
             onValueChange={(value) => writeToAll({ snoozeLimitedThreads: value })}
@@ -103,7 +105,9 @@ export function ThreadBehaviorSettingsRows(props: {
         {afterDays !== null ? (
           <View className="flex-row items-center gap-4 px-4 py-4 android:min-h-14 android:py-3">
             <View className="w-[22px] android:w-6" />
-            <Text className="flex-1 text-foreground text-lg android:text-base">Inactive days</Text>
+            <Text className="flex-1 text-foreground text-lg android:text-base">
+              <T>Inactive days</T>
+            </Text>
             <AutoMarkDoneDaysField
               value={afterDays}
               disabled={disabled}
@@ -123,7 +127,7 @@ export function ThreadBehaviorSettingsRows(props: {
         ) : null}
       </SettingsSection>
       {!disabled && mismatches.length > 0 ? (
-        <SettingsSection title="Across environments">
+        <SettingsSection title={gt("Across environments")}>
           <View className="gap-3 p-4">
             <Text className="text-base text-foreground">
               Automatically mark as Done defaults differ
@@ -162,17 +166,18 @@ export function ComposerSettingsSection() {
 }
 
 export function NewThreadSettingsSection() {
+  const gt = useGT();
   const savePreferences = useAtomCommand(saveMobilePreferences);
   const preferences = useAtomValue(mobilePreferencesAtom);
   const useLastProject =
     AsyncResult.isSuccess(preferences) && preferences.value.useLastProjectForNewThreads !== false;
 
   return (
-    <SettingsSection title="New threads">
+    <SettingsSection title={gt("New threads")}>
       <SettingsSwitchRow
         icon="square.and.pencil"
-        label="Use last project"
-        subtitle="Start new threads in the last project you used on this device."
+        label={gt("Use last project")}
+        subtitle={gt("Start new threads in the last project you used on this device.")}
         value={useLastProject}
         onValueChange={(value) => {
           void savePreferences({ useLastProjectForNewThreads: value });

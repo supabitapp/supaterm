@@ -67,6 +67,7 @@ import {
 } from "../../state/queries";
 import type { ComposerCommandItem } from "./ComposerCommandPopover";
 import { matchesCommandMenuSkillQuery } from "./composerCommandMenuSkillSearch";
+import { useGT, msg } from "gt-react-native";
 
 const idleWorkspaceSnapshotRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(undefined).pipe(
   Atom.withLabel("mobile:provider-workspace-snapshot-refresh:idle"),
@@ -114,7 +115,7 @@ export function buildComposerSlashCommandItems(input: {
       type: "slash-command",
       command: "model",
       label: "/model",
-      description: "Switch model",
+      description: msg("Switch model"),
     },
     ...(input.offersSideChat
       ? [
@@ -123,14 +124,14 @@ export function buildComposerSlashCommandItems(input: {
             type: "slash-command" as const,
             command: "side",
             label: "/side",
-            description: "Ask a side question in a new side chat",
+            description: msg("Ask a side question in a new side chat"),
           },
           {
             id: "cmd:btw",
             type: "slash-command" as const,
             command: "btw",
             label: "/btw",
-            description: "Same as /side",
+            description: msg("Same as /side"),
           },
         ]
       : []),
@@ -143,7 +144,7 @@ export function buildComposerSlashCommandItems(input: {
       type: "slash-command",
       command: "clear",
       label: "/clear",
-      description: "Start a fresh session",
+      description: msg("Start a fresh session"),
     });
   }
   for (const command of input.selectedProviderStatus?.slashCommands ?? []) {
@@ -274,6 +275,7 @@ export function useComposerCommandMenu({
   /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
   readonly onFreshSession?: () => void;
 }) {
+  const gt = useGT();
   const [localSelection, setLocalSelection] = useState(() => ({
     ownerKey,
     ...composerSelectionAtEnd(draftMessage),
@@ -537,7 +539,10 @@ export function useComposerCommandMenu({
       const existing = getComposerDraftSnapshot(ownerKey).context?.records ?? [];
       const alreadyAttached = existing.some((entry) => entry.contextId === record.contextId);
       if (!alreadyAttached && existing.length >= COMPOSER_CONTEXT_MAX_RECORDS) {
-        Dialog.alert("Too many context items", "Remove some context from the draft and try again.");
+        Dialog.alert(
+          gt("Too many context items"),
+          gt("Remove some context from the draft and try again."),
+        );
         return;
       }
       const result = replaceTextRange(
@@ -569,7 +574,10 @@ export function useComposerCommandMenu({
         (getComposerDraftSnapshot(ownerKey).context?.records.length ?? 0) >=
         COMPOSER_CONTEXT_MAX_RECORDS
       ) {
-        Dialog.alert("Too many context items", "Remove some context from the draft and try again.");
+        Dialog.alert(
+          gt("Too many context items"),
+          gt("Remove some context from the draft and try again."),
+        );
         return;
       }
       const result = replaceTextRange(
@@ -631,7 +639,7 @@ export function useComposerCommandMenu({
     error:
       trigger?.kind === "pull-request"
         ? pullRequestProjectId === null || pullRequestRepository === null
-          ? "Pull requests are unavailable for this project."
+          ? gt("Pull requests are unavailable for this project.")
           : pullRequestSearch.error
         : null,
     onSelect,

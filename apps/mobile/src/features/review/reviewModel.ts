@@ -7,6 +7,8 @@ import { quoteGitPatchPath } from "@supaterm/shared/gitPatchPath";
 import * as Arr from "effect/Array";
 import { pipe } from "effect/Function";
 import * as Order from "effect/Order";
+import { msg } from "gt-react-native";
+import { m } from "../../i18n/messages";
 
 export type ReviewSectionKind = "turn" | "working-tree" | "branch-range";
 export type ReviewGitSectionKind = Exclude<ReviewSectionKind, "turn">;
@@ -18,7 +20,7 @@ const GIT_PLACEHOLDER_TITLES = {
   "working-tree": "Uncommitted",
   "branch-range": "Changes",
 } as const satisfies Record<ReviewGitSectionKind, unknown>;
-const UNCOMMITTED_SUBTITLE = "Staged, unstaged, and untracked files";
+const UNCOMMITTED_SUBTITLE = msg("Staged, unstaged, and untracked files");
 
 /** A folder of a turn's patch: the thread's own (`relativePath` empty) or a tracked repository. */
 export interface ReviewRepositoryGroup {
@@ -184,7 +186,7 @@ function gitSubtitle(section: ReviewDiffPreviewSource): string | null {
   if (section.baseRef) {
     return `${section.baseRef} ... ${section.headRef ?? "HEAD"}`;
   }
-  return "Base branch unavailable";
+  return msg("Base branch unavailable");
 }
 
 function stripTrailingNewline(value: string): string {
@@ -315,8 +317,8 @@ export function getReviewFilePreviewState(file: ReviewRenderableFile): ReviewFil
     return {
       kind: "suppressed",
       reason: "non-text",
-      title: "Non-text file",
-      message: "Diff preview is not available for this file format.",
+      title: msg("Non-text file"),
+      message: msg("Diff preview is not available for this file format."),
       actionLabel: null,
     };
   }
@@ -327,9 +329,9 @@ export function getReviewFilePreviewState(file: ReviewRenderableFile): ReviewFil
     return {
       kind: "suppressed",
       reason: "large",
-      title: "Large diff",
-      message: "Large diffs are not rendered by default.",
-      actionLabel: "Load diff",
+      title: msg("Large diff"),
+      message: msg("Large diffs are not rendered by default."),
+      actionLabel: msg("Load diff"),
     };
   }
 

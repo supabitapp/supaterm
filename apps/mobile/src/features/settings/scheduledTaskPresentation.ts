@@ -1,3 +1,4 @@
+import { msg } from "gt-react-native";
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -32,12 +33,12 @@ export function formatNextScheduledTaskRun(nextRunAt: string, now: number): stri
   const next = new Date(nextRunAt);
   const current = new Date(now);
   const remaining = next.getTime() - now;
-  if (!Number.isFinite(remaining)) return "Next run unavailable";
-  if (remaining <= 0) return "Next run due";
+  if (!Number.isFinite(remaining)) return msg("Next run unavailable");
+  if (remaining <= 0) return msg("Next run due");
 
   const days = localCalendarDay(next) - localCalendarDay(current);
   if (days === 0) {
-    if (remaining < MINUTE) return "Next run in less than a minute";
+    if (remaining < MINUTE) return msg("Next run in less than a minute");
     const minutes = Math.round(remaining / MINUTE);
     const unit = minutes < 60 ? "minute" : "hour";
     const count = minutes < 60 ? minutes : Math.round(remaining / HOUR);

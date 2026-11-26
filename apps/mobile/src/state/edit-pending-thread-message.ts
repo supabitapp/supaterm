@@ -23,6 +23,8 @@ import {
   holdEditingQueuedMessage,
   releaseEditingQueuedMessage,
 } from "./use-thread-outbox";
+import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 /** Take delivery ownership before any await; the durable draft then takes ownership of the files. */
 export async function editPendingThreadMessage(message: QueuedThreadMessage): Promise<boolean> {
@@ -46,7 +48,7 @@ export async function editPendingThreadMessage(message: QueuedThreadMessage): Pr
     );
     for (const attachment of message.attachments) attachmentIds.add(attachment.id);
     if (attachmentIds.size > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
-      throw new Error("Remove attachments from the composer before editing this message.");
+      throw new Error(m(msg("Remove attachments from the composer before editing this message.")));
     }
     rollback = captureComposerDraftMerge(draftKey, () => {
       applyComposerDraftContent(draftKey, message);

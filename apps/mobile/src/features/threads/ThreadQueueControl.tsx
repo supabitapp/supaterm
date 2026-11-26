@@ -46,6 +46,7 @@ import {
   resolveThreadQueueRowControls,
 } from "./threadQueueControlPresentation";
 import { ThreadQueueMessage, type QueueMessageAction } from "./ThreadQueueMessage";
+import { useMessages, msg, useGT } from "gt-react-native";
 
 const QUEUE_ACTION_WIDTH = 76;
 
@@ -59,6 +60,8 @@ function useThreadQueueWorkflow(target: QueueTarget) {
 }
 
 export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
+  const m = useMessages();
+  const gt = useGT();
   const target = route.params;
   const canOperate = useEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope);
   const navigation = useNavigation();
@@ -177,7 +180,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
     if (action === "steer" && result?._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
       Dialog.alert(
-        "Could not send queued message",
+        m(msg("Could not send queued message")),
         error instanceof Error ? error.message : "Try again.",
       );
     }
@@ -200,7 +203,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
               accessibilityRole="header"
               className="shrink text-lg font-supaterm-bold text-foreground"
             >
-              Queued
+              {gt("Queued", { $context: "title of the queued messages sheet" })}
             </Text>
             <Text className="text-base tabular-nums text-foreground-muted">
               {queuedRuns.length}
@@ -309,7 +312,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           >
             <Text className="text-center text-sm text-foreground-muted">Paused after restart</Text>
             <Button
-              label={resuming ? "Resuming…" : "Resume queue"}
+              label={resuming ? "Resuming…" : gt("Resume queue")}
               tone="primary"
               fullWidth
               loading={resuming}
@@ -332,7 +335,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                 if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
                   const error = squashAtomCommandFailure(result);
                   Dialog.alert(
-                    "Could not resume queue",
+                    gt("Could not resume queue"),
                     error instanceof Error ? error.message : "Try again.",
                   );
                 }
@@ -352,6 +355,7 @@ function QueueRowSwipeable(props: {
   readonly onRemove: () => void;
   readonly children: React.ReactNode;
 }) {
+  const gt = useGT();
   const swipeableRef = useRef<SwipeableMethods | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the open swipeable through its imperative handle when swiping becomes disabled
@@ -391,7 +395,7 @@ function QueueRowSwipeable(props: {
           >
             <SymbolView name="trash" size={16} tintColorClassName="accent-danger-foreground" />
             <Text className="pt-1 text-2xs font-supaterm-medium text-danger-foreground">
-              Remove
+              {gt("Remove", { $context: "verb, menu action" })}
             </Text>
           </Pressable>
         </View>
