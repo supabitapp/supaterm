@@ -3608,9 +3608,10 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                   }),
                   Ref.set(interruptedPrompt, null),
                   Ref.set(resumedAgent, null),
-                  // A shell the discarded runs left running must not wake the rewound thread.
-                  stopBackgroundShells(rollbackInput.providerThread.id),
                 ]);
+              // A shell the discarded runs left running must not wake the rewound thread. Only the
+              // session that started it can stop it, so this runs before any session is replaced.
+              const stopDiscardedShells = stopBackgroundShells(rollbackInput.providerThread.id);
               const now = yield* DateTime.now;
               if (target.type === "provider_turn") {
                 const keptRunId = target.providerTurn.nativeTurnRef?.nativeId;
@@ -3620,6 +3621,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                     detail: `Provider turn ${target.providerTurn.id} has no Cursor run id.`,
                   });
                 }
+                yield* stopDiscardedShells;
                 const agent = yield* openAgent({
                   operation: "resume",
                   agentId: nativeThreadId(rollbackInput.providerThread),
@@ -3650,6 +3652,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                 };
               }
               // The first run starts without a checkpoint, so there is nothing to rewind onto.
+              yield* stopDiscardedShells;
               const opened = yield* openAgent({
                 operation: "create",
                 threadId,

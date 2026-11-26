@@ -1,5 +1,6 @@
 import type { AgentMessage, InteractionUpdate, RunResult, SteerAckOutcome } from "@cursor/sdk";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
+import { signalProcessGroup } from "@supaterm/provider-core/server/processGroup";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Cause from "effect/Cause";
@@ -133,6 +134,7 @@ export const makeCursorAgentSdkProcessRunner = Effect.fn("makeCursorAgentSdkProc
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const agentScope = yield* AgentScope;
     const hostEnvironment = yield* HostProcess.Environment;
+    const platform = yield* HostProcess.Platform;
     const runnerContext = yield* Effect.context<never>();
     const activeCleanups = new Set<Effect.Effect<void>>();
 
@@ -193,7 +195,15 @@ export const makeCursorAgentSdkProcessRunner = Effect.fn("makeCursorAgentSdkProc
                 forceKillAfter: WORKER_EXIT_TIMEOUT,
               }),
             ),
-            (child) => child.kill().pipe(Effect.ignore),
+            (child) =>
+              child
+                .kill()
+                .pipe(
+                  Effect.ignore,
+                  Effect.andThen(
+                    wrapped.unit === undefined ? Effect.void : agentScope.stop(wrapped.unit),
+                  ),
+                ),
           ),
           workerScope,
         ).pipe(
@@ -291,9 +301,17 @@ export const makeCursorAgentSdkProcessRunner = Effect.fn("makeCursorAgentSdkProc
               yield* Deferred.fail(run.waitDeferred, error);
             }
           }
-          // Background shells live in the worker's process tree, so a dead worker ends them too.
+          // The SDK starts each Unix shell as its own process group, which outlives the worker.
+          // Windows shells share the worker's job object and end with it.
           for (const [key, shell] of activeBackgroundShells) {
             activeBackgroundShells.delete(key);
+            if (shell.pid !== undefined && platform !== "win32") {
+              const pid = shell.pid;
+              yield* Effect.try({
+                try: () => signalProcessGroup(pid, "SIGKILL"),
+                catch: () => undefined,
+              }).pipe(Effect.ignore);
+            }
             const sessionState = backgroundShellSessions.get(shell.sessionId);
             if (sessionState !== undefined && !sessionState.closed) {
               Queue.offerUnsafe(sessionState.queue, {
