@@ -3,7 +3,7 @@ import { useOrchestrationSkills } from "../../state/useOrchestrationSkills";
 import { serverEnvironment } from "../../state/server";
 import { Button } from "../ui/button";
 import { useSearchableSetting } from "./settingsSearch";
-import { SettingsRow, SettingsSection } from "./settingsLayout";
+import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { T, useGT } from "gt-react";
 
@@ -25,7 +25,7 @@ function SelectedEnvironmentSkills({
     stateLabel !== null || skills.canUninstall || skills.canInstall || skills.error;
   return (
     <SettingsRow
-      title={gt("Orchestration skills")}
+      title={gt("Committee and advisor")}
       description={
         <>
           <T>Install supaterm-commitee and supaterm-advisor skills.</T>
@@ -79,7 +79,7 @@ function SelectedEnvironmentSkills({
   );
 }
 
-export function OrchestrationSkillsSettings() {
+export function SkillsSettingsPanel() {
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { environments, connectedEnvironments } = useSettingsScope();
@@ -90,31 +90,34 @@ export function OrchestrationSkillsSettings() {
       ),
   );
   return (
-    <SettingsSection {...searchableSetting("orchestration-skills")} hideTitle>
-      {connectedEnvironments.length === 0 ? (
-        <SettingsRow
-          title={gt("Orchestration skills")}
-          description={gt(
-            "Connect to an environment to install supaterm-commitee and supaterm-advisor skills.",
-          )}
-        />
-      ) : (
-        <SelectedEnvironmentSkills
-          key={connectedEnvironments
-            .map((environment) => environment.environmentId)
-            .sort()
-            .join(",")}
-          environments={connectedEnvironments}
-        />
-      )}
-      {offline.length > 0 ? (
-        <SettingsRow
-          title={gt("Offline environments")}
-          description={gt("Skipped: {environments}. Reconnect and install again to include them.", {
-            environments: offline.map((environment) => environment.label).join(", "),
-          })}
-        />
-      ) : null}
-    </SettingsSection>
+    <SettingsPageContainer>
+      <SettingsSection {...searchableSetting("orchestration-skills")}>
+        {connectedEnvironments.length === 0 ? (
+          <SettingsRow
+            title={gt("Committee and advisor")}
+            description={gt(
+              "Connect to an environment to install supaterm-commitee and supaterm-advisor skills.",
+            )}
+          />
+        ) : (
+          <SelectedEnvironmentSkills
+            key={connectedEnvironments
+              .map((environment) => environment.environmentId)
+              .sort()
+              .join(",")}
+            environments={connectedEnvironments}
+          />
+        )}
+        {offline.length > 0 ? (
+          <SettingsRow
+            title={gt("Offline environments")}
+            description={gt(
+              "Skipped: {environments}. Reconnect and install again to include them.",
+              { environments: offline.map((environment) => environment.label).join(", ") },
+            )}
+          />
+        ) : null}
+      </SettingsSection>
+    </SettingsPageContainer>
   );
 }

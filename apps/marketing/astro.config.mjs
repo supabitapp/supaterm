@@ -1,4 +1,6 @@
 import { defineConfig } from "astro/config";
+import { satteri } from "@astrojs/markdown-satteri";
+import { userDocLinksPlugin } from "./src/lib/docs.ts";
 
 // Astro loads env with an empty prefix, and under `vp run` Vite+'s loadEnv then reports every
 // variable to the task cache. Any env difference (TERM, VP_RAW_SUBCOMMAND, an agent's session
@@ -8,6 +10,9 @@ delete process.env.VP_RUN_NODE_CLIENT_PATH;
 
 export default defineConfig({
   site: "https://supaterm.com",
+  markdown: {
+    processor: satteri({ mdastPlugins: [userDocLinksPlugin] }),
+  },
   server: {
     port: Number(process.env.PORT ?? 4173),
   },

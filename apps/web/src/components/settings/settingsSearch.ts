@@ -35,6 +35,7 @@ export type SettingsPath =
   | "/settings/sidepulse"
   | "/settings/providers"
   | "/settings/threads"
+  | "/settings/skills"
   | "/settings/voice"
   | "/settings/browser"
   | "/settings/devices"
@@ -103,6 +104,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/sidepulse": "SidePulse",
   "/settings/providers": msg("Providers"),
   "/settings/threads": msg("Threads"),
+  "/settings/skills": msg("Skills"),
   "/settings/voice": msg("Voice transcription"),
   "/settings/browser": msg("Browser"),
   "/settings/devices": msg("Devices"),
@@ -141,6 +143,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
     paths: [
       "/settings/providers",
       "/settings/threads",
+      "/settings/skills",
       "/settings/voice",
       "/settings/browser",
       "/settings/devices",
@@ -927,9 +930,11 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "orchestration-skills",
     title: msg("Orchestration skills"),
-    to: "/settings/threads",
+    to: "/settings/skills",
     searchTerms: [
-      msg("supaterm commitee committee advisor install uninstall native skills agents delegation"),
+      msg(
+        "committee and advisor supaterm commitee install uninstall native skills agents delegation",
+      ),
     ],
   },
   {
@@ -1332,6 +1337,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/keybindings": null,
   "/settings/providers": null,
   "/settings/threads": null,
+  "/settings/skills": null,
   "/settings/voice": null,
   "/settings/browser": null,
   "/settings/devices": null,
