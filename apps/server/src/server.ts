@@ -100,6 +100,7 @@ import * as Keybindings from "./keybindings.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
 import * as ServerOwnership from "./serverOwnership.ts";
 import * as ServerSettings from "./serverSettings.ts";
+import * as ManagedLimits from "./policy/managedLimits.ts";
 import * as ManagedPolicy from "./policy/ManagedPolicy.ts";
 import * as ProjectEnrichmentService from "./project/ProjectEnrichmentService.ts";
 import * as NativeAppIconResolver from "./assets/NativeAppIconResolver.ts";
@@ -151,6 +152,7 @@ import * as CodexManagedTokenBroker from "./provider/CodexManagedTokenBroker.ts"
 import * as McpOAuth from "./auth/McpOAuth.ts";
 import * as McpOAuthHttp from "./auth/mcpOAuthHttp.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
+import * as EnvironmentAuthPolicy from "./auth/EnvironmentAuthPolicy.ts";
 import * as ServerSelfUpdate from "./service/selfUpdate.ts";
 import * as LinkThreadHttp from "./peer/linkThreadHttp.ts";
 import * as DesktopAppUpdate from "./desktopUpdate/DesktopAppUpdate.ts";
@@ -295,9 +297,17 @@ const layerSpawner = SpawnWorker.layerServer.pipe(Layer.provide(NodeServices.lay
 const layerHttpServer = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
+    // Before binding: a host the policy does not allow must never listen, not even briefly.
+    const policy = yield* ManagedPolicy.ManagedPolicy;
+    const bindHost = yield* ManagedLimits.checkServerReachability(policy, {
+      authPolicy: EnvironmentAuthPolicy.resolveServerAuthPolicy(config),
+      host: config.host,
+      tailscaleServeEnabled: config.tailscaleServeEnabled,
+    });
+    yield* ManagedLimits.closeTailscaleServeTo(policy, { host: bindHost, port: config.port });
     const server = keepIdleConnections(guardHttpResponseWriteErrors(NodeHttp.createServer()));
     return NodeHttpServer.layer(() => rejectRequestsUntilServing(server), {
-      host: config.host ?? "127.0.0.1",
+      host: bindHost,
       port: config.port,
       gracefulShutdownTimeout: HTTP_PREEMPTIVE_SHUTDOWN_GRACE_MS,
       // Context takeover stays enabled (ws default) so the compression
@@ -308,6 +318,7 @@ const layerHttpServer = Layer.unwrap(
     }).pipe(Layer.provideMerge(RelayIngress.layerFromServer(server)), Layer.merge(layerSpawner));
   }),
 ).pipe(
+  Layer.provide(ManagedPolicy.layer),
   // NodeHttpServer.layer also outputs NodeServices, whose spawner would shadow the wrapped one.
   (layer) => NonBlockingSpawner.layer.pipe(Layer.provideMerge(layer)),
 );
@@ -469,6 +480,7 @@ const layerProjectFaviconResolver = ProjectFaviconResolver.layer.pipe(
 const layerRelayAccess = Layer.merge(RelayAccess.layer, DirectTunnel.layer).pipe(
   Layer.provideMerge(RelayIdentity.layer.pipe(Layer.provide(ServerSecretStore.layer))),
   Layer.provide(layerServerSettings),
+  Layer.provide(ManagedPolicy.layer),
 );
 const layerServerEnvironment = Layer.effect(
   ServerEnvironment.ServerEnvironment,
@@ -487,6 +499,7 @@ const layerServerEnvironment = Layer.effect(
 ).pipe(Layer.provideMerge(ServerEnvironment.layer), Layer.provideMerge(layerRelayAccess));
 
 const layerAuth = EnvironmentAuth.layer.pipe(
+  Layer.provide(ManagedPolicy.layer),
   Layer.provideMerge(layerPersistence),
   Layer.provide(layerServerEnvironment),
   Layer.provide(ServerSecretStore.layer),
@@ -764,7 +777,12 @@ const layerMakeRoutes = Layer.mergeAll(
   Layer.provide(
     Layer.mergeAll(PeerForwarding.layer, PeerThreadRelay.layer, PeerClientPairing.layer).pipe(
       Layer.provideMerge(PeerMcpClient.layer),
-      Layer.provideMerge(PeerLinks.layer.pipe(Layer.provide(RelayCompanion.layer()))),
+      Layer.provideMerge(
+        PeerLinks.layer.pipe(
+          Layer.provide(RelayCompanion.layer()),
+          Layer.provide(ManagedPolicy.layer),
+        ),
+      ),
     ),
   ),
   Layer.provide(PreviewAutomationBroker.layer),

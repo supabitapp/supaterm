@@ -1012,6 +1012,32 @@ describe("ClaudeAdapterV2 session permissions", () => {
         destination: "session",
       },
     ]);
+
+    // Under an administrator's ceiling a suggested mode switch is dropped; the rule stays.
+    const managed = ClaudeAdapterV2.permissionResultFromDecision({
+      toolName: "Edit",
+      decision: "acceptForSession",
+      toolInput: {},
+      toolUseID: "tool-2",
+      managedCeiling: true,
+      suggestions: [
+        { type: "setMode", mode: "bypassPermissions", destination: "session" },
+        {
+          type: "addRules",
+          rules: [{ toolName: "Edit" }],
+          behavior: "allow",
+          destination: "session",
+        },
+      ],
+    });
+    assert.deepEqual(managed.behavior === "allow" ? managed.updatedPermissions : undefined, [
+      {
+        type: "addRules",
+        rules: [{ toolName: "Edit" }],
+        behavior: "allow",
+        destination: "session",
+      },
+    ]);
   });
 
   it("adds a whole-tool session rule when Claude offers no suggestion", () => {
@@ -1724,6 +1750,22 @@ describe("ClaudeAdapterV2 MCP elicitation acceptance", () => {
   });
   const acceptOnCard = (request: ElicitationRequest) =>
     ClaudeAdapterV2.claudeMcpElicitationAcceptance(request, { fullAccess: false });
+
+  it("approves without a card in Full access, never under a ceiling below it", () => {
+    const turn = (
+      permissionMode: "bypassPermissions" | "acceptEdits",
+      maxRuntimeMode?: "auto" | "full-access",
+    ) => ({
+      queryPolicy: { permissionMode },
+      input: { runtimePolicy: maxRuntimeMode === undefined ? {} : { maxRuntimeMode } },
+    });
+    assert.isTrue(ClaudeAdapterV2.claudeFullAccessApproves(turn("bypassPermissions")));
+    assert.isTrue(
+      ClaudeAdapterV2.claudeFullAccessApproves(turn("bypassPermissions", "full-access")),
+    );
+    assert.isFalse(ClaudeAdapterV2.claudeFullAccessApproves(turn("bypassPermissions", "auto")));
+    assert.isFalse(ClaudeAdapterV2.claudeFullAccessApproves(turn("acceptEdits")));
+  });
 
   it("answers an empty-properties form with empty content", () => {
     assert.deepEqual(acceptOnCard(form({})), {

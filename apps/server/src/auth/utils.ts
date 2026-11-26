@@ -61,21 +61,8 @@ export function loopbackBindAddress(host: string | undefined): string | undefine
     : undefined;
 }
 
-export function isRemoteReachableHost(host: string | undefined): boolean {
-  if (host === "0.0.0.0" || host === "::" || host === "[::]") {
-    return true;
-  }
-  if (!host || host.length === 0) {
-    return false;
-  }
-  return !(
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1" ||
-    host === "[::1]" ||
-    host.startsWith("127.")
-  );
-}
+export const isRemoteReachableHost = (host: string | undefined): boolean =>
+  loopbackBindAddress(host) === undefined;
 
 export function base64UrlEncode(input: string | Uint8Array): string {
   return typeof input === "string"

@@ -222,15 +222,16 @@ export const checkServerReachability = Effect.fn("managedLimits.checkServerReach
         policy,
         `so the server cannot listen on ${input.host === "" ? "every interface" : (input.host ?? "this host")}`,
       );
+    // Tailscale Serve makes any server remote-reachable, so its refusal names it.
+    if (input.tailscaleServeEnabled && !allowsRemoteClients(policy)) {
+      return yield* refuseRemoteClients(policy, "so Tailscale Serve cannot be turned on");
+    }
     if (!allowsAuthPolicy(policy, input.authPolicy)) {
       return yield* input.authPolicy === "remote-reachable"
         ? cannotListen()
         : refuse(policy, AUTH_POLICY_ACTION[input.authPolicy]);
     }
     if (allowsRemoteClients(policy)) return input.host ?? "127.0.0.1";
-    if (input.tailscaleServeEnabled) {
-      return yield* refuseRemoteClients(policy, "so Tailscale Serve cannot be turned on");
-    }
     return loopbackBindAddress(input.host) ?? (yield* cannotListen());
   },
 );

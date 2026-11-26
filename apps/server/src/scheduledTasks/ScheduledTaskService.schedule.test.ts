@@ -21,6 +21,7 @@ import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ScheduledTaskService from "./ScheduledTaskService.ts";
 
 const decodeUpsertInput = Schema.decodeUnknownEffect(ScheduledTaskUpsertInput);
@@ -28,6 +29,7 @@ const decodeUpsertInput = Schema.decodeUnknownEffect(ScheduledTaskUpsertInput);
 it.effect("rejects a stale form save after deletion while preserving explicit-id creates", () =>
   Effect.gen(function* () {
     const layerDependencies = Layer.mergeAll(
+      ServerSettings.layerTest(),
       NodeCrypto.layer,
       Scheduler.layer,
       Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
@@ -74,6 +76,7 @@ it.effect("preserves a due run when a save only pads the scheduled hour", () =>
     yield* TestClock.setTime(DateTime.toEpochMillis(dueAt) - 1_000);
 
     const layerDependencies = Layer.mergeAll(
+      ServerSettings.layerTest(),
       NodeCrypto.layer,
       Scheduler.layer,
       Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
@@ -127,6 +130,7 @@ it.effect("keeps the task list order when a toggle or edit rewrites updated_at",
   Effect.gen(function* () {
     yield* TestClock.setTime(Date.parse("2026-07-01T09:00:00.000Z"));
     const layerDependencies = Layer.mergeAll(
+      ServerSettings.layerTest(),
       NodeCrypto.layer,
       Scheduler.layer,
       Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
@@ -191,6 +195,7 @@ it.effect("keeps one queued occurrence of a recurring task while its bound threa
     const sql = yield* SqlClient.SqlClient;
     const outcomeDuringLookup = yield* Ref.make(false);
     const layerDependencies = Layer.mergeAll(
+      ServerSettings.layerTest(),
       NodeCrypto.layer,
       // Capture the poll pass so the test drives each due interval directly.
       Layer.mock(Scheduler.Scheduler)({
@@ -373,6 +378,7 @@ it.effect(
       yield* TestClock.setTime(Date.parse("2026-07-01T09:00:00.000Z"));
       const launched = yield* Deferred.make<string>();
       const layerDependencies = Layer.mergeAll(
+        ServerSettings.layerTest(),
         NodeCrypto.layer,
         Scheduler.layer,
         Layer.mock(ThreadLaunchService.ThreadLaunchService)({
@@ -436,6 +442,7 @@ it.effect("a fixed-time slot missed while the server was off shows on the task",
     yield* TestClock.setTime(DateTime.toEpochMillis(at(8)));
     const launches = yield* Ref.make(0);
     const layerDependencies = Layer.mergeAll(
+      ServerSettings.layerTest(),
       NodeCrypto.layer,
       Scheduler.layer,
       Layer.mock(ThreadLaunchService.ThreadLaunchService)({
@@ -511,6 +518,7 @@ it.effect(
       const releaseSlow = yield* Deferred.make<void>();
       const lastProcessed = yield* Deferred.make<void>();
       const layerDependencies = Layer.mergeAll(
+        ServerSettings.layerTest(),
         NodeCrypto.layer,
         Scheduler.layer,
         Layer.mock(ThreadLaunchService.ThreadLaunchService)({
