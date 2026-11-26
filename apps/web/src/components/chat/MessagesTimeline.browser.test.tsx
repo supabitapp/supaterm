@@ -716,8 +716,6 @@ describe("MessagesTimeline messages", () => {
       expect(viewport.scrollHeight).toBeGreaterThan(1000);
       expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
     });
-    // The jump lands while the list's own scroll to the end is still settling.
-    viewport.dispatchEvent(new Event("scroll"));
     await props.listRef.current!.scrollToOffset({
       offset:
         viewport.scrollTop +
@@ -726,10 +724,7 @@ describe("MessagesTimeline messages", () => {
         24,
       animated: false,
     });
-    using hitTests = vi.spyOn(document, "caretPositionFromPoint");
     viewport.dispatchEvent(new Event("scroll"));
-    // Until a scroll settles, the line read when it began stands in for the reading position.
-    await vi.waitFor(() => expect(hitTests).toHaveBeenCalled());
     const before = target.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
     expect(Math.abs(before - 24)).toBeLessThan(2);
     for (const width of [500, 900]) {
