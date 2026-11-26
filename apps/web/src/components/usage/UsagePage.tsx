@@ -107,7 +107,7 @@ import {
   saveUsagePagePreferences,
   type UsagePagePreferences,
 } from "./usagePagePreferences";
-import { T, useMessages, useGT } from "gt-react";
+import { T, useMessages, useGT, Var } from "gt-react";
 
 function isUsageMetric(value: string | null | undefined): value is UsageMetric {
   return METRIC_OPTIONS.some((option) => option.value === value);
@@ -553,8 +553,12 @@ export function UsagePage() {
             {selectedEnvironments.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {environments.length === 0
-                  ? `Connect an environment to see ${showingLimits ? "limits" : "usage"}.`
-                  : `Select an environment to see ${showingLimits ? "limits" : "usage"}.`}
+                  ? showingLimits
+                    ? gt("Connect an environment to see limits.")
+                    : gt("Connect an environment to see usage.")
+                  : showingLimits
+                    ? gt("Select an environment to see limits.")
+                    : gt("Select an environment to see usage.")}
               </p>
             ) : showingLimits ? (
               <UsageLimitsSection
@@ -712,9 +716,12 @@ function UsageOverview({
             <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <span>
                 <span className={figureClass(loadingPartial)}>
-                  {formatCount(merged.sessions)} {merged.sessions === 1 ? "session" : "sessions"}
+                  {gt("{count, plural, one {{formatted} session} other {{formatted} sessions}}", {
+                    count: merged.sessions,
+                    formatted: formatCount(merged.sessions),
+                  })}
                 </span>
-                {metric === "cost" && " · API estimate"}
+                {metric === "cost" && ` · ${gt("API estimate")}`}
               </span>
               {metric === "cost" && merged.costQuality.unpricedShare > 0 && (
                 <Popover>
@@ -726,8 +733,10 @@ function UsageOverview({
                     <InfoIcon className="size-3" aria-hidden />
                   </PopoverTrigger>
                   <PopoverPopup side="top" tooltipStyle>
-                    API estimate excludes {formatPercent(merged.costQuality.unpricedShare)} unpriced
-                    records.
+                    <T>
+                      API estimate excludes{" "}
+                      <Var>{formatPercent(merged.costQuality.unpricedShare)}</Var> unpriced records.
+                    </T>
                   </PopoverPopup>
                 </Popover>
               )}
@@ -814,7 +823,13 @@ function UsageOverview({
 
         <div className="flex min-w-0 flex-col gap-3">
           <h2 className="text-sm font-medium text-foreground">
-            {shownHourly ? "Hourly" : "Daily"} {metric === "tokens" ? "processed tokens" : "cost"}
+            {shownHourly
+              ? metric === "tokens"
+                ? gt("Hourly processed tokens")
+                : gt("Hourly cost")
+              : metric === "tokens"
+                ? gt("Daily processed tokens")
+                : gt("Daily cost")}
           </h2>
           <UsageProviderChart
             providers={activeProviders}
@@ -927,7 +942,9 @@ function UsageOverview({
             <thead>
               <tr className="border-b border-border text-right text-xs text-muted-foreground">
                 <th className="py-2 pr-3 pl-2 text-left font-normal">#</th>
-                <th className="w-full py-2 text-left font-normal">Model</th>
+                <th className="w-full py-2 text-left font-normal">
+                  <T>Model</T>
+                </th>
                 <th className="py-2 pl-6 font-normal">
                   <T>Cost</T>
                 </th>
@@ -1142,6 +1159,7 @@ function UsageCoverageNotice({
   readonly duplicateSources: readonly string[];
   readonly contractMismatches: MergedUsage["contractMismatches"];
 }) {
+  const gt = useGT();
   const m = useMessages();
   const failed = environments.filter((environment) => environment.error !== null);
   const mismatchByEnvironment = new Map(
@@ -1159,7 +1177,10 @@ function UsageCoverageNotice({
     <div className="flex max-w-80 flex-col gap-1 border-t border-border px-2 py-2 text-xs text-muted-foreground wrap-anywhere">
       {failed.map((environment) => (
         <span key={environment.label}>
-          {environment.label}: {environment.error}
+          {gt("{environment}: {error}", {
+            environment: environment.label,
+            error: environment.error,
+          })}
         </span>
       ))}
       {incompatible.map(({ environment, mismatch }) => (
@@ -1169,8 +1190,9 @@ function UsageCoverageNotice({
       ))}
       {duplicateSources.length > 0 ? (
         <span>
-          Counted once across environments sharing a transcript directory:{" "}
-          {duplicateSources.join(", ")}
+          {gt("Counted once across environments sharing a transcript directory: {sources}", {
+            sources: duplicateSources.join(", "),
+          })}
         </span>
       ) : null}
     </div>

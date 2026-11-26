@@ -5,6 +5,7 @@
  * so the list still says what it shows once the options menu closes.
  */
 import { FolderPlusIcon } from "@supaterm/icons";
+import { useGT } from "gt-react";
 import { type ComponentProps, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
@@ -23,19 +24,20 @@ export function SidebarThreadHeader({
   optionsMenu,
   onNewProject,
 }: SidebarThreadHeaderProps) {
+  const gt = useGT();
   return (
     <div className="-mb-1.5 flex items-center gap-1 pl-2">
       <span
         dir="auto"
         className="min-w-0 flex-1 truncate text-xs font-medium text-sidebar-muted-foreground/80"
       >
-        {scopeLabel ?? "Threads"}
+        {scopeLabel ?? gt("Threads")}
       </span>
       {/* Unfilled: the buttons carry their own hover states, and a background
           well reads far louder on themed palettes than on the base ones. */}
       <div className="flex shrink-0 items-center">
         {optionsMenu}
-        <SidebarHeaderIconButton label="Add project" onClick={onNewProject}>
+        <SidebarHeaderIconButton label={gt("Add project")} onClick={onNewProject}>
           <FolderPlusIcon />
         </SidebarHeaderIconButton>
       </div>

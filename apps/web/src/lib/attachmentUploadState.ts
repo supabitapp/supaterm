@@ -1,5 +1,6 @@
 import type { EnvironmentId } from "@supaterm/contracts";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "../i18n/messages";
 
 export type ReadyAttachmentUpload = {
   readonly status: "ready";
@@ -24,11 +25,14 @@ export type AttachmentUploadState =
       readonly previous?: ReadyAttachmentUpload;
     };
 
-export function attachmentUploadBlockReason(input: {
-  readonly imageIds: ReadonlyArray<string>;
-  readonly uploadsByImageId: Readonly<Record<string, AttachmentUploadState>>;
-  readonly environmentId: EnvironmentId;
-}): string | null {
+export function attachmentUploadBlockReason(
+  input: {
+    readonly imageIds: ReadonlyArray<string>;
+    readonly uploadsByImageId: Readonly<Record<string, AttachmentUploadState>>;
+    readonly environmentId: EnvironmentId;
+  },
+  resolve: MessageResolver = m,
+): string | null {
   let pending = 0;
   let failed = 0;
 
@@ -43,11 +47,13 @@ export function attachmentUploadBlockReason(input: {
 
   if (failed > 0) {
     return failed === 1
-      ? "Retry or remove the failed attachment"
-      : "Retry or remove the failed attachments";
+      ? resolve(msg("Retry or remove the failed attachment"))
+      : resolve(msg("Retry or remove the failed attachments"));
   }
   if (pending > 0) {
-    return pending === 1 ? msg("Attachment still uploading") : msg("Attachments still uploading");
+    return pending === 1
+      ? resolve(msg("Attachment still uploading"))
+      : resolve(msg("Attachments still uploading"));
   }
   return null;
 }

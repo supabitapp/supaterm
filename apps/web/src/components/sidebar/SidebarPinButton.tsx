@@ -1,4 +1,5 @@
 import { PinIcon } from "@supaterm/icons";
+import { useGT } from "gt-react";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useClientSettings } from "~/hooks/useSettings";
@@ -16,6 +17,7 @@ export function SidebarPinButton({
   onPin: () => void;
   onUnpin: () => void;
 }) {
+  const gt = useGT();
   const confirmThreadUnpin = useClientSettings((settings) => settings.confirmThreadUnpin);
   const confirm = useInlineConfirm<"unpin">();
   const armed = pinned && confirm.armed === "unpin";
@@ -23,18 +25,18 @@ export function SidebarPinButton({
     pinned && confirmThreadUnpin
       ? confirm.bind("unpin", onUnpin)
       : { onClick: pinned ? onUnpin : onPin };
-  const label = pinned ? "Unpin thread" : "Pin thread";
+  const label = pinned ? gt("Unpin thread") : gt("Pin thread");
   return (
     <InlineConfirmTooltip
       armed={armed}
       required={pinned && confirmThreadUnpin}
       tip={label}
-      armedTip="Click again to unpin"
+      armedTip={gt("Click again to unpin")}
       shortcut={shortcut}
       render={
         <button
           type="button"
-          aria-label={armed ? "Confirm unpin" : label}
+          aria-label={armed ? gt("Confirm unpin") : label}
           {...target}
           onClick={(event) => {
             event.preventDefault();

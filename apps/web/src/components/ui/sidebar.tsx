@@ -313,7 +313,7 @@ function Sidebar({
     </ResizablePanel>
   );
   const handle = resizable ? (
-    <ResizableHandle aria-label="Resize sidebar" {...handleProps} />
+    <ResizableHandle aria-label={gt("Resize sidebar")} {...handleProps} />
   ) : null;
   return side === "left" ? (
     <>
@@ -357,7 +357,9 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
           !isOpen && "[&>path[opacity]]:scale-x-0",
         )}
       />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">
+        <T>Toggle Sidebar</T>
+      </span>
     </Button>
   );
 }

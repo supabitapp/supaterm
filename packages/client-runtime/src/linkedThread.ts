@@ -24,7 +24,8 @@ import {
   prependThreadHistory,
   type ThreadStreamState,
 } from "./state/threadStream.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 /** A thread on a linked environment, read through the environment that holds the link. */
 export interface LinkedThreadTarget {
@@ -140,14 +141,17 @@ export interface LinkedThreadFailure {
 export function linkedThreadFailure(
   error: unknown,
   names: { readonly via: string; readonly label: string },
+  resolve: MFunctionType = mFallback,
 ): LinkedThreadFailure {
   const via = names.via;
   const serverMessage = hasStringField(error, "message") ? error.message : "";
   if (!hasStringField(error, "_tag") || error._tag !== "PeerLinkThreadReadError") {
     // An environment from before this read answers with an unknown method.
     return {
-      title: `Could not read this thread through ${via}`,
-      detail: serverMessage || `${via} may need an update before it can read linked threads.`,
+      title: resolve(msg("Could not read this thread through {via}", { via })),
+      detail:
+        serverMessage ||
+        resolve(msg("{via} may need an update before it can read linked threads.", { via })),
       retryable: true,
     };
   }
@@ -157,28 +161,42 @@ export function linkedThreadFailure(
   switch (reason) {
     case "unknown_link":
       return {
-        title: `${via} is no longer linked to ${label}`,
-        detail: "Link it again in Settings → Environments to read its threads from here.",
+        title: resolve(msg("{via} is no longer linked to {label}", { via, label })),
+        detail: resolve(
+          msg("Link it again in Settings → Environments to read its threads from here."),
+        ),
         retryable,
       };
     case "expired":
       return {
-        title: `The link from ${via} to ${label} expired`,
-        detail: "Link it again in Settings → Environments.",
+        title: resolve(msg("The link from {via} to {label} expired", { via, label })),
+        detail: resolve(msg("Link it again in Settings → Environments.")),
         retryable,
       };
     case "rejected":
-      return { title: `${label} refused the read`, detail: serverMessage, retryable };
+      return {
+        title: resolve(msg("{label} refused the read", { label })),
+        detail: serverMessage,
+        retryable,
+      };
     case "thread_not_found":
       return {
-        title: `This thread is no longer on ${label}`,
-        detail: msg("It may have been deleted there."),
+        title: resolve(msg("This thread is no longer on {label}", { label })),
+        detail: resolve(msg("It may have been deleted there.")),
         retryable,
       };
     case "incompatible":
-      return { title: `${label} needs an update`, detail: serverMessage, retryable };
+      return {
+        title: resolve(msg("{label} needs an update", { label })),
+        detail: serverMessage,
+        retryable,
+      };
     default:
-      return { title: `${label} is not answering ${via}`, detail: serverMessage, retryable };
+      return {
+        title: resolve(msg("{label} is not answering {via}", { label, via })),
+        detail: serverMessage,
+        retryable,
+      };
   }
 }
 

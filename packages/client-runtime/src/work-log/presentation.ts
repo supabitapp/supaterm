@@ -73,15 +73,18 @@ export function contextCompactionTokenCounts(
   return { before: formatTokens(item.beforeTokenCount), after: formatTokens(item.afterTokenCount) };
 }
 
-export function contextCompactionLabel(item: CompactionLabelItem): string {
-  if (item.status === "failed") return msg("Context compaction failed");
+export function contextCompactionLabel(
+  item: CompactionLabelItem,
+  resolve: MFunctionType = mFallback,
+): string {
+  if (item.status === "failed") return resolve(msg("Context compaction failed"));
   if (item.status === "cancelled" || item.status === "interrupted")
-    return msg("Context compaction stopped");
-  if (isOrchestrationV2WorkActive(item.status)) return msg("Compacting context");
+    return resolve(msg("Context compaction stopped"));
+  if (isOrchestrationV2WorkActive(item.status)) return resolve(msg("Compacting context"));
   const tokens = contextCompactionTokenCounts(item);
   return tokens
-    ? `Context compacted ${tokens.before} → ${tokens.after} tokens`
-    : msg("Context compacted");
+    ? resolve(msg("Context compacted {before} → {after} tokens", tokens))
+    : resolve(msg("Context compacted"));
 }
 
 export interface WorkLogPresentationEntry {
@@ -528,41 +531,84 @@ function toolGroupActionCount(
   return changedFiles.size + editsWithoutFileDetails;
 }
 
-function toolGroupActionLabel(action: ToolGroupAction, count: number): string {
-  const n = count.toLocaleString();
+// `#` keeps the locale's digit grouping, as the English label always had.
+function toolGroupActionLabel(
+  action: ToolGroupAction,
+  count: number,
+  resolve: MFunctionType,
+): string {
   switch (action) {
     case "link-pr":
-      return `Linked ${n} ${count === 1 ? "pull request" : "pull requests"}`;
+      return resolve(
+        msg("{count, plural, one {Linked # pull request} other {Linked # pull requests}}", {
+          count,
+        }),
+      );
     case "unlink-pr":
-      return `Unlinked ${n} ${count === 1 ? "pull request" : "pull requests"}`;
+      return resolve(
+        msg("{count, plural, one {Unlinked # pull request} other {Unlinked # pull requests}}", {
+          count,
+        }),
+      );
     case "watch-pr":
-      return `Watching ${n} ${count === 1 ? "pull request" : "pull requests"}`;
+      return resolve(
+        msg("{count, plural, one {Watching # pull request} other {Watching # pull requests}}", {
+          count,
+        }),
+      );
     case "unwatch-pr":
-      return `Stopped watching ${n} ${count === 1 ? "pull request" : "pull requests"}`;
+      return resolve(
+        msg(
+          "{count, plural, one {Stopped watching # pull request} other {Stopped watching # pull requests}}",
+          { count },
+        ),
+      );
     case "list-prs":
-      return count === 1
-        ? "Checked linked pull requests"
-        : `Checked linked pull requests ${n} times`;
+      return resolve(
+        msg(
+          "{count, plural, =1 {Checked linked pull requests} other {Checked linked pull requests # times}}",
+          { count },
+        ),
+      );
     case "read":
-      return `Read ${n} ${count === 1 ? "file" : "files"}`;
+      return resolve(msg("{count, plural, one {Read # file} other {Read # files}}", { count }));
     case "edit":
-      return `Changed ${n} ${count === 1 ? "file" : "files"}`;
+      return resolve(
+        msg("{count, plural, one {Changed # file} other {Changed # files}}", { count }),
+      );
     case "command":
-      return `Ran ${n} ${count === 1 ? "command" : "commands"}`;
+      return resolve(msg("{count, plural, one {Ran # command} other {Ran # commands}}", { count }));
     case "thread-create":
-      return `Created ${n} ${count === 1 ? "thread" : "threads"}`;
+      return resolve(
+        msg("{count, plural, one {Created # thread} other {Created # threads}}", { count }),
+      );
     case "device":
-      return `Used device controls ${n} ${count === 1 ? "time" : "times"}`;
+      return resolve(
+        msg(
+          "{count, plural, one {Used device controls # time} other {Used device controls # times}}",
+          { count },
+        ),
+      );
     case "browser":
-      return `Used browser ${n} ${count === 1 ? "time" : "times"}`;
+      return resolve(
+        msg("{count, plural, one {Used browser # time} other {Used browser # times}}", { count }),
+      );
     case "search":
-      return `Searched the web ${n} ${count === 1 ? "time" : "times"}`;
+      return resolve(
+        msg("{count, plural, one {Searched the web # time} other {Searched the web # times}}", {
+          count,
+        }),
+      );
     case "code-search":
-      return `Searched code ${n} ${count === 1 ? "time" : "times"}`;
+      return resolve(
+        msg("{count, plural, one {Searched code # time} other {Searched code # times}}", { count }),
+      );
     case "other":
-      return `Used ${n} ${count === 1 ? "tool" : "tools"}`;
+      return resolve(msg("{count, plural, one {Used # tool} other {Used # tools}}", { count }));
     case "update":
-      return `Received ${n} ${count === 1 ? "update" : "updates"}`;
+      return resolve(
+        msg("{count, plural, one {Received # update} other {Received # updates}}", { count }),
+      );
   }
 }
 
@@ -626,14 +672,20 @@ function summaryActionPriority(action: ToolGroupAction | SupatermMcpToolSummaryA
   }
 }
 
-export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEntry>): {
+export function summarizeToolGroup(
+  entries: ReadonlyArray<WorkLogPresentationEntry>,
+  resolve: MFunctionType = mFallback,
+): {
   summary: string;
   hasFailure: boolean;
 } {
   const toolEntries = entries.filter((entry) => entry.itemType !== "reasoning");
   if (entries.length > 0 && toolEntries.length === 0) {
     return {
-      summary: entries.length === 1 ? "Thought" : `Thought (×${entries.length.toLocaleString()})`,
+      summary:
+        entries.length === 1
+          ? resolve(msg("Thought", { $context: "noun, a reasoning step" }))
+          : resolve(msg("Thought (×{count})", { count: entries.length.toLocaleString() })),
       hasFailure: false,
     };
   }
@@ -672,6 +724,7 @@ export function summarizeToolGroup(entries: ReadonlyArray<WorkLogPresentationEnt
           label: toolGroupActionLabel(
             group.action,
             toolGroupActionCount(group.action, group.entries),
+            resolve,
           ),
           failedCount: group.entries.filter(workEntryDisplayIndicatesToolFailure).length,
         }),

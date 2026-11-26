@@ -7,7 +7,8 @@ import {
 } from "../desktopUpdate.logic";
 import { formatRelativeTimeLabel } from "../../timestampFormat";
 import { openDesktopUpdateReleaseNotes } from "../desktopUpdate.toast";
-import { T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 type DesktopUpdateShell = Pick<DesktopBridge, "openExternal">;
 
@@ -21,7 +22,7 @@ function keyReleaseNoteItems(items: ReadonlyArray<string>) {
 }
 
 /** Feed times read "3h ago"; build days from a prerelease version read "today" or "2d ago". */
-function formatReleaseAge(releasedAt: string): string {
+function formatReleaseAge(releasedAt: string, resolve: MessageResolver = m): string {
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(releasedAt);
   if (!day) return formatRelativeTimeLabel(releasedAt);
   const now = new Date();
@@ -29,7 +30,7 @@ function formatReleaseAge(releasedAt: string): string {
   const days = Math.round(
     (today - Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]))) / 86_400_000,
   );
-  return days <= 0 ? "today" : `${days}d ago`;
+  return days <= 0 ? resolve(msg("today")) : resolve(msg("{days}d ago", { days }));
 }
 
 function ReleaseLink({
@@ -66,6 +67,7 @@ export function SidebarUpdateReleaseNotes({
   readonly tooltip: string;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   if (state.releaseNotes.length === 0) {
     return <>{tooltip}</>;
   }
@@ -84,7 +86,7 @@ export function SidebarUpdateReleaseNotes({
             {state.availableVersion ? (
               <div className="mt-0.5 text-xs leading-4 text-muted-foreground">
                 {releasedAt
-                  ? `${state.availableVersion} · ${formatReleaseAge(releasedAt)}`
+                  ? `${state.availableVersion} · ${formatReleaseAge(releasedAt, messages)}`
                   : state.availableVersion}
               </div>
             ) : null}
@@ -109,7 +111,7 @@ export function SidebarUpdateReleaseNotes({
                 {releaseNote.version !== state.availableVersion ? (
                   <h3 className="mb-1 text-xs leading-4 font-medium text-muted-foreground">
                     {releaseNote.releasedAt
-                      ? `${releaseNote.version} · ${formatReleaseAge(releaseNote.releasedAt)}`
+                      ? `${releaseNote.version} · ${formatReleaseAge(releaseNote.releasedAt, messages)}`
                       : releaseNote.version}
                   </h3>
                 ) : null}
@@ -129,7 +131,13 @@ export function SidebarUpdateReleaseNotes({
             <div className={index > 0 ? "mt-4" : undefined} key={releaseNote.version}>
               <section>
                 <h3 className="text-foreground text-xs leading-4 font-semibold">
-                  {index === 0 ? "What's changed" : `Changes in ${releaseNote.version}`}
+                  {index === 0 ? (
+                    <T>What's changed</T>
+                  ) : (
+                    <T>
+                      Changes in <Var>{releaseNote.version}</Var>
+                    </T>
+                  )}
                 </h3>
                 <ul className="mt-2 space-y-1.5 pl-4 text-xs leading-5 text-popover-foreground/90">
                   {keyReleaseNoteItems(releaseNote.items).map(({ item, key }) => (
@@ -150,7 +158,10 @@ export function SidebarUpdateReleaseNotes({
         {state.omittedReleaseCount > 0 ? (
           <div className="mt-3">
             <ReleaseLink releaseUrl={getDesktopUpdateReleaseHistoryUrl()} shell={shell}>
-              {`${state.omittedReleaseCount} older ${state.omittedReleaseCount === 1 ? "release" : "releases"} on GitHub`}
+              {gt(
+                "{count, plural, one {{count} older release on GitHub} other {{count} older releases on GitHub}}",
+                { count: state.omittedReleaseCount },
+              )}
             </ReleaseLink>
           </div>
         ) : null}

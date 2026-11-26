@@ -1,9 +1,11 @@
 import type { BrowserThreadOutboxStorage } from "./threadOutboxDelivery";
 import * as Schema from "effect/Schema";
+import { msg } from "gt-react";
 
 import { OutboxTurn, StoredOutboxEntry, encodeStoredOutboxEntry } from "./threadOutboxSchema";
 import { randomUUID } from "../lib/utils";
 import { createIndexedDbTransaction } from "../lib/indexedDb";
+import { m } from "../i18n/messages";
 
 const DATABASE_NAME = "supaterm-thread-outbox";
 const LEASE_MS = 60_000;
@@ -15,7 +17,9 @@ const beginTransaction = createIndexedDbTransaction({
     database.createObjectStore("messages", { keyPath: "id" });
     database.createObjectStore("locks", { keyPath: "scope" });
   },
-  blockedMessage: "Close other Supaterm tabs to open message storage.",
+  get blockedMessage() {
+    return m(msg("Close other Supaterm tabs to open message storage."));
+  },
 });
 let channel: BroadcastChannel | null = null;
 function storageChannel() {

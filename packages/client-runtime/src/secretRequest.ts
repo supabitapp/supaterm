@@ -10,7 +10,8 @@ import {
 import { builtInSecretProviderDefinitions } from "@supaterm/secret-provider-definitions/registry";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type SecretRequestItem = Extract<
   OrchestrationV2TurnItem,
@@ -119,31 +120,7 @@ export type SecretRequestDisplay =
   /** Shown as a card, not a work-log row: the user has to ask the agent again. */
   | { readonly kind: "expired"; readonly label: string; readonly hint: string };
 
-const SAVED_DISPLAY: SecretRequestDisplay = {
-  kind: "answered",
-  outcome: "saved",
-  label: "Sent",
-};
-const DECLINED_DISPLAY: SecretRequestDisplay = {
-  kind: "answered",
-  outcome: "declined",
-  label: msg("Declined"),
-};
-const ENDED_DISPLAY: SecretRequestDisplay = {
-  kind: "answered",
-  outcome: "ended",
-  label: msg("Request ended"),
-};
-const EXPIRED_DISPLAY: SecretRequestDisplay = {
-  kind: "expired",
-  label: "Expired",
-  hint: "The agent stopped waiting for an answer. Tell it to ask again when you are ready.",
-};
 const PENDING_DISPLAY: SecretRequestDisplay = { kind: "pending" };
-const PENDING_ELSEWHERE_DISPLAY: SecretRequestDisplay = {
-  kind: "pending-elsewhere",
-  label: msg("Waiting for an answer in the original thread"),
-};
 
 /**
  * `visibility` is the projected row's: a request inherited from another
@@ -152,16 +129,36 @@ const PENDING_ELSEWHERE_DISPLAY: SecretRequestDisplay = {
 export function secretRequestDisplay(
   item: Pick<SecretRequestItem, "secretStatus" | "timedOut">,
   visibility: "local" | "inherited" | "synthetic",
+  resolve: MFunctionType = mFallback,
 ): SecretRequestDisplay {
   switch (item.secretStatus) {
     case "pending":
-      return visibility === "local" ? PENDING_DISPLAY : PENDING_ELSEWHERE_DISPLAY;
+      return visibility === "local"
+        ? PENDING_DISPLAY
+        : {
+            kind: "pending-elsewhere",
+            label: resolve(msg("Waiting for an answer in the original thread")),
+          };
     case "saved":
-      return SAVED_DISPLAY;
+      return {
+        kind: "answered",
+        outcome: "saved",
+        label: resolve(msg("Sent", { $context: "secret request status" })),
+      };
     case "declined":
-      return DECLINED_DISPLAY;
+      return { kind: "answered", outcome: "declined", label: resolve(msg("Declined")) };
     case "cancelled":
-      return item.timedOut === true ? EXPIRED_DISPLAY : ENDED_DISPLAY;
+      return item.timedOut === true
+        ? {
+            kind: "expired",
+            label: resolve(msg("Expired", { $context: "secret request status" })),
+            hint: resolve(
+              msg(
+                "The agent stopped waiting for an answer. Tell it to ask again when you are ready.",
+              ),
+            ),
+          }
+        : { kind: "answered", outcome: "ended", label: resolve(msg("Request ended")) };
   }
 }
 

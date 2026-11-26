@@ -6,7 +6,8 @@ import type {
   ConnectionHop,
   SupervisorConnectionState,
 } from "./model.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type ConnectionHopResult = "ok" | "failed" | "unchecked";
 
@@ -56,76 +57,95 @@ function locate(input: ConnectionDiagnosisInput): Located | null {
   };
 }
 
-function headline(host: string, located: Located, failure: ConnectionAttemptError | null): string {
+function headline(
+  host: string,
+  located: Located,
+  failure: ConnectionAttemptError | null,
+  resolve: MFunctionType,
+): string {
   switch (located.cause) {
     case "offline":
-      return msg("This device is offline");
+      return resolve(msg("This device is offline"));
     case "outdated":
-      return `${host} runs an older Supaterm`;
+      return resolve(msg("{host} runs an older Supaterm", { host }));
     case "host-offline":
-      return `${host} is offline`;
+      return resolve(msg("{host} is offline", { host }));
     case "relay-busy":
-      return "The relay is busy";
+      return resolve(msg("The relay is busy"));
     case "relay-timeout":
-      return "The relay did not answer in time";
+      return resolve(msg("The relay did not answer in time"));
     case "relay-unreachable":
-      return "This device can't reach the relay";
+      return resolve(msg("This device can't reach the relay"));
     case null:
       break;
   }
   switch (located.hop) {
     case "device":
-      return msg("This device could not prepare the connection");
+      return resolve(msg("This device could not prepare the connection"));
     case "relay":
-      return "This device can't reach the relay";
+      return resolve(msg("This device can't reach the relay"));
     case "tunnel":
-      return `The relay connection to ${host} was interrupted`;
+      return resolve(msg("The relay connection to {host} was interrupted", { host }));
     case "server":
       return failure?.reason === "authentication" || failure?.reason === "permission"
-        ? `Supaterm on ${host} did not accept this device`
-        : `Supaterm on ${host} did not answer`;
+        ? resolve(msg("Supaterm on {host} did not accept this device", { host }))
+        : resolve(msg("Supaterm on {host} did not answer", { host }));
   }
 }
 
-function steps(host: string, located: Located, failure: ConnectionAttemptError | null): string[] {
-  const checkHost = `On ${host}, check Settings > Sharing & access.`;
+function steps(
+  host: string,
+  located: Located,
+  failure: ConnectionAttemptError | null,
+  resolve: MFunctionType,
+): string[] {
+  const checkHost = resolve(msg("On {host}, check Settings > Sharing & access.", { host }));
   switch (located.cause) {
     case "offline":
-      return ["Connect this device to the internet. Supaterm reconnects on its own."];
+      return [resolve(msg("Connect this device to the internet. Supaterm reconnects on its own."))];
     case "outdated":
-      return [`Update Supaterm on ${host}.`];
+      return [resolve(msg("Update Supaterm on {host}.", { host }))];
     case "host-offline":
-      return [`Make sure ${host} is awake, online, and running Supaterm.`, checkHost];
+      return [
+        resolve(msg("Make sure {host} is awake, online, and running Supaterm.", { host })),
+        checkHost,
+      ];
     case "relay-busy":
     case "relay-timeout":
       return [
-        "Wait a moment. Supaterm retries on its own.",
-        "If it keeps failing, copy the diagnostics and report it.",
+        resolve(msg("Wait a moment. Supaterm retries on its own.")),
+        resolve(msg("If it keeps failing, copy the diagnostics and report it.")),
       ];
     case "relay-unreachable":
-      return ["Check this device's internet connection, or try another network."];
+      return [resolve(msg("Check this device's internet connection, or try another network."))];
     case null:
       break;
   }
   switch (located.hop) {
     case "device":
       return [
-        "Restart Supaterm on this device.",
-        `If it keeps failing, remove ${host} from this device and add it again.`,
+        resolve(msg("Restart Supaterm on this device.")),
+        resolve(
+          msg("If it keeps failing, remove {host} from this device and add it again.", { host }),
+        ),
       ];
     case "relay":
-      return ["Check this device's internet connection, or try another network."];
+      return [resolve(msg("Check this device's internet connection, or try another network."))];
     case "tunnel":
       return [
-        `Make sure ${host} is awake, online, and running Supaterm.`,
-        "Check this device's network connection, or try a direct route such as a Tailscale address.",
+        resolve(msg("Make sure {host} is awake, online, and running Supaterm.", { host })),
+        resolve(
+          msg(
+            "Check this device's network connection, or try a direct route such as a Tailscale address.",
+          ),
+        ),
       ];
     case "server":
       return failure?.reason === "authentication" || failure?.reason === "permission"
-        ? [checkHost, "Pair this device again or check its access grants."]
+        ? [checkHost, resolve(msg("Pair this device again or check its access grants."))]
         : [
-            `Make sure Supaterm is running on ${host}.`,
-            "Retry. If it keeps failing, copy the diagnostics.",
+            resolve(msg("Make sure Supaterm is running on {host}.", { host })),
+            resolve(msg("Retry. If it keeps failing, copy the diagnostics.")),
           ];
   }
 }
@@ -135,21 +155,22 @@ const HOP_ORDER = {
   direct: ["device", "server"],
 } as const;
 
-function hopLabel(hop: ConnectionHop, host: string): string {
+function hopLabel(hop: ConnectionHop, host: string, resolve: MFunctionType): string {
   switch (hop) {
     case "device":
-      return msg("This device");
+      return resolve(msg("This device"));
     case "relay":
-      return "Relay";
+      return resolve(msg("Relay", { $context: "connection hop" }));
     case "tunnel":
-      return `${host} connection`;
+      return resolve(msg("{host} connection", { host }));
     case "server":
-      return `Supaterm on ${host}`;
+      return resolve(msg("Supaterm on {host}", { host }));
   }
 }
 
 export function presentConnectionDiagnosis(
   input: ConnectionDiagnosisInput,
+  resolve: MFunctionType = mFallback,
 ): ConnectionDiagnosis | null {
   const located = locate(input);
   if (located === null) return null;
@@ -162,7 +183,7 @@ export function presentConnectionDiagnosis(
   const unlocatedRelayFailure = relayPath && located.hop === "tunnel" && located.cause === null;
   const hops = order.map((hop, index): ConnectionDiagnosisHop => ({
     hop,
-    label: hopLabel(hop, host),
+    label: hopLabel(hop, host, resolve),
     result:
       index === failedIndex
         ? "failed"
@@ -189,9 +210,9 @@ export function presentConnectionDiagnosis(
   add("Error", failure?.detail);
   add("Trace ID", failure?.traceId);
   return {
-    headline: headline(host, located, failure),
+    headline: headline(host, located, failure, resolve),
     hops,
-    steps: steps(host, located, failure),
+    steps: steps(host, located, failure, resolve),
     facts,
   };
 }

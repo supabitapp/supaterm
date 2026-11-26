@@ -22,6 +22,8 @@ import {
   type VoiceTranscriber,
 } from "../voice-input/transcription.ts";
 import { createEnvironmentRpcCommand } from "./runtime.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export function createTranscriptionEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
@@ -57,10 +59,13 @@ const providerName = (provider: ServerProvider) => provider.displayName ?? provi
  * automatic pick while it's unset: when that can't, nothing stands in for it, because that
  * would charge another account.
  */
-export function resolveVoiceTranscriptionSource(config: {
-  readonly providers: ReadonlyArray<ServerProvider>;
-  readonly settings: { readonly transcriptionProviderInstanceId: ProviderInstanceId | null };
-}): VoiceTranscriptionSource {
+export function resolveVoiceTranscriptionSource(
+  config: {
+    readonly providers: ReadonlyArray<ServerProvider>;
+    readonly settings: { readonly transcriptionProviderInstanceId: ProviderInstanceId | null };
+  },
+  resolve: MFunctionType = mFallback,
+): VoiceTranscriptionSource {
   const chosen = config.settings.transcriptionProviderInstanceId;
   const provider =
     chosen === null
@@ -72,22 +77,26 @@ export function resolveVoiceTranscriptionSource(config: {
       provider: null,
       message:
         chosen === null
-          ? "No provider on this environment can transcribe voice input."
-          : "The voice transcription provider isn't set up on this environment.",
+          ? resolve(msg("No provider on this environment can transcribe voice input."))
+          : resolve(msg("The voice transcription provider isn't set up on this environment.")),
     };
   }
   if (!provider.enabled) {
     return {
       status: "unavailable",
       provider,
-      message: `${providerName(provider)} is turned off on this environment.`,
+      message: resolve(
+        msg("{provider} is turned off on this environment.", { provider: providerName(provider) }),
+      ),
     };
   }
   if (!provider.transcription) {
     return {
       status: "unavailable",
       provider,
-      message: `${providerName(provider)} can't transcribe voice input.`,
+      message: resolve(
+        msg("{provider} can't transcribe voice input.", { provider: providerName(provider) }),
+      ),
     };
   }
   if (provider.transcription.status !== "ready") {

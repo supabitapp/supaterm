@@ -129,22 +129,24 @@ export function mapRemoteEnvironmentError(
 const relayTunnelFailures = {
   "host-offline": {
     reason: "endpoint-unavailable",
-    detail: "The environment is offline. Make sure Supaterm is running on that computer.",
+    ...translatableDetail(
+      msg("The environment is offline. Make sure Supaterm is running on that computer."),
+    ),
     hop: "tunnel",
   },
   "relay-busy": {
     reason: "remote-unavailable",
-    detail: "The relay is busy right now.",
+    ...translatableDetail(msg("The relay is busy right now.")),
     hop: "relay",
   },
   "relay-timeout": {
     reason: "timeout",
-    detail: "The relay did not respond in time.",
+    ...translatableDetail(msg("The relay did not respond in time.")),
     hop: "relay",
   },
   "relay-unreachable": {
     reason: "network",
-    detail: "The relay could not be reached.",
+    ...translatableDetail(msg("The relay could not be reached.")),
     hop: "relay",
   },
 } satisfies Record<RelayTunnelFailure, Pick<ConnectionTransientError, "reason" | "detail" | "hop">>;

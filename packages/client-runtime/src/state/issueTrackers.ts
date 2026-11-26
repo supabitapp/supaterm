@@ -18,7 +18,8 @@ import {
 } from "./runtime.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import * as Persistence from "../platform/persistence.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 /**
  * Standalone issue trackers (Linear, Jira) per environment: which are connected, as whom, which
@@ -78,6 +79,17 @@ function issueTrackerBindingIsFor(
   return binding.tracker === tracker.tracker && binding.accountId === tracker.accountId;
 }
 
+// Tracker packages name their credential and scope in English, so a sentence is translated only
+// when it matches a known tracker's whole sentence; any other tracker keeps the English one.
+function knownTrackerSentence(
+  english: string,
+  candidates: ReadonlyArray<string>,
+  resolve: MFunctionType,
+): string {
+  const known = candidates.find((candidate) => mFallback(candidate) === english);
+  return known === undefined ? english : resolve(known);
+}
+
 /**
  * The line under a tracker's name. A connected tracker lists nothing until a project is linked
  * to one of its scopes, so the line says how many are, and what to do when none is.
@@ -85,18 +97,36 @@ function issueTrackerBindingIsFor(
 export function issueTrackerSummary(
   tracker: IssueTrackerConnection,
   bindings: IssueTrackerConnectionList["bindings"],
+  resolve: MFunctionType = mFallback,
 ): string {
   if (!tracker.connected)
-    return `Not connected. Add a ${tracker.credential.label.toLowerCase()} to list its issues.`;
-  if (tracker.account === null) return tracker.detail ?? msg("The saved credential was rejected.");
+    return knownTrackerSentence(
+      `Not connected. Add a ${tracker.credential.label.toLowerCase()} to list its issues.`,
+      [msg("Not connected. Add a personal api key to list its issues.")],
+      resolve,
+    );
+  if (tracker.account === null)
+    return tracker.detail ?? resolve(msg("The saved credential was rejected."));
   const linked = Object.values(bindings).filter((binding) =>
     issueTrackerBindingIsFor(binding, tracker),
   ).length;
-  const projects =
-    linked === 0
-      ? `no projects linked yet. Pick a ${tracker.scopeNoun} for a project to list its issues.`
-      : `${linked} ${linked === 1 ? "project" : "projects"} linked`;
-  return `Connected as ${tracker.account} · ${projects}`;
+  return linked === 0
+    ? knownTrackerSentence(
+        `Connected as ${tracker.account} · no projects linked yet. Pick a ${tracker.scopeNoun} for a project to list its issues.`,
+        [
+          msg(
+            "Connected as {account} · no projects linked yet. Pick a team for a project to list its issues.",
+            { account: tracker.account },
+          ),
+        ],
+        resolve,
+      )
+    : resolve(
+        msg(
+          "{count, plural, one {Connected as {account} · {count} project linked} other {Connected as {account} · {count} projects linked}}",
+          { account: tracker.account, count: linked },
+        ),
+      );
 }
 
 type TrackerAccount = Pick<IssueTrackerConnection, "tracker" | "accountId">;

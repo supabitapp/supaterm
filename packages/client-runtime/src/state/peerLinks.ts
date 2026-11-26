@@ -22,6 +22,8 @@ import {
   createEnvironmentRpcQueryAtomFamily,
   followStreamInEnvironment,
 } from "./runtime.ts";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 /** The environment a client reads through, and the linked environment's thread it reads. */
 export interface LinkedThreadViewTarget {
@@ -199,18 +201,26 @@ export function peerLinkHealth(link: PeerLinkSummary, now: DateTime.Utc): PeerLi
 }
 
 /** How a link's health reads in settings. */
-export function peerLinkHealthText(health: PeerLinkHealth): string {
+export function peerLinkHealthText(
+  health: PeerLinkHealth,
+  resolve: MFunctionType = mFallback,
+): string {
   switch (health.kind) {
     case "expired":
-      return "Expired. Link it again.";
+      return resolve(msg("Expired. Link it again."));
     case "unreachable":
-      return health.detail ?? "Not answering right now.";
+      return health.detail ?? resolve(msg("Not answering right now."));
     case "failing":
       return health.detail;
     case "reachable":
       return health.expiresInDays === null
-        ? "Reachable"
-        : `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}. Link it again to renew.`;
+        ? resolve(msg("Reachable", { $context: "linked environment status" }))
+        : resolve(
+            msg(
+              "{days, plural, one {Expires in {days} day. Link it again to renew.} other {Expires in {days} days. Link it again to renew.}}",
+              { days: health.expiresInDays },
+            ),
+          );
   }
 }
 

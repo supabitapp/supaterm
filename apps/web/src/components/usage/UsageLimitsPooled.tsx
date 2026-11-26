@@ -187,10 +187,12 @@ function SegmentPopover({
             {resetsIn ? ` · ${resetsIn.replace("resets in ", "in ")}` : ""}
           </Row>
         ) : null}
-        {timeLeft !== null ? <Row label={gt("Even pace")}>{timeLeft}% left by now</Row> : null}
+        {timeLeft !== null ? (
+          <Row label={gt("Even pace")}>{gt("{timeLeft}% left by now", { timeLeft })}</Row>
+        ) : null}
         {reset && reset.restoresPercent > 0 ? (
           <Row label={gt("Restores", { $context: "a reset credit restores part of the pool" })}>
-            +{reset.restoresPercent}% of pool
+            {gt("+{percent}% of pool", { percent: reset.restoresPercent })}
           </Row>
         ) : null}
       </div>
@@ -333,6 +335,24 @@ function SegmentTriggers({
   const [segmentRef, paceMark] = usePaceMark(timeLeft);
   const resetsIn = formatResetsIn(window, now, m);
   const credits = account.limits.resetCredits?.availableCount ?? 0;
+  const gt = useGT();
+  const segmentLabel = [
+    gt("{name}: {remaining}% left", {
+      name:
+        account.displayName ?? (account.email ? accountInitials(account.email) : account.driver),
+      remaining,
+    }),
+    resetsIn,
+    timeLeft === null ? null : gt("{timeLeft}% of the window left", { timeLeft }),
+    credits
+      ? gt(
+          "{count, plural, one {{count} reset credit banked} other {{count} reset credits banked}}",
+          { count: credits },
+        )
+      : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
   return (
     <>
       <PopoverTrigger
@@ -344,7 +364,7 @@ function SegmentTriggers({
             ref={segmentRef}
             type="button"
             style={{ gridColumn: index, gridRow: 1, ...paceMark?.gappedTrack }}
-            aria-label={`${account.displayName ?? (account.email ? accountInitials(account.email) : account.driver)}: ${remaining}% left${resetsIn ? `, ${resetsIn}` : ""}${timeLeft === null ? "" : `, ${timeLeft}% of the window left`}${credits ? `, ${credits} reset ${credits === 1 ? "credit" : "credits"} banked` : ""}`}
+            aria-label={segmentLabel}
             className="relative h-5 min-w-0 cursor-pointer rounded-md bg-muted text-start outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[popup-open]:ring-1 data-[popup-open]:ring-inset data-[popup-open]:ring-border @2xl/pool:h-8"
           />
         }
@@ -467,7 +487,10 @@ function LegendRow({
               {credits}
             </span>
             <span className="sr-only">
-              {credits} reset {credits === 1 ? "credit" : "credits"} banked
+              {gt(
+                "{count, plural, one {{count} reset credit banked} other {{count} reset credits banked}}",
+                { count: credits },
+              )}
             </span>
           </>
         ) : null}

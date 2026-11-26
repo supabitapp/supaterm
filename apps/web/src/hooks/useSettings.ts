@@ -518,7 +518,7 @@ function useUpdateSettingsTarget(environmentId: EnvironmentId | null) {
             error:
               error instanceof Error
                 ? error.message
-                : "The save failed. Try reconnecting and saving again.",
+                : m(msg("The save failed. Try reconnecting and saving again.")),
           }),
         ),
       });

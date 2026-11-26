@@ -317,6 +317,7 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
     source: ContextMenuSource,
   ) => void;
 }) {
+  const gt = useGT();
   const { draftIds, shownDraftIds, routeDraftComposer, paneDraftIds } = props.drafts;
   const draftThreadsByThreadKey = useComposerDraftStore((store) => store.draftThreadsByThreadKey);
   const draftsByThreadKey = useComposerDraftStore(
@@ -345,7 +346,9 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
             weight="normal"
             data-testid="sidebar-drafts-shelf-toggle"
           >
-            {props.drafts.expanded ? "Drafts" : `Drafts (${draftIds.length})`}
+            {props.drafts.expanded
+              ? gt("Drafts")
+              : gt("Drafts ({count})", { count: draftIds.length })}
           </CollapsibleSectionHeader>
         </li>
         {drafts.map(({ composer, draftId, session }) => {

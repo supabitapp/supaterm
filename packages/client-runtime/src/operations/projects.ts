@@ -34,7 +34,8 @@ import {
 import type { EnvironmentProject } from "../state/models.ts";
 import { sourceControlClients } from "../sourceControlClients.ts";
 import type { SourceControlDefinition } from "../sourceControlClients.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type AddProjectRemoteSource = SourceControlProviderKind | "url";
 
@@ -183,6 +184,7 @@ const UNAVAILABLE: AddProjectRemoteSourceReadinessEntry = {
 
 export function buildAddProjectRemoteSourceReadiness(
   discovery: SourceControlDiscoveryResult | null,
+  resolve: MFunctionType = mFallback,
 ): AddProjectRemoteSourceReadiness {
   const providerByKind = new Map(
     (discovery?.sourceControlProviders ?? []).map((provider) => [provider.kind, provider]),
@@ -197,7 +199,12 @@ export function buildAddProjectRemoteSourceReadiness(
         ready: false,
         hint:
           Option.getOrNull(provider.auth.detail) ??
-          `${provider.label} is not authenticated. Open Source Control settings for setup guidance.`,
+          resolve(
+            msg(
+              "{provider} is not authenticated. Open Source Control settings for setup guidance.",
+              { provider: provider.label },
+            ),
+          ),
       };
     }
     return READY;

@@ -69,6 +69,7 @@ import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { useSidebarThreadShell, useThreadShell } from "../../state/entities";
 import { useNowSecond } from "../../hooks/useNowSecond";
+import type { MessageResolver } from "../../i18n/messages";
 import { useDeadlinePassed } from "../../hooks/useDeadline";
 import { environmentPresentations } from "../../state/presentation";
 import { vcsBranchRevalidation, vcsEnvironment } from "../../state/vcs";
@@ -129,7 +130,7 @@ import { useThreadHasUnsentDraft } from "../../composerDraftStore";
 import { isImeComposing } from "~/lib/imeComposition";
 import { ThreadDetailsIssueRows } from "../chat/ThreadDetailsIssueRows";
 import { IssueGlyph, issueStatePresentation } from "../issue/issuePresentation";
-import { T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 
 // The fields thread rows show. Provider status pushes refresh `checkedAt`,
 // status and auth on every provider; leaving those out keeps each
@@ -223,15 +224,24 @@ function SidebarThreadWorkTime(props: { thread: SidebarThreadSummary }) {
     <div className="flex min-w-0 items-center gap-2">
       <TimerIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
       <div className="min-w-0 truncate text-foreground/75">
-        Total working time:{" "}
-        <span className="tabular-nums">{formatWorkingDurationLabel(totalMs)}</span>
+        <T>
+          Total working time:{" "}
+          <span className="tabular-nums">
+            <Var>{formatWorkingDurationLabel(totalMs)}</Var>
+          </span>
+        </T>
       </div>
     </div>
   );
 }
 
-function terminalProcessLabel(count: number): string {
-  return `${count} terminal ${count === 1 ? "process" : "processes"} running`;
+function terminalProcessLabel(count: number, resolve: MessageResolver): string {
+  return resolve(
+    msg(
+      "{count, plural, one {{count} terminal process running} other {{count} terminal processes running}}",
+      { count },
+    ),
+  );
 }
 
 function SidebarProviderStack(props: {
@@ -315,6 +325,7 @@ function SidebarThreadTooltip({
   terminalProcessCount: number;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const driverKind = providerEntry?.driverKind ?? null;
   const models = providerEntry?.models ?? [];
   const effortLabel = formatModelSelectionEffort(thread.modelSelection, models);
@@ -399,7 +410,11 @@ function SidebarThreadTooltip({
         {effortLabel ? (
           <div className="flex min-w-0 items-center gap-2">
             <BrainIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 truncate text-foreground/75">Thinking: {effortLabel}</div>
+            <div className="min-w-0 truncate text-foreground/75">
+              <T>
+                Thinking: <Var>{effortLabel}</Var>
+              </T>
+            </div>
           </div>
         ) : null}
         {speedToggle ? (
@@ -415,7 +430,9 @@ function SidebarThreadTooltip({
           <div className="flex min-w-0 items-center gap-2">
             <ArrowRightLeftIcon className="size-3 shrink-0 text-muted-foreground" />
             <div className="min-w-0 truncate text-foreground/75">
-              Handed off from {previousProviderNames.join(", ")}
+              <T>
+                Handed off from <Var>{previousProviderNames.join(", ")}</Var>
+              </T>
             </div>
           </div>
         ) : null}
@@ -426,7 +443,7 @@ function SidebarThreadTooltip({
               className={cn("size-3 shrink-0", terminalStatus.colorClass)}
             />
             <div className="min-w-0 truncate text-foreground/75">
-              {terminalProcessLabel(terminalProcessCount)}
+              {terminalProcessLabel(terminalProcessCount, messages)}
             </div>
           </div>
         ) : null}
@@ -513,6 +530,7 @@ export function SidebarDraftDiscardButton(props: {
   onClick: (event: ReactMouseEvent) => void;
   children: ReactNode;
 }) {
+  const gt = useGT();
   return (
     <span className="group/draft-action relative inline-flex size-4 shrink-0 items-center justify-center">
       <span className="inline-flex items-center justify-center group-any-hover/sidebar-row:invisible group-has-[:focus-visible]/draft-action:invisible">
@@ -523,7 +541,7 @@ export function SidebarDraftDiscardButton(props: {
           render={
             <button
               type="button"
-              aria-label="Discard draft"
+              aria-label={gt("Discard draft")}
               onClick={props.onClick}
               onPointerDown={(event) => event.stopPropagation()}
               className="pointer-events-none absolute inset-0 inline-flex cursor-pointer items-center justify-center rounded-sm text-muted-foreground opacity-0 hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-any-hover/sidebar-row:pointer-events-auto group-any-hover/sidebar-row:opacity-100"
@@ -532,7 +550,9 @@ export function SidebarDraftDiscardButton(props: {
         >
           <XIcon aria-hidden className="size-3" />
         </TooltipTrigger>
-        <TooltipPopup side="top">Discard draft</TooltipPopup>
+        <TooltipPopup side="top">
+          <T>Discard draft</T>
+        </TooltipPopup>
       </Tooltip>
     </span>
   );
@@ -554,19 +574,19 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
   "mark-done": (
     <>
       <CircleCheckIcon aria-hidden className="size-3" />
-      Mark as Done
+      <T>Mark as Done</T>
     </>
   ),
   reopen: (
     <>
       <UndoIcon aria-hidden className="size-3" />
-      Reopen
+      <T>Reopen</T>
     </>
   ),
   wake: (
     <>
       <AlarmClockIcon aria-hidden className="size-3" />
-      Wake
+      <T>Wake</T>
     </>
   ),
 };
@@ -809,7 +829,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   });
   const topStatus =
     topStatusKind === "connecting"
-      ? { label: "Connecting", icon: null, className: "text-secondary-label" }
+      ? {
+          label: gt("Connecting", { $context: "thread status: environment reconnecting" }),
+          icon: null,
+          className: "text-secondary-label",
+        }
       : topStatusKind === "working"
         ? {
             label:
@@ -859,7 +883,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       }
                     : topStatusKind === "ready"
                       ? {
-                          label: "Ready",
+                          label: gt("Ready", { $context: "thread status" }),
                           icon: "done" as const,
                           className: "text-success-foreground",
                         }
@@ -1369,7 +1393,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 >
                   {!environmentConnected ? (
                     <span role="status" className="text-xs">
-                      Connecting
+                      <T context="thread status: environment reconnecting">Connecting</T>
                     </span>
                   ) : variantAction === "unsnooze" && props.snoozeWakeLabelText !== null ? (
                     <span className="text-xs text-info-foreground tabular-nums">
@@ -1383,16 +1407,20 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         render={
                           <button
                             type="button"
-                            aria-label="Dismiss Woke notification"
+                            aria-label={gt("Dismiss Woke notification")}
                             onClick={handleAcknowledgeWokeClick}
                             className="inline-flex cursor-pointer items-center gap-1 rounded-sm text-xs font-medium text-warning-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                           >
                             <ClockSnoozeIcon aria-hidden className="size-3" />
-                            <span role="status">Woke</span>
+                            <span role="status">
+                              <T context="thread status: woke from snooze">Woke</T>
+                            </span>
                           </button>
                         }
                       />
-                      <TooltipPopup side="top">Dismiss Woke notification</TooltipPopup>
+                      <TooltipPopup side="top">
+                        <T>Dismiss Woke notification</T>
+                      </TooltipPopup>
                     </Tooltip>
                   ) : (
                     <span className="text-xs">
@@ -1414,7 +1442,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         {snoozedMarkDoneSupported ? (
                           <SidebarParkedActionButton
                             action="mark-done"
-                            label="Mark thread as Done"
+                            label={gt("Mark thread as Done")}
                             shortcut={props.doneShortcut}
                             onClick={handleMarkDoneClick}
                             onSweepStart={handleSweepPointerDown}
@@ -1434,7 +1462,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     ) : (
                       <SidebarParkedActionButton
                         action="reopen"
-                        label="Reopen thread"
+                        label={gt("Reopen thread")}
                         shortcut={props.doneShortcut}
                         onClick={handleReopenClick}
                         onSweepStart={handleSweepPointerDown}
@@ -1573,7 +1601,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         render={
                           <button
                             type="button"
-                            aria-label="Dismiss Woke notification"
+                            aria-label={gt("Dismiss Woke notification")}
                             onClick={handleAcknowledgeWokeClick}
                             onPointerDown={(event) => event.stopPropagation()}
                             className="inline-flex shrink-0 cursor-pointer items-center rounded-sm text-warning outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -1582,7 +1610,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       >
                         <ClockSnoozeIcon aria-hidden className="size-3.5" />
                       </TooltipTrigger>
-                      <TooltipPopup side="top">Dismiss Woke notification</TooltipPopup>
+                      <TooltipPopup side="top">
+                        <T>Dismiss Woke notification</T>
+                      </TooltipPopup>
                     </Tooltip>
                   ) : null}
                   {props.pinningSupported && !isPendingCreation ? (
@@ -1607,7 +1637,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         render={
                           <button
                             type="button"
-                            aria-label="Mark thread as Done"
+                            aria-label={gt("Mark thread as Done")}
                             onClick={handleMarkDoneClick}
                             onPointerDown={handleMarkDonePointerDown}
                             className="inline-flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded-sm text-muted-foreground/65 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -1615,9 +1645,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         }
                       >
                         <CheckIcon aria-hidden className="size-3.5" />
-                        Done
+                        <T context="verb, marks the thread as done">Done</T>
                       </TooltipTrigger>
-                      <TooltipPopup shortcut={props.doneShortcut}>Mark thread as Done</TooltipPopup>
+                      <TooltipPopup shortcut={props.doneShortcut}>
+                        <T>Mark thread as Done</T>
+                      </TooltipPopup>
                     </Tooltip>
                   ) : null}
                 </span>

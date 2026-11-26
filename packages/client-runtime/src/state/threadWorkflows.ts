@@ -15,7 +15,8 @@ import {
   type ThreadStructureRuntime,
   threadRuntimeIsUnsettled,
 } from "./models.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 type Projection = ThreadStructure;
 type Run = Projection["runs"][number];
@@ -88,16 +89,19 @@ export function resolveLatestMergeBackRun(projection: Projection): Run | null {
   return hasNewerActiveRun ? null : latestProviderFinishedRun;
 }
 
-export function sideChatBringBackBlockedReason(input: {
-  readonly canOperate: boolean;
-  readonly parentRuntime: ThreadStructureRuntime | null | undefined;
-  readonly mergeRun: Run | null;
-}) {
-  if (!input.canOperate) return "This connection cannot change threads.";
+export function sideChatBringBackBlockedReason(
+  input: {
+    readonly canOperate: boolean;
+    readonly parentRuntime: ThreadStructureRuntime | null | undefined;
+    readonly mergeRun: Run | null;
+  },
+  resolve: MFunctionType = mFallback,
+) {
+  if (!input.canOperate) return resolve(msg("This connection cannot change threads."));
   // A pending merge-back would fail the main thread's queued message, so the server refuses it.
   if (threadRuntimeIsUnsettled(input.parentRuntime))
-    return "Available when the main thread is idle.";
-  return input.mergeRun === null ? "Available after a finished reply." : null;
+    return resolve(msg("Available when the main thread is idle."));
+  return input.mergeRun === null ? resolve(msg("Available after a finished reply.")) : null;
 }
 
 function resolveThreadProviderSession(projection: Projection): ProviderSession | null {

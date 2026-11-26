@@ -647,6 +647,7 @@ export function readResponseSubagents(
           }),
         )
         ?.title.trim() ||
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- subagent title stored in the reply record sent to the agent
       "Agent",
   }));
 }

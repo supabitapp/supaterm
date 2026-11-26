@@ -31,7 +31,7 @@ import {
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages, Var } from "gt-react";
 
 /** Moves this app and every connected machine to `channel`. */
 export function UpdateTrackSwitchDialog({
@@ -42,22 +42,32 @@ export function UpdateTrackSwitchDialog({
   readonly onClose: () => void;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   // npm dist-tags match the desktop channel names.
   const release = useAtomValue(npmReleaseAtom(channel));
   if (AsyncResult.isSuccess(release) && release.value !== null) {
     return <SwitchPlan release={{ channel, ...release.value }} onClose={onClose} />;
   }
-  const label = channelSwitchLabel(channel);
+  const label = channelSwitchLabel(channel, messages);
   return (
     <AlertDialog open onOpenChange={(open) => !open && onClose()}>
       <AlertDialogPopup>
         <AlertDialogHeader>
-          <AlertDialogTitle>Switch to {label}</AlertDialogTitle>
+          <AlertDialogTitle>
+            <T>
+              Switch to <Var>{label}</Var>
+            </T>
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {AsyncResult.isFailure(release)
               ? npmReleaseFailureMessage(release.cause)
               : AsyncResult.isSuccess(release)
-                ? `Could not find the latest ${label} release in this environment's npm registry.`
+                ? gt(
+                    "Could not find the latest {label} release in this environment's npm registry.",
+                    {
+                      label,
+                    },
+                  )
                 : gt("Checking releases…")}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -79,6 +89,7 @@ function SwitchPlan({
   readonly onClose: () => void;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const updateState = useDesktopUpdateState();
   const { environments } = useEnvironments();
   const crossesLocal = desktopUpdateChannelOf(APP_VERSION) !== release.channel;
@@ -88,7 +99,7 @@ function SwitchPlan({
   const switchesLocal = crossesLocal && !updatesOff;
   const [checking, setChecking] = useState(false);
   const everything = useUpdateEverything(switchesLocal ? release.version : null, release);
-  const label = channelSwitchLabel(release.channel);
+  const label = channelSwitchLabel(release.channel, messages);
   const idle = nothingToMove({
     label,
     channel: release.channel,
@@ -108,6 +119,7 @@ function SwitchPlan({
     })),
     window.desktopBridge?.getLocalEnvironmentBootstraps().length ?? 0,
     !isLocalEnvironmentDisabled(),
+    messages,
   );
 
   const run = async () => {
@@ -194,7 +206,7 @@ function SwitchPlan({
       busy={checking}
       disabledReason={
         switchesLocal && localBlocked !== null
-          ? `This app cannot switch: ${localBlocked}.`
+          ? gt("This app cannot switch: {reason}.", { reason: localBlocked })
           : idle.disabledReason
       }
       onConfirm={() => void run()}

@@ -44,7 +44,7 @@ import {
   type UsagePriceTarget,
   type UsagePriceWriteResult,
 } from "./usagePriceTargets";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
 
 const priceTargetsAtom = Atom.make((get): readonly UsagePriceTarget[] =>
   [...get(environmentPresentations.presentationsAtom)].map(([environmentId, environment]) => {
@@ -482,7 +482,9 @@ export function UsagePriceOverrides({
                             {row.removed ? null : alias !== "" ? (
                               <TableCell colSpan={4} className="whitespace-normal">
                                 <span className="break-all text-muted-foreground">
-                                  Counted as {alias}
+                                  <T>
+                                    Counted as <Var>{alias}</Var>
+                                  </T>
                                 </span>
                               </TableCell>
                             ) : (
@@ -584,8 +586,9 @@ export function UsagePriceOverrides({
                   ))}
               </datalist>
               <p className="text-xs text-muted-foreground">
-                Blank cache rates use the input price. Enter 0 for free tokens. A mapped model’s
-                usage counts as the model it maps to.
+                {gt(
+                  "Blank cache rates use the input price. Enter 0 for free tokens. A mapped model’s usage counts as the model it maps to.",
+                )}
                 {selected.length > 1
                   ? gt(" Mixed cells keep each environment’s rate until you edit them.")
                   : ""}

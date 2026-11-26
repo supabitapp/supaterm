@@ -19,6 +19,7 @@ import { openCommandPalette } from "../../commandPaletteBus";
 import { isElectron } from "../../env";
 import { useStartTriage, useTriageEnvironmentId } from "../../hooks/useStartTriage";
 import { useShortcutLabel } from "../../hooks/useShortcutLabel";
+import { m } from "../../i18n/messages";
 import { formatShortcutLabel } from "../../keybindings";
 import { cn } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
@@ -50,7 +51,7 @@ import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUp
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { sourceControlIcon } from "~/sourceControlPresentation";
 import { observeResize } from "~/lib/observeResize";
-import { T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const GitHubIcon = sourceControlIcon(sourceControlClients.get("github"));
 
@@ -128,6 +129,7 @@ export function MainSidebarToggle({ className }: { className?: string }) {
 }
 
 function SidebarSearchButton() {
+  const gt = useGT();
   const { isMobile, setOpenMobile } = useSidebar();
   const shortcut = useShortcutLabel("commandPalette.toggle");
   return (
@@ -135,7 +137,7 @@ function SidebarSearchButton() {
       <TooltipTrigger
         render={
           <Button
-            aria-label="Search"
+            aria-label={gt("Search")}
             onClick={() => {
               // The palette is a dialog over the whole app, so the sidebar sheet closes first.
               if (isMobile) setOpenMobile(false);
@@ -149,19 +151,21 @@ function SidebarSearchButton() {
         <SearchIcon />
       </TooltipTrigger>
       <TooltipPopup side="bottom" shortcut={shortcut}>
-        Search
+        <T>Search</T>
       </TooltipPopup>
     </Tooltip>
   );
 }
 
 const HISTORY_BUTTONS = {
-  back: { label: "Go back", command: "navigation.back", Icon: ArrowLeftIcon },
-  forward: { label: "Go forward", command: "navigation.forward", Icon: ArrowRightIcon },
+  back: { label: msg("Go back"), command: "navigation.back", Icon: ArrowLeftIcon },
+  forward: { label: msg("Go forward"), command: "navigation.forward", Icon: ArrowRightIcon },
 } as const;
 
 function HistoryNavigationButton({ direction }: { direction: HistoryDirection }) {
-  const { label, command, Icon } = HISTORY_BUTTONS[direction];
+  const messages = useMessages();
+  const { command, Icon } = HISTORY_BUTTONS[direction];
+  const label = messages(HISTORY_BUTTONS[direction].label);
   const enabled = useCanNavigateHistory(direction);
   const shortcut = useShortcutLabel(command);
   return (
@@ -223,10 +227,11 @@ function SidebarUtilityItem({
 function openExternalLink(url: string) {
   void readLocalApi()
     ?.shell.openExternal(url)
-    .catch(() => toastManager.add({ type: "error", title: "Unable to open the link" }));
+    .catch(() => toastManager.add({ type: "error", title: m(msg("Unable to open the link")) }));
 }
 
 function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => void }) {
+  const gt = useGT();
   const startTriage = useStartTriage();
   const triageEnvironmentId = useTriageEnvironmentId();
 
@@ -235,11 +240,15 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
       <Menu>
         <Tooltip>
           <TooltipTrigger
-            render={<MenuTrigger render={<SidebarMenuButton aria-label="Help" size="icon" />} />}
+            render={
+              <MenuTrigger render={<SidebarMenuButton aria-label={gt("Help")} size="icon" />} />
+            }
           >
             <CircleHelpIcon />
           </TooltipTrigger>
-          <TooltipPopup side="top">Help</TooltipPopup>
+          <TooltipPopup side="top">
+            <T>Help</T>
+          </TooltipPopup>
         </Tooltip>
         <MenuPopup side="top" align="end">
           <MenuItem
@@ -251,7 +260,7 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
             }}
           >
             <MessageSquareTextIcon />
-            Send feedback
+            <T>Send feedback</T>
           </MenuItem>
           <MenuItem onClick={() => openExternalLink(WEBSITE_URL)}>
             <GlobeIcon />
@@ -259,7 +268,7 @@ function SidebarHelpItem({ closeMobileSidebar }: { closeMobileSidebar: () => voi
           </MenuItem>
           <MenuItem onClick={() => openExternalLink(SOURCE_CODE_URL)}>
             <GitHubIcon />
-            View source on GitHub
+            <T>View source on GitHub</T>
           </MenuItem>
         </MenuPopup>
       </Menu>

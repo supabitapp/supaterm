@@ -1,6 +1,7 @@
 import type { ScopedProjectRef } from "@supaterm/contracts";
 import { Link, useLocation, useParams, useRouter } from "@tanstack/react-router";
 import { CalendarClockIcon, SquarePenIcon } from "@supaterm/icons";
+import { T } from "gt-react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
 import { openCommandPalette } from "../../commandPaletteBus";
@@ -69,7 +70,9 @@ export function SidebarPrimaryNavigation({
           shortcut={newThreadShortcut}
         >
           <SquarePenIcon />
-          <span>New thread</span>
+          <span>
+            <T>New thread</T>
+          </span>
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>
@@ -80,7 +83,9 @@ export function SidebarPrimaryNavigation({
           shortcut={automationsShortcut}
         >
           <CalendarClockIcon />
-          <span>Automations</span>
+          <span>
+            <T>Automations</T>
+          </span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>

@@ -29,7 +29,7 @@ import {
 import { createCommandPermissions } from "./commandPermissions.ts";
 import { vcsCommandScheduler } from "./vcsCommandScheduler.ts";
 import { invalidateCachedVcsRefs } from "./vcsRefInvalidation.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
 
 export const VcsActionOperation = Schema.Literals([
   "refresh_status",
@@ -363,7 +363,7 @@ export function applyVcsActionProgressEvent(
         actionId: event.actionId,
         action: event.action,
         operation: "run_change_request",
-        currentLabel: `Running ${event.hookName}...`,
+        currentLabel: mFallback(msg("Running {hook}...", { hook: event.hookName })),
         hookName: event.hookName,
         hookStartedAtMs: now,
         lastOutputLine: null,

@@ -49,7 +49,7 @@ import { primaryServerWelcomeAtom } from "../state/server";
 import { getDesktopSnapShotBridge } from "../lib/desktopSnapShot";
 import { isChunkLoadError } from "../lib/chunkReloadGuard";
 import { shouldResumeSnapShotSetupOnStartup } from "../lib/snapShotSetupResume";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const CodexMicroCoordinator = lazy(() =>
   import("../components/codexMicro/CodexMicroCoordinator").then((module) => ({
@@ -108,8 +108,10 @@ function RootRouteNotFoundView() {
           <T>Page not found</T>
         </h1>
         <p className="text-sm text-muted-foreground">
-          This link doesn't point to a page in {APP_DISPLAY_NAME}. Go home to choose a project or
-          start a thread.
+          <T>
+            This link doesn't point to a page in <Var>{APP_DISPLAY_NAME}</Var>. Go home to choose a
+            project or start a thread.
+          </T>
         </p>
         <Button render={<Link to="/" replace />}>
           <T>Go home</T>
@@ -227,7 +229,7 @@ function RootRouteBranch() {
 function RootRouteErrorView({ error }: ErrorComponentProps) {
   const gt = useGT();
   const router = useRouter();
-  const message = errorMessage(error);
+  const message = errorMessage(error) ?? gt("An unexpected router error occurred.");
   // Router pathname rather than window.location: desktop uses hash history, where the window path is always "/".
   const pathname = useLocation({ select: (location) => location.pathname });
   const report = errorReport(error, pathname);
@@ -276,7 +278,7 @@ function CopyErrorButton({ report }: { report: string }) {
   );
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown): string | null {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
@@ -285,7 +287,7 @@ function errorMessage(error: unknown): string {
     return error;
   }
 
-  return "An unexpected router error occurred.";
+  return null;
 }
 
 function errorDetails(error: unknown): string {
@@ -300,6 +302,7 @@ function errorDetails(error: unknown): string {
   try {
     return JSON.stringify(error, null, 2);
   } catch {
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- error report pasted into bug reports
     return "No additional error details are available.";
   }
 }

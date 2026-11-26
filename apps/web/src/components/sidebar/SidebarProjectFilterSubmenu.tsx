@@ -1,5 +1,6 @@
 import type { ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import { CheckIcon, FolderIcon, SettingsIcon } from "@supaterm/icons";
+import { T, useGT } from "gt-react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { shortcutLabelForCommand } from "~/keybindings";
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
@@ -43,11 +44,14 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
     readonly keybindings: ResolvedKeybindingsConfig;
   };
 }) {
+  const gt = useGT();
   // With several projects chosen no radio is checked; each chosen row shows its own check.
   const value = values.length === 0 ? "all" : values.length === 1 ? values[0]! : "";
   const summary =
     values.length > 1
-      ? `${values.length} projects`
+      ? gt("{count, plural, one {{count} project} other {{count} projects}}", {
+          count: values.length,
+        })
       : (items.find((item) => item.value === value) ?? items[0])?.label;
   const toggleWithShift = (
     event: (MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>) & {
@@ -79,7 +83,9 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
   return (
     <MenuSub open={open} onOpenChange={onOpenChange}>
       <MenuSubTrigger>
-        <span className="flex-1">Project</span>
+        <span className="flex-1">
+          <T>Project</T>
+        </span>
         <span dir="auto" className="ml-6 max-w-32 truncate text-muted-foreground">
           {summary}
         </span>
@@ -157,7 +163,9 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                           variant="ghost-muted"
                           tabIndex={-1}
                           aria-hidden="true"
-                          title={`Project settings for ${project.displayName}`}
+                          title={gt("Project settings for {project}", {
+                            project: project.displayName,
+                          })}
                           onPointerDown={(event) => event.stopPropagation()}
                           onClick={(event) => onProjectSettings(event, project)}
                         >
