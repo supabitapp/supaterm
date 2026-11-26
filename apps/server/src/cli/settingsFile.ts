@@ -1,7 +1,9 @@
+import { ServerSettingsError, type ServerSettings } from "@supaterm/contracts";
 import { writeFileStringAtomically } from "@supaterm/shared/atomicWrite";
 import { fromJsonStringPretty, fromLenientJson } from "@supaterm/shared/schemaJson";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Equal from "effect/Equal";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
@@ -9,6 +11,7 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
 import { resolveBaseDir } from "../os-jank.ts";
+import { readInstalledPolicy } from "./policy.ts";
 
 const SparseSettings = Schema.Record(Schema.String, Schema.Unknown);
 const decodeSettingsJson = Schema.decodeUnknownEffect(fromLenientJson(SparseSettings));
@@ -117,4 +120,50 @@ export const editSettingsObject = Effect.fnUntraced(function* (
     settingsPath,
     attempts: CONCURRENT_WRITE_ATTEMPTS,
   });
+});
+
+type InstalledPolicy = Effect.Success<typeof readInstalledPolicy>;
+
+/** The value the server applies for the top-level `setting` once `write` is in the settings file. */
+export const managedSettingValue = (
+  policy: InstalledPolicy,
+  setting: keyof ServerSettings,
+  write: (settings: ServerSettings) => ServerSettings,
+) => {
+  const requested = write(policy.settings.defaults);
+  const effective = policy.settings.applyLocks(requested)[setting];
+  return {
+    effective,
+    managedBy: Equal.equals(requested[setting], effective)
+      ? undefined
+      : policy.document?.organization,
+  };
+};
+
+/**
+ * How the installed policy treats `write` to the top-level `setting`. A locked value the
+ * write already matches needs no write, so the user's own stored value outlives the policy; any
+ * other value for a locked setting is refused. `Capped` is a value the policy lowers on read.
+ */
+export const vetManagedSettingWrite = Effect.fnUntraced(function* (
+  settingsPath: string,
+  setting: keyof ServerSettings,
+  write: (settings: ServerSettings) => ServerSettings,
+) {
+  const policy = yield* readInstalledPolicy;
+  const organization = policy.document?.organization;
+  if (organization === undefined) return { _tag: "Unmanaged" } as const;
+  const { effective, managedBy } = managedSettingValue(policy, setting, write);
+  if (policy.settings.lockedPaths.includes(setting)) {
+    if (managedBy === undefined) return { _tag: "Locked", organization } as const;
+    return yield* new ServerSettingsError({
+      settingsPath,
+      operation: "write-managed-setting",
+      managedSetting: setting,
+      managedBy,
+    });
+  }
+  return managedBy === undefined
+    ? ({ _tag: "Unmanaged" } as const)
+    : ({ _tag: "Capped", organization: managedBy, effective } as const);
 });

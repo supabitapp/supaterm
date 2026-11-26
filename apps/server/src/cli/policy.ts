@@ -68,20 +68,20 @@ export const describeRunningServer = Effect.fn("cli.policy.describeRunningServer
   return `${server} loaded ${what}. Restart Supaterm to apply the installed policy.`;
 });
 
+/** The policy installed on this machine, read without the server's startup log line. */
+export const readInstalledPolicy = ManagedPolicy.ManagedPolicy.pipe(
+  Effect.provide(
+    ManagedPolicy.layer.pipe(Layer.provide(Layer.succeed(References.MinimumLogLevel, "Warn"))),
+  ),
+);
+
 const showCommand = Command.make("show", projectLocationFlags).pipe(
   Command.withDescription(
     "Show the policy installed on this machine, and whether the running server loaded it.",
   ),
   Command.withHandler(
     Effect.fn("cli.policy.show")(function* (flags) {
-      // The command prints the policy itself; the server's startup log line would repeat it.
-      const policy = yield* ManagedPolicy.ManagedPolicy.pipe(
-        Effect.provide(
-          ManagedPolicy.layer.pipe(
-            Layer.provide(Layer.succeed(References.MinimumLogLevel, "Warn")),
-          ),
-        ),
-      );
+      const policy = yield* readInstalledPolicy;
       const installed = yield* ManagedPolicy.loadedPolicy(policy);
       yield* Console.log(describePolicy(policy, installed));
       const config = yield* resolveCliAuthConfig(flags, yield* GlobalFlag.LogLevel);

@@ -12,6 +12,7 @@ import * as Layer from "effect/Layer";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as TestConsole from "effect/testing/TestConsole";
 import { Command } from "effect/cli";
+import type { ManagedPolicyDocument } from "@supaterm/contracts";
 
 import { cli } from "../binCli.ts";
 
@@ -24,6 +25,17 @@ const runCli = (args: ReadonlyArray<string>) =>
       Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer, TestConsole.layer),
     ),
   );
+
+// Source builds read the policy from this variable, so a test never needs the machine's.
+const withPolicy = (directory: string, policy: ManagedPolicyDocument) => {
+  const policyPath = NodePath.join(directory, "policy.json");
+  NodeFS.writeFileSync(policyPath, JSON.stringify(policy));
+  return Effect.provide(
+    ConfigProvider.layer(
+      ConfigProvider.fromEnv({ env: { SUPATERM_DEV_MANAGED_POLICY_PATH: policyPath } }),
+    ),
+  );
+};
 
 const captureStdout = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.gen(function* () {
@@ -125,6 +137,72 @@ describe("supaterm settings", () => {
       expect(JSON.parse(NodeFS.readFileSync(settingsPathFor(baseDir), "utf8"))).toEqual({
         publicRelayEnabled: false,
       });
+    }),
+  );
+
+  it.effect("accepts a locked setting's own value without writing and refuses any other", () =>
+    Effect.gen(function* () {
+      const baseDir = makeBaseDir();
+      const settingsPath = settingsPathFor(baseDir);
+      NodeFS.mkdirSync(NodePath.dirname(settingsPath), { recursive: true });
+      NodeFS.writeFileSync(settingsPath, JSON.stringify({ publicRelayUrl: "wss://old.example" }));
+      const underPolicy = withPolicy(baseDir, {
+        schemaVersion: 1,
+        organization: "Example Corp",
+        settings: { publicRelayUrl: { value: "wss://relay.example.com", locked: true } },
+      });
+      const set = (value: string) =>
+        runCli(["settings", "set", "publicRelayUrl", value, "--base-dir", baseDir]).pipe(
+          underPolicy,
+        );
+
+      const unchanged = yield* captureStdout(set("wss://relay.example.com"));
+      assert.include(unchanged, "managed by Example Corp");
+      // The user's own value stays, ready for when the policy is removed.
+      expect(JSON.parse(NodeFS.readFileSync(settingsPath, "utf8"))).toEqual({
+        publicRelayUrl: "wss://old.example",
+      });
+
+      const refused = yield* Effect.flip(set("wss://other.example"));
+      assert.include(
+        String(refused),
+        "publicRelayUrl is managed by Example Corp and cannot be changed.",
+      );
+      expect(JSON.parse(NodeFS.readFileSync(settingsPath, "utf8"))).toEqual({
+        publicRelayUrl: "wss://old.example",
+      });
+
+      const effective = yield* captureStdout(
+        runCli(["settings", "get", "publicRelayUrl", "--base-dir", baseDir]).pipe(underPolicy),
+      );
+      assert.equal(effective, '"wss://relay.example.com"');
+    }),
+  );
+
+  it.effect("saves a runtime mode above the policy's ceiling and says what applies", () =>
+    Effect.gen(function* () {
+      const baseDir = makeBaseDir();
+      const output = yield* captureStdout(
+        runCli([
+          "settings",
+          "set",
+          "defaultRuntimeMode",
+          "full-access",
+          "--base-dir",
+          baseDir,
+        ]).pipe(
+          withPolicy(baseDir, {
+            schemaVersion: 1,
+            organization: "Example Corp",
+            limits: { maxRuntimeMode: "auto-accept-edits" },
+          }),
+        ),
+      );
+
+      expect(JSON.parse(NodeFS.readFileSync(settingsPathFor(baseDir), "utf8"))).toEqual({
+        defaultRuntimeMode: "full-access",
+      });
+      assert.include(output, 'Example Corp\'s policy lowers it to "auto-accept-edits"');
     }),
   );
 
