@@ -206,7 +206,9 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                 navigation.navigate("SettingsEnvironmentNew", { routeFor: environmentId })
               }
             />
-            {outdated ? (
+            {outdated && updatesDenial ? (
+              <Text className="px-2 text-sm text-foreground-muted">{updatesDenial}</Text>
+            ) : outdated ? (
               <OutdatedServerUpdateSection
                 environmentId={environmentId}
                 label={environment.environmentLabel}
