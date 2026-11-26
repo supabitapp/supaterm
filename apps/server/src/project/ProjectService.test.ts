@@ -88,7 +88,6 @@ const layerTest = layerTestFor(layerMetadata);
 
 const layerProjectServiceDependencies = Layer.mergeAll(
   RuntimeLayer.layerEventSink,
-  RuntimeLayer.layerCommandReceiptStoreProvided,
   ProjectStore.layer,
   ProjectionStore.layer,
   IdAllocator.layer,
@@ -731,11 +730,24 @@ it.layer(layerTest)("ProjectService", (it) => {
     }),
   );
 
-  it.effect("rolls back the event and receipt when the row write fails", () =>
+  it.effect("rolls back the event, receipt and actions when the row write fails", () =>
     Effect.gen(function* () {
       const service = yield* ProjectService.ProjectService;
+      const settings = yield* ServerSettings.ServerSettingsService;
       const sql = yield* SqlClient.SqlClient;
       const projectId = ProjectId.make("project:atomic");
+      const setup = {
+        id: "setup",
+        name: "Setup",
+        command: "printf original",
+        icon: "play" as const,
+        runOnWorktreeCreate: true,
+      };
+      const savedScripts = Effect.map(
+        settings.getSettings,
+        ({ projectSettingsOverrides }) =>
+          projectSettingsOverrides[projectId]?.defaultProjectScripts,
+      );
       yield* sql`
         CREATE TRIGGER fail_project_row BEFORE INSERT ON projection_projects
         WHEN NEW.project_id = 'project:atomic'
@@ -746,6 +758,7 @@ it.layer(layerTest)("ProjectService", (it) => {
         projectId,
         title: "Atomic",
         workspaceRoot: "/work/atomic",
+        scripts: [setup],
       };
       const failure = yield* service.create(input).pipe(Effect.flip);
       assert.equal(failure._tag, "ProjectOperationError");
@@ -756,8 +769,26 @@ it.layer(layerTest)("ProjectService", (it) => {
           (SELECT COUNT(*) FROM projection_projects WHERE project_id = ${projectId}) AS count
       `;
       assert.equal(leftovers[0]?.count, 0);
+      assert.isUndefined(yield* savedScripts);
       yield* sql`DROP TRIGGER fail_project_row`;
       assert.equal((yield* service.create(input)).id, projectId);
+      assert.deepEqual(yield* savedScripts, [setup]);
+
+      yield* sql`
+        CREATE TRIGGER fail_project_update BEFORE UPDATE ON projection_projects
+        WHEN NEW.project_id = 'project:atomic'
+        BEGIN SELECT RAISE(ABORT, 'injected row failure'); END
+      `;
+      yield* service
+        .update({
+          commandId: CommandId.make("command:atomic:update"),
+          projectId,
+          scripts: [{ ...setup, command: "printf edited" }],
+        })
+        .pipe(Effect.flip);
+      yield* sql`DROP TRIGGER fail_project_update`;
+      assert.deepEqual(Option.getOrThrow(yield* service.getById(projectId)).scripts, [setup]);
+      assert.deepEqual(yield* savedScripts, [setup]);
     }),
   );
 });

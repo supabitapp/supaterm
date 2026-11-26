@@ -105,13 +105,7 @@ const layerProjectionMaintenanceProvided = ProjectionMaintenance.layer.pipe(
 
 export const layerProjectService = ProjectService.layer.pipe(
   Layer.provide(
-    Layer.mergeAll(
-      ProjectStore.layer,
-      ProjectionStore.layer,
-      layerEventSink,
-      layerCommandReceiptStoreProvided,
-      IdAllocator.layer,
-    ),
+    Layer.mergeAll(ProjectStore.layer, ProjectionStore.layer, layerEventSink, IdAllocator.layer),
   ),
 );
 

@@ -26,7 +26,6 @@ import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 
 import { withCommandMetrics } from "../observability/Metrics.ts";
-import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
@@ -198,7 +197,6 @@ export const make = Effect.gen(function* () {
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const threadProjections = yield* ProjectionStore.ProjectionStoreV2;
   const eventSink = yield* EventSink.EventSinkV2;
-  const commandReceipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
   const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
@@ -393,8 +391,6 @@ export const make = Effect.gen(function* () {
     refine?: (
       current: ProjectStore.ProjectRow | undefined,
     ) => Effect.Effect<ProjectCommand | null, ProjectServiceError>,
-    // Runs under the same lock before a new command commits, so writes keep the commit order and
-    // a failed write commits nothing for the retry to skip. Replays of a recorded command skip it.
     beforeCommit?: Effect.Effect<void, ProjectOperationError>,
   ) {
     const { projectId } = initial;
@@ -429,18 +425,13 @@ export const make = Effect.gen(function* () {
         now,
       });
       if (Result.isSuccess(planned)) {
-        if (beforeCommit !== undefined) {
-          const recorded = yield* commandReceipts
-            .getProjectByCommandId(command.commandId)
-            .pipe(Effect.mapError(dispatchError));
-          if (Option.isNone(recorded)) yield* beforeCommit;
-        }
         const { receipt } = yield* eventSink.commitProjectCommand({
           commandId: command.commandId,
           projectId,
           commandType: command.type,
           acceptedAt: now,
           event: planned.success,
+          beforeCommit,
         });
         return { receipt };
       }
