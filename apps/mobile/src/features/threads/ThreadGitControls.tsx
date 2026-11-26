@@ -30,6 +30,7 @@ import { compactMenuBranchLabel } from "./ThreadGitControls.logic";
 import { useGT, msg } from "gt-react-native";
 
 import { m, type MessageResolver } from "../../i18n/messages";
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
 
 function compactMenuStatus(gitStatus: VcsStatusResult | null): string {
   if (!gitStatus) {
@@ -147,16 +148,33 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
   })();
 
   const openExistingPr = async () => {
-    const { shortLabel, singular } = sourceControlClients.get(
-      gitStatus?.sourceControlProvider?.kind,
-    ).changeRequest;
+    const term = changeRequestTermKind(
+      sourceControlClients.get(gitStatus?.sourceControlProvider?.kind).changeRequest,
+    );
     const prUrl = gitStatus?.pr?.state === "open" ? gitStatus.pr.url : null;
     if (!prUrl) {
-      Dialog.alert(`No open ${shortLabel}`, `This branch does not have an open ${singular}.`);
+      Dialog.alert(
+        gt("{term, select, mr {No open MR} cr {No open change request} other {No open PR}}", {
+          term,
+        }),
+        gt(
+          "{term, select, mr {This branch does not have an open merge request.} cr {This branch does not have an open change request.} other {This branch does not have an open pull request.}}",
+          { term },
+        ),
+      );
       return;
     }
     if (!(await openPullRequest(prUrl))) {
-      Dialog.alert(`Unable to open ${shortLabel}`, `The ${singular} could not be opened.`);
+      Dialog.alert(
+        gt(
+          "{term, select, mr {Unable to open MR} cr {Unable to open change request} other {Unable to open PR}}",
+          { term },
+        ),
+        gt(
+          "{term, select, mr {The merge request could not be opened.} cr {The change request could not be opened.} other {The pull request could not be opened.}}",
+          { term },
+        ),
+      );
     }
   };
 

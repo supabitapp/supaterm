@@ -35,6 +35,8 @@ import {
 } from "../pull-requests/pullRequestStatus";
 import { useGT } from "gt-react-native";
 
+import { changeRequestTermKind } from "../../lib/changeRequestTerm";
+
 export function useLinkedPullRequestLines(
   thread: EnvironmentThreadShell | null,
   runtime: EnvironmentRuntimeState | null,
@@ -82,9 +84,10 @@ export const LinkedPullRequestRow = memo(function LinkedPullRequestRow(props: {
   const watching = open && link.watch !== undefined;
   const additions = snapshot?.additions ?? 0;
   const deletions = snapshot?.deletions ?? 0;
-  const { shortLabel, singular } = (
+  const { singular } = (
     sourceControlClients.findByChangeRequestUrl(link.url) ?? sourceControlClients.get(undefined)
   ).changeRequest;
+  const term = changeRequestTermKind({ singular });
   const metaLineHeight = useScaledTextRole("label").lineHeight * useWindowDimensions().fontScale;
   const row = (
     <Pressable
@@ -94,7 +97,16 @@ export const LinkedPullRequestRow = memo(function LinkedPullRequestRow(props: {
       onPress={() => {
         void props.openPullRequest(link.url).then((opened) => {
           if (!opened)
-            Dialog.alert(`Unable to open ${shortLabel}`, `The ${singular} could not be opened.`);
+            Dialog.alert(
+              gt(
+                "{term, select, mr {Unable to open MR} cr {Unable to open change request} other {Unable to open PR}}",
+                { term },
+              ),
+              gt(
+                "{term, select, mr {The merge request could not be opened.} cr {The change request could not be opened.} other {The pull request could not be opened.}}",
+                { term },
+              ),
+            );
         });
       }}
       style={{ paddingLeft: 16 + Math.min(depth, 3) * 16 }}
