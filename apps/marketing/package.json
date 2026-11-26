@@ -11,6 +11,7 @@
     "test": "vp test run"
   },
   "dependencies": {
+    "@astrojs/markdown-satteri": "0.4.2",
     "@supaterm/icons": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "astro": "^7.3.5",
