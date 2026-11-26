@@ -311,20 +311,28 @@ it("follows a link to another page and exposes a web link", async () => {
       { box: "0 0 612 792", rotate: 0, text: "BT /F1 24 Tf 30 700 Td (Target) Tj ET" },
     ]),
   );
+  const onOpenLink = vi.fn(
+    (_url: string, event: { readonly defaultPrevented: boolean }) => event.defaultPrevented,
+  );
   try {
     await using screen = await render(
       <div className="flex h-[300px] w-[320px]">
-        <PdfViewer src={url} title="Linked PDF" />
+        <PdfViewer src={url} title="Linked PDF" onOpenLink={onOpenLink} />
       </div>,
     );
     await expect.element(screen.getByText("1 / 2 pages")).toBeVisible();
     const region = screen.getByRole("region", { name: "Linked PDF" }).element();
+    // A real link keeps the browser's own actions: middle-click, Copy Link Address.
     const web = await vi.waitFor(() => {
       const link = region.querySelector<HTMLAnchorElement>('a[href="https://example.com/"]');
       expect(link).not.toBeNull();
       return link!;
     });
     expect(getComputedStyle(web).cursor).toBe("pointer");
+    web.click();
+    expect(onOpenLink).toHaveBeenCalledOnce();
+    expect(onOpenLink.mock.calls[0]?.[0]).toBe("https://example.com/");
+    expect(onOpenLink.mock.results[0]?.value).toBe(true);
     const internal = await vi.waitFor(() => {
       const link = region.querySelector<HTMLButtonElement>('button[aria-label="Page 2"]');
       expect(link).not.toBeNull();
