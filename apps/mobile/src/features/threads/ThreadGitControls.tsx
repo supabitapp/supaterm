@@ -29,6 +29,8 @@ import {
 import { compactMenuBranchLabel } from "./ThreadGitControls.logic";
 import { useGT, msg } from "gt-react-native";
 
+import { m, type MessageResolver } from "../../i18n/messages";
+
 function compactMenuStatus(gitStatus: VcsStatusResult | null): string {
   if (!gitStatus) {
     return msg("Checking status");
@@ -237,17 +239,20 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
   };
 }
 
-export function threadTerminalMenu(props: ThreadGitControlsProps): AppBarMenu | null {
+export function threadTerminalMenu(
+  props: ThreadGitControlsProps,
+  resolve: MessageResolver = m,
+): AppBarMenu | null {
   if (!props.canOpenTerminal) return null;
   return {
-    title: msg("Terminal"),
+    title: resolve(msg("Terminal")),
     icon: "terminal",
     separateBackground: false,
     items: [
       ...(props.projectScripts.length > 0
         ? props.projectScripts.map((script) => ({
             id: `script-${script.id}`,
-            title: projectScriptMenuLabel(script),
+            title: projectScriptMenuLabel(script, resolve),
             icon: projectScriptMenuIcon(script.icon),
             subtitle: script.command,
             disabled: !props.canOperateTerminal,
@@ -256,9 +261,9 @@ export function threadTerminalMenu(props: ThreadGitControlsProps): AppBarMenu | 
         : [
             {
               id: "script-none",
-              title: msg("No project scripts"),
+              title: resolve(msg("No project scripts")),
               icon: "play",
-              subtitle: msg("This project has no saved scripts yet"),
+              subtitle: resolve(msg("This project has no saved scripts yet")),
               disabled: true,
               onPress: () => {},
             },
@@ -268,10 +273,13 @@ export function threadTerminalMenu(props: ThreadGitControlsProps): AppBarMenu | 
         title: session.displayLabel,
         icon: "terminal",
         subtitle: [
-          getTerminalStatusLabel({
-            status: session.status,
-            hasRunningSubprocess: session.hasRunningSubprocess,
-          }),
+          getTerminalStatusLabel(
+            {
+              status: session.status,
+              hasRunningSubprocess: session.hasRunningSubprocess,
+            },
+            resolve,
+          ),
           basename(session.cwd),
         ]
           .filter(Boolean)
@@ -280,9 +288,9 @@ export function threadTerminalMenu(props: ThreadGitControlsProps): AppBarMenu | 
       })),
       {
         id: "terminal-new",
-        title: msg("Open new terminal"),
+        title: resolve(msg("Open new terminal")),
         icon: "plus",
-        subtitle: msg("Start another shell for this thread"),
+        subtitle: resolve(msg("Start another shell for this thread")),
         disabled: !props.canOperateTerminal,
         onPress: props.onOpenNewTerminal,
       },

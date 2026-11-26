@@ -89,6 +89,7 @@ import {
 } from "@supaterm/shared/toolOutput";
 import * as DateTime from "effect/DateTime";
 import { msg } from "gt-react-native";
+import { m, type MessageResolver } from "../i18n/messages";
 
 export type PendingApproval = ThreadPendingApproval;
 export type PendingUserInput = ThreadPendingUserInput;
@@ -287,18 +288,28 @@ function compactWorkEntryText(value: string): string {
   return truncate(value.replace(/\s+/gu, " "), WORK_LOG_LABEL_MAX_LENGTH);
 }
 
-export function workEntryRowLabel(entry: WorkLogPresentationEntry, expanded = false): string {
-  return workEntryRowDisplay(entry, expanded).text;
+export function workEntryRowLabel(
+  entry: WorkLogPresentationEntry,
+  expanded = false,
+  resolve: MessageResolver = m,
+): string {
+  return workEntryRowDisplay(entry, expanded, resolve).text;
 }
 
 /** `path` marks file labels, which the row cuts in the middle so the file name stays visible. */
 export function workEntryRowDisplay(
   entry: WorkLogPresentationEntry,
   expanded = false,
+  resolve: MessageResolver = m,
 ): { readonly text: string; readonly path?: true } {
   if (entry.itemType === "fork") return { text: entry.label };
   if (expanded && entry.itemType === "reasoning")
-    return { text: entry.toolLifecycleStatus === "inProgress" ? msg("Thinking") : msg("Thought") };
+    return {
+      text:
+        entry.toolLifecycleStatus === "inProgress"
+          ? resolve(msg("Thinking"))
+          : resolve(msg("Thought")),
+    };
   const presentation = resolveWorkEntryToolPresentation(entry);
   if (presentation) return { text: presentation.displayName };
   if (entry.command?.trim())
@@ -318,18 +329,22 @@ export function workEntryRowDisplay(
         ? (entry.toolData as Record<string, unknown>)
         : undefined;
     const searchLabel =
-      entry.itemType === "file_search" ? entry.label : formatSearchToolLabel(toolData);
+      entry.itemType === "file_search" ? entry.label : formatSearchToolLabel(toolData, resolve);
     if (searchLabel) return { text: searchLabel };
   }
   if (isToolRead) {
     const [firstPath] = entry.changedFiles ?? collectToolFilePaths(entry.toolData);
     if (firstPath) {
       return {
-        text: formatReadToolLabel(firstPath, Math.max(0, (entry.changedFiles?.length ?? 1) - 1)),
+        text: formatReadToolLabel(
+          firstPath,
+          Math.max(0, (entry.changedFiles?.length ?? 1) - 1),
+          resolve,
+        ),
         path: true,
       };
     }
-    if (!expanded) return { text: msg("Read file") };
+    if (!expanded) return { text: resolve(msg("Read file")) };
   }
   const textPreview =
     entry.command ??
@@ -339,7 +354,12 @@ export function workEntryRowDisplay(
   const changedFilesPreview = entry.changedFiles?.length
     ? entry.changedFiles.length === 1
       ? entry.changedFiles[0]!
-      : `${entry.changedFiles[0]!} +${entry.changedFiles.length - 1} more`
+      : resolve(
+          msg("{path} +{count} more", {
+            path: entry.changedFiles[0]!,
+            count: String(entry.changedFiles.length - 1),
+          }),
+        )
     : null;
   if (textPreview == null && changedFilesPreview !== null) {
     return { text: changedFilesPreview, path: true };
@@ -359,6 +379,7 @@ const projectedEntriesCache = new WeakMap<
   OrchestrationV2ProjectedTurnItem,
   {
     readonly attemptId: RunAttemptId | null;
+    readonly locale: string | undefined;
     readonly entries: ReadonlyArray<RawThreadFeedEntry>;
   }
 >();
@@ -608,66 +629,77 @@ function itemIcon(item: OrchestrationV2TurnItem): ThreadFeedActivity["icon"] {
   }
 }
 
-function itemToolPresentation(item: OrchestrationV2TurnItem): SupatermMcpToolPresentation | null {
+function itemToolPresentation(
+  item: OrchestrationV2TurnItem,
+  resolve: MessageResolver,
+): SupatermMcpToolPresentation | null {
   if (item.type !== "dynamic_tool") {
     return null;
   }
   return (
-    resolveSupatermMcpToolPresentation(item.toolName, item.input) ??
-    resolveSupatermMcpToolPresentation(item.title, item.input)
+    resolveSupatermMcpToolPresentation(item.toolName, item.input, resolve) ??
+    resolveSupatermMcpToolPresentation(item.title, item.input, resolve)
   );
 }
 
 function itemSummary(
   item: OrchestrationV2TurnItem,
-  toolPresentation: SupatermMcpToolPresentation | null = null,
+  toolPresentation: SupatermMcpToolPresentation | null,
+  resolve: MessageResolver,
 ): string {
   if (item.type === "notification") return item.summary;
   if (item.type === "system_notice") return item.message;
   if (item.type === "compaction") return contextCompactionLabel(item);
   const title =
     (item.type === "dynamic_tool"
-      ? dynamicToolTitle(item.toolName, item.input, item.title)
+      ? dynamicToolTitle(item.toolName, item.input, item.title, resolve)
       : undefined) ?? item.title?.trim();
-  if (item.type === "subagent") return formatSubagentDisplayTitle(title || "Subagent");
+  if (item.type === "subagent")
+    return formatSubagentDisplayTitle(title || resolve(msg("Subagent")));
   if (title) return toolPresentation?.displayName ?? capitalizePhrase(title);
   switch (item.type) {
     case "reasoning":
-      return msg("Thinking");
+      return resolve(msg("Thinking"));
     case "command_execution":
-      return "Command";
+      return resolve(msg("Command", { $context: "noun, a shell command the agent ran" }));
     case "file_change":
       return item.changes !== undefined && item.changes.length > 1
-        ? `Changed ${item.changes.length} files`
-        : `Changed ${item.fileName}`;
+        ? resolve(
+            msg("{count, plural, one {Changed {count} file} other {Changed {count} files}}", {
+              count: item.changes.length,
+            }),
+          )
+        : resolve(msg("Changed {fileName}", { fileName: item.fileName }));
     case "file_search":
-      return item.title?.trim() || formatSearchToolLabel(item) || msg("Searched files");
+      return (
+        item.title?.trim() || formatSearchToolLabel(item, resolve) || resolve(msg("Searched files"))
+      );
     case "web_search":
-      return msg("Searched the web");
+      return resolve(msg("Searched the web"));
     case "approval_request":
-      return msg("Approval requested");
+      return resolve(msg("Approval requested"));
     case "user_input_request":
-      return msg("Input requested");
+      return resolve(msg("Input requested"));
     case "checkpoint":
-      return msg("Checkpoint captured");
+      return resolve(msg("Checkpoint captured"));
     case "run_interrupt_request":
-      return msg("Interrupt requested");
+      return resolve(msg("Interrupt requested"));
     case "run_interrupt_result":
-      return msg("Run interrupted");
+      return resolve(msg("Run interrupted"));
     case "error":
       return item.failure.class === "usage_limit"
-        ? msg("Usage limit reached")
-        : msg("Provider error");
+        ? resolve(msg("Usage limit reached"))
+        : resolve(msg("Provider error"));
     case "handoff":
-      return msg("Context handed off");
+      return resolve(msg("Context handed off"));
     case "fork":
-      return msg("Thread forked");
+      return resolve(msg("Thread forked"));
     case "thread_created":
-      return msg("Thread created");
+      return resolve(msg("Thread created"));
     case "secret_request":
       return item.label;
     case "link_request":
-      return `Link ${linkRequestTargetName(item)}`;
+      return resolve(msg("Link {target}", { target: linkRequestTargetName(item) }));
     case "dynamic_tool": {
       const classified = classifyToolActivity({
         itemType: "dynamic_tool_call",
@@ -675,25 +707,29 @@ function itemSummary(
       });
       if (classified === "read") {
         const [path] = collectToolFilePaths({ input: item.input });
-        return formatReadToolLabel(path ?? "");
+        return formatReadToolLabel(path ?? "", 0, resolve);
       }
       if (classified === "search") {
-        return formatSearchToolLabel({ input: item.input }) ?? item.toolName ?? msg("Tool call");
+        return (
+          formatSearchToolLabel({ input: item.input }, resolve) ??
+          item.toolName ??
+          resolve(msg("Tool call"))
+        );
       }
-      return toolPresentation?.displayName ?? item.toolName ?? msg("Tool call");
+      return toolPresentation?.displayName ?? item.toolName ?? resolve(msg("Tool call"));
     }
     case "proposed_plan":
-      return msg("Proposed plan");
+      return resolve(msg("Proposed plan"));
     case "todo_list":
-      return msg("Plan updated");
+      return resolve(msg("Plan updated"));
     case "user_message":
-      return msg("User message");
+      return resolve(msg("User message"));
     case "assistant_message":
-      return msg("Assistant message");
+      return resolve(msg("Assistant message"));
   }
 }
 
-function itemPreview(item: OrchestrationV2TurnItem): string | null {
+function itemPreview(item: OrchestrationV2TurnItem, resolve: MessageResolver): string | null {
   switch (item.type) {
     case "reasoning":
       return item.text || null;
@@ -712,7 +748,11 @@ function itemPreview(item: OrchestrationV2TurnItem): string | null {
     case "checkpoint":
       return item.files.length === 1
         ? (item.files[0]?.path ?? null)
-        : `${item.files.length} changed files`;
+        : resolve(
+            msg("{count, plural, one {{count} changed file} other {{count} changed files}}", {
+              count: item.files.length,
+            }),
+          );
     case "run_interrupt_request":
     case "run_interrupt_result":
     case "system_notice":
@@ -737,7 +777,12 @@ function itemPreview(item: OrchestrationV2TurnItem): string | null {
     case "proposed_plan":
       return item.markdown || null;
     case "todo_list":
-      return `${item.steps.filter((step) => step.status === "completed").length}/${item.steps.length} completed`;
+      return resolve(
+        msg("{completed}/{total} completed", {
+          completed: item.steps.filter((step) => step.status === "completed").length,
+          total: item.steps.length,
+        }),
+      );
     case "user_message":
     case "assistant_message":
       return item.text || null;
@@ -749,6 +794,7 @@ function toWorkLogEntry(
   createdAt: string,
   summary: string,
   detail: string | null,
+  resolve: MessageResolver,
 ): WorkLogPresentationEntry {
   const title = item.title?.trim() || null;
   const common = {
@@ -773,7 +819,8 @@ function toWorkLogEntry(
         ...common,
         command: item.input,
         rawCommand: item.input,
-        toolTitle: title ?? "Command",
+        toolTitle:
+          title ?? resolve(msg("Command", { $context: "noun, a shell command the agent ran" })),
         toolData: item,
       };
     case "file_change":
@@ -782,21 +829,21 @@ function toWorkLogEntry(
         changedFiles: item.changes?.length
           ? item.changes.map((change) => change.path)
           : [item.fileName],
-        toolTitle: title ?? msg("File change"),
+        toolTitle: title ?? resolve(msg("File change")),
         toolData: item,
       };
     case "file_search":
       return {
         ...common,
         ...(item.pattern ? { detail: item.pattern } : {}),
-        toolTitle: title ?? msg("File search"),
+        toolTitle: title ?? resolve(msg("File search")),
         toolData: item,
       };
     case "web_search":
       return {
         ...common,
         ...(item.patterns?.length ? { detail: item.patterns.join(", ") } : {}),
-        toolTitle: title ?? msg("Web search"),
+        toolTitle: title ?? resolve(msg("Web search")),
         toolData: item,
       };
     case "checkpoint":
@@ -811,7 +858,8 @@ function toWorkLogEntry(
     case "dynamic_tool":
       return {
         ...common,
-        toolTitle: title ?? item.toolName ?? "Tool",
+        toolTitle:
+          title ?? item.toolName ?? resolve(msg("Tool", { $context: "noun, an agent tool call" })),
         toolData: { input: item.input, output: item.output },
       };
     default:
@@ -838,13 +886,14 @@ export function formatItemFullDetail(
 function toFeedActivity(
   row: OrchestrationV2ProjectedTurnItem,
   attemptId: RunAttemptId | null,
+  resolve: MessageResolver,
 ): ThreadFeedActivity {
   const item = row.item;
-  const toolPresentation = itemToolPresentation(item);
-  const summary = itemSummary(item, toolPresentation);
-  const detail = item.type === "notification" ? null : itemPreview(item);
+  const toolPresentation = itemToolPresentation(item, resolve);
+  const summary = itemSummary(item, toolPresentation, resolve);
+  const detail = item.type === "notification" ? null : itemPreview(item, resolve);
   const createdAt = DateTime.formatIso(item.startedAt ?? item.updatedAt);
-  const workEntry = toWorkLogEntry(item, createdAt, summary, detail);
+  const workEntry = toWorkLogEntry(item, createdAt, summary, detail, resolve);
   const readPaths =
     item.type === "dynamic_tool" && toolGroupAction(workEntry) === "read"
       ? collectToolFilePaths(item)
@@ -1163,6 +1212,7 @@ function deriveThreadFeedRunFolds(
   latestRun: ThreadFeedLatestRun | null,
   runlessWorkActive: boolean,
   feedFailedRunIds: ReadonlySet<RunId>,
+  resolve: MessageResolver,
 ): ReadonlyMap<string, ThreadFeedRunFold> {
   const terminalAssistantMessageIdByRun = new Map<RunId, string>();
   const retainedAnswerIds = finalAnswerIds(feed);
@@ -1299,16 +1349,16 @@ function deriveThreadFeedRunFolds(
               lastEntryEnd,
             ) ?? lastEntryEnd,
           );
-    const duration = elapsedMs === null ? null : formatDuration(elapsedMs);
+    const duration = elapsedMs === null ? null : formatDuration(elapsedMs, resolve);
     const interrupted =
       latestRunMatches && (latestRun.status === "interrupted" || latestRun.status === "cancelled");
     const label = interrupted
       ? duration
-        ? `You stopped after ${duration}`
-        : "You stopped this response"
+        ? resolve(msg("You stopped after {duration}", { duration }))
+        : resolve(msg("You stopped this response"))
       : duration
-        ? `Worked for ${duration}`
-        : "Worked";
+        ? resolve(msg("Worked for {duration}", { duration }))
+        : resolve(msg("Worked"));
     // The top row keeps the whole turn's time. Work after a steer folds under
     // its own row below that steer, keyed apart so each segment opens alone.
     const segments = [
@@ -1329,7 +1379,11 @@ function deriveThreadFeedRunFolds(
           runId: steerFoldRunId(runId, steer.id),
           entries,
           label:
-            segmentMs !== null ? `Continued for ${formatDuration(segmentMs)}` : msg("Continued"),
+            segmentMs !== null
+              ? resolve(
+                  msg("Continued for {duration}", { duration: formatDuration(segmentMs, resolve) }),
+                )
+              : resolve(msg("Continued")),
         };
       }),
     ];
@@ -1369,7 +1423,7 @@ function deriveThreadFeedRunFolds(
       runId: RunId.make(`deferred-work:${entry.id}`),
       createdAt: entry.createdAt,
       hiddenEntryIds: new Set([entry.id]),
-      label: msg("Earlier work"),
+      label: resolve(msg("Earlier work")),
       deferredWorkItemIds,
     });
   }
@@ -1413,6 +1467,7 @@ interface ThreadFeedPresentationBuild {
   readonly activeWorkStartedAt: string | null;
   readonly runlessWorkActive: boolean;
   readonly display: ThreadFeedDisplay;
+  readonly locale: string | undefined;
   readonly rows: ReadonlyArray<ThreadFeedEntry>;
   /** Feed entry `entry` is a user message whose rows start at `rowsLength`. */
   readonly restarts: ReadonlyArray<{ readonly entry: number; readonly rowsLength: number }>;
@@ -1492,9 +1547,11 @@ function presentationRestart(
   activeWorkStartedAt: string | null,
   runlessWorkActive: boolean,
   display: ThreadFeedDisplay,
+  locale: string | undefined,
 ): { readonly entry: number; readonly rowsLength: number; readonly index: number } | null {
   if (
     previous === null ||
+    previous.locale !== locale ||
     !latestRunsEqual(previous.latestRun, latestRun) ||
     previous.activeWorkStartedAt !== activeWorkStartedAt ||
     previous.runlessWorkActive !== runlessWorkActive ||
@@ -1672,6 +1729,8 @@ export function deriveThreadFeedPresentation(
   runlessWorkActive = false,
   cache?: ThreadFeedCache,
   display: ThreadFeedDisplay = DEFAULT_THREAD_FEED_DISPLAY,
+  resolve: MessageResolver = m,
+  locale?: string,
 ): ThreadFeedEntry[] {
   const previous = cache?.presentation ?? null;
   const restart = presentationRestart(
@@ -1683,6 +1742,7 @@ export function deriveThreadFeedPresentation(
     activeWorkStartedAt,
     runlessWorkActive,
     display,
+    locale,
   );
   const start = restart?.entry ?? 0;
   const result: ThreadFeedEntry[] =
@@ -1764,7 +1824,13 @@ export function deriveThreadFeedPresentation(
   }
   const foldsByAnchorId = zen
     ? new Map<string, ThreadFeedRunFold>()
-    : deriveThreadFeedRunFolds(sourceFeed, latestRun, isWorking && runlessWorkActive, failedRunIds);
+    : deriveThreadFeedRunFolds(
+        sourceFeed,
+        latestRun,
+        isWorking && runlessWorkActive,
+        failedRunIds,
+        resolve,
+      );
   const collapsedEntryIds = new Set<string>();
   for (const fold of foldsByAnchorId.values()) {
     if (!expandedRunIds.has(fold.runId)) {
@@ -1785,7 +1851,7 @@ export function deriveThreadFeedPresentation(
     activeWorkStartedAt !== null &&
     liveRunId !== null &&
     !compactionCommandRunIds.has(liveRunId)
-      ? liveRunFoldRow(liveRunId, activeWorkStartedAt)
+      ? liveRunFoldRow(liveRunId, activeWorkStartedAt, resolve)
       : null;
   let liveFoldPlaced = false;
   // Earlier turns can hold the run's own items (a subagent it continued), so wait for its prompt.
@@ -1949,6 +2015,7 @@ export function deriveThreadFeedPresentation(
       activeWorkStartedAt,
       runlessWorkActive,
       display,
+      locale,
       rows: result,
       restarts: cleanRestarts,
       firstEntryByRun,
@@ -2016,14 +2083,19 @@ function runningSubagentsAtRunTail(feed: ReadonlyArray<ThreadFeedEntry>, runId: 
 
 let cachedLiveRunFoldRow: Extract<ThreadFeedEntry, { readonly type: "run-fold" }> | null = null;
 
-function liveRunFoldRow(runId: RunId, startedAt: string) {
-  if (cachedLiveRunFoldRow?.runId !== runId || cachedLiveRunFoldRow.workingSince !== startedAt) {
+function liveRunFoldRow(runId: RunId, startedAt: string, resolve: MessageResolver) {
+  const label = resolve(msg("Working"));
+  if (
+    cachedLiveRunFoldRow?.runId !== runId ||
+    cachedLiveRunFoldRow.workingSince !== startedAt ||
+    cachedLiveRunFoldRow.label !== label
+  ) {
     cachedLiveRunFoldRow = {
       type: "run-fold",
       id: `run-fold:${runId}`,
       createdAt: startedAt,
       runId,
-      label: msg("Working"),
+      label,
       expanded: false,
       workingSince: startedAt,
     };
@@ -2336,6 +2408,7 @@ function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boo
 
 interface ThreadFeedBuild {
   readonly rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
+  readonly locale: string | undefined;
   readonly attempts: ReadonlyArray<OrchestrationV2RunAttempt> | undefined;
   readonly nodes: ReadonlyArray<OrchestrationV2ExecutionNode> | undefined;
   readonly foldedAnswerRunIdByMessageId: ReadonlyMap<string, RunId | null>;
@@ -2400,9 +2473,14 @@ export function buildThreadFeed(
     readonly attempts?: ReadonlyArray<OrchestrationV2RunAttempt>;
     readonly nodes?: ReadonlyArray<OrchestrationV2ExecutionNode>;
     readonly cache?: ThreadFeedCache;
+    readonly resolve?: MessageResolver;
+    /** Keys the caches; text comes from `resolve`. */
+    readonly locale?: string;
   },
 ): ThreadFeedEntry[] {
   const anchoredMessages = options?.anchoredMessages ?? [];
+  const resolve = options?.resolve ?? m;
+  const locale = options?.locale;
   const attemptByRootNodeId = new Map(
     (options?.attempts ?? []).map((attempt) => [attempt.rootNodeId, attempt] as const),
   );
@@ -2443,6 +2521,7 @@ export function buildThreadFeed(
   let restartIndex = -1;
   if (
     previous !== null &&
+    previous.locale === locale &&
     anchoredMessages.length === 0 &&
     previous.attempts === options?.attempts &&
     previous.nodes === options?.nodes &&
@@ -2500,7 +2579,7 @@ export function buildThreadFeed(
     }
     const attemptId = resolveAttemptId(item);
     const cached = projectedEntriesCache.get(row);
-    if (cached?.attemptId === attemptId) {
+    if (cached?.attemptId === attemptId && cached.locale === locale) {
       for (const entry of cached.entries) {
         entries.push(entry);
         entryRows.push(index);
@@ -2521,7 +2600,7 @@ export function buildThreadFeed(
         itemId: item.id,
         render,
       };
-      projectedEntriesCache.set(row, { attemptId, entries: [entry] });
+      projectedEntriesCache.set(row, { attemptId, locale, entries: [entry] });
       entries.push(entry);
       entryRows.push(index);
       continue;
@@ -2539,7 +2618,7 @@ export function buildThreadFeed(
         itemId: item.id,
         text: sentMessage,
       };
-      projectedEntriesCache.set(row, { attemptId, entries: [entry] });
+      projectedEntriesCache.set(row, { attemptId, locale, entries: [entry] });
       entries.push(entry);
       entryRows.push(index);
       continue;
@@ -2575,12 +2654,12 @@ export function buildThreadFeed(
           projectedItem: row,
         },
       };
-      projectedEntriesCache.set(row, { attemptId, entries: [entry] });
+      projectedEntriesCache.set(row, { attemptId, locale, entries: [entry] });
       entries.push(entry);
       entryRows.push(index);
       continue;
     }
-    const activity = toFeedActivity(row, attemptId);
+    const activity = toFeedActivity(row, attemptId, resolve);
     const rowEntries: RawThreadFeedEntry[] = [
       { type: "activity", id: activity.id, createdAt, runId: item.runId, activity },
     ];
@@ -2598,7 +2677,7 @@ export function buildThreadFeed(
         app,
       });
     }
-    projectedEntriesCache.set(row, { attemptId, entries: rowEntries });
+    projectedEntriesCache.set(row, { attemptId, locale, entries: rowEntries });
     for (const entry of rowEntries) {
       entries.push(entry);
       entryRows.push(index);
@@ -2661,6 +2740,7 @@ export function buildThreadFeed(
         ? null
         : {
             rows: visibleTurnItems,
+            locale,
             attempts: options?.attempts,
             nodes: options?.nodes,
             foldedAnswerRunIdByMessageId,

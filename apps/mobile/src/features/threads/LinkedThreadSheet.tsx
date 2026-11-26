@@ -40,7 +40,7 @@ import { useEnvironmentQuery } from "../../state/query";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
 import { ReadOnlyComposerBar } from "./ReadOnlyComposerBar";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useLocale, useMessages } from "gt-react-native";
 
 type LinkedThreadRouteParams = {
   readonly viaEnvironmentId: string;
@@ -263,6 +263,8 @@ const appIsActive = () => AppState.currentState === "active";
 
 export function LinkedThreadView(props: { readonly target: LinkedThreadTarget }) {
   const gt = useGT();
+  const m = useMessages();
+  const locale = useLocale();
   const { target } = props;
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -285,6 +287,8 @@ export function LinkedThreadView(props: { readonly target: LinkedThreadTarget })
           attempts: projection.attempts,
           nodes: projection.nodes,
           cache: feedCache,
+          resolve: m,
+          locale,
         });
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   // Follows new items only while the reader is already at the end.

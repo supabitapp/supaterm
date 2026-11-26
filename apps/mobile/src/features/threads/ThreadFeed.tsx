@@ -358,7 +358,7 @@ import {
   THREAD_FEED_MAINTAIN_SCROLL_AT_END_THRESHOLD,
 } from "./threadFeedEndFollow";
 import { useMessageTimeFormatter } from "./useMessageTimeFormatter";
-import { T, useMessages, useGT, msg } from "gt-react-native";
+import { T, useMessages, useGT, msg, useLocale } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 const WIDE_MARKDOWN_BLOCK_OPTIONS = {
@@ -2925,6 +2925,8 @@ function useThreadFeedPresentation(
   revealedMessageId: MessageId | null,
 ) {
   const [feedCache] = useState(createThreadFeedCache);
+  const messages = useMessages();
+  const locale = useLocale();
   return appendPendingThreadMessages(
     deriveThreadFeedPresentation(
       props.feed,
@@ -2939,6 +2941,8 @@ function useThreadFeedPresentation(
       props.runlessWorkActive ?? false,
       feedCache,
       { toolCallVisibility: props.toolCallVisibility ?? "showAll", revealedMessageId },
+      messages,
+      locale,
     ),
     props.feed,
     props.queuedMessages,

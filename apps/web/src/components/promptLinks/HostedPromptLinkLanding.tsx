@@ -16,7 +16,9 @@ import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
+
+import type { MessageResolver } from "../../i18n/messages";
 
 const OPENER_STORAGE_KEY = "supaterm:prompt-link-opener";
 const Opener = Schema.NullOr(Schema.Literals(["app", "browser"]));
@@ -29,15 +31,16 @@ interface LinkSummary {
 
 function summarize(
   appPath: string,
+  resolve: MessageResolver,
 ): { ok: true; value: LinkSummary } | { ok: false; error: string } {
   const url = new URL(appPath, window.location.origin);
   if (url.pathname !== "/new") {
-    const prompt = parseThreadLinkPrompt(url.search);
+    const prompt = parseThreadLinkPrompt(url.search, resolve);
     return prompt.ok
       ? { ok: true, value: { prompt: prompt.value, details: ["Opens one of your threads."] } }
       : prompt;
   }
-  const link = parseNewThreadLink(url.search);
+  const link = parseNewThreadLink(url.search, resolve);
   if (!link.ok) return link;
   if (link.value.kind === "pull-request") {
     const { owner, name, number } = link.value.pullRequest;
@@ -104,7 +107,8 @@ function HostedPromptLinkLanding({
   readonly onChoose: (choice: "app" | "browser", remember: boolean) => void;
 }) {
   const gt = useGT();
-  const summary = summarize(appPath);
+  const m = useMessages();
+  const summary = summarize(appPath, m);
   const [remember, setRemember] = useState(false);
   const deepLink = promptLinkDeepLink(appPath);
   const onPhone = /android|iphone|ipad/i.test(navigator.userAgent);

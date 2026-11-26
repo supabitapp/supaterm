@@ -89,7 +89,7 @@ import { useAssetUrl } from "../../state/assets";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
 import { startShimmerSteps } from "./work-shimmer-steps";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 const SHIMMER_WIDTH = 72;
 const SHIMMER_ICON_AND_GAP_WIDTH = 30;
@@ -772,6 +772,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
   },
 ) {
   const gt = useGT();
+  const messages = useMessages();
   const { row, expanded } = props;
   const openLinkedThread = useOpenLinkedThread();
   const motion = useNoticeMotion();
@@ -886,14 +887,14 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
   const canExpand = row.canExpand && notifiedSubagentThreadId === undefined && !opensMcpSignIn;
   const reasoning = row.projectedItem.item.type === "reasoning" ? row.projectedItem.item : null;
   const toolPresentation = resolveWorkEntryToolPresentation(row.workEntry);
-  const previewText = row.groupStandIn?.label ?? workEntryRowLabel(row.workEntry);
+  const previewText = row.groupStandIn?.label ?? workEntryRowLabel(row.workEntry, false, messages);
   const answerPreview = row.workEntry.questionAnswer
     ? getQuestionAnswerPreview(row.workEntry.questionAnswer)
     : null;
   const accessiblePreview = [previewText, answerPreview].filter(Boolean).join(": ");
   const display = row.groupStandIn
     ? { text: row.groupStandIn.label }
-    : workEntryRowDisplay(row.workEntry, expanded);
+    : workEntryRowDisplay(row.workEntry, expanded, messages);
   const displayText = display.text;
   const isSystemNotice = row.projectedItem.item.type === "system_notice";
   const isUsageLimit =

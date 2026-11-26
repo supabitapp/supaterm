@@ -46,6 +46,8 @@ import type { UsageChartMetric } from "./usageChartData";
 import { PROVIDER_LABEL, useProviderColors, useUsageMixColors } from "./usageProviders";
 import { msg, T, useMessages, useGT } from "gt-react-native";
 
+import type { MessageResolver } from "../../i18n/messages";
+
 type UsageView = UsageChartMetric | "limits";
 const VIEW_OPTIONS = [
   { value: "cost", label: "Cost" },
@@ -206,7 +208,7 @@ function UsageScreen(props: {
       ...environments.map((environment) => ({
         id: environment.environmentId,
         title: environment.label,
-        subtitle: usageEnvironmentStatus(environment, refreshingUsage),
+        subtitle: usageEnvironmentStatus(environment, refreshingUsage, m),
         selected:
           selectedEnvironmentIds === null || selectedEnvironmentIds.has(environment.environmentId),
         onPress: () => selectEnvironment(environment.environmentId),
@@ -753,28 +755,38 @@ function ModelsSection(props: {
   );
 }
 
-function usageEnvironmentStatus(environment: EnvironmentUsageStatus, refreshing: boolean): string {
+function usageEnvironmentStatus(
+  environment: EnvironmentUsageStatus,
+  refreshing: boolean,
+  resolve: MessageResolver,
+): string {
   if (
     environment.summary &&
     !isCompatibleUsageContractVersion(environment.summary.contractVersion, USAGE_CONTRACT_VERSION)
   ) {
-    return formatUsageContractMismatch(environment.label, {
-      direction:
-        environment.summary.contractVersion < USAGE_CONTRACT_VERSION
-          ? "serverBehind"
-          : "clientBehind",
-    });
+    return formatUsageContractMismatch(
+      environment.label,
+      {
+        direction:
+          environment.summary.contractVersion < USAGE_CONTRACT_VERSION
+            ? "serverBehind"
+            : "clientBehind",
+      },
+      resolve,
+    );
   }
   if (environment.error)
-    return environment.summary ? `${environment.error} Showing saved totals.` : environment.error;
+    return environment.summary
+      ? resolve(msg("{error} Showing saved totals.", { error: environment.error }))
+      : environment.error;
   if (!environment.isConnected)
     return environment.summary
-      ? msg("Disconnected · showing saved usage")
-      : msg("Waiting for connection…");
+      ? resolve(msg("Disconnected · showing saved usage"))
+      : resolve(msg("Waiting for connection…"));
   const progress = usageEnvironmentProgress(environment, refreshing);
-  if (progress.phase === "loading") return msg("Loading usage…");
-  if (progress.phase === "stale") return msg("Updating usage…");
+  if (progress.phase === "loading") return resolve(msg("Loading usage…"));
+  if (progress.phase === "stale") return resolve(msg("Updating usage…"));
   if (progress.phase === "partway")
     return updatingProvidersLabel(progress.providers, providerLabel);
-  return msg("Usage up to date");
+  return resolve(msg("Usage up to date"));
 }

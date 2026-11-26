@@ -79,6 +79,7 @@ import {
   workGroupIsExpanded,
 } from "./workGroupDisclosure";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export function timelineEntryRunId(entry: TimelineEntry): RunId | null {
   if (entry.kind === "message") {
@@ -101,17 +102,19 @@ function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
   );
 }
 
-function singleToolCallLabel(entry: WorkLogEntry): string {
+function singleToolCallLabel(entry: WorkLogEntry, resolve: MessageResolver): string {
   if (entry.itemType === "reasoning")
     return entry.detail?.trim().replace(/\s+/g, " ") || msg("Thought");
   const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed");
   if (toolPresentation) return toolPresentation.displayName;
   const item = entry.structuredPayload;
   const title =
-    item?.type === "dynamic_tool" ? dynamicToolTitle(item.toolName, item.input, item.title) : null;
+    item?.type === "dynamic_tool"
+      ? dynamicToolTitle(item.toolName, item.input, item.title, resolve)
+      : null;
   if (title) return title;
   if (entry.itemType === "web_search") return entry.toolTitle ?? msg("Web search");
-  return workEntryDisplayLabel(entry, undefined);
+  return workEntryDisplayLabel(entry, undefined, resolve);
 }
 
 function workEntryToolDataRecord(entry: WorkLogEntry): Record<string, unknown> | undefined {
@@ -139,8 +142,12 @@ function workEntryReadPaths(entry: WorkLogEntry, workspaceRoot: string | undefin
   );
 }
 
-export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string | undefined) {
-  return workEntryDisplay(entry, workspaceRoot).text;
+export function workEntryDisplayLabel(
+  entry: WorkLogEntry,
+  workspaceRoot: string | undefined,
+  resolve: MessageResolver = m,
+) {
+  return workEntryDisplay(entry, workspaceRoot, resolve).text;
 }
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -154,6 +161,7 @@ function pathLabel(text: string): { text: string; tail: number } {
 export function workEntryDisplay(
   entry: WorkLogEntry,
   workspaceRoot: string | undefined,
+  resolve: MessageResolver = m,
 ): { text: string; tail?: number } {
   if (entry.itemType === "system_notice") return { text: entry.label };
   if (entry.itemType === "reasoning" || entry.tone === "thinking") {
@@ -173,18 +181,20 @@ export function workEntryDisplay(
     const searchLabel =
       entry.itemType === "file_search"
         ? entry.label
-        : formatSearchToolLabel(workEntryToolDataRecord(entry));
+        : formatSearchToolLabel(workEntryToolDataRecord(entry), resolve);
     if (searchLabel) return { text: searchLabel };
   }
   const readPaths = action === "read" ? workEntryReadPaths(entry, workspaceRoot) : [];
   if (action === "read" && readPaths[0]) {
-    return pathLabel(formatReadToolLabel(readPaths[0], readPaths.length - 1));
+    return pathLabel(formatReadToolLabel(readPaths[0], readPaths.length - 1, resolve));
   }
   const providerRetry =
     entry.projectedItem?.item.type === "error" && entry.projectedItem.item.retry !== undefined;
   const item = entry.structuredPayload;
   const title =
-    item?.type === "dynamic_tool" ? dynamicToolTitle(item.toolName, item.input, item.title) : null;
+    item?.type === "dynamic_tool"
+      ? dynamicToolTitle(item.toolName, item.input, item.title, resolve)
+      : null;
   if (title) return { text: title };
   const compactDetail = entry.detail?.trim();
   const detailIsSearchOutput =
@@ -1645,32 +1655,35 @@ function deriveTimelineTurnFolds(
   });
 }
 
-export function deriveMessagesTimelineRows(input: {
-  timelineEntries: ReadonlyArray<TimelineEntry>;
-  pendingApprovalRequestIds?: ReadonlySet<RuntimeRequestId>;
-  latestRun?: TimelineLatestRun | null;
-  /** The usage-limited run whose failure row the recovery notice replaces. */
-  usageLimitRunId?: RunId | null;
-  runningRunId?: RunId | null;
-  expandedRunIds?: ReadonlySet<RunId>;
-  expandedAttemptIds?: ReadonlySet<RunAttemptId>;
-  workGroupDisclosures?: WorkGroupDisclosures;
-  isWorking: boolean;
-  /**
-   * The live work has no app run (a provider-native subagent thread), so
-   * runless entries are the current response instead of settled history.
-   */
-  runlessWorkActive?: boolean;
-  activeTurnStartedAt?: string | null;
-  turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
-  supportsConversationRollback: boolean;
-  threadStartCheckpointAvailable?: boolean;
-  availableRevertTurnCounts?: ReadonlySet<number> | undefined;
-  worktreeSetup?: WorktreeSetupSnapshot | null;
-  toolCallVisibility?: ToolCallVisibility;
-  revealedMessageId?: MessageId | null;
-  jumpMessageId?: MessageId | null;
-}): MessagesTimelineRow[] {
+export function deriveMessagesTimelineRows(
+  input: {
+    timelineEntries: ReadonlyArray<TimelineEntry>;
+    pendingApprovalRequestIds?: ReadonlySet<RuntimeRequestId>;
+    latestRun?: TimelineLatestRun | null;
+    /** The usage-limited run whose failure row the recovery notice replaces. */
+    usageLimitRunId?: RunId | null;
+    runningRunId?: RunId | null;
+    expandedRunIds?: ReadonlySet<RunId>;
+    expandedAttemptIds?: ReadonlySet<RunAttemptId>;
+    workGroupDisclosures?: WorkGroupDisclosures;
+    isWorking: boolean;
+    /**
+     * The live work has no app run (a provider-native subagent thread), so
+     * runless entries are the current response instead of settled history.
+     */
+    runlessWorkActive?: boolean;
+    activeTurnStartedAt?: string | null;
+    turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
+    supportsConversationRollback: boolean;
+    threadStartCheckpointAvailable?: boolean;
+    availableRevertTurnCounts?: ReadonlySet<number> | undefined;
+    worktreeSetup?: WorktreeSetupSnapshot | null;
+    toolCallVisibility?: ToolCallVisibility;
+    revealedMessageId?: MessageId | null;
+    jumpMessageId?: MessageId | null;
+  },
+  resolve: MessageResolver = m,
+): MessagesTimelineRow[] {
   const zen = input.toolCallVisibility === "zen";
   const { entries: timelineEntries, retainedReplyIds: retainedAssistantReplyIds } =
     timelineRowEntries(input);
@@ -2149,7 +2162,7 @@ export function deriveMessagesTimelineRows(input: {
             displayLabel:
               toolGroupAction(singleEntry) === "edit"
                 ? summarizeToolGroup(visibleGroupedEntries).summary
-                : singleToolCallLabel(singleEntry),
+                : singleToolCallLabel(singleEntry, resolve),
           });
         } else {
           const groupId = workGroupId(timelineEntry.id);
@@ -2772,12 +2785,13 @@ function isStreamingThoughtUpdate(previous: WorkLogEntry, next: WorkLogEntry): b
 export function deriveMessagesTimelineRowsWithState(
   input: MessagesTimelineRowsInput,
   previous: MessagesTimelineRowsProjection | null = null,
+  resolve: MessageResolver = m,
 ): MessagesTimelineRowsProjection {
   return {
     input,
     rows:
       (previous === null ? null : replaceStreamingMessageRows(input, previous)) ??
-      deriveMessagesTimelineRows(input),
+      deriveMessagesTimelineRows(input, resolve),
   };
 }
 

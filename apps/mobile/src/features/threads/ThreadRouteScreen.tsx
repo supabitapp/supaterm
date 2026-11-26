@@ -140,7 +140,7 @@ import {
 } from "./thread-inspector-preview";
 import { useThreadStatusAnnouncements } from "./useThreadStatusAnnouncements";
 import type { ThreadInspectorMode, ThreadInspectorTarget } from "./thread-inspector-navigation";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 interface ThreadInspectorSelection {
   readonly routeThreadIdentity: string | null;
@@ -380,6 +380,7 @@ function ThreadRouteContent(
   },
 ) {
   const gt = useGT();
+  const m = useMessages();
   const { layout, showInspector, toggleAuxiliaryPane } = useAdaptiveWorkspaceLayout();
   const { connectionState } = useRemoteConnectionStatus();
   const { onReconnectEnvironment } = useRemoteConnections();
@@ -682,10 +683,13 @@ function ThreadRouteContent(
     environmentId: selectedThread?.environmentId ?? null,
     threadId: selectedThread?.id ?? null,
   });
-  const terminalMenuSessions = buildTerminalMenuSessions({
-    knownSessions: knownTerminalSessions ?? [],
-    workspaceRoot: selectedThreadProject?.workspaceRoot ?? null,
-  });
+  const terminalMenuSessions = buildTerminalMenuSessions(
+    {
+      knownSessions: knownTerminalSessions ?? [],
+      workspaceRoot: selectedThreadProject?.workspaceRoot ?? null,
+    },
+    m,
+  );
   const handleReconnectEnvironment = () => {
     if (!environmentId) {
       return;
