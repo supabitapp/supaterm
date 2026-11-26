@@ -3037,6 +3037,87 @@ describe("CursorAdapterV2", () => {
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
+  it.live("keeps a command Cursor moves to the background and lets Supaterm stop it", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "cursor-backgrounded-" });
+      const backend = yield* fakeCursorBackend;
+      yield* scopedProcessEnv({
+        HOME: home,
+        USERPROFILE: home,
+        CURSOR_CONFIG_DIR: path.join(home, ".cursor"),
+      });
+      const runner = yield* CursorAgentSdk.makeCursorAgentSdkRunner(() => undefined).pipe(
+        Effect.provide(CursorSdk.layer),
+      );
+      const threadId = ThreadId.make("cursor-backgrounded-thread");
+      const session = yield* Effect.acquireRelease(
+        runner.open({
+          operation: "create",
+          options: makeCursorAgentOptions({
+            apiKey: "synthetic-cursor-api-key",
+            modelSelection: { instanceId: ProviderInstanceId.make("cursor"), model: "composer-2" },
+            runtimePolicy: { runtimeMode: "full-access", interactionMode: "default", cwd: home },
+            threadId,
+            mcpSession: undefined,
+            platform: "linux",
+          }),
+          threadId,
+          providerSessionId: ProviderSessionId.make("cursor-backgrounded-session"),
+        }),
+        (opened) => Effect.ignore(opened.close),
+      );
+      // A foreground command whose 1 ms timeout moves it to the background (agent.v1 ShellArgs).
+      backend.runExecs.push(
+        protoField(
+          2,
+          Buffer.concat([
+            protoVarintField(1, 2),
+            protoField(15, Buffer.from("shell")),
+            protoField(
+              14,
+              Buffer.concat([
+                protoField(1, Buffer.from("sleep 30")),
+                protoField(2, Buffer.from(home)),
+                protoVarintField(3, 1),
+                protoField(4, Buffer.from("tool-sleep")),
+                protoVarintField(12, 1),
+                protoVarintField(13, 2),
+                protoField(21, Buffer.from(session.agentId)),
+              ]),
+            ),
+          ]),
+        ),
+      );
+      const events: Array<CursorAgentSdk.CursorBackgroundShellEvent> = [];
+      const ended = yield* Deferred.make<void>();
+      yield* session.send({
+        message: "Run sleep 30.",
+        onBackgroundShell: (event) =>
+          Effect.sync(() => events.push(event)).pipe(
+            Effect.andThen(
+              event.type === "ended" ? Deferred.succeed(ended, undefined) : Effect.void,
+            ),
+          ),
+      });
+
+      assert.equal(yield* Deferred.await(backend.backgroundedShell), "sleep 30");
+      const started = events[0];
+      assert.ok(started?.type === "started", "the backgrounded command was not kept");
+      assert.equal(started.command, "sleep 30");
+      started.stop();
+      yield* Deferred.await(ended);
+      assert.deepEqual(
+        events.map((event) => [event.type, event.type === "ended" && event.stopped]),
+        [
+          ["started", false],
+          ["ended", true],
+        ],
+      );
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
   it("maps runtime modes to the SDK sandbox and auto-review controls", () => {
     const base = {
       interactionMode: "default" as const,
@@ -4066,9 +4147,8 @@ const fakeCursorBackend = Effect.gen(function* () {
     Buffer.concat([Buffer.from([0x08, 0x01]), protoField(15, Buffer.from("ctx")), protoField(10)]),
   );
   const models = ["composer-2"];
-  const runFrame = Buffer.alloc(5 + requestContextExec.length);
-  runFrame.writeUInt32BE(requestContextExec.length, 1);
-  requestContextExec.copy(runFrame, 5);
+  const runExecs: Array<Buffer> = [];
+  const backgroundedShell = yield* Deferred.make<string | undefined>();
   const server = NodeHttp.createServer((request, response) => {
     const chunks: Array<Buffer> = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -4084,11 +4164,23 @@ const fakeCursorBackend = Effect.gen(function* () {
           return;
         case "/agent.v1.AgentService/RunSSE":
           response.writeHead(200, { "content-type": "application/connect+proto" });
-          response.write(runFrame);
+          response.write(Buffer.concat([requestContextExec, ...runExecs].map(connectFrame)));
+          return;
+        // Shell commands check the repo against the team's blocklist; no team means no list.
+        case "/aiserver.v1.DashboardService/GetTeamReposOrEmptyIfNotInTeam":
+          response.setHeader("content-type", "application/proto");
+          response.end();
           return;
         case "/aiserver.v1.BidiService/BidiAppend": {
           const appended = protoGet(Buffer.concat(chunks), 1);
           const clientMessage = Buffer.from(appended?.toString() ?? "", "hex");
+          const backgrounded = protoPath(clientMessage, [2, 14, 7]);
+          if (backgrounded !== undefined) {
+            Deferred.doneUnsafe(
+              backgroundedShell,
+              Effect.succeed(protoGet(backgrounded, 2)?.toString()),
+            );
+          }
           const success = protoPath(clientMessage, [2, 10, 1]);
           if (success !== undefined) {
             const context = protoGet(success, 1);
@@ -4122,8 +4214,15 @@ const fakeCursorBackend = Effect.gen(function* () {
         server.close(() => resume(Effect.void));
       }),
   );
-  return { requestContext, models };
+  return { requestContext, models, runExecs, backgroundedShell };
 });
+
+function connectFrame(message: Buffer): Buffer {
+  const frame = Buffer.alloc(5 + message.length);
+  frame.writeUInt32BE(message.length, 1);
+  message.copy(frame, 5);
+  return frame;
+}
 
 function protoVarint(value: number): Buffer {
   const bytes: Array<number> = [];
@@ -4133,6 +4232,10 @@ function protoVarint(value: number): Buffer {
   }
   bytes.push(value);
   return Buffer.from(bytes);
+}
+
+function protoVarintField(fieldNumber: number, value: number): Buffer {
+  return Buffer.concat([protoVarint(fieldNumber << 3), protoVarint(value)]);
 }
 
 function protoField(fieldNumber: number, value: Buffer = Buffer.alloc(0)): Buffer {
