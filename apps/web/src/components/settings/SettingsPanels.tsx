@@ -100,7 +100,6 @@ import {
 import { searchableSetting } from "./settingsSearch";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
-import { OrchestrationSkillsSettings } from "./OrchestrationSkillsSettings";
 import { StorageCleanupSections } from "./StorageSettings";
 import { UpdateTrackSwitchDialog } from "./UpdateTrackSwitchDialog";
 import { environmentIdsKey } from "~/state/environmentAtomList";
@@ -1884,8 +1883,6 @@ export function ThreadsSettingsPanel() {
           }
         />
       </SettingsSection>
-
-      <OrchestrationSkillsSettings />
     </SettingsPageContainer>
   );
 }

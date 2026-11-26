@@ -178,6 +178,7 @@ describe("searchSettings", () => {
       ["Native sessions", "providers"],
       ["CODEX_HOME path", "providers"],
       ["Shadow home path", "providers"],
+      ["Committee and advisor", "orchestration-skills"],
     ] as const) {
       expect(searchSettings(title)[0]?.id, title).toBe(id);
     }
@@ -377,8 +378,9 @@ describe("movedSettingsPath", () => {
     expect(movedSettingsPath("/settings/storage", "")).toBe("/settings/maintenance");
     expect(movedSettingsPath("/settings/integrations", "devices")).toBe("/settings/devices");
     expect(movedSettingsPath("/settings/integrations", "orchestration-skills")).toBe(
-      "/settings/threads",
+      "/settings/skills",
     );
+    expect(movedSettingsPath("/settings/threads", "orchestration-skills")).toBe("/settings/skills");
     expect(movedSettingsPath("/settings/integrations", "")).toBe("/settings/browser");
     expect(movedSettingsPath("/settings/chat", "voice-language")).toBe("/settings/voice");
     expect(movedSettingsPath("/settings/threads", "voice-transcription")).toBe("/settings/voice");
