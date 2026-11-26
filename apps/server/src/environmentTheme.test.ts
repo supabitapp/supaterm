@@ -74,6 +74,7 @@ const withEnvironmentThemes = <A, E>(
     for (const [filename, contents] of Object.entries(seeds)) {
       yield* fs.writeFileString(path.join(themesDir, filename), contents);
     }
+    yield* settleFileWatches;
 
     return yield* body.pipe(
       Effect.provide(
@@ -195,6 +196,7 @@ describe("environment theme", () => {
 
         yield* fs.rename(restored, environmentThemesDir);
         assert.deepEqual(yield* Queue.take(snapshots), ["Shared Light"]);
+        yield* settleFileWatches;
 
         yield* fs.writeFileString(
           path.join(environmentThemesDir, "nightfall.json"),
@@ -238,6 +240,7 @@ describe("environment theme", () => {
             path.join(restored, "nightfall.json"),
             encodeThemeFile(NIGHTFALL_THEME),
           );
+          yield* settleFileWatches;
 
           const snapshots = yield* service.streamChanges.pipe(
             Stream.map((themes) => themes.map((theme) => theme.name)),
@@ -255,6 +258,7 @@ describe("environment theme", () => {
             ),
             ["Shared Light"],
           );
+          yield* settleFileWatches;
 
           yield* fs.writeFileString(
             path.join(target, "nightfall.json"),
@@ -266,6 +270,7 @@ describe("environment theme", () => {
           assert.deepEqual(yield* Queue.take(snapshots), []);
           yield* fs.rename(restored, target);
           assert.deepEqual(yield* Queue.take(snapshots), ["Nightfall"]);
+          yield* settleFileWatches;
 
           yield* fs.writeFileString(
             path.join(target, "shared-light.json"),
@@ -286,6 +291,7 @@ describe("environment theme", () => {
           assert.deepEqual(yield* Queue.take(snapshots), []);
           yield* fs.rename(restoredParent, targetParent);
           assert.deepEqual(yield* Queue.take(snapshots), ["Shared Light"]);
+          yield* settleFileWatches;
 
           yield* fs.writeFileString(
             path.join(target, "nightfall.json"),
@@ -318,6 +324,7 @@ describe("environment theme", () => {
               encodeThemeFile(SHARED_THEME),
             );
           }
+          yield* settleFileWatches;
 
           const snapshots = yield* service.streamChanges.pipe(
             Stream.map((themes) => themes.map((theme) => theme.name)),
@@ -339,6 +346,7 @@ describe("environment theme", () => {
           assert.deepEqual(yield* Queue.take(snapshots), []);
           yield* fs.rename(restored, active);
           assert.deepEqual(yield* Queue.take(snapshots), ["Shared Light"]);
+          yield* settleFileWatches;
 
           yield* fs.writeFileString(
             path.join(fixture, "active-previous", "shared", "themes", "nightfall.json"),
