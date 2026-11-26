@@ -20,7 +20,9 @@ rejected, so clients and records from other versions keep working.
 Project scripts need `orchestration:operate`. The host runs a saved project
 script itself, on worktree creation and on done, so saving one needs
 `orchestration:operate` on top of `settings:write`, whether it arrives in a
-settings patch or a project update.
+settings patch or a project update. Clients resend a project's whole override
+entry when they change any of its settings, so the server compares a patch's
+scripts with the saved ones and charges only for a change.
 
 The access read model contains pairing metadata, never recoverable pairing
 secrets. Only the creation response returns the raw credential. Otherwise read

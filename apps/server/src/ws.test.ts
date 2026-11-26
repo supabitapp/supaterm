@@ -177,6 +177,7 @@ import * as ProjectionStore from "./orchestration-v2/ProjectionStore.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ShellSyncGeneration from "./orchestration-v2/ShellSyncGeneration.ts";
+import * as CommandReceiptStore from "./orchestration-v2/CommandReceiptStore.ts";
 import * as EventSink from "./orchestration-v2/EventSink.ts";
 import * as ThreadCommandExecutor from "./orchestration-v2/ThreadCommandExecutor.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
@@ -1873,6 +1874,7 @@ it.effect("a missing thread worktree gets its project's skills in the cwd snapsh
             Layer.mock(ProjectEnrichment.ProjectEnrichmentService)({}),
             Layer.mock(WorkspacePaths.WorkspacePaths)({}),
             Layer.mock(EventSink.EventSinkV2)({}),
+            Layer.mock(CommandReceiptStore.CommandReceiptStoreV2)({}),
             IdAllocator.layer,
             Layer.mock(ThreadCommandExecutor.ThreadCommandExecutor)({}),
           ),

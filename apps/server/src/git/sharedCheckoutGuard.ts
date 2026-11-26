@@ -4,6 +4,7 @@ import {
   type ProjectId,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 
 import * as GitWorkflowService from "./GitWorkflowService.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
@@ -43,15 +44,26 @@ export const assertCheckoutIdle = Effect.fn("sharedCheckoutGuard.assertCheckoutI
   operation: string,
   cwd: string,
 ) {
+  const fileSystem = yield* FileSystem.FileSystem;
   const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
   const projectService = yield* ProjectService.ProjectService;
   const threadManagement = yield* ThreadManagementService.ThreadManagementService;
   // `git checkout` from a subdirectory moves the whole checkout; records may hold either spelling.
   const root = yield* gitWorkflow.repositoryRoot(cwd).pipe(Effect.orElseSucceed(() => null));
   const checkoutPaths = [...new Set([cwd, ...(root === null ? [] : [root])])];
-  const projects = yield* projectService.snapshot.pipe(
+  const snapshotProjects = yield* projectService.snapshot.pipe(
     Effect.map((snapshot) => snapshot.projects),
     Effect.orElseSucceed(() => []),
+  );
+  // A project keeps the path it was added with, which can be a symlink; Git reports physical roots.
+  const projects = yield* Effect.forEach(
+    snapshotProjects,
+    (project) =>
+      fileSystem.realPath(project.workspaceRoot).pipe(
+        Effect.orElseSucceed(() => project.workspaceRoot),
+        Effect.map((workspaceRoot) => ({ id: project.id, workspaceRoot })),
+      ),
+    { concurrency: "unbounded" },
   );
   // A project rooted inside the checkout shares it, as in a monorepo package, unless it is its
   // own repository nested there.

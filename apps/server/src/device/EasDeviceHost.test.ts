@@ -360,7 +360,10 @@ describe("Expo Simulators host", () => {
     }).pipe(Effect.scoped, Effect.provide(layer)),
   );
 
-  it.effect("still stops its sessions when the secret becomes unreadable after they start", () => {
+  it.effect.each([
+    { change: "becomes unreadable", later: undefined },
+    { change: "names another Expo account", later: "other-account-token" },
+  ])("still stops its sessions when the secret $change after they start", ({ later }) => {
     const readable = { value: true };
     return Effect.gen(function* () {
       const expo = fakeExpo();
@@ -382,7 +385,7 @@ describe("Expo Simulators host", () => {
           Layer.succeed(SecretResolver.SecretResolver, {
             label: (provider) => Effect.succeed(provider),
             read: (references) =>
-              Effect.succeed(references.map(() => (readable.value ? "expo-token" : undefined))),
+              Effect.succeed(references.map(() => (readable.value ? "expo-token" : later))),
             invalidate: () => Effect.void,
           }),
         ),

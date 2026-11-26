@@ -14,10 +14,12 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   retainedTerminalHistory,
+  SecretProviderId,
   terminalSequenceEnd,
   terminalSequenceStateAfter,
   TerminalProviderInstanceNotFoundError,
 } from "@supaterm/contracts";
+import * as SecretResolver from "@supaterm/secret-provider-core/server/SecretResolver";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { SpawnExecutableResolution } from "@supaterm/shared/shell";
 import * as NodePtyAdapter from "./NodePtyAdapter.ts";
@@ -54,6 +56,13 @@ import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import { makePrepareTerminalLaunch } from "../workspace/restoreMissingWorktree.ts";
 import { layerNoTaskFolders } from "../orchestration-v2/ProviderTurnStartService.testkit.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
+
+const secretResolverReading = (secret: string | undefined) =>
+  SecretResolver.SecretResolver.of({
+    read: (references) => Effect.succeed(references.map(() => secret)),
+    invalidate: () => Effect.void,
+    label: () => Effect.succeed("1Password"),
+  });
 import { terminalOutputStream } from "./OutputProtocol.ts";
 import * as PtyAdapter from "@supaterm/shared/PtyAdapter";
 import packageJson from "../../package.json" with { type: "json" };
@@ -2998,6 +3007,7 @@ it.layer(
       const environment = yield* TerminalManager.resolveProviderInstanceTerminalEnvironment({
         deriveProviderInstanceConfigMap,
         serverSettings,
+        secretResolver: secretResolverReading(undefined),
         path,
         rawProviderInstanceId: "configured_home",
         env: undefined,
@@ -3012,6 +3022,43 @@ it.layer(
               driver: ProviderDriverKind.make(driver),
               environment: [{ name: variable, value: "~/.environment-account", sensitive: false }],
               config,
+            },
+          },
+        }),
+      ),
+    ),
+  );
+
+  it.effect("resolves the provider's secret references instead of inheriting the variable", () =>
+    Effect.gen(function* () {
+      const path = yield* Path.Path;
+      const serverSettings = yield* ServerSettings.ServerSettingsService;
+      const resolve = (secret: string | undefined) =>
+        TerminalManager.resolveProviderInstanceTerminalEnvironment({
+          deriveProviderInstanceConfigMap,
+          serverSettings,
+          secretResolver: secretResolverReading(secret),
+          path,
+          rawProviderInstanceId: "referenced",
+          env: { FIXTURE_KEY: "inherited" },
+        });
+
+      expect((yield* resolve("from-reference")).FIXTURE_KEY).toBe("from-reference");
+      const unreadable = yield* resolve(undefined).pipe(Effect.flip);
+      expect(unreadable._tag).toBe("TerminalProviderEnvironmentError");
+    }).pipe(
+      Effect.provide(
+        ServerSettings.layerTest({
+          providerInstances: {
+            [ProviderInstanceId.make("referenced")]: {
+              driver: ProviderDriverKind.make("codex"),
+              environment: [
+                {
+                  name: "FIXTURE_KEY",
+                  value: { provider: SecretProviderId.make("personal"), reference: "op://v/i/f" },
+                  sensitive: true,
+                },
+              ],
             },
           },
         }),

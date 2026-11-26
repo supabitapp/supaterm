@@ -169,6 +169,8 @@ export const LaunchEditorInput = Schema.Struct({
   projectRoot: Schema.optional(TrimmedNonEmptyString),
   /** Only for file-manager; requires the server's shellRevealInFileManager capability. */
   reveal: Schema.optional(Schema.Boolean),
+  /** Opt-in, because older clients reject `ExternalLauncherRevealTargetMissingError`. */
+  acceptRevealTargetMissing: Schema.optional(Schema.Literal(true)),
 });
 export type LaunchEditorInput = typeof LaunchEditorInput.Type;
 

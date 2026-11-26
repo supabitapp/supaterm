@@ -567,6 +567,23 @@ export const make = Effect.gen(function* () {
 
   // Origin merges a stacked pull request together with every open one below it, which the panel
   // does not show, so those merges are left to Origin.
+  // Origin's writes take no head precondition, and the caller's check may have read the cached pull
+  // request, so a write pinned to a head reads the head fresh right before it.
+  const requireHead = Effect.fn("OriginPullRequestProvider.requireHead")(function* (
+    input: ProviderRepositoryRef & { readonly number: number; readonly expectedHeadSha?: string },
+    operation: string,
+  ) {
+    const expected = input.expectedHeadSha;
+    if (expected === undefined) return;
+    yield* forgetPull(input);
+    const current = (yield* getPull(input).pipe(Effect.mapError(fail(operation)))).head.sha;
+    if (current === expected) return;
+    return yield* unsupported(
+      operation,
+      `The head is now ${current ?? "unknown"}, not ${expected}. Review the new commits first.`,
+    );
+  });
+
   const refuseStackedMerge = Effect.fn("OriginPullRequestProvider.refuseStackedMerge")(function* (
     input: ProviderRepositoryRef & { readonly number: number },
   ) {
@@ -923,7 +940,8 @@ export const make = Effect.gen(function* () {
       const action = (() => {
         switch (input.action) {
           case "merge":
-            return refuseStackedMerge(input).pipe(
+            return requireHead(input, "runAction").pipe(
+              Effect.andThen(refuseStackedMerge(input)),
               Effect.andThen(
                 write(input, "runAction", "POST", `${path}/merge`, {
                   mergeMethod: input.mergeMethod === "squash" ? "squash" : "merge",
@@ -972,30 +990,41 @@ export const make = Effect.gen(function* () {
       ).pipe(Effect.ensuring(forgetPull(input))),
 
     submitReview: (input) =>
-      write(input, "submitReview", "POST", pullPath(input.repository, input.number, "/reviews"), {
-        verdict: input.verdict === "request-changes" ? "request_changes" : input.verdict,
-        body: input.body,
-        comments: input.comments.map((comment) => {
-          const side =
-            comment.position.kind === "deleted"
-              ? "left"
-              : comment.position.kind === "added"
-                ? "right"
-                : comment.position.side;
-          const line =
-            comment.position.kind === "deleted"
-              ? comment.position.oldLine
-              : comment.position.kind === "added"
-                ? comment.position.newLine
-                : side === "left"
-                  ? comment.position.oldLine
-                  : comment.position.newLine;
-          return {
-            body: comment.body,
-            inline: { path: comment.path, side, startLine: line, endLine: line },
-          };
-        }),
-      }).pipe(Effect.ensuring(forgetPull(input))),
+      requireHead(input, "submitReview").pipe(
+        Effect.andThen(
+          write(
+            input,
+            "submitReview",
+            "POST",
+            pullPath(input.repository, input.number, "/reviews"),
+            {
+              verdict: input.verdict === "request-changes" ? "request_changes" : input.verdict,
+              body: input.body,
+              comments: input.comments.map((comment) => {
+                const side =
+                  comment.position.kind === "deleted"
+                    ? "left"
+                    : comment.position.kind === "added"
+                      ? "right"
+                      : comment.position.side;
+                const line =
+                  comment.position.kind === "deleted"
+                    ? comment.position.oldLine
+                    : comment.position.kind === "added"
+                      ? comment.position.newLine
+                      : side === "left"
+                        ? comment.position.oldLine
+                        : comment.position.newLine;
+                return {
+                  body: comment.body,
+                  inline: { path: comment.path, side, startLine: line, endLine: line },
+                };
+              }),
+            },
+          ),
+        ),
+        Effect.ensuring(forgetPull(input)),
+      ),
 
     replyToThread: (input) =>
       write(input, "replyToThread", "POST", pullPath(input.repository, input.number, "/comments"), {

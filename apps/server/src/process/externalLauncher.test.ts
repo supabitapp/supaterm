@@ -774,11 +774,15 @@ it.effect("does not ask Explorer to select a file that does not exist", () =>
     yield* fileSystem.writeFileString(path.join(binDir, "explorer.EXE"), "");
     const missing = path.join(binDir, "CLAUDE.md");
     const verbatim: Array<readonly [string, ReadonlyArray<string>]> = [];
-    yield* Effect.gen(function* () {
+    const [current, older] = yield* Effect.gen(function* () {
       const launcher = yield* ExternalLauncher.ExternalLauncher;
-      yield* launcher
-        .launchEditor({ editor: "file-manager", cwd: missing, reveal: true })
-        .pipe(Effect.exit);
+      const reveal = { editor: "file-manager", cwd: missing, reveal: true } as const;
+      return [
+        yield* launcher
+          .launchEditor({ ...reveal, acceptRevealTargetMissing: true })
+          .pipe(Effect.flip),
+        yield* launcher.launchEditor(reveal).pipe(Effect.flip),
+      ] as const;
     }).pipe(
       Effect.provideService(WindowsVerbatimSpawn, (command, args) =>
         Effect.sync(() => verbatim.push([command, args])),
@@ -794,6 +798,9 @@ it.effect("does not ask Explorer to select a file that does not exist", () =>
     );
 
     assert.deepEqual(verbatim, []);
+    assert.instanceOf(current, ExternalLauncher.ExternalLauncherRevealTargetMissingError);
+    assert.instanceOf(older, ExternalLauncher.ExternalLauncherEditorSpawnError);
+    assert.include(String(older), missing);
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 

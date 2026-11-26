@@ -263,25 +263,39 @@ describe("command permissions", () => {
     }),
   );
 
-  it.effect.each([WS_METHODS.serverCheckOtlpEndpoint, WS_METHODS.serverCheckSecretSource])(
-    "requires the destination settings grant for %s",
-    (method) =>
-      Effect.gen(function* () {
-        const registry = yield* setup;
-        const check = createCommandPermissions(runtime, method);
-        registry.set(sessions(env), AsyncResult.success(grant(true)));
-        expect(registry.get(check.permissionAtom(env))).toBe(false);
-        registry.set(
-          sessions(env),
-          AsyncResult.success({
-            ...grant(false),
-            scopes: [AuthSettingsWriteScope],
-            permissions: [AuthSettingsWriteScope],
-          }),
-        );
-        expect(registry.get(check.permissionAtom(env))).toBe(true);
-        yield* check.authorize(registry, env);
-      }),
+  it.effect.each([
+    {
+      method: WS_METHODS.serverCheckOtlpEndpoint,
+      scopes: [AuthSettingsWriteScope],
+      settingsWriteSuffices: true,
+    },
+    {
+      method: WS_METHODS.serverCheckSecretSource,
+      scopes: [AuthSettingsWriteScope, AuthProvidersManageScope],
+      settingsWriteSuffices: false,
+    },
+  ])("requires the destination grant for $method", ({ method, scopes, settingsWriteSuffices }) =>
+    Effect.gen(function* () {
+      const registry = yield* setup;
+      const check = createCommandPermissions(runtime, method);
+      registry.set(sessions(env), AsyncResult.success(grant(true)));
+      expect(registry.get(check.permissionAtom(env))).toBe(false);
+      registry.set(
+        sessions(env),
+        AsyncResult.success({
+          ...grant(false),
+          scopes: [AuthSettingsWriteScope],
+          permissions: [AuthSettingsWriteScope],
+        }),
+      );
+      expect(registry.get(check.permissionAtom(env))).toBe(settingsWriteSuffices);
+      registry.set(
+        sessions(env),
+        AsyncResult.success({ ...grant(false), scopes, permissions: scopes }),
+      );
+      expect(registry.get(check.permissionAtom(env))).toBe(true);
+      yield* check.authorize(registry, env);
+    }),
   );
 
   it.effect.each([WS_METHODS.scheduledTasksDelete, ORCHESTRATION_V2_WS_METHODS.stopWorkflow])(

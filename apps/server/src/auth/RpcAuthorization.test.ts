@@ -583,7 +583,10 @@ describe("settings mutation authorization", () => {
           runOnWorktreeCreate: true,
         },
       ];
-      const update = (scopes: Parameters<typeof RpcAuthorization.layer>[0]) => {
+      const update = (
+        scopes: Parameters<typeof RpcAuthorization.layer>[0],
+        settings?: Parameters<typeof RpcAuthorization.layer>[1],
+      ) => {
         let handled = 0;
         return RpcTest.makeClient(group).pipe(
           Effect.provide(
@@ -594,7 +597,7 @@ describe("settings mutation authorization", () => {
                   return DEFAULT_SERVER_SETTINGS;
                 }),
               ),
-              RpcAuthorization.layer(scopes),
+              RpcAuthorization.layer(scopes, settings),
             ),
           ),
           Effect.map((client) => ({ client, handled: () => handled })),
@@ -626,6 +629,32 @@ describe("settings mutation authorization", () => {
         yield* operator.client[WS_METHODS.serverUpdateSettings]({ patch });
       }
       expect(operator.handled()).toBe(patches.length);
+
+      // Clients resend a project's whole entry, so a saved script rides along unchanged.
+      const saved = yield* update(
+        [AuthSettingsWriteScope],
+        Effect.succeed({
+          ...DEFAULT_SERVER_SETTINGS,
+          defaultProjectScripts: scripts,
+          projectSettingsOverrides: { [projectId]: { defaultProjectScripts: scripts } },
+        }),
+      );
+      for (const patch of patches) {
+        yield* saved.client[WS_METHODS.serverUpdateSettings]({
+          patch: { ...patch, responseStreamingMode: "turn" },
+        });
+      }
+      expect(saved.handled()).toBe(patches.length);
+      const edited = [{ ...scripts[0]!, command: "pnpm build" }];
+      for (const patch of [
+        { defaultProjectScripts: edited },
+        { projectSettingsOverrides: { [projectId]: { defaultProjectScripts: edited } } },
+      ]) {
+        expect(
+          yield* saved.client[WS_METHODS.serverUpdateSettings]({ patch }).pipe(Effect.flip),
+        ).toMatchObject({ requiredScope: AuthOrchestrationOperateScope });
+      }
+      expect(saved.handled()).toBe(patches.length);
     }),
   );
 
@@ -1048,7 +1077,7 @@ it.effect("sends OTLP endpoint checks only for connections that can save the end
   }),
 );
 
-it.effect("checks a secret reference only for connections that can change settings", () =>
+it.effect("checks a secret reference only for connections that can manage providers", () =>
   Effect.gen(function* () {
     const group = WsRpcGroup.omit(
       ...[...WsRpcGroup.requests.keys()].filter(
@@ -1089,7 +1118,13 @@ it.effect("checks a secret reference only for connections that can change settin
     expect(checked).toBe(0);
 
     const settingsWriter = yield* makeClient([AuthSettingsWriteScope]);
-    expect(yield* settingsWriter[WS_METHODS.serverCheckSecretSource](input)).toEqual({
+    expect(
+      yield* settingsWriter[WS_METHODS.serverCheckSecretSource](input).pipe(Effect.flip),
+    ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+    expect(checked).toBe(0);
+
+    const providerManager = yield* makeClient([AuthSettingsWriteScope, AuthProvidersManageScope]);
+    expect(yield* providerManager[WS_METHODS.serverCheckSecretSource](input)).toEqual({
       _tag: "Resolved",
     });
     expect(checked).toBe(1);

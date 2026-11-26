@@ -139,7 +139,9 @@ export const OpenInPicker = memo(function OpenInPicker({
       input: {
         cwd: openInCwd,
         editor,
-        ...(fileManagerAction === "reveal" && editor === "file-manager" ? { reveal: true } : {}),
+        ...(fileManagerAction === "reveal" && editor === "file-manager"
+          ? { reveal: true, acceptRevealTargetMissing: true }
+          : {}),
       },
     });
     setPreferredEditor(editor);

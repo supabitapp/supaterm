@@ -93,9 +93,10 @@ function useRunScopedPlan() {
       environments,
       planner,
       async (request) => {
-        const missing = requiredScopesForServerSettingsPatch(request.input.patch).find(
-          (scope) => !readEnvironmentScope(request.environmentId, scope),
-        );
+        const missing = requiredScopesForServerSettingsPatch(
+          request.input.patch,
+          readSettings(request.environmentId) ?? undefined,
+        ).find((scope) => !readEnvironmentScope(request.environmentId, scope));
         const result = missing
           ? AsyncResult.failure(
               Cause.fail(

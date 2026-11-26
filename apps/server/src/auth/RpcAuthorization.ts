@@ -9,6 +9,7 @@ import {
   ServerSettingsPatch,
   ProviderInstanceMutation,
   requiredScopesForServerSettingsPatch,
+  type SavedProjectScripts,
   requiredScopesForProjectMutation,
   ProjectMutation,
   SecretRequestAnswerInput,
@@ -263,9 +264,12 @@ const SettingsUpdate = Schema.Struct({
 const decodeSettingsUpdate = Schema.decodeUnknownSync(SettingsUpdate);
 const decodeAssetCreateUrlInput = Schema.decodeUnknownSync(AssetCreateUrlInput);
 
-const requiredScopesForSettingsUpdate = (payload: unknown) => {
+const requiredScopesForSettingsUpdate = (
+  payload: unknown,
+  saved: SavedProjectScripts | undefined,
+) => {
   const input = decodeSettingsUpdate(payload);
-  const scopes = requiredScopesForServerSettingsPatch(input.patch);
+  const scopes = requiredScopesForServerSettingsPatch(input.patch, saved);
   if (input.providerInstanceMutation === undefined) return scopes;
   return Object.values(input.patch).every((value) => value === undefined)
     ? [AuthProvidersManageScope]
@@ -304,6 +308,7 @@ const sendsProviderSignOutPrompt = (method: string, payload: unknown): boolean =
 const requiredScopesForRpcCall = (
   method: string,
   payload: unknown,
+  saved: SavedProjectScripts | undefined,
 ): ReadonlyArray<AuthEnvironmentScope> => {
   if (method === WS_METHODS.serverRetryResourceTelemetry) {
     return [AuthEnvironmentMaintainScope, AuthDiagnosticsReadScope];
@@ -319,7 +324,9 @@ const requiredScopesForRpcCall = (
         : AuthOrchestrationReadScope,
     ];
   }
-  if (method === WS_METHODS.serverUpdateSettings) return requiredScopesForSettingsUpdate(payload);
+  if (method === WS_METHODS.serverUpdateSettings) {
+    return requiredScopesForSettingsUpdate(payload, saved);
+  }
   // This sends the credential it is given to Expo, as a saved setting would.
   if (method === WS_METHODS.deviceEasAccount && containsSecretReference(payload)) {
     return [AuthSettingsWriteScope, AuthProvidersManageScope];
@@ -342,12 +349,24 @@ const requiredScopesForRpcCall = (
     : scopes;
 };
 
-export const layer = (scopes: ReadonlyArray<AuthEnvironmentScope>) =>
+/** Without `readSaved`, any project script a settings patch carries needs `orchestration:operate`. */
+export const layer = <E = never>(
+  scopes: ReadonlyArray<AuthEnvironmentScope>,
+  readSaved?: Effect.Effect<SavedProjectScripts, E>,
+) =>
   Layer.succeed(RpcScopeAuthorization)((effect, { rpc, payload }) => {
-    const requiredScopes = requiredScopesForRpcCall(rpc._tag, payload);
-    const requiredScope = requiredScopes.find((scope) => !scopes.includes(scope));
-    if (requiredScope !== undefined) return Effect.fail(rpcAuthorizationError(requiredScope));
-    return effect;
+    const authorize = (saved: SavedProjectScripts | undefined) => {
+      const requiredScopes = requiredScopesForRpcCall(rpc._tag, payload, saved);
+      const requiredScope = requiredScopes.find((scope) => !scopes.includes(scope));
+      if (requiredScope !== undefined) return Effect.fail(rpcAuthorizationError(requiredScope));
+      return effect;
+    };
+    return readSaved !== undefined && rpc._tag === WS_METHODS.serverUpdateSettings
+      ? readSaved.pipe(
+          Effect.orElseSucceed(() => undefined),
+          Effect.flatMap(authorize),
+        )
+      : authorize(undefined);
   });
 
 /** Retrying can install or restart tools even though ordinary listing is readable. */

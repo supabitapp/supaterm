@@ -3542,6 +3542,7 @@ export const layer = Layer.unwrap(
     const transcriptionUploads = yield* TranscriptionUploads.TranscriptionUploads;
     const peerThreadRelay = yield* PeerThreadRelay.PeerThreadRelay;
     const peerClientPairing = yield* PeerClientPairing.PeerClientPairing;
+    const serverSettings = yield* ServerSettings.ServerSettingsService;
     const sql = yield* SqlClient.SqlClient;
     return HttpRouter.add(
       "GET",
@@ -3581,7 +3582,10 @@ export const layer = Layer.unwrap(
           yield* RpcServer.make(ServerWsRpcGroup, WS_RPC_SERVER_OPTIONS).pipe(
             Effect.provideService(RpcServer.Protocol, withOutputWindow(protocol)),
             Effect.provide(
-              Layer.merge(RpcAuthorization.layer(session.scopes), rpcInstrumentationLayer),
+              Layer.merge(
+                RpcAuthorization.layer(session.scopes, serverSettings.getSettings),
+                rpcInstrumentationLayer,
+              ),
             ),
             Effect.forkScoped,
           );

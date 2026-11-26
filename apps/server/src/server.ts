@@ -449,6 +449,7 @@ const layerTerminal = TerminalManager.layer(
   Layer.provide(layerPtyAdapter),
   Layer.provide(layerPortScanner),
   Layer.provide(layerNativeTelemetry),
+  Layer.provide(SecretResolver.layer),
 );
 
 const layerPreview = Layer.empty.pipe(

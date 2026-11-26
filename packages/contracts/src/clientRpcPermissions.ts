@@ -127,6 +127,9 @@ export function clientRpcRequiredScopes(
     )
       return [AuthSourceControlWriteScope, AuthOrchestrationReadScope];
   }
+  // Checking has the server read the secret the caller names, as saving a reference does.
+  if (method === WS_METHODS.serverCheckSecretSource)
+    return [AuthSettingsWriteScope, AuthProvidersManageScope];
   // As pairing here, a code minted through a link never grants what the client lacks here.
   if (method === WS_METHODS.peerLinksPairLink && input !== undefined)
     return [AuthAccessWriteScope, ...mcpClientScopes(decodeLinkPairing(input).access)];
