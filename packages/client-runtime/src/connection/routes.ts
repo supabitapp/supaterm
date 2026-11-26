@@ -280,6 +280,7 @@ export function connectionRouteLabel(route: ConnectionRoute): string {
     case "vpn":
       return "VPN";
     case "relay":
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- product name of the relay
       return "Encrypted Relay";
     case "ssh": {
       const profile = Option.getOrNull(route.profile);

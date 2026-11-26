@@ -11,7 +11,8 @@ import * as Option from "effect/Option";
 import { createCanvasFrameSink, type DeviceFrameSink } from "./frame.ts";
 import { type DeviceHubAccess, withDeviceHubQuery } from "./hubAccess.ts";
 import type { DevicePlatform } from "@supaterm/contracts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type DeviceStreamStatus = "connecting" | "streaming" | "error";
 
@@ -404,6 +405,7 @@ export function createDeviceStreamClient(
   target: DeviceStreamTarget,
   output: HTMLCanvasElement | DeviceFrameSink,
   events: DeviceStreamEvents,
+  resolve: MFunctionType = mFallback,
 ): DeviceStreamClient {
   const { access, platform, deviceId } = target;
   const sink = "present" in output ? output : createCanvasFrameSink(output);
@@ -738,7 +740,10 @@ export function createDeviceStreamClient(
       }
       if (target.panelId && [400, 404, 405, 410].includes(response.status)) {
         await response.body?.cancel();
-        setStatus("error", msg("This Device Hub does not provide fixed Duo display feeds."));
+        setStatus(
+          "error",
+          resolve(msg("This Device Hub does not provide fixed Duo display feeds.")),
+        );
         return;
       }
       if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
@@ -792,7 +797,11 @@ export function createDeviceStreamClient(
                 if (target.videoOnly)
                   setStatus(
                     "error",
-                    `This browser cannot decode the Duo panel's ${avcCodecString(chunk.payload)} stream.`,
+                    resolve(
+                      msg("This browser cannot decode the Duo panel's {codec} stream.", {
+                        codec: avcCodecString(chunk.payload),
+                      }),
+                    ),
                   );
                 else fallBackToMjpeg();
                 return;
