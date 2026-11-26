@@ -74,7 +74,10 @@ class SupatermWorkspaceNavigationModule : Module() {
       Prop("tabTitles") { view: SupatermWorkspaceNavigationView, value: Map<String, String> ->
         view.tabTitles = value
       }
-      Prop("expandedTabTitles") { view: SupatermWorkspaceNavigationView, value: Map<String, String> ->
+      Prop("expandedTabTitles") {
+          view: SupatermWorkspaceNavigationView,
+          value: Map<String, String>
+        ->
         view.expandedTabTitles = value
       }
       Prop("newThreadTitle") { view: SupatermWorkspaceNavigationView, value: String ->
