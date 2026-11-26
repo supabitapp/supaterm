@@ -62,7 +62,7 @@ import {
   visibleResourceTelemetryProcesses,
 } from "./ResourceTelemetryDiagnostics.logic";
 import { SettingsSection } from "./settingsLayout";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages, Var } from "gt-react";
 
 const HISTORY_WINDOWS = [
   { label: "5m", windowMs: 5 * 60_000, bucketMs: 15_000 },
@@ -129,7 +129,7 @@ function ioSemanticsLabel(semantics: ResourceTelemetryIoSemantics): string {
     case "all-io":
       return msg("All I/O bytes");
     case "unavailable":
-      return "Unavailable";
+      return msg("Unavailable");
   }
 }
 
@@ -139,7 +139,7 @@ function booleanStateLabel(
 ): string {
   if (value === "true") return labels.true;
   if (value === "false") return labels.false;
-  return "Unknown";
+  return msg("Unknown");
 }
 
 function sourceStatusTone(status: ResourceTelemetrySourceStatus): "default" | "warning" | "danger" {
@@ -198,8 +198,22 @@ function LastSampleLabel({ sampledAt }: { sampledAt: DateTime.Utc | null }) {
   }
   return (
     <span className="text-2xs text-muted-foreground/60">
-      Updated <span className="font-mono tabular-nums">{relative.value}</span>
-      {relative.suffix ? ` ${relative.suffix}` : ""}
+      {relative.suffix ? (
+        <T context="the time is an elapsed time such as 5m">
+          Updated{" "}
+          <span className="font-mono tabular-nums">
+            <Var>{relative.value}</Var>
+          </span>{" "}
+          ago
+        </T>
+      ) : (
+        <T>
+          Updated{" "}
+          <span className="font-mono tabular-nums">
+            <Var>{relative.value}</Var>
+          </span>
+        </T>
+      )}
     </span>
   );
 }
@@ -375,6 +389,7 @@ function ResourceHistoryChart({
 }: {
   buckets: ReadonlyArray<ResourceTelemetryHistoryBucket>;
 }) {
+  const gt = useGT();
   const maxCpu = resourceHistoryCpuScaleMax(buckets);
   const maxIo = Math.max(1, ...buckets.map((bucket) => bucket.ioReadBytes + bucket.ioWriteBytes));
 
@@ -430,10 +445,14 @@ function ResourceHistoryChart({
               />
               <TooltipPopup side="top" className="text-left">
                 <div className="space-y-0.5">
-                  <div>CPU avg {bucket.avgCpuPercent.toFixed(1)}%</div>
-                  <div>CPU peak {bucket.maxCpuPercent.toFixed(1)}%</div>
-                  <div>Read {formatBytes(bucket.ioReadBytes)}</div>
-                  <div>Write {formatBytes(bucket.ioWriteBytes)}</div>
+                  <div>
+                    {gt("CPU avg {percent}%", { percent: bucket.avgCpuPercent.toFixed(1) })}
+                  </div>
+                  <div>
+                    {gt("CPU peak {percent}%", { percent: bucket.maxCpuPercent.toFixed(1) })}
+                  </div>
+                  <div>{gt("Read {bytes}", { bytes: formatBytes(bucket.ioReadBytes) })}</div>
+                  <div>{gt("Write {bytes}", { bytes: formatBytes(bucket.ioWriteBytes) })}</div>
                 </div>
               </TooltipPopup>
             </Tooltip>
@@ -864,6 +883,7 @@ function ResourceTelemetryDiagnosticsBody({
   environmentId: EnvironmentId | null;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const registry = useContext(RegistryContext);
   const [windowMs, setWindowMs] = useState(15 * 60_000);
   const selectedWindow =
@@ -1038,7 +1058,7 @@ function ResourceTelemetryDiagnosticsBody({
                 )}
               />
               {snapshot
-                ? formatSamplingStatus(snapshot.sampleIntervalMs)
+                ? formatSamplingStatus(snapshot.sampleIntervalMs, messages)
                 : gt("Sampling every ...")}
             </div>
           </div>
@@ -1184,7 +1204,7 @@ function ResourceTelemetryDiagnosticsBody({
                   })}
                 />
                 <DetailRow
-                  label="Idle"
+                  label={gt("Idle")}
                   value={`${booleanStateLabel(snapshot.power.idle, {
                     true: "Idle",
                     false: "Active",
@@ -1322,7 +1342,9 @@ function ResourceTelemetryDiagnosticsBody({
         headerAction={
           snapshot ? (
             <span className="text-3xs text-muted-foreground/55">
-              Identity: <span className="font-mono">PID + start time</span>
+              <T>
+                Identity: <span className="font-mono">PID + start time</span>
+              </T>
             </span>
           ) : null
         }
