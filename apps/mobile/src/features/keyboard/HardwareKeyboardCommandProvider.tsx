@@ -200,8 +200,12 @@ export function HardwareKeyboardCommandProvider({
             });
             if (!ready) {
               Dialog.alert(
-                "Fork created",
-                "Its thread data did not reach this client. Reconnect and try opening it from the thread list.",
+                m(msg("Fork created")),
+                m(
+                  msg(
+                    "Its thread data did not reach this client. Reconnect and try opening it from the thread list.",
+                  ),
+                ),
               );
               return;
             }

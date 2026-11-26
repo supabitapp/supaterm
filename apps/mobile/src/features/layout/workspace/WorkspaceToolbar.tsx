@@ -23,7 +23,7 @@ import { WorkspaceTabToolbarButtons } from "./WorkspaceSectionToolbar";
 import { useThreadListFilter } from "../../home/useThreadListFilter";
 import { workspaceFilterToolbarMenu } from "./WorkspaceFilterToolbarMenu.ios";
 import { workspaceListFilterMenu } from "./WorkspaceListHeader.types";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const SEARCH_LABELS = {
   threads: msg("Search threads"),
@@ -37,6 +37,7 @@ export function WorkspaceToolbar(props: {
   readonly sidebar?: boolean;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const workspace = useWorkspaceTabs()!;
   const activeNewTask = useActiveNewTask();
   const deviceType = useDeviceType();
@@ -138,7 +139,7 @@ export function WorkspaceToolbar(props: {
   const composeButton = nativeToolbarCompose ? (
     <Toolbar.Button
       identifier="workspace-compose"
-      accessibilityLabel="New chat"
+      accessibilityLabel={gt("New chat")}
       icon="square.and.pencil"
       onPress={props.onNewTask}
       separateBackground
@@ -215,7 +216,7 @@ export function WorkspaceToolbar(props: {
           sidebarTabs === "picker" ||
           floatingTabs ? null : (
             <Toolbar.Button
-              accessibilityLabel="New chat"
+              accessibilityLabel={gt("New chat")}
               icon="square.and.pencil"
               onPress={props.onNewTask}
             />
@@ -228,7 +229,7 @@ export function WorkspaceToolbar(props: {
             />
           )}
           {showsThreadFilter
-            ? workspaceFilterToolbarMenu(workspaceListFilterMenu(threadFilter))
+            ? workspaceFilterToolbarMenu(workspaceListFilterMenu(threadFilter, messages))
             : null}
         </Toolbar>
       )}

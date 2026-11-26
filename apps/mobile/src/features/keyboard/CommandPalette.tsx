@@ -382,7 +382,7 @@ export function CommandPalette(props: {
       actions.push({
         key: "sendFeedback",
         kind: "action",
-        title: "Send feedback",
+        title: gt("Send feedback"),
         // Mobile has no triage hero, so name the machine before it starts.
         detail: gt("On {environment}", {
           environment:
@@ -438,7 +438,7 @@ export function CommandPalette(props: {
         actions.push({
           key: "forkThread",
           kind: "action",
-          title: "Fork thread",
+          title: gt("Fork thread"),
           searchTerms: ["branch", "conversation", "duplicate"],
           run: () => runCommand("forkThread"),
         });
@@ -447,7 +447,7 @@ export function CommandPalette(props: {
         actions.push({
           key: "sideChat",
           kind: "action",
-          title: "Start side chat",
+          title: gt("Start side chat"),
           searchTerms: ["side chat", "btw", "aside", "question"],
           run: sideChat.openDraft,
         });
