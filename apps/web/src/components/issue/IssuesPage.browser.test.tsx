@@ -1,4 +1,5 @@
 import { expect, it, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../../test/render";
 
@@ -30,6 +31,20 @@ vi.mock(import("~/state/issues"), async (original) => ({
     retry: () => undefined,
   })) as never,
 }));
+// A custom binding that only closes the panel, so it reads the page's live panel state.
+vi.mock(import("~/state/server"), async (original) => {
+  const actual = await original();
+  const { Atom } = await import("effect/reactivity");
+  const { compileResolvedKeybindingsConfig } = await import("@supaterm/shared/keybindings");
+  return {
+    ...actual,
+    primaryServerKeybindingsAtom: Atom.make(
+      compileResolvedKeybindingsConfig([
+        { key: "f8", command: "rightPanel.toggle", when: "rightPanelOpen" },
+      ]),
+    ),
+  };
+});
 vi.mock("~/components/issue/IssueDetailPanel", () => ({
   IssueDetailPanel: () => <p>Issue detail</p>,
 }));
@@ -73,4 +88,21 @@ it("answers the right panel commands that keys, menus and devices send", async (
 
   expect(await run("rightPanel.close")).toBe(true);
   expect(panel().surfaces).toEqual([]);
+});
+
+it("matches a toggle bound only while the right panel is open", async () => {
+  useRightPanelStore.setState({ byThreadKey: {} });
+  useRightPanelStore.getState().openIssue(ISSUES_PANEL_REF, {
+    environmentId: "local",
+    projectId: "project",
+    tracker: "github",
+    host: "github.com",
+    scope: "owner/repo",
+    key: "1",
+  });
+  await using screen = await render(<IssuesPage />, { router: "/issues" });
+  await expect.element(screen.getByText("Issue detail")).toBeInTheDocument();
+
+  await userEvent.keyboard("{F8}");
+  expect(panel().isOpen).toBe(false);
 });

@@ -506,6 +506,10 @@ export function IssuesPage() {
     if (!rightPanelState.isOpen) return false;
     if (!repeat) toggleRightPanelMaximized();
   });
+  const panelShortcutContext = useEffectEvent(() => ({
+    ...getShortcutContext(),
+    rightPanelOpen: rightPanelState.isOpen,
+  }));
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the right panel commands with the dispatcher for the page's lifetime
   useEffect(
     () =>
@@ -516,7 +520,7 @@ export function IssuesPage() {
           "rightPanel.toggleMaximized": ({ repeat }) =>
             toggleRightPanelMaximizedFromShortcut(repeat),
         },
-        { when: () => !isCommandPaletteOpen(), context: getShortcutContext },
+        { when: () => !isCommandPaletteOpen(), context: () => panelShortcutContext() },
       ),
     [],
   );
