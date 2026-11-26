@@ -1,10 +1,20 @@
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Self-signed localhost key that a test server presents so linking can refuse its certificate, the Cursor SDK patch whose minified bundle reads as generic API keys, and translation catalogs keyed by 16-hex-digit hashes"
-paths = [
-  '''apps/server/src/peer/fixtures/localhost-key\.pem''',
-  '''patches/@cursor__sdk@1\.4\.2\.patch''',
-  '''apps/(web|mobile|desktop)/src/i18n/translations/[A-Za-z-]+\.json''',
-]
+[[allowlists]]
+description = "Self-signed localhost key that a test server presents so linking can refuse its certificate"
+paths = ['''apps/server/src/peer/fixtures/localhost-key\.pem''']
+
+[[allowlists]]
+description = "The Cursor SDK patch's minified bundle assigns vR8.MemoPrefix, which reads as a generic API key"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''patches/@cursor__sdk@1\.4\.2\.patch''']
+regexes = ['''^vR8\.MemoPrefix=void$''']
+
+[[allowlists]]
+description = "Translation catalogs are keyed by 16-hex-digit hashes, which read as generic API keys after a value"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''apps/(web|mobile|desktop)/src/i18n/translations/[A-Za-z-]+\.json''']
+regexes = ['''^[0-9a-f]{16}$''']
