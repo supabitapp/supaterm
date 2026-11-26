@@ -53,7 +53,7 @@ import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Switch } from "../ui/switch";
 import { ManagedControl, ManagedNotice } from "../ManagedPolicy";
 import { useManagedPolicy } from "../../state/managedPolicy";
-import { managedInstanceLocks } from "../../state/managedPolicy.logic";
+import { managedInstanceLocks } from "@supaterm/client-runtime/managed-policy";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type {

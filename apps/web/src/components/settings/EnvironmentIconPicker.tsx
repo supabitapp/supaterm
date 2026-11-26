@@ -8,7 +8,7 @@ import {
 } from "@supaterm/contracts";
 
 import { useUpdateEnvironmentSettings } from "../../hooks/useSettings";
-import { managedSettingDenial } from "../../state/managedPolicy.logic";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { useEnvironmentScope } from "../../state/session";
 import { ENVIRONMENT_MACHINE_KIND_LABELS, EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import {

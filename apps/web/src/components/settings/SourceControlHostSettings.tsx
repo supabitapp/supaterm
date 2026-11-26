@@ -8,7 +8,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { InlineConfirmButton } from "../InlineConfirm";
 import { ProviderSettingsForm, deriveProviderSettingsFields } from "./ProviderSettingsForm";
 import { useManagedPolicy } from "../../state/managedPolicy";
-import { managedByMessage, managedSettingDenial } from "../../state/managedPolicy.logic";
+import { managedByMessage, managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { useEnvironmentScope } from "../../state/session";
 
 export function SourceControlHostSettings({

@@ -28,7 +28,7 @@ import {
 import { cn } from "../../lib/utils";
 import { normalizeProviderAccentColor } from "../../providerInstances";
 import { useManagedPolicy } from "../../state/managedPolicy";
-import { managedInstanceLocks } from "../../state/managedPolicy.logic";
+import { managedInstanceLocks } from "@supaterm/client-runtime/managed-policy";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { Button } from "../ui/button";
 import { ChatGptConnectionButton } from "./ChatGptConnectionButton";

@@ -45,7 +45,7 @@ import { Button } from "../ui/button";
 import { ChatGptConnectionButton } from "./ChatGptConnectionButton";
 import { ManagedControl } from "../ManagedPolicy";
 import { useManagedPolicy } from "../../state/managedPolicy";
-import { managedInstanceLocks } from "../../state/managedPolicy.logic";
+import { managedInstanceLocks } from "@supaterm/client-runtime/managed-policy";
 import { ChatGptUsageButton } from "./ChatGptUsageButton";
 import { ChatGptAccountPicker } from "./ChatGptAccountPicker";
 import { Input } from "../ui/input";

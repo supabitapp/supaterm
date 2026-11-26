@@ -19,7 +19,7 @@ import { commandForProjectScript, primaryProjectScript } from "~/projectScripts"
 import { shortcutLabelForCommand } from "~/keybindings";
 import { serverEnvironment } from "~/state/server";
 import { useManagedPolicy } from "~/state/managedPolicy";
-import { managedSettingDenial } from "~/state/managedPolicy.logic";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { readEnvironmentScope } from "~/state/session";
 import {
   EMPTY_PROJECT_SCRIPT_INPUT,

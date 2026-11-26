@@ -1,7 +1,7 @@
 import { ProviderDriverKind, type ManagedPolicySummary } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { managedInstanceLocks, managedSettingDenial } from "./managedPolicy.logic";
+import { managedInstanceLocks, managedSettingDenial } from "./managedPolicy.ts";
 
 const codex = ProviderDriverKind.make("codex");
 const claude = ProviderDriverKind.make("claudeAgent");

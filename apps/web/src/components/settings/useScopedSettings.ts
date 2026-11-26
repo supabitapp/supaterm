@@ -19,7 +19,7 @@ import { persistClientSettingsPatch, useMergedSettings } from "../../hooks/useSe
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { readEnvironment } from "../../state/environments";
 import { usePrimaryManagedPolicy } from "../../state/managedPolicy";
-import { managedSettingDenial } from "../../state/managedPolicy.logic";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { toastManager } from "../ui/toast";

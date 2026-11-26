@@ -29,7 +29,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { manualServerUpdateCommand } from "~/versionSkew";
 import { useServerConfigs } from "~/state/entities";
 import { readManagedPolicy, useManagedPolicy } from "~/state/managedPolicy";
-import { managedServerUpdateDenial } from "~/state/managedPolicy.logic";
+import { managedServerUpdateDenial } from "@supaterm/client-runtime/managed-policy";
 import { ManagedControl } from "./ManagedPolicy";
 import { crossesReleaseTrack } from "@supaterm/shared/cliRelease";
 import { Button } from "./ui/button";

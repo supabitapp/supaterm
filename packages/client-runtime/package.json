@@ -363,6 +363,10 @@
       "types": "./src/state/usageAccess.ts",
       "default": "./src/state/usageAccess.ts"
     },
+    "./managed-policy": {
+      "types": "./src/managedPolicy.ts",
+      "default": "./src/managedPolicy.ts"
+    },
     "./state/shared-settings": {
       "types": "./src/state/sharedSettings.ts",
       "default": "./src/state/sharedSettings.ts"

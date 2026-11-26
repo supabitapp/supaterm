@@ -8,7 +8,7 @@ import {
 } from "@supaterm/contracts";
 import { relayName } from "@supaterm/shared/relay/name";
 
-import { managedSettingDenial } from "~/state/managedPolicy.logic";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import { useEnvironmentQuery } from "~/state/query";
 import { serverEnvironment } from "~/state/server";
 import { Switch } from "../ui/switch";

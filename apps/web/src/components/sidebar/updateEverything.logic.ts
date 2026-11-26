@@ -8,7 +8,7 @@ import type {
 import { cliReleaseChannelOf, desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 import { compareSemverVersions } from "@supaterm/shared/semver";
 
-import { managedServerUpdateDenial } from "~/state/managedPolicy.logic";
+import { managedServerUpdateDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   isServerUpdateChannelCompatible,
   resolveServerSelfUpdateCapability,

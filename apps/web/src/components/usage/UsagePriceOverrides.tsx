@@ -39,7 +39,7 @@ import {
   type UsagePriceDraft,
   type UsagePriceField,
 } from "./usagePriceTable";
-import { managedSettingDenial } from "~/state/managedPolicy.logic";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   writeUsagePrices,
   type UsagePriceTarget,

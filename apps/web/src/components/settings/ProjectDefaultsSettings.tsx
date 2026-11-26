@@ -15,7 +15,7 @@ import {
 } from "../../modelSelection";
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import { useEnvironmentProviders, useEnvironments } from "../../state/environments";
-import { firstManagedDenial } from "../../state/managedPolicy.logic";
+import { firstManagedDenial } from "@supaterm/client-runtime/managed-policy";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
 import { resolveEnvModeLabel, WORKTREE_SUBMODULES_LABELS } from "../BranchToolbar.logic";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
