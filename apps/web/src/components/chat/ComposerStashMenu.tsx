@@ -2,7 +2,7 @@ import { ArrowUpIcon, BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "@supat
 import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
-import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
+import { composerFileLinksToPlainText } from "@supaterm/shared/composerMentionTokens";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { RelativeTime } from "../RelativeTime";

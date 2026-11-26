@@ -6,7 +6,7 @@ import type { ContextMenuSource } from "@supaterm/contracts";
 import { contextMenuSourceOf } from "../../contextMenuSource";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
-import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
+import { composerFileLinksToPlainText } from "@supaterm/shared/composerMentionTokens";
 import * as Schema from "effect/Schema";
 import { SquarePenIcon } from "@supaterm/icons";
 import {

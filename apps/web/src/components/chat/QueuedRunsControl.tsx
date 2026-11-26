@@ -10,7 +10,7 @@ import {
   isAttachmentOnlyBootstrapPrompt,
   replaceComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
-import { composerFileLinksToPlainText } from "@supaterm/shared/composerInlineTokens";
+import { composerFileLinksToPlainText } from "@supaterm/shared/composerMentionTokens";
 import {
   parseGoalCommand,
   type ChatAttachment as ContractChatAttachment,
