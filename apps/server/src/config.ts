@@ -24,7 +24,7 @@ import packageJson from "../package.json" with { type: "json" };
 // Official release workflows set this telemetry channel; other builds report dev.
 // Unlike __SUPATERM_BUILD_CHANNEL__, this is not the sign-in page's latest/nightly channel.
 declare const __SUPATERM_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
-const telemetryChannel: ReleaseChannel =
+export const telemetryChannel: ReleaseChannel =
   typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
 
 export const RuntimeMode = Schema.Literals(["web", "desktop"]);
