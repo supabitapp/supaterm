@@ -14,6 +14,18 @@
   "7953122755efa56e": "Löser deltan",
   "d9a8c7734f54ea3f": "Checkar ut filer",
   "215fbed6f97db37d": "Har stannat",
+  "42054e525f515f51": "{organization} hanterar uppdateringar av Supaterm.",
+  "303d0aeb428f9ee8": "{organization} hanterar uppdateringar av Supaterm. Bara stabila versioner kan installeras.",
+  "6365146db77a8dac": "{organization} begränsar trådar till Övervakat.",
+  "2aa1c01bf8014725": "{organization} begränsar trådar till Godkänn ändringar automatiskt.",
+  "89563a8fff8bb751": "{organization} begränsar trådar till Auto.",
+  "5b7ff1208620c2c2": "{organization} begränsar trådar till Full åtkomst.",
+  "9bf017edd3847eb1": "Policyn för {organization} tillåter inte anslutning från andra enheter.",
+  "a79a0d6682d77a74": "Policyn för {organization} tillåter inte Encrypted Relay.",
+  "eebc538e25b09fe2": "Policyn för {organization} tillåter inte import av cookies från webbläsare.",
+  "7642a133db05f164": "{organization}s policy tillåter inte att den här datorns lokala servrar öppnas på andra enheter.",
+  "35fcb6312e278185": "Din organisations policy tillåter inte leverantören {label}.",
+  "90548f7a4d620371": "Policyn för {organization} tillåter inte leverantören {label}.",
   "a78eb961f5618e7f": "Inte installerad på den här datorn.",
   "4c34e647dc74b279": "Behöver åtkomst till nyckelringen för att läsa sina cookies.",
   "a613ba1b6f32fc2c": "Ingen krypteringsnyckel i nyckelringen. Logga in i webbläsaren en gång och försök sedan igen.",
@@ -80,6 +92,7 @@
   "f71597ae3afaef44": "{first} och {second}",
   "4047174839a16714": "{first} och {last}",
   "65ca7867c176afbf": "{first}, {rest}",
+  "d85822b18e9475df": "Hanteras av {organization}.",
   "f42c2a36b3507308": "{label} på",
   "77cc5f738cb7d459": "{label} av",
   "70aed898101d69c4": "Väntar på anslutning",
@@ -1010,6 +1023,8 @@
   "218c111b4aa6e029": "Kunde inte läsa en inklistrad bild.",
   "5e164ecf9c2994f5": "Förhandsvisning",
   "232298a82d027b3d": "Detaljer",
+  "2c850e594aa60ad5": "Leverantören är inte tillåten",
+  "bada142dca0fa1d1": "{message} Välj en annan modell.",
   "d2b4bc575d7d99d8": "Modellen är avstängd för det här projektet",
   "be1bc7fa9d199f70": "Slå på den igen från webben eller skrivbordet, eller välj en annan modell.",
   "98e2aa5d181d8ad2": "Antigravity-modellen är inte tillgänglig",
@@ -2634,6 +2649,7 @@
   "cc1c68228ae59262": "Du har den senaste versionen.",
   "40c4c31be0a4151b": "Uppdatera skrivbordsappen på den här datorn.",
   "74e9603036cf74a0": "Uppdatera och starta om {product} på den här datorn.",
+  "ed46ceb44345b705": "Få hjälp från {organization}",
   "56edbb36e9731d20": "Uppdatera leverantörer",
   "50fd05851156af28": "Leverantörsstatusen uppdaterades.",
   "2baa086b75bc2077": "{version} · Senaste {latest}",
@@ -2643,6 +2659,14 @@
   "7489306a36fff015": "Anslut miljön för att hantera den.",
   "d127f26d5bae862d": [
     "Version ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "114af8e45c69e28a": [
+    "Hanteras av ",
     {
       "i": 1,
       "k": "_gt_value_1",
@@ -2902,6 +2926,7 @@
   "2e54c9d636c7d212": "Visa svaret när agenten är klar.",
   "d5db39feffc9d626": "Färdiga stycken",
   "875890264aa547fc": "Visa varje stycke eller kodblock när det är klart.",
+  "3b969d1b0381a986": "{subtitle} {reason}",
   "5fc597e1e2a7ec55": "Välj ett projekt med en utcheckning i en ansluten miljö.",
   "83b95c78e73eaa43": "Använd filtret ovan för att välja en ansluten miljö.",
   "d1d1342ccb83a14b": "Standardarbetsyta",
@@ -2943,6 +2968,15 @@
   "bb906952ffdf6ae4": "Valda projektutcheckningar använder olika värden",
   "5cb964736f071766": "Valda miljöer använder olika värden",
   "3c65f5fcf5915911": "Blandat",
+  "5a20a0be0657dec6": [
+    "Vissa inställningar hanteras av ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " och kan inte ändras här."
+  ],
   "4aa2f53ae0d34311": "Avstängt i den här miljön.",
   "5c3711f9ed600d2a": "Transkribera med",
   "e383254fce3fc657": "Ingen leverantör här kan transkribera. Uppdatera den här miljön eller logga in hos en leverantör som kan.",
@@ -3323,6 +3357,8 @@
   "0014ce0aaf1bd68a": "Skrivskyddad",
   "048b8a737af895ac": "Inget i den här tråden ännu.",
   "d148218513d9950a": "Anslut till ett nätverk som den finns på, till exempel dess Tailscale-nätverk, och försök igen. Du kan fortsätta läsa här.",
+  "1410155e503a917f": "{denial} Byt trådens läge för att fortsätta.",
+  "81ceeceeb521bba6": "Byt till {mode}",
   "6ebd73c7bfb58bb7": "App",
   "7e072f3b5535dc99": "Avsluta helskärm",
   "d3a4862f72c90c1e": "Appen kan inte visas.",

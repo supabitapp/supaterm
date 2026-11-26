@@ -14,6 +14,18 @@
   "7953122755efa56e": "Resolvendo deltas",
   "d9a8c7734f54ea3f": "Fazendo checkout dos arquivos",
   "215fbed6f97db37d": "Travado",
+  "42054e525f515f51": "{organization} gerencia as atualizações do Supaterm.",
+  "303d0aeb428f9ee8": "{organization} gerencia as atualizações do Supaterm. Só é possível instalar versões estáveis.",
+  "6365146db77a8dac": "{organization} limita as threads a Supervisionado.",
+  "2aa1c01bf8014725": "{organization} limita as threads a Aceitar edições automaticamente.",
+  "89563a8fff8bb751": "{organization} limita as threads a Auto.",
+  "5b7ff1208620c2c2": "{organization} limita as threads a Acesso total.",
+  "9bf017edd3847eb1": "A política de {organization} não permite conexões de outros dispositivos.",
+  "a79a0d6682d77a74": "A política de {organization} não permite o Encrypted Relay.",
+  "eebc538e25b09fe2": "A política de {organization} não permite importar cookies do navegador.",
+  "7642a133db05f164": "A política de {organization} não permite abrir os servidores locais desta máquina em outros dispositivos.",
+  "35fcb6312e278185": "A política da sua organização não permite o provedor {label}.",
+  "90548f7a4d620371": "A política de {organization} não permite o provedor {label}.",
   "a78eb961f5618e7f": "Não instalado nesta máquina.",
   "4c34e647dc74b279": "Precisa de acesso ao Keychain para ler os cookies.",
   "a613ba1b6f32fc2c": "Não há chave de criptografia no seu Keychain. Entre nesse navegador uma vez e tente novamente.",
@@ -80,6 +92,7 @@
   "f71597ae3afaef44": "{first} e {second}",
   "4047174839a16714": "{first} e {last}",
   "65ca7867c176afbf": "{first}, {rest}",
+  "d85822b18e9475df": "Gerenciado por {organization}.",
   "f42c2a36b3507308": "{label} ativado",
   "77cc5f738cb7d459": "{label} desativado",
   "70aed898101d69c4": "Aguardando conexão",
@@ -1010,6 +1023,8 @@
   "218c111b4aa6e029": "Não foi possível ler uma imagem colada.",
   "5e164ecf9c2994f5": "Preview",
   "232298a82d027b3d": "Detalhes",
+  "2c850e594aa60ad5": "Provedor não permitido",
+  "bada142dca0fa1d1": "{message} Escolha outro modelo.",
   "d2b4bc575d7d99d8": "Modelo desativado neste projeto",
   "be1bc7fa9d199f70": "Ative-o novamente pela web ou pelo desktop, ou escolha outro modelo.",
   "98e2aa5d181d8ad2": "Modelo do Antigravity indisponível",
@@ -2628,6 +2643,7 @@
   "cc1c68228ae59262": "Você está atualizado.",
   "40c4c31be0a4151b": "Atualize o app desktop nesta máquina.",
   "74e9603036cf74a0": "Atualize e reinicie o {product} nesta máquina.",
+  "ed46ceb44345b705": "Obter ajuda de {organization}",
   "56edbb36e9731d20": "Atualizar provedores",
   "50fd05851156af28": "Status dos provedores atualizado.",
   "2baa086b75bc2077": "{version} · Mais recente {latest}",
@@ -2637,6 +2653,14 @@
   "7489306a36fff015": "Conecte este ambiente para gerenciá-lo.",
   "d127f26d5bae862d": [
     "Versão ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "114af8e45c69e28a": [
+    "Gerenciado por ",
     {
       "i": 1,
       "k": "_gt_value_1",
@@ -2896,6 +2920,7 @@
   "2e54c9d636c7d212": "Mostra a resposta quando o agente termina.",
   "d5db39feffc9d626": "Parágrafos concluídos",
   "875890264aa547fc": "Mostra cada parágrafo ou bloco de código assim que é concluído.",
+  "3b969d1b0381a986": "{subtitle} {reason}",
   "5fc597e1e2a7ec55": "Selecione um projeto com checkout em um ambiente conectado.",
   "83b95c78e73eaa43": "Use o filtro acima para selecionar um ambiente conectado.",
   "d1d1342ccb83a14b": "Workspace padrão",
@@ -2937,6 +2962,15 @@
   "bb906952ffdf6ae4": "Os checkouts de projeto selecionados usam valores diferentes",
   "5cb964736f071766": "Os ambientes selecionados usam valores diferentes",
   "3c65f5fcf5915911": "Misto",
+  "5a20a0be0657dec6": [
+    "Algumas configurações são gerenciadas por ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " e não podem ser alteradas aqui."
+  ],
   "4aa2f53ae0d34311": "Desativado neste ambiente.",
   "5c3711f9ed600d2a": "Transcrever com",
   "e383254fce3fc657": "Nenhum provedor aqui consegue transcrever. Atualize este ambiente ou faça login em um provedor que consiga.",
@@ -3317,6 +3351,8 @@
   "0014ce0aaf1bd68a": "Somente leitura",
   "048b8a737af895ac": "Ainda não há nada nesta thread.",
   "d148218513d9950a": "Entre em uma rede em que ele esteja, como a rede Tailscale dele, e tente novamente. Você pode continuar lendo aqui.",
+  "1410155e503a917f": "{denial} Mude o modo desta thread para continuar.",
+  "81ceeceeb521bba6": "Mudar para {mode}",
   "6ebd73c7bfb58bb7": "App",
   "7e072f3b5535dc99": "Sair da tela cheia",
   "d3a4862f72c90c1e": "Este app não pode ser exibido.",

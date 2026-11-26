@@ -14,6 +14,18 @@
   "7953122755efa56e": "Deltas werden aufgelöst",
   "d9a8c7734f54ea3f": "Dateien werden ausgecheckt",
   "215fbed6f97db37d": "Stockt",
+  "42054e525f515f51": "{organization} verwaltet die Updates von Supaterm.",
+  "303d0aeb428f9ee8": "{organization} verwaltet die Updates von Supaterm. Nur stabile Versionen können installiert werden.",
+  "6365146db77a8dac": "{organization} beschränkt Threads auf „Beaufsichtigt“.",
+  "2aa1c01bf8014725": "{organization} beschränkt Threads auf „Änderungen automatisch annehmen“.",
+  "89563a8fff8bb751": "{organization} beschränkt Threads auf „Auto“.",
+  "5b7ff1208620c2c2": "{organization} beschränkt Threads auf „Vollzugriff“.",
+  "9bf017edd3847eb1": "Die Richtlinie von {organization} erlaubt keine Verbindungen von anderen Geräten.",
+  "a79a0d6682d77a74": "Die Richtlinie von {organization} erlaubt kein Verschlüsseltes Relay.",
+  "eebc538e25b09fe2": "Die Richtlinie von {organization} erlaubt keinen Import von Browser-Cookies.",
+  "7642a133db05f164": "Die Richtlinie von {organization} erlaubt nicht, die lokalen Server dieses Rechners auf anderen Geräten zu öffnen.",
+  "35fcb6312e278185": "Die Richtlinie deiner Organisation erlaubt den Anbieter {label} nicht.",
+  "90548f7a4d620371": "Die Richtlinie von {organization} erlaubt den Anbieter {label} nicht.",
   "a78eb961f5618e7f": "Auf diesem Rechner nicht installiert.",
   "4c34e647dc74b279": "Benötigt Zugriff auf den Schlüsselbund, um die Cookies zu lesen.",
   "a613ba1b6f32fc2c": "Kein Verschlüsselungsschlüssel in deinem Schlüsselbund. Melde dich einmal in diesem Browser an und versuche es dann erneut.",
@@ -80,6 +92,7 @@
   "f71597ae3afaef44": "{first} und {second}",
   "4047174839a16714": "{first} und {last}",
   "65ca7867c176afbf": "{first}, {rest}",
+  "d85822b18e9475df": "Verwaltet von {organization}.",
   "f42c2a36b3507308": "{label} an",
   "77cc5f738cb7d459": "{label} aus",
   "70aed898101d69c4": "Warte auf Verbindung",
@@ -1010,6 +1023,8 @@
   "218c111b4aa6e029": "Ein eingefügtes Bild konnte nicht gelesen werden.",
   "5e164ecf9c2994f5": "Vorschau",
   "232298a82d027b3d": "Details",
+  "2c850e594aa60ad5": "Anbieter nicht erlaubt",
+  "bada142dca0fa1d1": "{message} Wähle ein anderes Modell.",
   "d2b4bc575d7d99d8": "Modell für dieses Projekt ausgeschaltet",
   "be1bc7fa9d199f70": "Schalte es im Web oder auf dem Desktop wieder ein oder wähle ein anderes Modell.",
   "98e2aa5d181d8ad2": "Antigravity-Modell nicht verfügbar",
@@ -2632,6 +2647,7 @@
   "cc1c68228ae59262": "Du bist auf dem neuesten Stand.",
   "40c4c31be0a4151b": "Aktualisiere die Desktop-App auf diesem Rechner.",
   "74e9603036cf74a0": "{product} auf diesem Rechner aktualisieren und neu starten.",
+  "ed46ceb44345b705": "Hilfe von {organization} erhalten",
   "56edbb36e9731d20": "Anbieter aktualisieren",
   "50fd05851156af28": "Anbieterstatus aktualisiert.",
   "2baa086b75bc2077": "{version} · Neueste {latest}",
@@ -2641,6 +2657,14 @@
   "7489306a36fff015": "Verbinde diese Umgebung, um sie zu verwalten.",
   "d127f26d5bae862d": [
     "Version ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "114af8e45c69e28a": [
+    "Verwaltet von ",
     {
       "i": 1,
       "k": "_gt_value_1",
@@ -2900,6 +2924,7 @@
   "2e54c9d636c7d212": "Die Antwort anzeigen, wenn der Agent fertig ist.",
   "d5db39feffc9d626": "Fertige Absätze",
   "875890264aa547fc": "Jeden Absatz oder Codeblock anzeigen, sobald er vollständig ist.",
+  "3b969d1b0381a986": "{subtitle} {reason}",
   "5fc597e1e2a7ec55": "Wähle ein Projekt mit einem Checkout in einer verbundenen Umgebung.",
   "83b95c78e73eaa43": "Verwende den Filter oben, um eine verbundene Umgebung auszuwählen.",
   "d1d1342ccb83a14b": "Standard-Arbeitsbereich",
@@ -2941,6 +2966,15 @@
   "bb906952ffdf6ae4": "Ausgewählte Projekt-Checkouts verwenden unterschiedliche Werte",
   "5cb964736f071766": "Ausgewählte Umgebungen verwenden unterschiedliche Werte",
   "3c65f5fcf5915911": "Gemischt",
+  "5a20a0be0657dec6": [
+    "Einige Einstellungen werden von ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " verwaltet und können hier nicht geändert werden."
+  ],
   "4aa2f53ae0d34311": "In dieser Umgebung deaktiviert.",
   "5c3711f9ed600d2a": "Transkribieren mit",
   "e383254fce3fc657": "Kein Anbieter hier kann transkribieren. Aktualisiere diese Umgebung oder melde dich bei einem Anbieter an, der es kann.",
@@ -3321,6 +3355,8 @@
   "0014ce0aaf1bd68a": "Schreibgeschützt",
   "048b8a737af895ac": "Noch nichts in diesem Thread.",
   "d148218513d9950a": "Tritt einem Netzwerk bei, in dem es sich befindet, etwa seinem Tailscale-Netzwerk, und versuche es erneut. Du kannst hier weiterlesen.",
+  "1410155e503a917f": "{denial} Wechsle den Modus dieses Threads, um fortzufahren.",
+  "81ceeceeb521bba6": "Zu {mode} wechseln",
   "6ebd73c7bfb58bb7": "App",
   "7e072f3b5535dc99": "Vollbild beenden",
   "d3a4862f72c90c1e": "Diese App kann nicht angezeigt werden.",

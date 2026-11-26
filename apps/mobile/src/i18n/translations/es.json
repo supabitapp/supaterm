@@ -14,6 +14,18 @@
   "7953122755efa56e": "Resolviendo deltas",
   "d9a8c7734f54ea3f": "Haciendo checkout de archivos",
   "215fbed6f97db37d": "Detenido",
+  "42054e525f515f51": "{organization} gestiona las actualizaciones de Supaterm.",
+  "303d0aeb428f9ee8": "{organization} gestiona las actualizaciones de Supaterm. Solo se pueden instalar versiones estables.",
+  "6365146db77a8dac": "{organization} limita los hilos a Supervisado.",
+  "2aa1c01bf8014725": "{organization} limita los hilos a Aceptar ediciones automáticamente.",
+  "89563a8fff8bb751": "{organization} limita los hilos a Automático.",
+  "5b7ff1208620c2c2": "{organization} limita los hilos a Acceso total.",
+  "9bf017edd3847eb1": "La política de {organization} no permite conectarse desde otros dispositivos.",
+  "a79a0d6682d77a74": "La política de {organization} no permite el Relay cifrado.",
+  "eebc538e25b09fe2": "La política de {organization} no permite importar cookies del navegador.",
+  "7642a133db05f164": "La política de {organization} no permite abrir los servidores locales de esta máquina en otros dispositivos.",
+  "35fcb6312e278185": "La política de tu organización no permite el proveedor {label}.",
+  "90548f7a4d620371": "La política de {organization} no permite el proveedor {label}.",
   "a78eb961f5618e7f": "No está instalado en esta máquina.",
   "4c34e647dc74b279": "Necesita acceso al Llavero para leer sus cookies.",
   "a613ba1b6f32fc2c": "No hay clave de cifrado en tu Llavero. Inicia sesión una vez en ese navegador y vuelve a intentarlo.",
@@ -80,6 +92,7 @@
   "f71597ae3afaef44": "{first} y {second}",
   "4047174839a16714": "{first} y {last}",
   "65ca7867c176afbf": "{first}, {rest}",
+  "d85822b18e9475df": "Gestionado por {organization}.",
   "f42c2a36b3507308": "{label} activado",
   "77cc5f738cb7d459": "{label} desactivado",
   "70aed898101d69c4": "Esperando la conexión",
@@ -1010,6 +1023,8 @@
   "218c111b4aa6e029": "No se pudo leer una imagen pegada.",
   "5e164ecf9c2994f5": "Vista previa",
   "232298a82d027b3d": "Detalles",
+  "2c850e594aa60ad5": "Proveedor no permitido",
+  "bada142dca0fa1d1": "{message} Elige otro modelo.",
   "d2b4bc575d7d99d8": "Modelo desactivado para este proyecto",
   "be1bc7fa9d199f70": "Vuelve a activarlo desde la web o el escritorio, o elige otro modelo.",
   "98e2aa5d181d8ad2": "Modelo de Antigravity no disponible",
@@ -2628,6 +2643,7 @@
   "cc1c68228ae59262": "Está todo actualizado.",
   "40c4c31be0a4151b": "Actualiza la app de escritorio en esta máquina.",
   "74e9603036cf74a0": "Actualiza y reinicia {product} en esta máquina.",
+  "ed46ceb44345b705": "Obtener ayuda de {organization}",
   "56edbb36e9731d20": "Actualizar proveedores",
   "50fd05851156af28": "Estado de los proveedores actualizado.",
   "2baa086b75bc2077": "{version} · Última {latest}",
@@ -2637,6 +2653,14 @@
   "7489306a36fff015": "Conecta este entorno para gestionarlo.",
   "d127f26d5bae862d": [
     "Versión ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    }
+  ],
+  "114af8e45c69e28a": [
+    "Gestionado por ",
     {
       "i": 1,
       "k": "_gt_value_1",
@@ -2896,6 +2920,7 @@
   "2e54c9d636c7d212": "Muestra la respuesta cuando el agente termina.",
   "d5db39feffc9d626": "Párrafos terminados",
   "875890264aa547fc": "Muestra cada párrafo o bloque de código cuando está completo.",
+  "3b969d1b0381a986": "{subtitle} {reason}",
   "5fc597e1e2a7ec55": "Selecciona un proyecto con un checkout en un entorno conectado.",
   "83b95c78e73eaa43": "Usa el filtro de arriba para seleccionar un entorno conectado.",
   "d1d1342ccb83a14b": "Espacio de trabajo predeterminado",
@@ -2937,6 +2962,15 @@
   "bb906952ffdf6ae4": "Los checkouts de proyecto seleccionados usan valores distintos",
   "5cb964736f071766": "Los entornos seleccionados usan valores distintos",
   "3c65f5fcf5915911": "Mixto",
+  "5a20a0be0657dec6": [
+    "Algunos ajustes los gestiona ",
+    {
+      "i": 1,
+      "k": "_gt_value_1",
+      "v": "v"
+    },
+    " y no se pueden cambiar aquí."
+  ],
   "4aa2f53ae0d34311": "Desactivado en este entorno.",
   "5c3711f9ed600d2a": "Transcribir con",
   "e383254fce3fc657": "Ningún proveedor de aquí puede transcribir. Actualiza este entorno o inicia sesión en un proveedor que pueda.",
@@ -3317,6 +3351,8 @@
   "0014ce0aaf1bd68a": "Solo lectura",
   "048b8a737af895ac": "Aún no hay nada en este hilo.",
   "d148218513d9950a": "Únete a una red en la que esté, como su red de Tailscale, y vuelve a intentarlo. Puedes seguir leyendo aquí.",
+  "1410155e503a917f": "{denial} Cambia el modo de este hilo para continuar.",
+  "81ceeceeb521bba6": "Cambiar a {mode}",
   "6ebd73c7bfb58bb7": "App",
   "7e072f3b5535dc99": "Salir de pantalla completa",
   "d3a4862f72c90c1e": "No se puede mostrar esta app.",
