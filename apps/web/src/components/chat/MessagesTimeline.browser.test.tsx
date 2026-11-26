@@ -270,10 +270,14 @@ describe("MessagesTimeline work rows", () => {
       />,
       { container },
     );
-    const viewport = props.listRef.current!.getScrollableNode()!;
+    const list = props.listRef.current!;
+    const viewport = list.getScrollableNode()!;
     const frame = screen.getByTitle("Tall preview").element() as HTMLIFrameElement;
     await vi.waitFor(() => {
       expect(frame.clientHeight).toBe(1437);
+      // LegendList measures a resized row a frame later, then clamps the scroll to its new end.
+      const row: HTMLElement | undefined = list.getState().elementAtIndex(0);
+      expect(list.getState().sizeAtIndex(0)).toBe(row?.getBoundingClientRect().height);
       expect(viewport.scrollTop).toBeGreaterThan(0);
       expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
     });
