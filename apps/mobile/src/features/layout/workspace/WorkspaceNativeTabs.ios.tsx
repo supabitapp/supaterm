@@ -1,3 +1,4 @@
+import { useMessages } from "gt-react-native";
 import {
   WORKSPACE_TAB_LABELS,
   NAVIGATION_TAB_ICONS,
@@ -148,6 +149,7 @@ export function WorkspaceNativeTabs(props: {
   /** The sidebar column draws the tabs itself, so they leave with it. */
   readonly tabsInSidebarColumn?: boolean;
 }) {
+  const m = useMessages();
   const workspace = useWorkspaceTabs()!;
   const order = useEnabledNavigationTabs();
   const primaryTabs = order.slice(0, 4);
@@ -237,7 +239,7 @@ export function WorkspaceNativeTabs(props: {
             const settings = slot === "settings";
             const tab = settings ? (overflow ?? selectedTab) : primaryTabs[index];
             if (!tab) return null;
-            const label = settings ? "Settings" : WORKSPACE_TAB_LABELS[tab];
+            const label = settings ? "Settings" : m(WORKSPACE_TAB_LABELS[tab]);
             return (
               <Tabs.Screen
                 // Stable slot controllers keep UIKit's stacks attached when a section moves into Settings.

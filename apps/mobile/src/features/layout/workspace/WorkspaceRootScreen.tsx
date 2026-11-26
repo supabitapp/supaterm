@@ -44,22 +44,23 @@ import {
 import { WorkspaceTabDock } from "./WorkspaceTabDock";
 import { useSidebarWorkspaceTabs, useSystemWorkspaceTabBar } from "./useSystemWorkspaceTabBar";
 import { openSettings } from "../../settings/settings-navigation";
-import { useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
-const TAB_TITLES = { ...WORKSPACE_TAB_LABELS, pullRequests: "Pull requests" };
+const TAB_TITLES = { ...WORKSPACE_TAB_LABELS, pullRequests: msg("Pull requests") };
 
 function WorkspaceRootTitle(props: {
   readonly columnWidth: number;
   readonly onOpenEnvironments: () => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const { state, settingsOpen } = useWorkspaceTabs()!;
   const maxWidth = Math.max(0, props.columnWidth - (use(HeaderItemsWidthContext) ?? 160));
   const enabled = useEnabledNavigationTabs();
   const tabTitle = settingsOpen
     ? gt("Settings")
     : enabled.length
-      ? TAB_TITLES[state.selectedTab]
+      ? m(TAB_TITLES[state.selectedTab])
       : "Navigation";
   return (
     <View style={{ width: maxWidth, minHeight: 32, justifyContent: "center" }}>
@@ -80,6 +81,7 @@ function WorkspaceRootTitle(props: {
 
 function WorkspaceRootContent() {
   const gt = useGT();
+  const m = useMessages();
   const navigation = useNavigation();
   const { width: windowWidth } = useWindowDimensions();
   const { layout, startNewTask } = useAdaptiveWorkspaceLayout();
@@ -142,7 +144,7 @@ function WorkspaceRootContent() {
             title: settingsOpen
               ? gt("Settings")
               : enabled.length
-                ? TAB_TITLES[state.selectedTab]
+                ? m(TAB_TITLES[state.selectedTab])
                 : gt("Navigation", {
                     $context: "screen title when every navigation tab is hidden",
                   }),

@@ -11,13 +11,14 @@ import {
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 import { useSidebarWorkspaceTabs } from "./useSystemWorkspaceTabBar";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 const PULL_REQUEST_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/pull-request.png");
 const ISSUE_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/issue.png");
 
 export function WorkspaceTabToolbarButtons() {
   const gt = useGT();
+  const m = useMessages();
   const order = useNavigationTabOrder();
   const hidden = useHiddenNavigationTabs();
   const workspace = useWorkspaceTabs()!;
@@ -35,7 +36,7 @@ export function WorkspaceTabToolbarButtons() {
         <Toolbar.Button
           key={tab}
           identifier={`workspace-tab-${tab}`}
-          accessibilityLabel={WORKSPACE_TAB_LABELS[tab]}
+          accessibilityLabel={m(WORKSPACE_TAB_LABELS[tab])}
           icon={
             tab === "pullRequests"
               ? { type: "image", source: PULL_REQUEST_ICON, tinted: true }

@@ -25,10 +25,11 @@ import {
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import { resolveWorkspaceTabOrder } from "../layout/workspace/workspace-tabs-state";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 export function SettingsNavigationRouteScreen() {
   const gt = useGT();
+  const m = useMessages();
   const insets = useSafeAreaInsets();
   const order = useNavigationTabOrder();
   const { layout } = useAdaptiveWorkspaceLayout();
@@ -64,7 +65,7 @@ export function SettingsNavigationRouteScreen() {
                 tintColorClassName="accent-icon"
               />
               <View className="flex-1">
-                <Text>{WORKSPACE_TAB_LABELS[tab]}</Text>
+                <Text>{m(WORKSPACE_TAB_LABELS[tab])}</Text>
                 <Text className="text-xs text-foreground-muted">
                   {hidden.includes(tab)
                     ? gt("Hidden", { $context: "navigation tab visibility status" })
@@ -75,7 +76,11 @@ export function SettingsNavigationRouteScreen() {
               </View>
               <IconButton
                 icon={hidden.includes(tab) ? "eye.slash" : "eye"}
-                accessibilityLabel={`${hidden.includes(tab) ? "Show" : "Hide"} ${WORKSPACE_TAB_LABELS[tab]}`}
+                accessibilityLabel={
+                  hidden.includes(tab)
+                    ? gt("Show {tab}", { tab: m(WORKSPACE_TAB_LABELS[tab]) })
+                    : gt("Hide {tab}", { tab: m(WORKSPACE_TAB_LABELS[tab]) })
+                }
                 disabled={!ready}
                 onPress={() => {
                   void save({
@@ -90,7 +95,7 @@ export function SettingsNavigationRouteScreen() {
               />
               <IconButton
                 icon="arrow.up"
-                accessibilityLabel={gt("Move {tab} up", { tab: WORKSPACE_TAB_LABELS[tab] })}
+                accessibilityLabel={gt("Move {tab} up", { tab: m(WORKSPACE_TAB_LABELS[tab]) })}
                 disabled={!ready || index === 0}
                 onPress={() => {
                   void save({
@@ -106,7 +111,7 @@ export function SettingsNavigationRouteScreen() {
               />
               <IconButton
                 icon="arrow.down"
-                accessibilityLabel={gt("Move {tab} down", { tab: WORKSPACE_TAB_LABELS[tab] })}
+                accessibilityLabel={gt("Move {tab} down", { tab: m(WORKSPACE_TAB_LABELS[tab]) })}
                 disabled={!ready || index === order.length - 1}
                 onPress={() => {
                   void save({
