@@ -79,6 +79,8 @@ import * as EffectOutbox from "./EffectOutbox.ts";
 import * as EventSink from "./EventSink.ts";
 import * as ProviderRuntimeRecoveryService from "./ProviderRuntimeRecoveryService.ts";
 import * as ProjectionMaintenance from "./ProjectionMaintenance.ts";
+import * as EventStore from "./EventStore.ts";
+import * as ProjectionReplay from "./testkit/ProjectionReplay.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as PullRequestWatchReactor from "./PullRequestWatchReactor.ts";
 import { PULL_REQUEST_WATCH_WAKE_LIMIT } from "./pullRequestWatch.ts";
@@ -337,8 +339,21 @@ const moveProject = (projectId: ProjectId, workspaceRoot: string, updatedAt: str
     }),
   );
 
+// Read-only oracle: projections still equal a replay of these unpruned test logs.
+const layerProjectionReplayTest = ProjectionReplay.layer.pipe(
+  Layer.provide(
+    Layer.merge(
+      EventStore.layerFromOrchestrationEventStore.pipe(
+        Layer.provide(RuntimeLayer.layerEventInfrastructure),
+      ),
+      ProjectionStore.layer,
+    ),
+  ),
+);
+
 const layerTest = Layer.mergeAll(
   RuntimeLayer.layer,
+  layerProjectionReplayTest,
   RuntimeLayer.layerEventSink,
   ProjectStore.layer,
   ProjectionStore.layer,
@@ -1291,6 +1306,7 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
 });
 
 const layerSharedApplicationDataPlaneTest = Layer.mergeAll(
+  layerProjectionReplayTest,
   RuntimeLayer.layer.pipe(Layer.provide(RuntimeLayer.layerProjectService)),
   RuntimeLayer.layerProjectService,
   RuntimeLayer.layerEventSink,
@@ -3715,7 +3731,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
   it.effect("keeps the branch pull request when linking another pull request", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const threadId = ThreadId.make("branch-pr-link");
       const projectId = ProjectId.make("branch-pr-project");
       yield* seedProject({
@@ -3904,7 +3920,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
   it.effect("retains multiple pull requests and dismissed stack members through rebuilds", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const threadId = ThreadId.make("runtime-multiple-pull-requests");
       yield* orchestrator.dispatch({
         type: "thread.create",
@@ -4082,7 +4098,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
   it.effect("starts, records, and stops a pull request watch", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const threadId = ThreadId.make("runtime-pull-request-watch");
       yield* orchestrator.dispatch({
         type: "thread.create",
@@ -4201,7 +4217,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
   it.effect("keeps how long a watch holds across reads until the agent changes it", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const threadId = ThreadId.make("runtime-pull-request-watch-until-merged");
       yield* orchestrator.dispatch({
         type: "thread.create",
@@ -4268,7 +4284,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
   it.effect.each(["manual", "automatic"])("settling ends every pull request watch: %s", (mode) =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const threadId = ThreadId.make(`pr-watch-mark-done-${mode}`);
       yield* orchestrator.dispatch({
         type: "thread.create",
@@ -8411,7 +8427,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
   it.effect("cancels preparing work on archive and keeps it cancelled through replay", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
-      const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const maintenance = yield* ProjectionReplay.ProjectionReplay;
       const threadId = ThreadId.make("runtime-layer-archive-preparing-thread");
       yield* orchestrator.dispatch({
         type: "thread.create",
@@ -11213,7 +11229,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         assert.equal(queued.length, 2);
         yield* recovery.reconcile(trigger);
         yield* recovery.reconcile("startup");
-        const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+        const maintenance = yield* ProjectionReplay.ProjectionReplay;
         assert.isTrue((yield* maintenance.rebuild).valid);
         assert.equal(yield* orchestrator.resumeQueuedRuns, 0);
         const held = yield* orchestrator.getThreadProjection(threadId);
@@ -13067,6 +13083,7 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+      const replay = yield* ProjectionReplay.ProjectionReplay;
       const sql = yield* SqlClient.SqlClient;
       const threadId = ThreadId.make("compact-pr-sync");
       yield* orchestrator.dispatch({
@@ -13160,7 +13177,7 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
       assert.equal(after?.pullRequests?.[1]?.stack?.id, "updated");
       assert.propertyVal(after?.pullRequests?.[1], "repositoryWebUrl", repositoryWebUrl);
       assert.deepInclude(after?.pullRequests?.[2], watchedLink);
-      assert.isTrue((yield* maintenance.rebuild).valid);
+      assert.isTrue((yield* replay.rebuild).valid);
       assert.deepEqual(
         (yield* orchestrator.getThreadShell(threadId))?.pullRequests,
         after?.pullRequests,
@@ -13200,7 +13217,7 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
         linkEvents.map((row) => row.command_id),
         ["compact-pr-sync", "compact-pr-sync-merged"],
       );
-      assert.isTrue((yield* maintenance.rebuild).valid);
+      assert.isTrue((yield* replay.rebuild).valid);
       assert.deepEqual(
         (yield* orchestrator.getThreadShell(threadId))?.pullRequests,
         latest?.pullRequests,

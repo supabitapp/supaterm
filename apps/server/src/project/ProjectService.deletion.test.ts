@@ -19,7 +19,6 @@ import * as ServerConfig from "../config.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as EventStore from "../orchestration-v2/EventStore.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
-import * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenance.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
@@ -37,7 +36,6 @@ const layerEventPersistence = EventSink.layer.pipe(
 );
 const layerServices = Layer.mergeAll(
   layerEventPersistence,
-  ProjectionMaintenance.layer.pipe(Layer.provide(layerEventPersistence)),
   ProjectStore.layer,
   IdAllocator.layer,
   ThreadCommandExecutor.layer,

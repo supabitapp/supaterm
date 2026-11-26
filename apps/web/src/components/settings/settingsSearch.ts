@@ -645,6 +645,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["caffeinate sleep prevent stay awake power laptop lid inhibit"],
   },
   {
+    id: "prune-event-history",
+    title: "Delete history older than a day",
+    to: "/settings/maintenance",
+    scope: "environment-defaults",
+    searchTerms: ["prune event log database size shrink growth storage backup"],
+  },
+  {
     id: "background-activity",
     title: "Background activity",
     to: "/settings/maintenance",

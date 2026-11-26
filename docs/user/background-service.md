@@ -148,6 +148,32 @@ Downloads, it may need Full Disk Access for the `supaterm` executable listed in
 `ProgramArguments` in
 `~/Library/LaunchAgents/com.supaterm.desktop.service.plist`.
 
+## Delete history older than a day
+
+Supaterm keeps its internal event history and, while it runs, removes only
+entries that newer ones replace, so the database keeps growing. To stop that,
+turn on **Delete history older than a day** in Settings > Maintenance (web,
+desktop and mobile), or run `supaterm doctor --prune-events`. Your
+conversations, diffs and checkpoints are kept.
+
+- Before it deletes anything the first time, Supaterm copies the database to
+  `statev2-before-pruning.sqlite` beside it, in the `userdata` folder of the
+  data directory. The copy needs free disk space about the size of the data in
+  use; without it nothing is deleted, and the server log or `supaterm doctor`
+  says why. Delete the copy once you no longer need it.
+- The first pass only records where history ends. A pass at least a day later
+  removes what came before that point. With the setting on, passes run every
+  six hours. `supaterm doctor --prune-events --dry-run` shows how many events a
+  pass would remove now, or when it can start.
+- **An older Supaterm cannot use a pruned database.** It would show incomplete
+  threads to clients that reconnect from before the pruned point. Do not
+  downgrade after pruning. To undo pruning, turn the setting off, stop
+  Supaterm, replace `statev2.sqlite` with the copy, and delete
+  `statev2.sqlite-wal` and `statev2.sqlite-shm`; work done since the copy was
+  taken is lost.
+- The freed space stays inside the database file until it shrinks, on its own
+  or after the repair below.
+
 ## Reclaim database space
 
 Supaterm removes superseded internal history on its own while it runs; your

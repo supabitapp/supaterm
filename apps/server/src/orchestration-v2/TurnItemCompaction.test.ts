@@ -28,6 +28,7 @@ import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as EventSink from "./EventSink.ts";
 import * as EventStore from "./EventStore.ts";
 import * as ProjectionMaintenance from "./ProjectionMaintenance.ts";
+import * as ProjectionReplay from "./testkit/ProjectionReplay.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 
 const database = SqlitePersistence.layerMemory;
@@ -38,6 +39,7 @@ const layerTest = Layer.mergeAll(
   stores,
   EventSink.layer.pipe(Layer.provide(stores)),
   ProjectionMaintenance.layer.pipe(Layer.provide(stores)),
+  ProjectionReplay.layer.pipe(Layer.provide(stores)),
 );
 
 const providerInstanceId = ProviderInstanceId.make("codex");
@@ -357,8 +359,9 @@ it.effect(
         assert.deepEqual(clientProjection?.turnItems, beforeProjection.turnItems);
         assert.deepEqual(clientProjection?.visibleTurnItems, beforeProjection.visibleTurnItems);
       }
-      assert.isTrue((yield* maintenance.verify).valid);
-      assert.isTrue((yield* maintenance.rebuild).valid);
+      const oracle = yield* ProjectionReplay.ProjectionReplay;
+      assert.isTrue((yield* oracle.verify).valid);
+      assert.isTrue((yield* oracle.rebuild).valid);
       assert.deepEqual(yield* projections.getThreadProjection(threadId), beforeProjection);
       const positions = yield* sql<{
         readonly turn_item_id: string;

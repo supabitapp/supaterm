@@ -73,6 +73,7 @@ import * as Ws from "./ws.ts";
 import { RpcGroup, RpcMessage, RpcServer } from "effect/rpc";
 import * as RpcTest from "effect/rpc/RpcTest";
 import * as SqlClient from "effect/sql/SqlClient";
+import * as Statement from "effect/sql/Statement";
 import { vi } from "vite-plus/test";
 
 import * as AssetSigner from "./assets/AssetSigner.ts";
@@ -2361,14 +2362,236 @@ it.effect("thread resume across compacted history keeps message order and final 
         ["synchronized"],
       ],
     );
-  }).pipe(
-    Effect.provide(
-      ProjectionMaintenance.layer.pipe(
-        Layer.provide(Layer.merge(EventStore.layer, ProjectionStore.layer)),
-        Layer.provideMerge(ReplayTestLayer),
+  }).pipe(Effect.provide(ProjectionMaintenance.layer.pipe(Layer.provideMerge(ReplayTestLayer)))),
+);
+
+// Pruned history cannot be replayed: a cursor below the boundary must resync from a snapshot.
+it.effect("thread resume from a cursor below the pruned boundary loads a snapshot", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const threadId = ThreadId.make("thread:pruned");
+    const insert = (version: number) => sql<{ sequence: number }>`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        ${`pruned:${version}`}, 'thread', ${threadId}, ${version}, 'provider-session.detached',
+        ${now}, 'server', ${JSON.stringify({ providerSessionId: "session:pruned", detachedAt: now })},
+        '{}', 2
+      ) RETURNING sequence
+    `;
+    const [first] = yield* insert(0);
+    const [second] = yield* insert(1);
+    yield* insert(2);
+    yield* sql`
+      INSERT INTO orchestration_v2_projection_metadata (
+        projection_name, schema_version, last_sequence, updated_at
+      ) VALUES (${OrchestrationEventStore.EVENT_LOG_PRUNED_THROUGH}, 2, ${second!.sequence}, ${now})
+    `;
+    const exit = yield* subscribeOrchestrationV2Thread({
+      threadId,
+      afterSequence: first!.sequence,
+    }).pipe(
+      Effect.flatMap(Stream.runCollect),
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        getThreadSnapshot: () => Effect.die("snapshot"),
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.exit,
+    );
+    assert.deepEqual(Exit.isFailure(exit) ? Cause.squash(exit.cause) : exit, "snapshot");
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
+);
+
+// A prune pass can delete replayed rows after the boundary check; the read must not be trusted.
+it.effect("thread resume loads a snapshot when pruning advances during the replay read", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const threadId = ThreadId.make("thread:prune-race");
+    const insert = (version: number) => sql<{ sequence: number }>`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        ${`prune-race:${version}`}, 'thread', ${threadId}, ${version}, 'provider-session.detached',
+        ${now}, 'server', ${JSON.stringify({ providerSessionId: "session:race", detachedAt: now })},
+        '{}', 2
+      ) RETURNING sequence
+    `;
+    const [first] = yield* insert(0);
+    const [second] = yield* insert(1);
+    yield* insert(2);
+
+    const readStarted = yield* Deferred.make<void>();
+    const releaseRead = yield* Deferred.make<void>();
+    let gated = false;
+    const gateReplayRead: Statement.Transformer = (statement) => {
+      const [query] = statement.compile();
+      // The paged replay read (readApplicationRows), not the stats or high-water queries.
+      if (!gated && /^\s*SELECT\s+sequence,\s+event_id,/.test(query)) {
+        gated = true;
+        return Deferred.succeed(readStarted, undefined).pipe(
+          Effect.andThen(Deferred.await(releaseRead)),
+          Effect.as(statement),
+        );
+      }
+      return Effect.succeed(statement);
+    };
+    const fiber = yield* subscribeOrchestrationV2Thread({
+      threadId,
+      afterSequence: first!.sequence,
+    }).pipe(
+      Effect.provideService(Statement.CurrentTransformer, gateReplayRead),
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        getThreadSnapshot: () => Effect.die("snapshot"),
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.exit,
+      Effect.forkChild,
+    );
+    yield* Deferred.await(readStarted);
+    // A pass publishes its boundary, then deletes the rows it covers.
+    yield* sql`
+      INSERT INTO orchestration_v2_projection_metadata (
+        projection_name, schema_version, last_sequence, updated_at
+      ) VALUES (${OrchestrationEventStore.EVENT_LOG_PRUNED_THROUGH}, 2, ${second!.sequence}, ${now})
+    `;
+    yield* sql`DELETE FROM orchestration_events WHERE sequence = ${second!.sequence}`;
+    yield* Deferred.succeed(releaseRead, undefined);
+    const exit = yield* Fiber.join(fiber);
+    assert.deepEqual(Exit.isFailure(exit) ? Cause.squash(exit.cause) : exit, "snapshot");
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
+);
+
+// A thread idle since before the boundary missed nothing; resuming must not resend its body.
+it.effect("thread resume at its own high-water below the pruned boundary skips the snapshot", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const threadId = ThreadId.make("thread:idle");
+    const [last] = yield* sql<{ sequence: number }>`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        'idle:0', 'thread', ${threadId}, 0, 'provider-session.detached',
+        ${now}, 'server', ${JSON.stringify({ providerSessionId: "session:idle", detachedAt: now })},
+        '{}', 2
+      ) RETURNING sequence
+    `;
+    yield* sql`
+      INSERT INTO orchestration_v2_projection_metadata (
+        projection_name, schema_version, last_sequence, updated_at
+      ) VALUES (${OrchestrationEventStore.EVENT_LOG_PRUNED_THROUGH}, 2, ${last!.sequence + 10}, ${now})
+    `;
+    const exit = yield* subscribeOrchestrationV2Thread({
+      threadId,
+      afterSequence: last!.sequence,
+    }).pipe(
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        getThreadSnapshot: () => Effect.die("snapshot"),
+        streamStoredEventsFrom: () => Stream.empty,
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.exit,
+    );
+    // A snapshot load dies with "snapshot", so success means the resume replayed nothing.
+    assert.isTrue(Exit.isSuccess(exit));
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
+);
+
+// Shell resume reads which aggregates changed, not their events, and pruning keeps each stream's
+// newest row: every aggregate that changed after a cursor below the boundary still resumes.
+it.effect("shell resume from a cursor below the pruned boundary resumes without a snapshot", () =>
+  Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    const now = "2026-10-13T00:00:00.000Z";
+    const insert = (
+      aggregateKind: "project" | "thread",
+      streamId: string,
+      version: number,
+      eventType: string,
+    ) => sql<{ sequence: number }>`
+      INSERT INTO orchestration_events (
+        event_id, aggregate_kind, stream_id, stream_version, event_type,
+        occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+      ) VALUES (
+        ${`${streamId}:${version}`}, ${aggregateKind}, ${streamId}, ${version}, ${eventType},
+        ${now}, 'server', '{}', '{}', 2
+      ) RETURNING sequence
+    `;
+    const [cursor] = yield* insert("thread", "thread:unchanged", 0, "provider-session.detached");
+    const [prunedProject] = yield* insert("project", "project:pruned", 0, "project.meta-updated");
+    const [projectHead] = yield* insert("project", "project:pruned", 1, "project.meta-updated");
+    const [prunedLive] = yield* insert("thread", "thread:live", 0, "provider-session.detached");
+    const [prunedDeleted] = yield* insert("thread", "thread:gone", 0, "provider-session.detached");
+    const [deletedHead] = yield* insert("thread", "thread:gone", 1, "thread.deleted");
+    const [liveHead] = yield* insert("thread", "thread:live", 1, "provider-session.detached");
+    yield* sql`
+      INSERT INTO orchestration_v2_projection_metadata (
+        projection_name, schema_version, last_sequence, updated_at
+      ) VALUES (
+        ${OrchestrationEventStore.EVENT_LOG_PRUNED_THROUGH}, 2, ${deletedHead!.sequence}, ${now}
+      )
+    `;
+    yield* sql`DELETE FROM orchestration_events WHERE sequence IN ${sql.in([
+      prunedProject!.sequence,
+      prunedLive!.sequence,
+      prunedDeleted!.sequence,
+    ])}`;
+    const liveShell = {
+      id: ThreadId.make("thread:live"),
+      archivedAt: null,
+    } as unknown as OrchestrationV2ThreadShell;
+    const items = yield* subscribeOrchestrationV2Shell({
+      afterSequence: cursor!.sequence,
+      requestCompletionMarker: true,
+    }).pipe(
+      Effect.flatMap((stream) =>
+        stream.pipe(
+          Stream.takeUntil((item) => item.kind === "synchronized"),
+          Stream.filter((item) => item.kind !== "snapshot"),
+          Stream.runCollect,
+        ),
       ),
-    ),
-  ),
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        ensureLegacyTranscript: () => Effect.void,
+        getThreadSnapshot: () => Effect.die("snapshot"),
+        listActiveShellIndex: () => Effect.die("snapshot"),
+        readShellSnapshot: () => Effect.die("snapshot"),
+        getShellSnapshot: () => Effect.succeed({ threads: [liveShell], archivedThreads: [] }),
+        listActiveSubagentThreadIds: () => Effect.succeed([]),
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.provideService(ProjectStore.ProjectStoreV2, {
+        listShells: () => Effect.succeed([]),
+      } as unknown as ProjectStore.ProjectStoreV2["Service"]),
+      Effect.provideService(ProjectService.ProjectService, {
+        getShell: () => Effect.succeedNone,
+      } as unknown as ProjectService.ProjectService["Service"]),
+      Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
+        subscribeChanges: PubSub.subscribe(yield* PubSub.unbounded()),
+      } as ProjectEnrichment.ProjectEnrichmentService["Service"]),
+    );
+    assert.deepEqual(
+      Array.from(items, (item) =>
+        item.kind === "synchronized"
+          ? [item.kind]
+          : [
+              item.kind,
+              "sequence" in item ? item.sequence : null,
+              "threadId" in item ? item.threadId : "thread" in item ? item.thread.id : null,
+            ],
+      ),
+      [
+        ["project.removed", projectHead!.sequence, null],
+        ["thread.removed", deletedHead!.sequence, "thread:gone"],
+        ["thread.updated", liveHead!.sequence, "thread:live"],
+        ["synchronized"],
+      ],
+    );
+  }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
 // A shell cursor at the high-water missed nothing; resuming must not resend a snapshot. A client

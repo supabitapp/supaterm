@@ -34,6 +34,10 @@ import {
   type OrchestrationEventStoreError,
 } from "./Errors.ts";
 
+/** Projection metadata rows: events at or below the pruned-through sequence may be gone. */
+export const EVENT_LOG_PRUNED_THROUGH = "event-log-pruned-through";
+export const EVENT_LOG_PRUNE_MARK = "event-log-prune-mark";
+
 export type UnsequencedProjectEvent = ApplicationProjectEvent extends infer Event
   ? Event extends ApplicationProjectEvent
     ? Omit<Event, "sequence">
@@ -92,6 +96,9 @@ export class OrchestrationEventStore extends Context.Service<
     ) => Effect.Effect<number, OrchestrationEventStoreError>;
 
     readonly latestApplicationSequence: Effect.Effect<number, OrchestrationEventStoreError>;
+
+    /** Replay from a cursor below this misses pruned events; resync from a snapshot instead. */
+    readonly prunedThroughSequence: Effect.Effect<number, OrchestrationEventStoreError>;
 
     /**
      * Each project or thread with an event in the range, at its newest
@@ -466,8 +473,7 @@ const makeEventStore = Effect.gen(function* () {
           const hint = promptKey === undefined ? undefined : promptHints.get(promptKey);
           const payloadJson = yield* encodeJson(encoded.payload);
           // Progress ticks repeat an unchanged prompt, so store it once and point
-          // later rows at it. ProjectionMaintenance never deletes these anchor
-          // rows.
+          // later rows at it. Pruning keeps anchors that retained rows reference.
           const storedPayload =
             hint !== undefined && subagent !== undefined
               ? sql`CASE WHEN EXISTS (
@@ -671,6 +677,15 @@ const makeEventStore = Effect.gen(function* () {
     ),
   );
 
+  const prunedThroughSequence = sql<{ readonly last_sequence: number }>`
+    SELECT last_sequence FROM orchestration_v2_projection_metadata
+    WHERE projection_name = ${EVENT_LOG_PRUNED_THROUGH}
+  `.pipe(
+    NodeSqliteClient.readOnly,
+    Effect.map((rows) => rows[0]?.last_sequence ?? 0),
+    Effect.mapError(toPersistenceSqlError("OrchestrationEventStore.prunedThroughSequence:query")),
+  );
+
   const readChangedApplicationAggregates: OrchestrationEventStore["Service"]["readChangedApplicationAggregates"] =
     (input) =>
       sql<ChangedApplicationAggregate>`
@@ -767,6 +782,7 @@ const makeEventStore = Effect.gen(function* () {
     getAgentReplayStats,
     latestAgentSequence,
     latestApplicationSequence,
+    prunedThroughSequence,
     readChangedApplicationAggregates,
     readApplicationEvents: catchUpApplicationEvents,
     publishCommitted: (events) => PubSub.publishAll(committedEvents, events).pipe(Effect.asVoid),

@@ -51,7 +51,7 @@ import {
 import { AcpProviderCapabilitiesV2 } from "@supaterm/provider-acp/server/adapter";
 import * as EventSink from "../EventSink.ts";
 import * as EventStore from "../EventStore.ts";
-import * as ProjectionMaintenance from "../ProjectionMaintenance.ts";
+import * as ProjectionReplay from "./ProjectionReplay.ts";
 import * as ProjectionStore from "../ProjectionStore.ts";
 import * as Orchestrator from "../Orchestrator.ts";
 import * as EffectWorker from "../EffectWorker.ts";
@@ -6135,7 +6135,7 @@ describe("orchestration v2 provider switching", () => {
           layerEventStoreProvided,
           layerProjectionStoreProvided,
         );
-        const layerMaintenanceProvided = ProjectionMaintenance.layer.pipe(
+        const layerMaintenanceProvided = ProjectionReplay.layer.pipe(
           Layer.provide(layerStoresProvided),
         );
         const layerOrchestratorProvided = ProviderReplayHarness.layerWithRegistry(
@@ -6161,7 +6161,7 @@ describe("orchestration v2 provider switching", () => {
         );
 
         const projection = yield* Effect.gen(function* () {
-          const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+          const maintenance = yield* ProjectionReplay.ProjectionReplay;
           const orchestrator = yield* Orchestrator.OrchestratorV2;
           const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
 

@@ -1,11 +1,13 @@
 import { DATABASE_COMPACTION_RECOMMENDED_BYTES } from "@supaterm/contracts";
 import * as Clock from "effect/Clock";
 import * as Console from "effect/Console";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import { Command, Flag, GlobalFlag, Prompt } from "effect/cli";
 
+import type * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenance.ts";
 import * as BootService from "../service/bootService.ts";
 import * as DatabaseMaintenance from "../persistence/DatabaseMaintenance.ts";
 import * as ServerOwnership from "../serverOwnership.ts";
@@ -31,6 +33,8 @@ const formatElapsed = (nanos: bigint) => {
 
 const COMPACT_STEP_LABELS: Record<DatabaseMaintenance.DatabaseCompactStep, string> = {
   "compact-events": "Removing superseded events",
+  "prune-events": "Removing history older than a day",
+  "back-up": "Backing up the database before its first prune",
   vacuum: "Rewriting the database file",
   "rebuild-search": "Rebuilding the search index",
   checkpoint: "Flushing the write-ahead log",
@@ -64,7 +68,12 @@ const lockServerHome = Effect.fn("runDoctor.lockServerHome")(function* (paths: {
 
 export const runDoctor = Effect.fn("runDoctor")(function* (
   paths: { readonly dbPath: string; readonly serverRuntimeStatePath: string },
-  options: { readonly fix: boolean; readonly dryRun: boolean; readonly interactive?: boolean },
+  options: {
+    readonly fix: boolean;
+    readonly dryRun: boolean;
+    readonly pruneEvents?: boolean;
+    readonly interactive?: boolean;
+  },
 ) {
   const databasePath = paths.dbPath;
   const maintenance = yield* DatabaseMaintenance.DatabaseMaintenance;
@@ -72,7 +81,8 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
   yield* Console.log(
     `Database: ${formatBytes(status.databaseBytes)}, ${formatBytes(status.reclaimableBytes)} reclaimable.`,
   );
-  if (status.incrementalVacuumEnabled && status.reclaimableBytes === 0) {
+  const prune = options.pruneEvents === true ? yield* maintenance.previewPrune(databasePath) : null;
+  if (status.incrementalVacuumEnabled && status.reclaimableBytes === 0 && prune === null) {
     yield* Console.log("Nothing to repair.");
     return;
   }
@@ -90,6 +100,16 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
       }\n  Rewrites the whole ${formatBytes(status.databaseBytes)} database, which can take more than an hour on a large database or slow disk.`,
       recommended,
     },
+    ...(prune === null
+      ? []
+      : [
+          {
+            id: "prune" as const,
+            title: "Remove event history older than a day",
+            description: `${describePrune(prune)}\n  Conversations are kept. A Supaterm version older than this one cannot use the database afterwards.\n  Also reclaims database space.`,
+            recommended: true,
+          },
+        ]),
   ];
   for (const repair of repairs) {
     yield* Console.log(
@@ -138,14 +158,15 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
     );
   // Report inside the pause: a repair that succeeded is worth knowing about
   // even when starting the service again fails afterwards.
+  const history = selected.includes("prune") ? ("prune" as const) : ("compact" as const);
   yield* service.withStopped(
     lockServerHome(paths).pipe(
-      Effect.andThen(maintenance.compact(databasePath, reportStep)),
+      Effect.andThen(maintenance.compact(databasePath, { history, onStep: reportStep })),
       Effect.tap((result) =>
         Clock.monotonicTimeNanos.pipe(
           Effect.flatMap((now) =>
             Console.log(
-              `Done in ${formatElapsed(now - startedAt)}: ${formatBytes(result.beforeBytes)} -> ${formatBytes(result.afterBytes)}, ${result.deletedEventCount} superseded events removed.`,
+              `Done in ${formatElapsed(now - startedAt)}: ${formatBytes(result.beforeBytes)} -> ${formatBytes(result.afterBytes)}, ${describeRemoved(result)}`,
             ),
           ),
         ),
@@ -154,6 +175,45 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
     ),
   );
 });
+
+const formatCount = (count: number) => count.toLocaleString("en-US");
+
+const describePrune = (prune: {
+  readonly schedule: ProjectionMaintenance.EventLogPruneSchedule;
+  readonly prunableEventCount: number;
+  readonly eventCount: number;
+  readonly backup: { readonly path: string; readonly neededBytes: number } | null;
+}) => {
+  const total = `The event log holds ${formatCount(prune.eventCount)} events.`;
+  switch (prune.schedule._tag) {
+    case "Unmarked":
+      return `${total} The first run only records where history ends; a run a day later removes events older than that.`;
+    case "Waiting":
+      return `${total} Events from before the last run can be removed after ${DateTime.formatIso(prune.schedule.dueAt)}.`;
+    case "Due":
+      return `${total} ${formatCount(prune.prunableEventCount)} of them would be removed.${
+        prune.backup === null
+          ? ""
+          : `\n  First backs the database up to ${prune.backup.path}, which needs about ${formatBytes(prune.backup.neededBytes)} free.`
+      }`;
+  }
+};
+
+const describeRemoved = (result: {
+  readonly deletedEventCount: number;
+  readonly pruneSchedule: ProjectionMaintenance.EventLogPruneSchedule | null;
+}) => {
+  switch (result.pruneSchedule?._tag) {
+    case undefined:
+      return `${formatCount(result.deletedEventCount)} superseded events removed.`;
+    case "Due":
+      return `${formatCount(result.deletedEventCount)} events older than a day removed.`;
+    case "Unmarked":
+      return "history end recorded. Run doctor --prune-events again in a day to remove what came before it.";
+    case "Waiting":
+      return `nothing removed yet. Run doctor --prune-events again after ${DateTime.formatIso(result.pruneSchedule.dueAt)}.`;
+  }
+};
 
 export const doctorCommand = Command.make("doctor", {
   ...projectLocationFlags,
@@ -165,6 +225,12 @@ export const doctorCommand = Command.make("doctor", {
     Flag.withDescription("Show the repairs without changing anything, even with --fix."),
     Flag.withDefault(false),
   ),
+  pruneEvents: Flag.Boolean("prune-events").pipe(
+    Flag.withDescription(
+      "Also remove event history older than a day, after a one-time backup. With --dry-run, shows how many events it would remove.",
+    ),
+    Flag.withDefault(false),
+  ),
 }).pipe(
   Command.withDescription(
     "Inspect this Supaterm data directory and repair it. Pauses and restarts the background service as needed.",
@@ -173,9 +239,11 @@ export const doctorCommand = Command.make("doctor", {
     Effect.gen(function* () {
       const logLevel = yield* GlobalFlag.LogLevel;
       const config = yield* resolveCliAuthConfig(flags, logLevel);
-      yield* runDoctor(config, { fix: flags.fix, dryRun: flags.dryRun }).pipe(
-        Effect.provide(Layer.merge(DatabaseMaintenance.layer, CliService.layer(config))),
-      );
+      yield* runDoctor(config, {
+        fix: flags.fix,
+        dryRun: flags.dryRun,
+        pruneEvents: flags.pruneEvents,
+      }).pipe(Effect.provide(Layer.merge(DatabaseMaintenance.layer, CliService.layer(config))));
     }),
   ),
 );

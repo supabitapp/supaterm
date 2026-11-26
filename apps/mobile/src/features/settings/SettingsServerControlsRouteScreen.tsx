@@ -543,6 +543,20 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                     />
                   </View>
                 </SettingsSection>
+                <SettingsSection title="History">
+                  <SettingsSwitchRow
+                    icon="trash"
+                    label="Delete history older than a day"
+                    subtitle={
+                      projectSelected
+                        ? "Environment-wide setting. Select All projects to change it."
+                        : "Keeps every conversation. Backs up the database once, then removes internal history older than a day. Older Supaterm versions can't use the database afterwards."
+                    }
+                    value={uniform("pruneEventHistory")}
+                    disabled={disabledFor("pruneEventHistory")}
+                    onValueChange={(value) => write({ pruneEventHistory: value })}
+                  />
+                </SettingsSection>
               </>
             ) : null}
           </>

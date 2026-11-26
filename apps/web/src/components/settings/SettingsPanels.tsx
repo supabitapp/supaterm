@@ -513,6 +513,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.keepAwakeWhileAgentsWork !== DEFAULT_UNIFIED_SETTINGS.keepAwakeWhileAgentsWork
       ? ["Keep awake while agents work"]
       : []),
+    ...(settings.pruneEventHistory !== DEFAULT_UNIFIED_SETTINGS.pruneEventHistory
+      ? ["Delete history older than a day"]
+      : []),
     ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
       ? ["New thread mode"]
       : []),
@@ -641,6 +644,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       continueThreadsAfterServerUpdate: DEFAULT_UNIFIED_SETTINGS.continueThreadsAfterServerUpdate,
       backgroundActivity: DEFAULT_UNIFIED_SETTINGS.backgroundActivity,
       keepAwakeWhileAgentsWork: DEFAULT_UNIFIED_SETTINGS.keepAwakeWhileAgentsWork,
+      pruneEventHistory: DEFAULT_UNIFIED_SETTINGS.pruneEventHistory,
       defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
       newWorktreesStartFromOrigin: DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin,
       addProjectBaseDirectory: DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory,
@@ -1975,6 +1979,33 @@ export function MaintenanceSettingsPanel() {
                 updateSettings({ keepAwakeWhileAgentsWork: Boolean(checked) })
               }
               aria-label="Keep awake while agents work"
+            />
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection id="history" title="History">
+        <SettingsRow
+          serverScoped
+          settingKeys={["pruneEventHistory"]}
+          {...searchableSetting("prune-event-history")}
+          description="Keeps every conversation. Backs up the database once, then removes internal history older than a day so the database stops growing. Older Supaterm versions can't use the database afterwards."
+          resetAction={
+            settings.pruneEventHistory !== DEFAULT_UNIFIED_SETTINGS.pruneEventHistory ? (
+              <SettingResetButton
+                label="delete history older than a day"
+                onClick={() =>
+                  updateSettings({ pruneEventHistory: DEFAULT_UNIFIED_SETTINGS.pruneEventHistory })
+                }
+              />
+            ) : null
+          }
+          control={
+            <ScopedSwitch
+              settingKeys={["pruneEventHistory"]}
+              checked={settings.pruneEventHistory}
+              onCheckedChange={(checked) => updateSettings({ pruneEventHistory: Boolean(checked) })}
+              aria-label="Delete history older than a day"
             />
           }
         />

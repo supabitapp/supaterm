@@ -1275,6 +1275,11 @@ export const ServerSettings = Schema.Struct({
   ),
   /** Holds an OS sleep inhibitor while any run is active; closing a laptop lid still sleeps it. */
   keepAwakeWhileAgentsWork: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  /**
+   * Background maintenance deletes orchestration events older than a day that projections cover,
+   * after backing up the database once. Off: it only removes superseded events.
+   */
+  pruneEventHistory: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   /** Lets clients reach this machine's loopback ports over `/api/preview/tunnel`. */
   enablePreviewTunnel: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
@@ -1605,6 +1610,7 @@ export const ServerSettingsPatch = Schema.Struct({
   enableProviderUpdateChecks: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   keepAwakeWhileAgentsWork: Schema.optionalKey(Schema.Boolean),
+  pruneEventHistory: Schema.optionalKey(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
   enablePreviewTunnel: Schema.optionalKey(Schema.Boolean),
   defaultAutoPull: Schema.optionalKey(Schema.Boolean),
