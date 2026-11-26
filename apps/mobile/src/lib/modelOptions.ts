@@ -192,8 +192,8 @@ export function describeUnavailableModelSelection(
         detail: m(msg("Turn it back on from web or desktop, or choose another model.")),
       }
     : {
-        title: "Antigravity model unavailable",
-        detail: "Set up Antigravity on web or desktop, or choose another model.",
+        title: m(msg("Antigravity model unavailable")),
+        detail: m(msg("Set up Antigravity on web or desktop, or choose another model.")),
       };
 }
 

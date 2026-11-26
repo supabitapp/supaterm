@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 
 export function authClientMetadata(appVersion?: string): AuthClientPresentationMetadata {
   return {
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- product name
     label: "Supaterm Mobile",
     deviceType:
       Device.deviceType === Device.DeviceType.TABLET

@@ -1450,7 +1450,8 @@ function AssistantMarkdownBlocks(props: {
   readonly renderImage: MarkdownImageRenderer;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill> | undefined;
 }) {
-  const blocks = splitMarkdownDetails(props.markdown).map((block) =>
+  const m = useMessages();
+  const blocks = splitMarkdownDetails(props.markdown, m).map((block) =>
     block.kind === "details"
       ? block
       : { ...block, segments: splitCodexArtifactTemplateMarkdown(block.markdown) },
