@@ -133,7 +133,7 @@ export function failEnvironmentOperationForbidden(
 }
 
 /** A managed policy's refusal, with its explanation naming the organization. */
-export const failManagedPolicyRefused = (error: ManagedLimits.ManagedPolicyRefusedError) =>
+const failManagedPolicyRefused = (error: ManagedLimits.ManagedPolicyRefusedError) =>
   failEnvironmentOperationForbidden("managed_policy_refused", error.message);
 
 export function failEnvironmentNotFound(reason: EnvironmentResourceNotFoundReason) {

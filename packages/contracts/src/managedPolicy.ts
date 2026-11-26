@@ -159,7 +159,7 @@ export function isManagedSettingPath(
 }
 
 /** The one shape users see when policy refuses something: "Example Corp's policy does not allow the Encrypted Relay." */
-export function managedPolicyDeniedMessage(organization: string, capability: string): string {
+function managedPolicyDeniedMessage(organization: string, capability: string): string {
   return `${organization}'s policy does not allow ${capability}.`;
 }
 
