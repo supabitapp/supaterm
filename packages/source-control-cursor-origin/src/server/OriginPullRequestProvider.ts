@@ -940,8 +940,8 @@ export const make = Effect.gen(function* () {
       const action = (() => {
         switch (input.action) {
           case "merge":
-            return requireHead(input, "runAction").pipe(
-              Effect.andThen(refuseStackedMerge(input)),
+            return refuseStackedMerge(input).pipe(
+              Effect.andThen(requireHead(input, "runAction")),
               Effect.andThen(
                 write(input, "runAction", "POST", `${path}/merge`, {
                   mergeMethod: input.mergeMethod === "squash" ? "squash" : "merge",
