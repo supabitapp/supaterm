@@ -82,9 +82,8 @@ const layerRuntimePolicyProvided = RuntimePolicy.layerFromProjectStore.pipe(
 const layerEventStoreProvided = EventStore.layerFromOrchestrationEventStore.pipe(
   Layer.provide(layerEventInfrastructure),
 );
-const layerCommandReceiptStoreProvided = CommandReceiptStore.layerFromApplicationReceipts.pipe(
-  Layer.provide(layerEventInfrastructure),
-);
+export const layerCommandReceiptStoreProvided =
+  CommandReceiptStore.layerFromApplicationReceipts.pipe(Layer.provide(layerEventInfrastructure));
 
 const layerStores = Layer.mergeAll(
   layerEventInfrastructure,
@@ -106,7 +105,13 @@ const layerProjectionMaintenanceProvided = ProjectionMaintenance.layer.pipe(
 
 export const layerProjectService = ProjectService.layer.pipe(
   Layer.provide(
-    Layer.mergeAll(ProjectStore.layer, ProjectionStore.layer, layerEventSink, IdAllocator.layer),
+    Layer.mergeAll(
+      ProjectStore.layer,
+      ProjectionStore.layer,
+      layerEventSink,
+      layerCommandReceiptStoreProvided,
+      IdAllocator.layer,
+    ),
   ),
 );
 

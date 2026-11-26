@@ -7,6 +7,7 @@ import {
   ProjectId,
   type ProjectTrackedFolder,
   ProviderInstanceId,
+  ServerSettingsError,
 } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Deferred from "effect/Deferred";
@@ -87,6 +88,7 @@ const layerTest = layerTestFor(layerMetadata);
 
 const layerProjectServiceDependencies = Layer.mergeAll(
   RuntimeLayer.layerEventSink,
+  RuntimeLayer.layerCommandReceiptStoreProvided,
   ProjectStore.layer,
   ProjectionStore.layer,
   IdAllocator.layer,
@@ -515,6 +517,52 @@ it.layer(layerTest)("ProjectService", (it) => {
         [script],
       );
     }),
+  );
+
+  it.effect("a retry saves the actions a failed settings write left out", () =>
+    Effect.gen(function* () {
+      const settings = yield* ServerSettings.ServerSettingsService;
+      const failWrite = yield* Ref.make(true);
+      const service = yield* ProjectService.make.pipe(
+        Effect.provideService(ServerSettings.ServerSettingsService, {
+          ...settings,
+          updateSettings: (patch) =>
+            Ref.getAndSet(failWrite, false).pipe(
+              Effect.flatMap((fail) =>
+                fail
+                  ? Effect.fail(
+                      new ServerSettingsError({
+                        settingsPath: "settings.json",
+                        operation: "write-file",
+                      }),
+                    )
+                  : settings.updateSettings(patch),
+              ),
+            ),
+        }),
+      );
+      const projectId = ProjectId.make("project:actions:retry");
+      const script = {
+        id: "setup",
+        name: "Setup",
+        command: "pnpm install",
+        icon: "play" as const,
+        runOnWorktreeCreate: true,
+      };
+      const create = {
+        commandId: CommandId.make("command:actions:retry"),
+        projectId,
+        title: "Retry",
+        workspaceRoot: "/work/actions-retry",
+        scripts: [script],
+      };
+      yield* service.create(create).pipe(Effect.flip);
+      yield* service.create(create);
+      assert.deepEqual(
+        (yield* settings.getSettings).projectSettingsOverrides[projectId]?.defaultProjectScripts,
+        [script],
+      );
+    }).pipe(Effect.provide(layerProjectServiceDependencies)),
   );
 
   it.effect("rejects a workspace another active project holds", () =>
