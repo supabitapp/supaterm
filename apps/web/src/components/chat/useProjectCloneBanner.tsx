@@ -1,3 +1,5 @@
+import { projectCloneProgressSummary } from "@supaterm/client-runtime/contract-labels";
+import { useMessages } from "gt-react";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import {
   isAtomCommandInterrupted,
@@ -9,11 +11,7 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 import { useRemoveClonedProject } from "../../hooks/useRemoveClonedProject";
 import { sourceControlEnvironment } from "../../state/sourceControl";
 import { useProjectClone } from "../../state/projectClones";
-import {
-  projectCloneDisplayName,
-  projectCloneProgressSummary,
-  type ScopedProjectRef,
-} from "@supaterm/contracts";
+import { projectCloneDisplayName, type ScopedProjectRef } from "@supaterm/contracts";
 import { dismissProjectFileCopy, useProjectFileCopy } from "../../lib/addProjectToMachine";
 import { type ComposerBannerStackItem } from "./ComposerBannerStack";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -24,6 +22,7 @@ import { Button } from "../ui/button";
  * retry, and remove actions, and the reason sending waits until it is done.
  */
 export function useProjectCloneBanner(activeProjectRef: ScopedProjectRef | null) {
+  const messages = useMessages();
   const activeProjectClone = useProjectClone(activeProjectRef);
   const cancelProjectClone = useAtomCommand(sourceControlEnvironment.cancelProjectClone, {
     reportFailure: false,
@@ -80,7 +79,7 @@ export function useProjectCloneBanner(activeProjectRef: ScopedProjectRef | null)
         variant: "info",
         icon: <DownloadIcon />,
         title: `Cloning ${name}`,
-        description: projectCloneProgressSummary(activeProjectClone),
+        description: projectCloneProgressSummary(activeProjectClone, messages),
         actions: (
           <Button
             size="xs"

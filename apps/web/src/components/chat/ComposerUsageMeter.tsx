@@ -1,9 +1,7 @@
+import { formatResetsIn } from "@supaterm/shared/usageLimitsCopy";
+import { useMessages } from "gt-react";
 import type { ServerProviderUsageWindow } from "@supaterm/contracts";
-import {
-  formatResetsIn,
-  type headlineUsageWindows,
-  remainingPercent,
-} from "@supaterm/shared/usageLimits";
+import { type headlineUsageWindows, remainingPercent } from "@supaterm/shared/usageLimits";
 import { memo } from "react";
 
 import { useNowMinuteMs } from "../../hooks/useNowMinute";
@@ -80,9 +78,10 @@ function WindowReset({
   readonly window: ServerProviderUsageWindow;
   readonly resetsAt: string;
 }) {
+  const messages = useMessages();
   const now = useNowMinuteMs();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
-  const resetsIn = formatResetsIn(window, now);
+  const resetsIn = formatResetsIn(window, now, messages);
   return (
     <span className="text-muted-foreground">
       Resets {formatUpcomingTimestamp(resetsAt, timestampFormat, now)}

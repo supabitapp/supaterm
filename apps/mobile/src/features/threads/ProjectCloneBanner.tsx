@@ -1,8 +1,6 @@
-import {
-  projectCloneDisplayName,
-  projectCloneProgressSummary,
-  type ProjectCloneSnapshot,
-} from "@supaterm/contracts";
+import { projectCloneProgressSummary } from "@supaterm/client-runtime/contract-labels";
+import { useMessages } from "gt-react-native";
+import { projectCloneDisplayName, type ProjectCloneSnapshot } from "@supaterm/contracts";
 import type { ComponentProps } from "react";
 import { Pressable, View } from "react-native";
 
@@ -17,6 +15,7 @@ export function ProjectCloneBanner(props: {
   readonly onRetry: () => void;
   readonly onRemove: () => void;
 }) {
+  const m = useMessages();
   const { clone } = props;
   const name = projectCloneDisplayName(clone);
   const confirm = useInlineConfirm<"remove">();
@@ -29,7 +28,7 @@ export function ProjectCloneBanner(props: {
             Cloning {name}
           </Text>
           <Text className="text-xs text-foreground-muted" numberOfLines={1}>
-            {projectCloneProgressSummary(clone)}
+            {projectCloneProgressSummary(clone, m)}
           </Text>
         </View>
         <BannerAction label="Cancel" onPress={props.onCancel} />

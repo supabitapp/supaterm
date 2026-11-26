@@ -1,10 +1,11 @@
+import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabelsCopy";
 import { type KnownTerminalSession } from "@supaterm/client-runtime/state/terminal";
 import { DEFAULT_TERMINAL_ID, type ProjectScript } from "@supaterm/contracts";
-import { nextTerminalId, resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
+import { nextTerminalId } from "@supaterm/shared/terminalLabels";
 import * as Arr from "effect/Array";
 import * as Order from "effect/Order";
 
-export { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
+export { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabelsCopy";
 
 export interface TerminalMenuSession {
   readonly terminalId: string;

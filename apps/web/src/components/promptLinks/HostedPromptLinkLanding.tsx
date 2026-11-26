@@ -1,7 +1,6 @@
+import { parseNewThreadLink, parseThreadLinkPrompt } from "@supaterm/shared/promptLinksCopy";
 import {
   type LinkedPrompt,
-  parseNewThreadLink,
-  parseThreadLinkPrompt,
   promptLinkAppPath,
   promptLinkDeepLink,
 } from "@supaterm/shared/promptLinks";

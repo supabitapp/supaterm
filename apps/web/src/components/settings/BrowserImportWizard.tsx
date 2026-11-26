@@ -1,7 +1,8 @@
 import { PermissionChecklist, PermissionContinueButton } from "../permissions/PermissionChecklist";
 import { usePermissionStatus } from "../permissions/usePermissionStatus";
-import type { BrowserImportSource } from "@supaterm/contracts";
-import { BROWSER_IMPORT_FAILURE_COPY } from "@supaterm/contracts";
+import type { BrowserImportFailureReason, BrowserImportSource } from "@supaterm/contracts";
+import { browserImportFailureMessage } from "@supaterm/client-runtime/contract-labels";
+import { useMessages } from "gt-react";
 import { ArrowDownIcon, ArrowRightIcon, CheckIcon, HardDriveIcon } from "@supaterm/icons";
 import { useRef, useState } from "react";
 
@@ -557,15 +558,16 @@ function BlockedStep({
   onRetry,
 }: {
   readonly source: BrowserImportSource;
-  readonly reason: keyof typeof BROWSER_IMPORT_FAILURE_COPY;
+  readonly reason: BrowserImportFailureReason;
   readonly onClose: () => void;
   readonly onRetry: (() => void) | undefined;
 }) {
+  const messages = useMessages();
   return (
     <>
       <DialogHeader>
         <DialogTitle>Couldn&rsquo;t import from {source.name}</DialogTitle>
-        <DialogDescription>{BROWSER_IMPORT_FAILURE_COPY[reason]}</DialogDescription>
+        <DialogDescription>{browserImportFailureMessage(reason, messages)}</DialogDescription>
       </DialogHeader>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>

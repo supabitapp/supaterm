@@ -1,6 +1,7 @@
+import { limitsNotice } from "@supaterm/shared/usageLimitsCopy";
+import { useMessages } from "gt-react";
 import type { EnvironmentId, UsageLimitsReport } from "@supaterm/contracts";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
-import { limitsNotice } from "@supaterm/shared/usageLimits";
 import { GaugeIcon } from "@supaterm/icons";
 
 import { ensureLocalApi } from "../../localApi";
@@ -108,12 +109,13 @@ function UsageLimitsBannerBody({
   readonly report: UsageLimitsReport;
   readonly environmentId: EnvironmentId;
 }) {
+  const messages = useMessages();
   const now = Date.parse(report.createdAt);
   return (
     <ComposerBanner.Scroll>
       <ComposerBanner.Body className="flex flex-col gap-2 pt-1 pb-1.5 pe-2">
         {report.accounts.map((account) => {
-          const notice = limitsNotice(account.limits);
+          const notice = limitsNotice(account.limits, messages);
           const externalUsage = account.limits.externalUsage;
           return (
             <div key={account.instanceId} className="flex min-w-0 flex-col gap-1">

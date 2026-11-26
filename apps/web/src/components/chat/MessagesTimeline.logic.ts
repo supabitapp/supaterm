@@ -1,3 +1,8 @@
+import {
+  dynamicToolTitle,
+  formatSearchToolLabel,
+  formatReadToolLabel,
+} from "@supaterm/shared/toolActivityCopy";
 import * as DateTime from "effect/DateTime";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
@@ -65,13 +70,8 @@ import { resolveSupatermMcpToolDefinition } from "@supaterm/shared/supatermMcpTo
 import { compactDynamicToolOutput } from "@supaterm/shared/toolOutput";
 import { htmlRenderReferencesEqual, type HtmlRenderReference } from "@supaterm/shared/htmlRender";
 import { mcpAppReferencesEqual, type McpAppReference } from "@supaterm/shared/mcpApp";
-import { dynamicToolTitle } from "@supaterm/shared/toolActivity";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
-import {
-  collectToolFilePaths,
-  formatReadToolLabel,
-  formatSearchToolLabel,
-} from "@supaterm/shared/toolActivity";
+import { collectToolFilePaths } from "@supaterm/shared/toolActivity";
 import { isHostPath } from "@supaterm/shared/path";
 import {
   type WorkGroupDisclosure,

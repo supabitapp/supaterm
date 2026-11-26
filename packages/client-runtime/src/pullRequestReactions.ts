@@ -4,6 +4,7 @@ import type {
   PullRequestReaction,
   PullRequestReactionContent,
 } from "@supaterm/contracts";
+import { formatConjunctionList } from "./listFormat.ts";
 
 export function canReactPullRequestComment(
   detail: Pick<PullRequestDetail, "provider" | "capabilities">,
@@ -58,12 +59,6 @@ export function pullRequestReactionName(content: PullRequestReactionContent): st
 
 const NAMED_ACTOR_LIMIT = 3;
 
-function joinNames(parts: ReadonlyArray<string>): string {
-  if (parts.length <= 1) return parts[0] ?? "";
-  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
-  return `${parts.slice(0, -1).join(", ")}, and ${parts.at(-1)}`;
-}
-
 function countRemainder(count: number, named: boolean): string {
   if (named) return `${count} ${count === 1 ? "other" : "others"}`;
   return `${count} ${count === 1 ? "person" : "people"}`;
@@ -77,7 +72,7 @@ export function pullRequestReactionTooltip(reaction: PullRequestReaction): strin
   const shown = names.slice(0, Math.min(NAMED_ACTOR_LIMIT, reaction.count));
   const others = Math.max(0, reaction.count - shown.length);
   const parts = [...shown, ...(others > 0 ? [countRemainder(others, shown.length > 0)] : [])];
-  return `${joinNames(parts)} reacted with ${pullRequestReactionName(reaction.content)} emoji`;
+  return `${formatConjunctionList(parts, "en")} reacted with ${pullRequestReactionName(reaction.content)} emoji`;
 }
 
 /** Changes whenever the host reports different reactions, so pending overlays can reset. */

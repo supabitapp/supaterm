@@ -4,6 +4,9 @@ import {
   ARCHIVE_MAX_BYTES,
   boundedZip,
 } from "@supaterm/client-runtime/zip/bounded-zip";
+import { isZipError } from "@supaterm/client-runtime/zip/error";
+import { zipErrorText } from "@supaterm/client-runtime/zip/error-messages";
+import { m } from "../../i18n/messages";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { filePreviewDelimiter, parseDelimitedPreview } from "@supaterm/shared/delimitedPreview";
 import {
@@ -141,7 +144,7 @@ async function openArchive(bytes: ArrayBuffer): Promise<ZipArchive> {
     throw new ZipFailureError({
       failure: {
         title: "Couldn't browse this ZIP",
-        detail: `${errorMessage(cause, "It may be incomplete or damaged.")} ${SAVE_ZIP_HINT}`,
+        detail: `${isZipError(cause) ? zipErrorText(cause.code, m) : errorMessage(cause, "It may be incomplete or damaged.")} ${SAVE_ZIP_HINT}`,
         retry: false,
       },
     });

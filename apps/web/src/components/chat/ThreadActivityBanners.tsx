@@ -1,3 +1,5 @@
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
+import { m } from "~/i18n/messages";
 import type {
   EnvironmentId,
   OrchestrationV2PendingBackgroundTask,
@@ -16,7 +18,6 @@ import {
   soleWatchedPullRequest,
 } from "@supaterm/client-runtime/state/thread-execution";
 import { childThreadInputsTitle } from "@supaterm/client-runtime/state/threads";
-import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import * as DateTime from "effect/DateTime";
 import {
   CircleDashedIcon,
@@ -166,7 +167,7 @@ export function runStopNowItem(input: {
       <>
         <span
           ref={tickTextContent(
-            (nowMs) => formatDuration(Math.max(1_000, nowMs - requestedAtMs)),
+            (nowMs) => formatDuration(Math.max(1_000, nowMs - requestedAtMs), m),
             true,
           )}
           className="tabular-nums"
@@ -310,7 +311,7 @@ export function backgroundWorkNowItem(input: {
         {startedAtMs === null ? null : (
           <span
             ref={tickTextContent(
-              (nowMs) => formatDuration(Math.max(1_000, nowMs - startedAtMs)),
+              (nowMs) => formatDuration(Math.max(1_000, nowMs - startedAtMs), m),
               true,
             )}
             className="tabular-nums"

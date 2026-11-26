@@ -1,3 +1,5 @@
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
+import { useMessages } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 import {
   deriveWorkflowGroups,
@@ -10,7 +12,7 @@ import {
   type OrchestrationV2Subagent,
   type ThreadId,
 } from "@supaterm/contracts";
-import { deriveSubagentElapsedMs, formatDuration } from "@supaterm/shared/orchestrationTiming";
+import { deriveSubagentElapsedMs } from "@supaterm/shared/orchestrationTiming";
 import { StackActions, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import * as DateTime from "effect/DateTime";
 import * as Haptics from "expo-haptics";
@@ -217,6 +219,7 @@ function useSubagentElapsed(
   subagent: Pick<OrchestrationV2Subagent, "status" | "startedAt" | "completedAt">,
   tickSeconds: boolean,
 ): string | null {
+  const messages = useMessages();
   const running = isOrchestrationV2WorkActive(subagent.status);
   const nowMs = useVisibleSecondClock(tickSeconds && running);
   const elapsedMs = deriveSubagentElapsedMs(
@@ -227,5 +230,5 @@ function useSubagentElapsed(
     },
     nowMs,
   );
-  return elapsedMs === null || elapsedMs === 0 ? null : formatDuration(elapsedMs);
+  return elapsedMs === null || elapsedMs === 0 ? null : formatDuration(elapsedMs, messages);
 }

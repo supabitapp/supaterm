@@ -1,3 +1,5 @@
+import { limitsNotice, formatResetsIn } from "@supaterm/shared/usageLimitsCopy";
+import { useMessages } from "gt-react-native";
 import { RegistryContext, useAtomMount, useAtomValue } from "@effect/atom-react";
 import { normalizeProviderAccentColor } from "@supaterm/client-runtime/state/provider-instance-display";
 import {
@@ -5,13 +7,7 @@ import {
   type ServerProvider,
   type ServerProviderUsageWindow,
 } from "@supaterm/contracts";
-import {
-  formatResetsIn,
-  limitsNotice,
-  paceOf,
-  paceRemainingPercent,
-  remainingPercent,
-} from "@supaterm/shared/usageLimits";
+import { paceOf, paceRemainingPercent, remainingPercent } from "@supaterm/shared/usageLimits";
 import { type ReactNode, useContext, useRef, useState } from "react";
 import { Atom } from "effect/reactivity";
 import { Pressable, View } from "react-native";
@@ -45,11 +41,12 @@ function WindowRow(props: {
   readonly color: string | null;
   readonly now: number;
 }) {
+  const messages = useMessages();
   const { window, now } = props;
   const remaining = remainingPercent(window);
   const timeLeft = paceRemainingPercent(window, now);
   const pace = paceOf(window, now);
-  const resetsIn = formatResetsIn(window, now);
+  const resetsIn = formatResetsIn(window, now, messages);
   const [barWidth, setBarWidth] = useState(0);
   const tickX =
     timeLeft === null || barWidth < 6
@@ -162,11 +159,12 @@ export function AccountLimits(props: {
   readonly trailing?: ReactNode;
   readonly footer?: ReactNode;
 }) {
+  const m = useMessages();
   const { limits, now, dense = false } = props;
   const providerColor = useBarColor(props.driver);
   const color = normalizeProviderAccentColor(props.accentColor) ?? providerColor;
   if (!limits) return null;
-  const notice = limitsNotice(limits);
+  const notice = limitsNotice(limits, m);
   const externalUsage = limits.externalUsage;
   const padding = dense ? "px-4 py-3" : "p-4";
   return (

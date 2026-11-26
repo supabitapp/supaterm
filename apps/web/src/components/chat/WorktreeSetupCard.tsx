@@ -1,9 +1,7 @@
-import {
-  worktreeSetupStageLabel,
-  type WorktreeSetupSnapshot,
-  type WorktreeSetupStage,
-} from "@supaterm/contracts";
-import { formatDuration } from "@supaterm/shared/orchestrationTiming";
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
+import { worktreeSetupStageLabel } from "@supaterm/client-runtime/contract-labels";
+import { useMessages } from "gt-react";
+import { type WorktreeSetupSnapshot, type WorktreeSetupStage } from "@supaterm/contracts";
 import {
   CheckIcon,
   CircleAlertIcon,
@@ -44,8 +42,9 @@ function elapsedMs(startedAt: string | null, endMs: number): number | null {
 
 /** Mounted only while setup runs, so finished setups never subscribe to the tick. */
 function LiveElapsed({ startedAt }: { startedAt: string }) {
+  const m = useMessages();
   const elapsed = elapsedMs(startedAt, useNowSecond());
-  return elapsed === null ? null : <>{formatDuration(elapsed)}</>;
+  return elapsed === null ? null : <>{formatDuration(elapsed, m)}</>;
 }
 
 /** A finished duration, or a ticking one while setup is still running. */
@@ -58,10 +57,11 @@ function Elapsed({
   endedAt: string | null;
   live: boolean;
 }) {
+  const m = useMessages();
   if (!startedAt) return null;
   if (endedAt) {
     const elapsed = elapsedMs(startedAt, Date.parse(endedAt));
-    return elapsed === null ? null : <>{formatDuration(elapsed)}</>;
+    return elapsed === null ? null : <>{formatDuration(elapsed, m)}</>;
   }
   return live ? <LiveElapsed startedAt={startedAt} /> : null;
 }
@@ -172,8 +172,9 @@ function StageRow({
   setupEndedAt: string | null;
   scriptName: string | null;
 }) {
+  const m = useMessages();
   const label =
-    stage.id === "setup-script" && scriptName ? scriptName : worktreeSetupStageLabel(stage.id);
+    stage.id === "setup-script" && scriptName ? scriptName : worktreeSetupStageLabel(stage.id, m);
   const running = stage.status === "running";
   const trailing =
     stage.status === "pending"

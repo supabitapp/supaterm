@@ -1,3 +1,4 @@
+import { projectScriptMenuLabel } from "@supaterm/shared/projectScriptsCopy";
 import * as Dialog from "../../components/ui/Dialog";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import type { AppBarMenu } from "../../components/ui/AppBar.types";
@@ -25,7 +26,6 @@ import {
   projectScriptMenuIcon,
   type TerminalMenuSession,
 } from "../terminal/terminalMenu";
-import { projectScriptMenuLabel } from "@supaterm/shared/projectScripts";
 import { compactMenuBranchLabel } from "./ThreadGitControls.logic";
 
 function compactMenuStatus(gitStatus: VcsStatusResult | null): string {

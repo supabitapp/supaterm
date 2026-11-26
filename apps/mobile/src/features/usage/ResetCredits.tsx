@@ -1,10 +1,12 @@
+import { resetCreditChoices } from "@supaterm/shared/usageLimitsCopy";
+import { useMessages } from "gt-react-native";
 import type {
   EnvironmentId,
   ProviderConsumeResetCreditInput,
   ProviderConsumeResetCreditOutcome,
   ServerProviderResetCredits,
 } from "@supaterm/contracts";
-import { type ResetCreditChoice, resetCreditChoices } from "@supaterm/shared/usageLimits";
+import { type ResetCreditChoice } from "@supaterm/shared/usageLimits";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -33,6 +35,7 @@ export function ResetCredits(props: {
   /** A smaller pill for the composer card. */
   readonly dense?: boolean;
 }) {
+  const messages = useMessages();
   const { environmentId, input, credits, now, dense = false } = props;
   const consume = useAtomCommand(serverEnvironment.consumeResetCredit, {
     reportFailure: false,
@@ -42,7 +45,7 @@ export function ResetCredits(props: {
   const confirm = useInlineConfirm<string>();
   if (dense && credits.availableCount === 0 && status === null) return null;
 
-  const choices = resetCreditChoices(credits, input, now);
+  const choices = resetCreditChoices(credits, input, now, undefined, messages);
   const armedChoice = choices.find((choice) => choice.key === confirm.armed);
 
   const redeem = async (choice: ResetCreditChoice) => {

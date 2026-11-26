@@ -126,10 +126,7 @@ export function threadLinkRefs(
   return [...refs.values()];
 }
 
-export function unknownThreadLinkLabel(
-  link: ThreadLink,
-  messageEnvironmentId: EnvironmentId,
-): string {
+function unknownThreadLinkLabel(link: ThreadLink, messageEnvironmentId: EnvironmentId): string {
   return link.environmentId === null || link.environmentId === messageEnvironmentId
     ? "Thread no longer available"
     : "Thread on another machine";
@@ -143,6 +140,10 @@ export function relabelThreadLinks(
   markdown: string,
   messageEnvironmentId: EnvironmentId,
   title: (ref: ScopedThreadRef) => string | undefined,
+  unknownLabel: (
+    link: ThreadLink,
+    messageEnvironmentId: EnvironmentId,
+  ) => string = unknownThreadLinkLabel,
 ): string {
   if (!hasThreadLinks(markdown)) return markdown;
   return markdown.replace(THREAD_LINK_OUTSIDE_CODE, (source, ...args) => {
@@ -168,7 +169,7 @@ export function relabelThreadLinks(
     const current = title({ environmentId, threadId });
     if (current === undefined) {
       if (labeledHref !== undefined && written.environmentId === null) return source;
-      return groups.label?.trim() || unknownThreadLinkLabel(written, messageEnvironmentId);
+      return groups.label?.trim() || unknownLabel(written, messageEnvironmentId);
     }
     return formatThreadLink(
       { environmentId: written.environmentId, threadId },

@@ -1,3 +1,4 @@
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
 import { Button } from "../../components/ui/Button";
 import {
   WORKTREE_SETUP_STAGE_ORDER,
@@ -6,7 +7,6 @@ import {
   type WorktreeSetupStage,
 } from "@supaterm/contracts";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
-import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import { useEffect } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import Animated, {

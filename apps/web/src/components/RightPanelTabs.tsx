@@ -1,3 +1,4 @@
+import { getTerminalLabel } from "@supaterm/shared/terminalLabelsCopy";
 import { contextMenuSourceOf } from "../contextMenuSource";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
@@ -15,7 +16,6 @@ import type {
   PullRequestState,
   ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
-import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import {
   closestCenter,
   DndContext,

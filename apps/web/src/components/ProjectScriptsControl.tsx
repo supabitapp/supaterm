@@ -1,3 +1,5 @@
+import { projectScriptMenuLabel } from "@supaterm/shared/projectScriptsCopy";
+import { useMessages } from "gt-react";
 import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import {
   AuthSettingsWriteScope,
@@ -11,7 +13,6 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import { projectScriptMenuLabel } from "@supaterm/shared/projectScripts";
 import { ChevronDownIcon, DownloadIcon, PlusIcon, SettingsIcon, WrenchIcon } from "@supaterm/icons";
 import React, { useState } from "react";
 
@@ -88,6 +89,7 @@ export default function ProjectScriptsControl({
   onUpdateScript,
   onDeleteScript,
 }: ProjectScriptsControlProps) {
+  const messages = useMessages();
   const isPanel = displayMode === "panel";
   const ActionGroup = isPanel ? "div" : Group;
   const panelAnchorRef = React.useRef<HTMLDivElement | null>(null);
@@ -209,7 +211,7 @@ export default function ProjectScriptsControl({
             onClick={() => onRunScript?.(script)}
           >
             <ScriptIcon icon={script.icon} className="size-4" />
-            <MenuItemLabel>{projectScriptMenuLabel(script)}</MenuItemLabel>
+            <MenuItemLabel>{projectScriptMenuLabel(script, messages)}</MenuItemLabel>
             <span className="relative ms-auto flex h-6 min-w-6 items-center justify-end">
               {shortcutLabel && <MenuShortcut className="ms-0 mr-7">{shortcutLabel}</MenuShortcut>}
               <span

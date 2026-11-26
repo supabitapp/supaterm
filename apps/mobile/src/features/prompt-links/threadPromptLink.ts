@@ -1,7 +1,9 @@
+import { parseThreadLinkPrompt } from "@supaterm/shared/promptLinksCopy";
+import { m } from "../../i18n/messages";
 import * as Dialog from "../../components/ui/Dialog";
 import type { NavigationState, PartialState } from "@react-navigation/native";
 import { EnvironmentId, ThreadId, type ScopedThreadRef } from "@supaterm/contracts";
-import { parseThreadLinkPrompt, type LinkedPrompt } from "@supaterm/shared/promptLinks";
+import { type LinkedPrompt } from "@supaterm/shared/promptLinks";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/reactivity";
 
@@ -55,7 +57,7 @@ export function takeThreadPromptLink(
   const environmentId = firstString(params.environmentId);
   const threadId = firstString(params.threadId);
   if (environmentId === null || threadId === null) return nextState;
-  const parsed = parseThreadLinkPrompt(search);
+  const parsed = parseThreadLinkPrompt(search, m);
   if (!parsed.ok) {
     Dialog.alert("Could not open link", parsed.error);
     return nextState;

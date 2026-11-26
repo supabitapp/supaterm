@@ -1,6 +1,6 @@
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
 import { isActiveSubagentStatus } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { OrchestrationV2Subagent } from "@supaterm/contracts";
-import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import * as DateTime from "effect/DateTime";
 
 export function subagentCardElapsed(

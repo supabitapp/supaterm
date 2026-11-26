@@ -1,3 +1,10 @@
+import {
+  cursorUsageWindowDetails,
+  collectExternalUsageLinks,
+  collectLimitNotices,
+  formatResetsIn,
+} from "@supaterm/shared/usageLimitsCopy";
+import { useMessages } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { EnvironmentId } from "@supaterm/contracts";
@@ -5,12 +12,8 @@ import { providerClients } from "@supaterm/client-runtime/provider-clients";
 import { normalizeProviderAccentColor } from "@supaterm/client-runtime/state/provider-instance-display";
 import {
   collectLimitAccounts,
-  collectExternalUsageLinks,
-  collectLimitNotices,
   collectLimitPools,
-  cursorUsageWindowDetails,
   displayLimitWindows,
-  formatResetsIn,
   paceRemainingPercent,
   remainingPercent,
   type LimitAccount,
@@ -176,6 +179,7 @@ function PoolWindowCard({
   readonly description?: string;
   readonly wide: boolean;
 }) {
+  const messages = useMessages();
   const navigation = useNavigation();
   const [barWidth, setBarWidth] = useState(0);
   // Each segment needs room for its account, percent and reset to label itself.
@@ -215,7 +219,7 @@ function PoolWindowCard({
       {nextRefill ? (
         <Text className="text-xs tabular-nums text-foreground-muted">
           ↻ +{nextRefill.restoresPercent}%{" "}
-          {formatResetsIn(nextRefill.member.window, now)
+          {formatResetsIn(nextRefill.member.window, now, messages)
             ?.replace("resets in ", "in ")
             .replace("resets now", "now")}
         </Text>
@@ -238,7 +242,7 @@ function PoolWindowCard({
         const { account, window } = member;
         const timeLeft = paceRemainingPercent(window, now);
         const credits = account.limits.resetCredits?.availableCount ?? 0;
-        const resetsIn = formatResetsIn(window, now)?.replace("resets in ", "");
+        const resetsIn = formatResetsIn(window, now, messages)?.replace("resets in ", "");
         return (
           <Pressable
             key={account.key}
@@ -326,7 +330,7 @@ function PoolWindowCard({
         if (!window) return null;
         const segmentColor = normalizeProviderAccentColor(account.accentColor) ?? color;
         const credits = account.limits.resetCredits?.availableCount ?? 0;
-        const resetsIn = formatResetsIn(window, now);
+        const resetsIn = formatResetsIn(window, now, messages);
         return (
           <Pressable
             key={account.key}
@@ -414,14 +418,15 @@ export function UsageLimitsSection({
   readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
   readonly wide?: boolean;
 }) {
+  const m = useMessages();
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
   const selected =
     selectedEnvironmentIds === null
       ? presentations
       : new Map([...presentations].filter(([id]) => selectedEnvironmentIds.has(id)));
   const pools = collectLimitPools(collectLimitAccounts(selected), now);
-  const notices = collectLimitNotices(selected);
-  const externalLinks = collectExternalUsageLinks(selected);
+  const notices = collectLimitNotices(selected, m);
+  const externalLinks = collectExternalUsageLinks(selected, m);
   const colors = useProviderColors();
   return (
     <View className="gap-6">
@@ -448,7 +453,9 @@ export function UsageLimitsSection({
               </View>
               {windows.map((window) => {
                 const details =
-                  pool.driver === "cursor" ? cursorUsageWindowDetails(window.id, pool) : undefined;
+                  pool.driver === "cursor"
+                    ? cursorUsageWindowDetails(window.id, pool, m)
+                    : undefined;
                 return (
                   <PoolWindowCard
                     key={`${window.kind}:${window.id}`}

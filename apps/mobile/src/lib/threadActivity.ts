@@ -1,3 +1,10 @@
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
+import { resolveSupatermMcpToolPresentation } from "@supaterm/shared/supatermMcpToolPresentationCopy";
+import {
+  dynamicToolTitle,
+  formatSearchToolLabel,
+  formatReadToolLabel,
+} from "@supaterm/shared/toolActivityCopy";
 import type {
   ThreadPendingApproval,
   ThreadPendingUserInput,
@@ -39,7 +46,6 @@ import {
 import type { ToolCallVisibility } from "@supaterm/contracts/settings";
 import {
   resolveSupatermMcpToolDefinition,
-  resolveSupatermMcpToolPresentation,
   type SupatermMcpToolLogo,
   type SupatermMcpToolPresentation,
 } from "@supaterm/shared/supatermMcpToolPresentation";
@@ -69,13 +75,9 @@ import {
 import {
   classifyToolActivity,
   collectToolFilePaths,
-  dynamicToolTitle,
   isJavaScriptReplTool,
-  formatReadToolLabel,
-  formatSearchToolLabel,
 } from "@supaterm/shared/toolActivity";
 import { claudeResumeCompactionAge } from "@supaterm/shared/claudeCompaction";
-import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import { truncate } from "@supaterm/shared/String";
 import type { HtmlRenderReference } from "@supaterm/shared/htmlRender";
 import type { McpAppReference } from "@supaterm/shared/mcpApp";

@@ -1,3 +1,5 @@
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
+import { useMessages } from "gt-react-native";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
   isActiveSubagentStatus,
@@ -10,7 +12,7 @@ import {
   type OrchestrationV2Subagent,
   type ServerProvider,
 } from "@supaterm/contracts";
-import { deriveSubagentElapsedMs, formatDuration } from "@supaterm/shared/orchestrationTiming";
+import { deriveSubagentElapsedMs } from "@supaterm/shared/orchestrationTiming";
 import { useState, type ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 
@@ -285,7 +287,8 @@ function WorkflowElapsed(props: { readonly timing: ElapsedTiming }) {
 type ElapsedTiming = Parameters<typeof deriveSubagentElapsedMs>[0];
 
 function useElapsedLabel(timing: ElapsedTiming): string | null {
+  const messages = useMessages();
   const nowMs = useVisibleSecondClock(isActiveSubagentStatus(timing.status));
   const elapsedMs = deriveSubagentElapsedMs(timing, nowMs);
-  return elapsedMs === null || elapsedMs === 0 ? null : formatDuration(elapsedMs);
+  return elapsedMs === null || elapsedMs === 0 ? null : formatDuration(elapsedMs, messages);
 }

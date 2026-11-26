@@ -1,3 +1,5 @@
+import { relabelThreadLinks } from "@supaterm/shared/threadLinksCopy";
+import { useMessages } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 
 import { appAtomRegistry } from "./atom-registry";
@@ -18,7 +20,6 @@ import {
   guessThreadLinkRef,
   hasThreadLinks,
   parseThreadLinkHref,
-  relabelThreadLinks,
   threadLinkCandidates,
   threadLinkRefs,
   type ThreadLink,
@@ -227,12 +228,13 @@ export function useSideChats(ref: ScopedThreadRef) {
 }
 
 export function useLiveThreadLinkLabels(markdown: string, environmentId: EnvironmentId): string {
+  const resolve = useMessages();
   const titles = useAtomValue(
     hasThreadLinks(markdown)
       ? threadLinkTitlesAtom(JSON.stringify(threadLinkRefs(markdown, environmentId).map(threadKey)))
       : EMPTY_THREAD_LINK_TITLES_ATOM,
   );
-  return relabelThreadLinks(markdown, environmentId, (ref) => titles.get(threadKey(ref)));
+  return relabelThreadLinks(markdown, environmentId, (ref) => titles.get(threadKey(ref)), resolve);
 }
 
 /** Keyed reads; every thread is read only to place a v1 link its message's environment lacks. */

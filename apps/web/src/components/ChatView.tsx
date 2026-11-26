@@ -1,3 +1,5 @@
+import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabelsCopy";
+import { useMessages } from "gt-react";
 import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -147,7 +149,6 @@ import { formatModelSlugName, resolveSelectableModel } from "@supaterm/shared/mo
 import { projectScriptCwd, resolveProjectScripts } from "@supaterm/shared/projectScripts";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/thread-reference";
-import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
 import {
   type MouseEvent as ReactMouseEvent,
@@ -473,6 +474,7 @@ const DismissedFallbackWindowSchema = Schema.NullOr(Schema.String);
 const ignoreComposerFocus = () => {};
 
 export default function ChatView(props: ChatViewProps) {
+  const messages = useMessages();
   const {
     environmentId,
     threadId,
@@ -1125,7 +1127,7 @@ export default function ChatView(props: ChatViewProps) {
     for (const session of activeThreadKnownSessions) {
       labels.set(
         session.target.terminalId,
-        resolveTerminalSessionLabel(session.target.terminalId, session.state.summary),
+        resolveTerminalSessionLabel(session.target.terminalId, session.state.summary, messages),
       );
     }
     return labels;

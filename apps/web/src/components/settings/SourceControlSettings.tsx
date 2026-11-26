@@ -1,3 +1,6 @@
+import { sourceControlInstallHintText } from "@supaterm/client-runtime/contract-labels";
+import { useMessages } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { ChevronDownIcon } from "@supaterm/icons";
 import * as Duration from "effect/Duration";
@@ -201,13 +204,16 @@ function itemSummary({
   item,
   auth,
   authAccount,
+  resolve,
 }: {
   readonly item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem;
   readonly auth: SourceControlProviderAuth | null;
   readonly authAccount: string | null;
+  readonly resolve: MessageResolver;
 }) {
+  const installHint = sourceControlInstallHintText(item.installHint, resolve);
   if (item.status !== "available") {
-    return <span>Unavailable. {item.installHint}</span>;
+    return <span>Unavailable. {installHint}</span>;
   }
 
   if (auth) {
@@ -228,7 +234,7 @@ function itemSummary({
     }
 
     if (!item.executable && auth.status === "unauthenticated") {
-      return <span>Available. {item.installHint}</span>;
+      return <span>Available. {installHint}</span>;
     }
 
     if (auth.status === "unauthenticated" && auth.accounts?.some((entry) => entry.authenticated)) {
@@ -247,7 +253,7 @@ function itemSummary({
     const authDetail = optionLabel(auth.detail);
     return (
       <span>
-        Could not verify {item.label}. {authDetail ?? item.installHint}
+        Could not verify {item.label}. {authDetail ?? installHint}
       </span>
     );
   }
@@ -262,6 +268,7 @@ function DiscoveryItemRow({
   readonly item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem;
   readonly children?: ReactNode;
 }) {
+  const messages = useMessages();
   const version = optionLabel(item.version);
   const enabled = isProviderDiscoveryItem(item)
     ? item.status === "available" && item.auth.status === "authenticated"
@@ -300,7 +307,7 @@ function DiscoveryItemRow({
               ) : null}
             </div>
             <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-xs leading-normal text-muted-foreground/80">
-              {itemSummary({ item, auth, authAccount })}
+              {itemSummary({ item, auth, authAccount, resolve: messages })}
             </p>
           </div>
           <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">

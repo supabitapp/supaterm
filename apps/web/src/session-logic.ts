@@ -1,3 +1,4 @@
+import { formatSearchToolLabel, formatReadToolLabel } from "@supaterm/shared/toolActivityCopy";
 import type { ThreadStructureRuntime } from "@supaterm/client-runtime/state/shell";
 import {
   type AssetResource,
@@ -18,12 +19,7 @@ import {
   isOrchestrationV2RunNotYetRunning,
 } from "@supaterm/contracts";
 import { extractToolActivityPresentation } from "@supaterm/client-runtime/work-log/tool-presentation";
-import {
-  classifyToolActivity,
-  collectToolFilePaths,
-  formatReadToolLabel,
-  formatSearchToolLabel,
-} from "@supaterm/shared/toolActivity";
+import { classifyToolActivity, collectToolFilePaths } from "@supaterm/shared/toolActivity";
 import type { HtmlRenderReference } from "@supaterm/shared/htmlRender";
 import { turnItemDetailRevision } from "@supaterm/client-runtime/work-log/item-detail";
 import type { McpAppReference } from "@supaterm/shared/mcpApp";

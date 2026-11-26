@@ -1,3 +1,5 @@
+import { formatRelativeHourShort } from "@supaterm/shared/usageFormatCopy";
+import { useMessages } from "gt-react";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
 import type { UsageProviderKind } from "@supaterm/contracts";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -6,7 +8,6 @@ import type { DailyTotals, HourlyTotals } from "@supaterm/shared/usageMerge";
 import {
   formatDayShort,
   formatHourShort,
-  formatRelativeHourShort,
   formatTokens,
   formatUsd,
   periodAverage,
@@ -317,6 +318,7 @@ export function UsageProviderChart({
   timeZone,
   hour12,
 }: UsageProviderChartProps) {
+  const m = useMessages();
   const periods = resolution === "hour" ? hours : days;
   const totals: readonly (DailyTotals | HourlyTotals)[] = resolution === "hour" ? hourly : daily;
   const byPeriod = new Map(
@@ -343,7 +345,7 @@ export function UsageProviderChart({
     resolution === "hour" ? formatHourShort(period, timeZone, hour12) : formatDayShort(period);
   const formatTooltipPeriod = (period: string) =>
     resolution === "hour" && referenceTime !== undefined
-      ? formatRelativeHourShort(period, referenceTime, timeZone, hour12)
+      ? formatRelativeHourShort(period, referenceTime, timeZone, hour12, m)
       : formatPeriod(period);
   const ariaLabel = `${resolution === "hour" ? "Hourly" : "Daily"} ${metric === "tokens" ? "processed tokens" : "cost"} by provider`;
 

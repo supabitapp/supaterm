@@ -1,3 +1,5 @@
+import { limitsNotice, formatDuration } from "@supaterm/shared/usageLimitsCopy";
+import { useMessages } from "gt-react";
 import type {
   ProviderInstanceId,
   ServerProvider,
@@ -5,9 +7,7 @@ import type {
 } from "@supaterm/contracts";
 import {
   collectProviderUsageLimits,
-  formatDuration,
   type LimitPace,
-  limitsNotice,
   paceOf,
   remainingPercent,
 } from "@supaterm/shared/usageLimits";
@@ -36,6 +36,7 @@ export interface ThreadDetailsLimitsInput {
  * Every row reads as room left, so a longer bar always means more headroom.
  */
 export function ThreadDetailsLimits({ providerInstanceId, providers }: ThreadDetailsLimitsInput) {
+  const messages = useMessages();
   const nowMinute = useNowMinute();
   const now = Date.parse(`${nowMinute}:00Z`);
   const report =
@@ -47,7 +48,7 @@ export function ThreadDetailsLimits({ providerInstanceId, providers }: ThreadDet
   const limits =
     report?.accounts.find((entry) => entry.instanceId === providerInstanceId)?.limits ??
     providers.find((provider) => provider.instanceId === providerInstanceId)?.usageLimits;
-  const notice = limits ? limitsNotice(limits) : null;
+  const notice = limits ? limitsNotice(limits, messages) : null;
   if (!limits) return null;
 
   return (
@@ -80,6 +81,7 @@ function LimitRow({
   readonly window: ServerProviderUsageWindow;
   readonly now: number;
 }) {
+  const messages = useMessages();
   const timestampFormat = usePrimarySettings((settings) => settings.timestampFormat);
   const left = remainingPercent(window);
   const pace = paceOf(window, now);
@@ -95,7 +97,7 @@ function LimitRow({
           </span>
           {window.resetsAt && resetsAt > now ? (
             <span className="text-muted-foreground">
-              Resets in {formatDuration(resetsAt - now)} ·{" "}
+              Resets in {formatDuration(resetsAt - now, messages)} ·{" "}
               {formatUpcomingTimestamp(window.resetsAt, timestampFormat, now)}
             </span>
           ) : null}

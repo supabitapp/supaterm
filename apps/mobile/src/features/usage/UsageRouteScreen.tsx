@@ -1,3 +1,5 @@
+import { usageSourceMessages, formatUsageContractMismatch } from "@supaterm/shared/usageFormatCopy";
+import { useMessages } from "gt-react-native";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { ChatGptUsageSummary } from "./ChatGptUsageSummary";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
@@ -19,10 +21,8 @@ import {
   enumerateHourStarts,
   formatPercent,
   formatTokens,
-  formatUsageContractMismatch,
   formatUsd,
   makeWindow,
-  usageSourceMessages,
 } from "@supaterm/shared/usageFormat";
 import { use, useRef, useState, type ReactNode } from "react";
 import { View } from "react-native";
@@ -76,6 +76,7 @@ function UsageScreen(props: {
   readonly workspace?: boolean;
   readonly tabParam: string | undefined;
 }) {
+  const m = useMessages();
   const insets = useSafeAreaInsets();
   const headerOnly = use(NativeWorkspaceTabActivityContext)?.headerOnly === true;
   const [selection, setSelection] = useState(() => ({
@@ -114,6 +115,7 @@ function UsageScreen(props: {
   );
   const sourceMessages = usageSourceMessages(
     selectedEnvironments.flatMap((environment) => environment.summary?.sources ?? []),
+    m,
   );
   const canReadDiagnostics = selectedEnvironments.some(
     (environment) => environment.canReadDiagnostics,

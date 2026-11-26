@@ -1,3 +1,5 @@
+import { projectCloneProgressSummary } from "@supaterm/client-runtime/contract-labels";
+import { m } from "../i18n/messages";
 import { useParams } from "@tanstack/react-router";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import {
@@ -7,7 +9,6 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import {
   projectCloneDisplayName,
-  projectCloneProgressSummary,
   type EnvironmentId,
   type ProjectCloneSnapshot,
   type ProjectId,
@@ -152,7 +153,7 @@ function EnvironmentCloneToasts({ environmentId }: { environmentId: EnvironmentI
         const options = stackedThreadToast({
           type: "loading",
           title: `Cloning ${name}`,
-          description: projectCloneProgressSummary(clone),
+          description: projectCloneProgressSummary(clone, m),
           timeout: 0,
           actionProps: {
             children: "Cancel",

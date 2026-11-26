@@ -1,3 +1,5 @@
+import { unknownThreadLinkLabel } from "@supaterm/shared/threadLinksCopy";
+import { useMessages } from "gt-react";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { resolveLinkedThreadOpen } from "@supaterm/client-runtime/linked-thread";
 import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
@@ -7,7 +9,6 @@ import {
   guessThreadLinkRef,
   threadLinkCandidates,
   type ThreadLink,
-  unknownThreadLinkLabel,
 } from "@supaterm/shared/threadLinks";
 
 import {
@@ -37,6 +38,7 @@ export function MarkdownThreadLink(props: {
   readonly link: ThreadLink;
   readonly label: string | null;
 }) {
+  const messages = useMessages();
   const candidates = threadLinkCandidates(props.link, props.environmentId);
   const writtenRef = candidates[0]!;
   const environmentId = writtenRef.environmentId;
@@ -133,7 +135,7 @@ export function MarkdownThreadLink(props: {
     );
   }
   if (missing && resolved === null && childRef === null && !mayBeOmitted) {
-    const unknown = unknownThreadLinkLabel(props.link, props.environmentId);
+    const unknown = unknownThreadLinkLabel(props.link, props.environmentId, messages);
     return <UnresolvedChip label={props.label ?? unknown} tooltip={unknown} />;
   }
   const ref = resolved?.ref ?? childRef ?? writtenRef;

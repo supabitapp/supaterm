@@ -1,4 +1,5 @@
-import { parseNewThreadLink } from "@supaterm/shared/promptLinks";
+import { parseNewThreadLink } from "@supaterm/shared/promptLinksCopy";
+import { useMessages } from "gt-react";
 import { createFileRoute, useLocation } from "@tanstack/react-router";
 import { NewThreadLinkView } from "../components/promptLinks/NewThreadLinkView";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty";
@@ -6,8 +7,9 @@ import { SidebarInset } from "../components/ui/sidebar";
 
 // The query is read raw: the router's own search parsing turns `prompt=123` into a number.
 function NewThreadLinkRoute() {
+  const resolve = useMessages();
   const search = useLocation({ select: (location) => location.searchStr });
-  const parsed = parseNewThreadLink(search);
+  const parsed = parseNewThreadLink(search, resolve);
   if (!parsed.ok) {
     return (
       <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">

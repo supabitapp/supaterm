@@ -1,9 +1,10 @@
+import { getTerminalLabel } from "@supaterm/shared/terminalLabelsCopy";
+import { m } from "../i18n/messages";
 import {
   AuthPreviewOperateScope,
   AuthTerminalOperateScope,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
-import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import { closePreviewSession } from "../components/preview/closePreviewSession";
 import { useThreadTerminalActions } from "../components/terminal/useThreadTerminalActions";
 import { confirmRightPanelSurfacesClose } from "../lib/rightPanelCloseConfirm";
@@ -87,7 +88,7 @@ export function useRightPanelSurfaceClose(input: {
     focusPanelTerminalAfterClose(threadRef, activeId);
   };
   const terminalCloseTarget = (terminalId: string) => ({
-    label: terminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId),
+    label: terminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId, m),
     hasRunningSubprocess: terminalHasRunningSubprocessById.get(terminalId) ?? false,
   });
   const closeSurfaces = (toClose: readonly RightPanelSurface[]) => {

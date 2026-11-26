@@ -1,3 +1,5 @@
+import { getTerminalLabel } from "@supaterm/shared/terminalLabelsCopy";
+import { m } from "~/i18n/messages";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -7,7 +9,6 @@ import type { ComposerHandleRef } from "../../composerHandleContext";
 import type { selectThreadTerminalUiState } from "../../terminalUiStateStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useThreadTerminalActions } from "../terminal/useThreadTerminalActions";
-import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import {
   AuthTerminalReadScope,
   AuthTerminalOperateScope,
@@ -415,7 +416,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
   };
   const closePanelTerminalStable = useStableCallback(closePanelTerminal);
   const terminalCloseTarget = (terminalId: string) => ({
-    label: activeTerminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId),
+    label: activeTerminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId, m),
     hasRunningSubprocess: activeTerminalHasRunningSubprocessById.get(terminalId) ?? false,
   });
   const requestCloseTerminal = (terminalId: string) => {

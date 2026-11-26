@@ -1,6 +1,8 @@
+import { codexArtifactTemplatePresentationLabel } from "@supaterm/shared/codexArtifactTemplatesCopy";
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
+import { useMessages } from "gt-react-native";
 import { CollapsibleUserMessageBody } from "./CollapsibleUserMessageBody";
 import { toServerClock } from "@supaterm/client-runtime/clock";
-import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
@@ -96,10 +98,7 @@ import {
 } from "@supaterm/shared/composerContextReferences";
 import { ComposerContextSheet } from "../../components/ComposerContextSheet";
 import { writeComposerContextClipboard } from "../../lib/composerContextClipboard";
-import {
-  codexArtifactTemplatePresentationLabel,
-  type CodexArtifactTemplate,
-} from "@supaterm/shared/codexArtifactTemplates";
+import { type CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import { resolveAssetUrl } from "@supaterm/client-runtime/state/assets";
 
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
@@ -1329,6 +1328,7 @@ function ArtifactTemplateCard(props: {
   readonly template: CodexArtifactTemplate;
   readonly onUse?: ((template: CodexArtifactTemplate) => void) | undefined;
 }) {
+  const messages = useMessages();
   const direction = textDirection(props.template.displayName);
   return (
     <View
@@ -1348,7 +1348,7 @@ function ArtifactTemplateCard(props: {
           {props.template.displayName}
         </Text>
         <Text className="text-xs text-foreground-muted">
-          {codexArtifactTemplatePresentationLabel(props.template.artifactKind)}
+          {codexArtifactTemplatePresentationLabel(props.template.artifactKind, messages)}
         </Text>
       </View>
       {props.onUse ? (
@@ -1885,6 +1885,7 @@ function RunFoldWorking(props: {
   startedAt: string;
   rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
 }) {
+  const messages = useMessages();
   const nowMs = toServerClock(props.environmentId, useVisibleSecondClock(true));
   const seconds = Math.floor((nowMs - Date.parse(props.startedAt)) / 1_000);
   return (
@@ -1897,7 +1898,7 @@ function RunFoldWorking(props: {
         numberOfLines={1}
         className="shrink font-supaterm-medium text-sm tabular-nums text-foreground-muted"
       >
-        Working for {seconds > 0 ? formatDuration(seconds * 1_000) : "0s"}
+        Working for {seconds > 0 ? formatDuration(seconds * 1_000, messages) : "0s"}
       </Text>
     </View>
   );

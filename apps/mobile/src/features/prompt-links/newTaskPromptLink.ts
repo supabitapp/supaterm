@@ -1,3 +1,5 @@
+import { parseNewThreadLink } from "@supaterm/shared/promptLinksCopy";
+import { m } from "../../i18n/messages";
 import * as Dialog from "../../components/ui/Dialog";
 import {
   StackActions,
@@ -20,7 +22,6 @@ import {
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import {
-  parseNewThreadLink,
   type LinkedPrompt,
   type PromptLinkPullRequest,
   type PromptLinkRepository,
@@ -358,7 +359,7 @@ function cloneRepository(repository: PromptLinkRepository, request: LinkedDraftR
 
 function resolveLink(linkSearch: string) {
   const threads = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
-  const parsed = parseNewThreadLink(linkSearch);
+  const parsed = parseNewThreadLink(linkSearch, m);
   if (!parsed.ok) {
     Dialog.alert("Could not open link", parsed.error);
     return;

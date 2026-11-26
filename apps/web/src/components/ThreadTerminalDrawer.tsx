@@ -1,3 +1,6 @@
+import { getTerminalLabel } from "@supaterm/shared/terminalLabelsCopy";
+import { m } from "../i18n/messages";
+import { useMessages } from "gt-react";
 import { contextMenuSourceOf } from "../contextMenuSource";
 import { workspaceAreaProps } from "../lib/workspaceFocus";
 import { useAtomMount, useAtomValue } from "@effect/atom-react";
@@ -33,7 +36,6 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
-import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import * as Schema from "effect/Schema";
 import { AsyncResult } from "effect/reactivity";
 import {
@@ -1415,6 +1417,7 @@ export default function ThreadTerminalDrawer({
   terminalHasRunningSubprocessById,
   terminalLaunchLocationsById,
 }: ThreadTerminalDrawerProps) {
+  const messages = useMessages();
   const canOperateTerminal = useEnvironmentScope(threadRef.environmentId, AuthTerminalOperateScope);
   const terminalArea = workspaceAreaProps("terminal", 5, "Terminal");
   const isPanel = mode === "panel";
@@ -1533,7 +1536,10 @@ export default function ThreadTerminalDrawer({
   const terminalLabelById = (() => {
     const next = new Map<string, string>();
     for (const terminalId of normalizedTerminalIds) {
-      next.set(terminalId, terminalLabelsById?.get(terminalId) ?? getTerminalLabel(terminalId));
+      next.set(
+        terminalId,
+        terminalLabelsById?.get(terminalId) ?? getTerminalLabel(terminalId, messages),
+      );
     }
     return next;
   })();
@@ -1589,7 +1595,7 @@ export default function ThreadTerminalDrawer({
   };
   const confirmCloseTerminal = (terminalId: string) => {
     if (!canOperateTerminal) return;
-    const label = terminalLabelById.get(terminalId) ?? getTerminalLabel(terminalId);
+    const label = terminalLabelById.get(terminalId) ?? getTerminalLabel(terminalId, m);
     void confirmTerminalClose([
       {
         label,

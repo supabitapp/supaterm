@@ -1,15 +1,12 @@
 import { PROVIDER_DISPLAY_NAMES, type ServerProvider } from "@supaterm/contracts";
 import { compareSemverVersions, parseSemver } from "@supaterm/shared/semver";
 
+import { formatConjunctionList } from "./listFormat.ts";
+
 const RUNTIME_NAMES: Partial<Record<string, string>> = {
   claudeAgent: "Claude Code",
   codex: "the Codex CLI",
 };
-
-function formatModelList(names: ReadonlyArray<string>): string {
-  if (names.length <= 2) return names.join(" and ");
-  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
-}
 
 function withV(version: string): string {
   return version.startsWith("v") ? version : `v${version}`;
@@ -77,7 +74,10 @@ export function formatProviderUpdateRequiredNotice(
   const providerName =
     RUNTIME_NAMES[provider.driver] ?? PROVIDER_DISPLAY_NAMES[provider.driver] ?? provider.driver;
   const version = withV(minVersion);
-  const names = formatModelList(models.map((model) => model.name));
+  const names = formatConjunctionList(
+    models.map((model) => model.name),
+    "en",
+  );
   const latestVersion = channelLatestVersionBelow(provider, minVersion);
   if (
     latestVersion &&
