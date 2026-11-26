@@ -2,8 +2,6 @@ import { SettingsGroup } from "./SettingsGroup";
 import { AuthSettingsWriteScope } from "@supaterm/contracts";
 import { usePrimaryEnvironmentId, usePrimaryEnvironment } from "../../state/environments";
 import { useEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
-import { usePrimaryManagedPolicy } from "../../state/managedPolicy";
-import { managedSettingDenial } from "../../state/managedPolicy.logic";
 import { BuildingIcon, InfoIcon, UndoIcon } from "@supaterm/icons";
 import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@supaterm/contracts";
 import * as Equal from "effect/Equal";
@@ -28,7 +26,11 @@ import {
   scopedSettingsAreMixed,
   scopedSettingsSource,
 } from "./scopedSettings";
-import { useClearProjectOverrides, useClearScopedSettings } from "./useScopedSettings";
+import {
+  useClearProjectOverrides,
+  useClearScopedSettings,
+  useManagedSettingDenial,
+} from "./useScopedSettings";
 import {
   SettingInheritance,
   type SettingInheritanceState,
@@ -353,17 +355,8 @@ export function SettingsRow({
     ? context.connectedEnvironments.length > 0 &&
       context.connectedEnvironments.every((target) => writableIds.has(target.environmentId))
     : primaryCanWrite;
-  const primaryPolicy = usePrimaryManagedPolicy();
-  const managedReason =
-    managed ??
-    managedSettingDenial(
-      context
-        ? context.connectedEnvironments.map(
-            (environment) => environment.serverConfig?.managedPolicy,
-          )
-        : [primaryPolicy],
-      [...settingKeys, ...managedPaths],
-    );
+  const scopedManagedReason = useManagedSettingDenial([...settingKeys, ...managedPaths]);
+  const managedReason = managed ?? scopedManagedReason;
   const clearOverrides = useClearScopedSettings();
   const clearProjectOverrides = useClearProjectOverrides();
   const isProjectScope =

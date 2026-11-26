@@ -18,6 +18,8 @@ import React, { useState } from "react";
 import { commandForProjectScript, primaryProjectScript } from "~/projectScripts";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { serverEnvironment } from "~/state/server";
+import { useManagedPolicy } from "~/state/managedPolicy";
+import { managedSettingDenial } from "~/state/managedPolicy.logic";
 import { readEnvironmentScope } from "~/state/session";
 import {
   EMPTY_PROJECT_SCRIPT_INPUT,
@@ -120,12 +122,29 @@ export default function ProjectScriptsControl({
       ),
   );
 
+  // A policy that locks project scripts refuses every edit, so say so before the editor opens.
+  const scriptsDenial = managedSettingDenial(
+    [useManagedPolicy(environmentId)],
+    ["defaultProjectScripts"],
+  );
+  const refusedByPolicy = () => {
+    if (scriptsDenial === undefined) return false;
+    toastManager.add({
+      type: "warning",
+      title: "Project actions are managed",
+      description: scriptsDenial,
+    });
+    return true;
+  };
+
   const openAddDialog = () => {
+    if (refusedByPolicy()) return;
     editorRequestIdRef.current += 1;
     setEditorRequest({ scriptId: null, initial: EMPTY_PROJECT_SCRIPT_INPUT });
   };
 
   const openEditDialog = (script: ProjectScript) => {
+    if (refusedByPolicy()) return;
     editorRequestIdRef.current += 1;
     onRequestMenuClose?.();
     setActionsMenuOpen({ presentation, scripts: false, imports: false });
@@ -136,6 +155,7 @@ export default function ProjectScriptsControl({
     scriptId === null ? onAddScript(input) : onUpdateScript(scriptId, input);
 
   const importFileScript = async (fileScript: SupatermProjectFileScript) => {
+    if (refusedByPolicy()) return;
     const requestId = ++editorRequestIdRef.current;
     const payload: NewProjectScriptInput = {
       name: fileScript.name,

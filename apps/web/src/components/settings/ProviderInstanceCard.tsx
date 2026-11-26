@@ -618,6 +618,8 @@ interface ProviderInstanceCardProps {
   readonly selected?: boolean | undefined;
   readonly onSelect?: (() => void) | undefined;
   readonly readOnly?: boolean | undefined;
+  /** Why the policy locks this whole instance; the card is then read-only and says so. */
+  readonly managedReason?: string | undefined;
   readonly canWriteSettings?: boolean;
   readonly onUpdate: (nextInstance: ProviderInstanceConfig) => Promise<boolean>;
   readonly onDelete?: (() => void) | undefined;
@@ -690,6 +692,7 @@ export function ProviderInstanceCard({
   selected = false,
   onSelect,
   readOnly = false,
+  managedReason,
   canWriteSettings = true,
   onUpdate,
   onDelete,
@@ -1132,7 +1135,7 @@ export function ProviderInstanceCard({
             </span>
           ) : null}
           {/* The policy refuses switching it on; switching it off stays the user's call. */}
-          <ManagedControl reason={enabled ? undefined : managedDriverReason}>
+          <ManagedControl reason={managedReason ?? (enabled ? undefined : managedDriverReason)}>
             <Switch
               checked={projectOverride?.mixed ? false : enabled}
               mixed={projectOverride?.mixed ?? false}
@@ -1245,6 +1248,11 @@ export function ProviderInstanceCard({
   return (
     <>
       <SettingsSection title={displayName} icon={titleIconNode} headerAction={editorHeaderAction}>
+        {managedReason !== undefined ? (
+          <div className="px-3 py-2.5 sm:px-4">
+            <ManagedNotice>{managedReason}</ManagedNotice>
+          </div>
+        ) : null}
         <SettingsRow title="Status" status={statusContent} />
         <SettingsRow
           title="Display name"

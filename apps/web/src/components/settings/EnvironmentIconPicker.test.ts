@@ -14,4 +14,14 @@ describe("resolveEnvironmentIconPickerLock", () => {
       resolveEnvironmentIconPickerLock({ serverConfig: config, operateAccess: "granted" }),
     ).toBeNull();
   });
+
+  it("names the organization whose policy locks the icon", () => {
+    const managed = {
+      ...config,
+      managedPolicy: { organization: "Example Corp", lockedSettings: ["environmentIcon"] },
+    };
+    expect(
+      resolveEnvironmentIconPickerLock({ serverConfig: managed, operateAccess: "granted" }),
+    ).toBe("Managed by Example Corp.");
+  });
 });
