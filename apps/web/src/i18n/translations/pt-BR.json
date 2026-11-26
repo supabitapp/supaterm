@@ -7622,6 +7622,8 @@
   "1d5947477385dc63": "Next prompt suggestions",
   "0652c2c018325b9d": "Next prompt suggestions",
   "498db4746460cd8b": "response streaming",
+  "124727ffb36717a9": "Nothing deleted on {environment}: the one-time backup needs {needed} of free disk space, and {free} is free.",
+  "4f2224c15816229d": "Nothing deleted on {environment}: the one-time backup failed. The server log has the details.",
   "e48e93f44d89ea86": "Atualizações",
   "9c29903421f3be6a": "provider update checks",
   "615928bec4a7836f": "Verificar versões dos provedores",

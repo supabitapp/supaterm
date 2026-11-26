@@ -1157,6 +1157,16 @@ const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettin
 /** Reclaimable bytes from which the offline `supaterm doctor` repair is worth suggesting. */
 export const DATABASE_COMPACTION_RECOMMENDED_BYTES = 1024 ** 3;
 
+/** Why history pruning has deleted nothing: its one-time backup did not complete. */
+export const DatabasePruneBackupFailure = Schema.Union([
+  Schema.TaggedStruct("InsufficientSpace", {
+    neededBytes: Schema.Number,
+    freeBytes: Schema.Number,
+  }),
+  Schema.TaggedStruct("Failed", {}),
+]);
+export type DatabasePruneBackupFailure = typeof DatabasePruneBackupFailure.Type;
+
 /** Live SQLite file accounting for the environment's state database. */
 export const DatabaseStorageStatus = Schema.Struct({
   databaseBytes: Schema.Number,
@@ -1170,6 +1180,8 @@ export const DatabaseStorageStatus = Schema.Struct({
   canReclaim: Schema.optionalKey(Schema.Boolean),
   /** Why the last repair started from Settings failed. */
   reclaimFailure: Schema.optionalKey(Schema.String),
+  /** Set while the last pruning pass could not back up, so it deleted nothing. */
+  pruneBackupFailure: Schema.optionalKey(DatabasePruneBackupFailure),
 });
 export type DatabaseStorageStatus = typeof DatabaseStorageStatus.Type;
 

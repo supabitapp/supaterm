@@ -174,6 +174,57 @@ it.effect.each([false, true])("a scheduled pass prunes only when pruning is on: 
   }).pipe(Effect.provide(testConfig.pipe(Layer.provideMerge(NodeServices.layer)))),
 );
 
+// A pass that cannot back up deletes nothing, so Settings shows why until a later backup succeeds.
+it.effect("shows a failed pruning backup until a later pass backs up", () =>
+  Effect.gen(function* () {
+    yield* TestClock.setTime(startupTime);
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const config = yield* ServerConfig.ServerConfig;
+    const backupPath = DatabaseMaintenance.pruneBackupPath(path, config.dbPath);
+    // A directory in its place fails the backup's final rename.
+    yield* fs.makeDirectory(path.join(backupPath, "occupied"), { recursive: true });
+    yield* Effect.gen(function* () {
+      const storage = yield* DatabaseStorage.DatabaseStorage;
+      const nextFailure = (shown: boolean) =>
+        storage.status.pipe(
+          Stream.filter(
+            (status) => status !== null && (status.pruneBackupFailure !== undefined) === shown,
+          ),
+          Stream.runHead,
+          Effect.map((status) => Option.getOrThrow(status)?.pruneBackupFailure),
+        );
+      assert.isUndefined(yield* nextFailure(false));
+      yield* TestClock.adjust(minute);
+      assert.deepEqual(yield* nextFailure(true), { _tag: "Failed" });
+
+      yield* fs.remove(backupPath, { recursive: true });
+      yield* TestClock.adjust("6 hours");
+      assert.isUndefined(yield* nextFailure(false));
+      assert.isTrue(yield* fs.exists(backupPath));
+    }).pipe(
+      Effect.provide(
+        compactionLayer(
+          {
+            pruneEventStore: (options) =>
+              options.backUp.pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new ProjectionMaintenance.ProjectionMaintenanceError({
+                      operation: "prune event store",
+                      cause,
+                    }),
+                ),
+                Effect.as({ schedule: { _tag: "Unmarked" as const }, ...emptyCompaction }),
+              ),
+          },
+          { pruneEventHistory: true },
+        ),
+      ),
+    );
+  }).pipe(Effect.provide(testConfig.pipe(Layer.provideMerge(NodeServices.layer)))),
+);
+
 // NONE is a database from before automatic shrinking, which the repair converts.
 const reclaimLayer = (
   restart: Effect.Effect<void> | null,

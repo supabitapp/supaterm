@@ -26,6 +26,7 @@ import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilt
 import { BranchNamingSettings } from "./components/BranchNamingSettings";
 import { ThreadTitleInstructionsSettings } from "./components/ThreadTitleInstructionsSettings";
 import { DatabaseStorageNotice } from "./components/DatabaseStorageNotice";
+import { PruneBackupFailureNotice } from "./components/PruneBackupFailureNotice";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
@@ -589,6 +590,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                     disabled={disabledFor("pruneEventHistory")}
                     onValueChange={(value) => write({ pruneEventHistory: value })}
                   />
+                  <PruneBackupFailureNotice targets={selectedTargets} />
                 </SettingsSection>
               </>
             ) : null}

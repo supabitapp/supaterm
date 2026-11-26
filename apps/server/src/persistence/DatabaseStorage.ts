@@ -1,4 +1,8 @@
-import { DatabaseReclaimError, type DatabaseStorageStatus } from "@supaterm/contracts";
+import {
+  type DatabasePruneBackupFailure,
+  DatabaseReclaimError,
+  type DatabaseStorageStatus,
+} from "@supaterm/contracts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -57,6 +61,7 @@ const make = Effect.gen(function* () {
   let reclaimFailure = Option.getOrUndefined(
     yield* fs.readFileString(reclaimFiles.failure).pipe(Effect.option),
   );
+  let pruneBackupFailure: DatabasePruneBackupFailure | undefined;
 
   // The notice shows host-shell quoting verbatim; desktop needs its launcher because supaterm is absent from PATH.
   const { command: compactCommand } = yield* resolveHostCliCommand("doctor", [
@@ -110,6 +115,7 @@ const make = Effect.gen(function* () {
       compactCommand,
       canReclaim: restart !== null,
       ...(reclaimFailure === undefined ? {} : { reclaimFailure }),
+      ...(pruneBackupFailure === undefined ? {} : { pruneBackupFailure }),
     };
     // Every set reaches each open Storage page; most passes change nothing.
     if (!Equal.equals(yield* SubscriptionRef.get(statusRef), next)) {
@@ -163,12 +169,30 @@ const make = Effect.gen(function* () {
           Effect.provideService(SqlClient.SqlClient, sql),
           Effect.provideService(FileSystem.FileSystem, fs),
           Effect.provideService(Path.Path, path),
+          Effect.tapError((error) =>
+            Effect.sync(() => {
+              pruneBackupFailure =
+                error._tag === "DatabaseBackupSpaceError"
+                  ? {
+                      _tag: "InsufficientSpace",
+                      neededBytes: error.neededBytes,
+                      freeBytes: error.freeBytes,
+                    }
+                  : { _tag: "Failed" };
+            }),
+          ),
+          Effect.tap(() =>
+            Effect.sync(() => {
+              pruneBackupFailure = undefined;
+            }),
+          ),
         ),
       });
       if (result.deletedEventCount > 0) {
         yield* Effect.logInfo("Pruned orchestration history", result);
       }
     } else {
+      pruneBackupFailure = undefined;
       // Deleted events have newer retained replacements; old cursors replay to the same state.
       const result = yield* maintenance.compactEventStore(betweenPages);
       if (result.deletedEventCount > 0) {

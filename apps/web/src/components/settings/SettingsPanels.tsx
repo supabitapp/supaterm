@@ -64,13 +64,14 @@ import {
 } from "../../modelSelection";
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import { ensureLocalApi, readLocalApi } from "../../localApi";
+import { formatBytes } from "../../lib/formatBytes";
 import { isMacPlatform } from "../../lib/utils";
 import {
   useEnvironmentProviders,
   useEnvironments,
   usePrimaryEnvironmentId,
 } from "../../state/environments";
-import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
+import { EMPTY_SERVER_PROVIDERS, serverEnvironment } from "../../state/server";
 import { Button } from "../ui/button";
 import { DraftInput } from "../ui/draft-input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -2044,6 +2045,31 @@ export function MaintenanceSettingsPanel() {
   const { environment, connectedEnvironments } = useSettingsScope();
   const environmentId = environment?.environmentId ?? null;
   const hasServerTargets = connectedEnvironments.length > 0;
+  const pruneBackupFailures = useAtomValue(
+    serverEnvironment.databasePruneBackupFailures(
+      JSON.stringify(connectedEnvironments.map((target) => target.environmentId)),
+    ),
+  ).map(({ environmentId: failedId, failure }) => {
+    const label =
+      connectedEnvironments.find((target) => target.environmentId === failedId)?.label ?? failedId;
+    return {
+      environmentId: failedId,
+      text:
+        failure._tag === "InsufficientSpace"
+          ? gt(
+              "Nothing deleted on {environment}: the one-time backup needs {needed} of free disk space, and {free} is free.",
+              {
+                environment: label,
+                needed: formatBytes(failure.neededBytes),
+                free: formatBytes(failure.freeBytes),
+              },
+            )
+          : gt(
+              "Nothing deleted on {environment}: the one-time backup failed. The server log has the details.",
+              { environment: label },
+            ),
+    };
+  });
 
   return (
     <SettingsPageContainer>
@@ -2167,6 +2193,17 @@ export function MaintenanceSettingsPanel() {
           description={gt(
             "Keeps every conversation. Backs up the database once, then removes internal history older than a day so the database stops growing. Older Supaterm versions can't use the database afterwards.",
           )}
+          status={
+            pruneBackupFailures.length === 0 ? null : (
+              <span className="block text-destructive">
+                {pruneBackupFailures.map((failure) => (
+                  <span key={failure.environmentId} className="block">
+                    {failure.text}
+                  </span>
+                ))}
+              </span>
+            )
+          }
           resetAction={
             settings.pruneEventHistory !== DEFAULT_UNIFIED_SETTINGS.pruneEventHistory ? (
               <SettingResetButton

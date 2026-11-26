@@ -89,6 +89,7 @@ vi.mock("./components/SettingsEnvironmentFilterHeader", () => ({
   }),
 }));
 vi.mock("./components/DatabaseStorageNotice", () => ({ DatabaseStorageNotice: () => null }));
+vi.mock("./components/PruneBackupFailureNotice", () => ({ PruneBackupFailureNotice: () => null }));
 vi.mock("./components/SettingsSection", () => ({ SettingsSection: Children }));
 vi.mock("../../components/ui/ListChoiceRow", () => ({ ListChoiceRow: () => null }));
 vi.mock("./components/SettingsSwitchRow", () => ({
