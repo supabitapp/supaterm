@@ -1746,7 +1746,7 @@ export default function ThreadTerminalDrawer({
             onClick={onNewTerminalAction}
             disabled={!canOperateTerminal}
           >
-            New terminal
+            <T>New terminal</T>
             {newShortcutLabel ? <Kbd aria-hidden>{newShortcutLabel}</Kbd> : null}
           </Button>
         </div>
@@ -1826,7 +1826,7 @@ export default function ThreadTerminalDrawer({
               disabled={!canOperateTerminal}
               className="p-1 text-foreground/90 transition-colors hover:bg-accent"
               onClick={onNewTerminalAction}
-              label="New terminal"
+              label={gt("New terminal")}
               shortcut={newShortcutLabel}
             >
               <PlusIcon className="size-3.25" />
@@ -1836,7 +1836,7 @@ export default function ThreadTerminalDrawer({
               disabled={!canOperateTerminal}
               className="p-1 text-foreground/90 transition-colors hover:bg-accent"
               onClick={() => confirmCloseTerminal(resolvedActiveTerminalId)}
-              label="Close terminal"
+              label={gt("Close terminal")}
               shortcut={closeShortcutLabel}
             >
               <TrashIcon className="size-3.25" />
@@ -1910,7 +1910,7 @@ export default function ThreadTerminalDrawer({
                     disabled={!canOperateTerminal}
                     className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
                     onClick={onNewTerminalAction}
-                    label="New terminal"
+                    label={gt("New terminal")}
                     shortcut={newShortcutLabel}
                   >
                     <PlusIcon className="size-3.25" />
@@ -1919,7 +1919,7 @@ export default function ThreadTerminalDrawer({
                     disabled={!canOperateTerminal}
                     className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
                     onClick={() => confirmCloseTerminal(resolvedActiveTerminalId)}
-                    label="Close terminal"
+                    label={gt("Close terminal")}
                     shortcut={closeShortcutLabel}
                   >
                     <TrashIcon className="size-3.25" />

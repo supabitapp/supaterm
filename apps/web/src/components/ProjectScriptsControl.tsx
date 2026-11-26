@@ -53,7 +53,7 @@ import {
   THREAD_DETAILS_PANEL_SPLIT_GROUP_CLASS,
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./chat/threadDetailsPanelStyles";
-import { T, useMessages, useGT } from "gt-react";
+import { T, useMessages, useGT, Var } from "gt-react";
 
 export type { NewProjectScriptInput, ProjectScriptActionResult };
 
@@ -178,7 +178,9 @@ export default function ProjectScriptsControl({
     <>
       {scripts.length > 0 && <MenuSeparator />}
       <MenuGroup>
-        <MenuGroupLabel>From supaterm.json</MenuGroupLabel>
+        <MenuGroupLabel>
+          <T>From supaterm.json</T>
+        </MenuGroupLabel>
         {importableScripts.map((fileScript) => (
           <MenuItem
             density={presentation === "menu" ? "touch" : "default"}
@@ -263,7 +265,11 @@ export default function ProjectScriptsControl({
               onClick={() => onRunScript?.(primaryScript)}
             >
               <ScriptIcon icon={primaryScript.icon} className="size-4" />
-              <MenuItemLabel>Run {primaryScript.name}</MenuItemLabel>
+              <MenuItemLabel>
+                <T>
+                  Run <Var>{primaryScript.name}</Var>
+                </T>
+              </MenuItemLabel>
               <MenuShortcut>{primaryScriptShortcut}</MenuShortcut>
             </MenuItem>
           )}

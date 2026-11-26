@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import { Fragment, type ReactNode } from "react";
 
 import {
@@ -49,6 +50,7 @@ export function TerminalSplitPanels({
   onDividerRelease,
   renderTerminal,
 }: TerminalSplitPanelsProps) {
+  const gt = useGT();
   const groupRef = useGroupRef();
   const direction = group.splitDirection ?? "horizontal";
   const toPanelId = (terminalId: string) => idPrefix + terminalId;
@@ -82,7 +84,7 @@ export function TerminalSplitPanels({
         <Fragment key={terminalId}>
           {index > 0 && (
             <ResizableHandle
-              aria-label="Resize terminals"
+              aria-label={gt("Resize terminals")}
               onDoubleClick={resetLayout}
               onPointerUp={onDividerRelease}
             />

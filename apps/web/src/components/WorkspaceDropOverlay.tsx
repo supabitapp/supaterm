@@ -1,4 +1,5 @@
 import { PaperclipIcon } from "@supaterm/icons";
+import { T } from "gt-react";
 
 import { usePresence } from "~/hooks/usePresence";
 
@@ -16,7 +17,7 @@ export function WorkspaceDropOverlay({ active }: { active: boolean }) {
         className="flex items-center gap-2 rounded-full border border-primary/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
       >
         <PaperclipIcon className="size-4 text-primary" aria-hidden="true" />
-        Drop files to attach
+        <T>Drop files to attach</T>
       </div>
     </div>
   );

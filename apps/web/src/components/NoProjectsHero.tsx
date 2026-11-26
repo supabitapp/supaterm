@@ -58,11 +58,11 @@ export function NoProjectsHero() {
                       }
                     >
                       <MessageSquareMoreIcon className="size-4" />
-                      Start without a project
+                      <T>Start without a project</T>
                     </TooltipTrigger>
                     {noProjectShortcut ? (
                       <TooltipPopup side="bottom" shortcut={noProjectShortcut}>
-                        New thread without a project
+                        <T>New thread without a project</T>
                       </TooltipPopup>
                     ) : null}
                   </Tooltip>
