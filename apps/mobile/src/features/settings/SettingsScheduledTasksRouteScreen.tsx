@@ -56,6 +56,8 @@ import { ScheduledTaskPromptField } from "./components/ScheduledTaskPromptField"
 import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilterHeader";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
+import { resolveWorktreeRepositorySelection } from "@supaterm/client-runtime/state/thread-repositories";
+import { useWorktreeRepositoryChoices } from "../../state/use-worktree-repository-choices";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
 import {
   changeDraftProject,
@@ -64,6 +66,7 @@ import {
   scheduledTaskDefaultModel,
   scheduleFromDraft,
   unbindDraftFromThread,
+  workspaceStrategyFromDraft,
   type ScheduledTaskDraft as Draft,
 } from "./scheduledTaskDraft";
 import { settingsTargetsForProject } from "./settings-environment-filter.logic";
@@ -88,6 +91,7 @@ type ScheduledTaskRoutes = {
   SettingsScheduledTaskEdit: undefined;
   SettingsScheduledTaskModel: undefined;
   SettingsScheduledTaskBranch: undefined;
+  SettingsScheduledTaskRepositories: undefined;
   SettingsScheduledTaskThread: undefined;
 };
 
@@ -629,10 +633,13 @@ function TaskForm({
           project.id === draft.task?.projectId),
     )
     .sort((left, right) => Number(right.pinnedAt != null) - Number(left.pinnedAt != null));
+  const draftProject = projects.find((project) => project.id === draft.projectId) ?? null;
   const automaticBaseRef = draft.workspace === "worktree" && !draft.baseRef.trim();
-  const automaticBaseRefCwd = automaticBaseRef
-    ? (projects.find((project) => project.id === draft.projectId)?.workspaceRoot ?? null)
-    : null;
+  const automaticBaseRefCwd = automaticBaseRef ? (draftProject?.workspaceRoot ?? null) : null;
+  const { choices: repositoryChoices } = useWorktreeRepositoryChoices(
+    draftProject,
+    draft.workspace === "worktree",
+  );
   const automaticBaseRefs = usePaginatedBranches({
     environmentId,
     cwd: automaticBaseRefCwd,
@@ -734,16 +741,7 @@ function TaskForm({
       threadId: draft.threadId,
       ...(draft.threadId === null && draft.task?.threadId != null ? { unbindThread: true } : {}),
       ...(offersThreadModes ? { threadMode: draft.threadMode } : {}),
-      workspaceStrategy:
-        draft.workspace === "root"
-          ? { type: "root" }
-          : draft.workspace === "existing_worktree"
-            ? { type: "existing_worktree", worktreePath: draft.checkoutPath.trim() }
-            : {
-                type: "worktree",
-                baseRef: worktreeBaseRef,
-                startFromOrigin: draft.startFromOrigin,
-              },
+      workspaceStrategy: workspaceStrategyFromDraft(draft, worktreeBaseRef),
       runtimeMode: draft.runtimeMode,
       interactionMode: draft.task?.interactionMode ?? "default",
       creationSource: draft.task?.creationSource ?? "mobile",
@@ -969,6 +967,22 @@ function TaskForm({
               borderTop
               disabled={!draft.projectId || saving || dictationPending || environmentUnavailable}
               onPress={() => navigation.navigate("SettingsScheduledTaskBranch")}
+            />
+          ) : null}
+          {draft.workspace === "worktree" &&
+          repositoryChoices !== null &&
+          repositoryChoices.length > 0 ? (
+            <PickerRow
+              label={gt("Repositories")}
+              value={m(
+                resolveWorktreeRepositorySelection({
+                  choices: repositoryChoices,
+                  chosen: draft.repositories,
+                }).label,
+              )}
+              borderTop
+              disabled={saving || dictationPending || environmentUnavailable}
+              onPress={() => navigation.navigate("SettingsScheduledTaskRepositories")}
             />
           ) : null}
           {draft.workspace === "existing_worktree" ? (

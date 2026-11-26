@@ -19,6 +19,7 @@ import type {
 import { deriveProviderInstanceEntries } from "../../providerInstances";
 import { resolveSettingsScope, type SettingsScopeSearch } from "../settings/settingsScope";
 import {
+  changeDraftProject,
   defaultAutomationProjectId,
   lastRunLabel,
   matchesAutomationScope,
@@ -31,6 +32,7 @@ import {
   taskToDraft,
   unbindDraftFromThread,
   validateAutomationsSearch,
+  workspaceStrategyFromDraft,
 } from "./automations.logic";
 
 const laptopId = EnvironmentId.make("laptop");
@@ -206,6 +208,22 @@ describe("editing scheduled task branch settings", () => {
   it("leaves the base automatic when a task without a worktree switches to one", () => {
     const draft = taskToDraft({ ...legacyTask, workspaceStrategy: { type: "root" } });
     expect(draft.baseRef).toBe("");
+  });
+
+  it("keeps the saved repositories through an edit, and drops them for another project", () => {
+    const workspaceStrategy = {
+      type: "worktree",
+      baseRef: "release",
+      startFromOrigin: true,
+      repositories: [{ path: "/work/api" }],
+    } as const;
+    const draft = taskToDraft({ ...legacyTask, workspaceStrategy });
+    expect(workspaceStrategyFromDraft({ ...draft, title: "Renamed" }, "release")).toEqual(
+      workspaceStrategy,
+    );
+    expect(
+      workspaceStrategyFromDraft(changeDraftProject(draft, "other-project"), "release"),
+    ).toEqual({ type: "worktree", baseRef: "release", startFromOrigin: true });
   });
 });
 

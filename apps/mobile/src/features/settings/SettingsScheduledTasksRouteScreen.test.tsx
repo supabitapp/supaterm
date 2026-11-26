@@ -140,6 +140,7 @@ vi.mock("../../state/server", () => ({
 vi.mock("../../state/query", () => ({
   useEnvironmentQuery: () => ({ data: { tasks: mocks.tasks, threads: [] } }),
 }));
+vi.mock("../../state/filesystem", () => ({ filesystemEnvironment: { listFolders: () => null } }));
 vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: () => mocks.upsert }));
 vi.mock("../../state/queries", () => ({
   usePaginatedBranches: () => ({ refs: [], data: null, error: null }),

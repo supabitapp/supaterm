@@ -2311,6 +2311,8 @@
   "c7d8f7eb12735b71": "Tarefa agendada",
   "fb4a7f9335463af5": "Branch base",
   "ee3ea4351c88e7d7": "Este projeto não está mais disponível.",
+  "a65bb790e0221cd6": "Escolha os repositórios em que cada execução trabalha.",
+  "83c7e13442e46223": "Cada um recebe seu próprio worktree no branch da execução.",
   "201317aac48d4d9f": "Limpar pesquisa de threads",
   "1917e5cb40cfe44d": "Destino",
   "73c444d8a301d049": "Abra um formulário de tarefa agendada primeiro.",

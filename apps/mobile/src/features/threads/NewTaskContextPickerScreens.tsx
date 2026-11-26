@@ -4,6 +4,10 @@ import * as Dialog from "../../components/ui/Dialog";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { SelectionRow } from "../../components/ui/SelectionRow";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
+import type {
+  WorktreeRepositoryChoice,
+  WorktreeRepositorySelection,
+} from "@supaterm/client-runtime/state/thread-repositories";
 import { shouldCheckoutNewTaskBranch } from "./new-task-context-presentation";
 import type { VcsRef } from "@supaterm/client-runtime/state/vcs";
 import {
@@ -364,15 +368,40 @@ function branchBadgeLabel(input: {
 export function NewTaskRepositoriesPickerRouteScreen() {
   const gt = useGT();
   const flow = useServedNewTaskFlow();
+  const selection = flow.worktreeRepositorySelection;
+  return (
+    <RepositoriesPickerScreen
+      choices={flow.worktreeRepositoryChoices}
+      selection={selection}
+      hint={
+        selection.needsChoice
+          ? gt("Choose the repositories this thread works on.")
+          : gt("Each gets its own worktree on the thread's branch.")
+      }
+      onChange={flow.setWorktreeRepositories}
+    />
+  );
+}
+
+export function RepositoriesPickerScreen({
+  choices,
+  selection,
+  hint,
+  onChange,
+}: {
+  readonly choices: ReadonlyArray<WorktreeRepositoryChoice> | null;
+  readonly selection: WorktreeRepositorySelection;
+  readonly hint: string;
+  readonly onChange: (repositories: ReadonlyArray<string>) => void;
+}) {
+  const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
-  const choices = flow.worktreeRepositoryChoices;
-  const selection = flow.worktreeRepositorySelection;
   const selected = new Set(selection.selected);
   const toggle = (repositoryPath: string) => {
     if (choices === null) return;
     void Haptics.selectionAsync();
-    flow.setWorktreeRepositories(
+    onChange(
       choices.flatMap((choice) =>
         (choice.repositoryPath === repositoryPath) !== selected.has(choice.repositoryPath)
           ? [choice.repositoryPath]
@@ -384,24 +413,20 @@ export function NewTaskRepositoriesPickerRouteScreen() {
     choices === null || choices.length === 0 ? null : (
       <View className="gap-3 pb-3">
         <Text textRole="footnote" className="px-1 text-foreground-muted">
-          {selection.needsChoice
-            ? gt("Choose the repositories this thread works on.")
-            : gt("Each gets its own worktree on the thread's branch.")}
+          {hint}
         </Text>
         <View className="flex-row gap-2">
           <Button
             label={gt("Select all")}
             size="compact"
             disabled={selected.size === choices.length}
-            onPress={() =>
-              flow.setWorktreeRepositories(choices.map((choice) => choice.repositoryPath))
-            }
+            onPress={() => onChange(choices.map((choice) => choice.repositoryPath))}
           />
           <Button
             label={gt("Select none")}
             size="compact"
             disabled={!selection.needsChoice && selected.size === 0}
-            onPress={() => flow.setWorktreeRepositories([])}
+            onPress={() => onChange([])}
           />
         </View>
       </View>
