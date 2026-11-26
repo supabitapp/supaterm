@@ -262,7 +262,9 @@ async function openProjectDraft(project: EnvironmentProject, request: LinkedDraf
     StackActions.push("Thread", {
       draft: {
         draftId: draftKey,
-        title: request.pullRequest ? `PR #${request.pullRequest.number}` : project.title,
+        title: request.pullRequest
+          ? m(msg("PR #{number}", { number: request.pullRequest.number }))
+          : project.title,
       },
     }),
   );
@@ -297,7 +299,7 @@ async function openScratchDraft(request: LinkedDraftRequest) {
   if (environmentId === null) {
     Dialog.alert(
       m(msg("Could not start without a project")),
-      "Connect to an environment to start without a project.",
+      m(msg("Connect to an environment to start without a project.")),
     );
     return;
   }
@@ -410,14 +412,18 @@ function resolveLink(linkSearch: string) {
     })();
     return;
   }
-  Dialog.alert(`You don't have ${promptLinkRepositoryName(repository)}`, undefined, [
-    { text: m(msg("Cancel")), style: "cancel" },
-    ...(request.prompt
-      ? [{ text: m(msg("Use without project")), onPress: () => void openScratchDraft(request) }]
-      : []),
-    {
-      text: m(msg("Clone", { $context: "verb, clones the repository" })),
-      onPress: () => cloneRepository(repository, request),
-    },
-  ]);
+  Dialog.alert(
+    m(msg("You don't have {repository}", { repository: promptLinkRepositoryName(repository) })),
+    undefined,
+    [
+      { text: m(msg("Cancel")), style: "cancel" },
+      ...(request.prompt
+        ? [{ text: m(msg("Use without project")), onPress: () => void openScratchDraft(request) }]
+        : []),
+      {
+        text: m(msg("Clone", { $context: "verb, clones the repository" })),
+        onPress: () => cloneRepository(repository, request),
+      },
+    ],
+  );
 }
