@@ -35,7 +35,7 @@ export function SharedSlotTitle(props: { readonly tab: SharedSlotTab }) {
         accessibilityRole="button"
         accessibilityLabel={gt("{list}, switch list", { list: messages(TITLES[props.tab]) })}
         hitSlop={8}
-        className="flex-row items-center gap-1.5"
+        className="min-h-11 flex-row items-center gap-1.5"
       >
         <Text
           allowFontScaling={Platform.OS === "ios"}
