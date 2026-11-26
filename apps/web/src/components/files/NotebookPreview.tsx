@@ -189,7 +189,10 @@ export default function NotebookPreview(props: {
           ) : null}
           {visible < props.notebook.cells.length ? (
             <Button variant="outline" size="sm" onClick={() => setVisible((count) => count + 20)}>
-              Show more cells ({props.notebook.cells.length - visible} remaining)
+              {gt(
+                "{count, plural, one {Show more cells ({count} remaining)} other {Show more cells ({count} remaining)}}",
+                { count: props.notebook.cells.length - visible },
+              )}
             </Button>
           ) : null}
         </div>

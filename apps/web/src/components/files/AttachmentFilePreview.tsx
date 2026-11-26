@@ -48,7 +48,7 @@ import {
   FileSurfaceLoading,
   FileSurfaceNotice,
 } from "./fileSurfaceChrome";
-import { msg, useGT, T } from "gt-react";
+import { msg, useGT, T, Var } from "gt-react";
 import { m } from "~/i18n/messages";
 
 const LargeTextViewer = lazy(() => import("./LargeTextViewer"));
@@ -477,8 +477,14 @@ export function AttachmentFilePreview(props: {
           <T>No preview for this file</T>
         </p>
         <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
-          Save it to open in an app that supports {props.name.split(".").at(-1) || "this format"}{" "}
-          files.
+          {props.name.split(".").at(-1) ? (
+            <T>
+              Save it to open in an app that supports <Var>{props.name.split(".").at(-1)}</Var>{" "}
+              files.
+            </T>
+          ) : (
+            <T>Save it to open in an app that supports this format files.</T>
+          )}
         </p>
       </div>
       <Button type="button" variant="outline" size="sm" disabled={saving} onClick={save}>
@@ -587,9 +593,12 @@ export function AttachmentFilePreview(props: {
       </div>
       {content?.truncated ? (
         <FileSurfaceNotice>
-          Preview limited to the first 1 MB
-          {props.sizeBytes > 0 ? ` of a ${props.sizeBytes.toLocaleString()} byte file` : ""}. Save
-          the file to read it in full.
+          {props.sizeBytes > 0
+            ? gt(
+                "Preview limited to the first 1 MB of a {size} byte file. Save the file to read it in full.",
+                { size: props.sizeBytes.toLocaleString() },
+              )
+            : gt("Preview limited to the first 1 MB. Save the file to read it in full.")}
         </FileSurfaceNotice>
       ) : null}
       {body}

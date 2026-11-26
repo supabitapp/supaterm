@@ -216,6 +216,7 @@ self.addEventListener("message", (event: MessageEvent<{ bytes: ArrayBuffer; heif
     (blob) => self.postMessage({ blob }, { transfer: [] }),
     (cause: unknown) =>
       self.postMessage(
+        // oxlint-disable-next-line supaterm/no-untranslated-copy -- workers have no UI language; the page shows this English fallback
         { error: cause instanceof Error ? cause.message : "Could not decode this image." },
         { transfer: [] },
       ),

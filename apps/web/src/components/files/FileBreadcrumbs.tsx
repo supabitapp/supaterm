@@ -29,7 +29,7 @@ import {
   isListableHostFolder,
 } from "./filePath";
 import { useProjectEntriesQuery } from "./projectFilesQueryState";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 interface FileBreadcrumbsProps {
   readonly cwd: string;
@@ -120,7 +120,11 @@ function BreadcrumbMenuContent(props: {
         <>
           <MenuItem closeOnClick={false} onClick={() => props.onDirectoryChange(parentPath)}>
             <ArrowLeftIcon />
-            <span className="truncate">Back to {pathLabel(parentPath, props.projectName)}</span>
+            <span className="truncate">
+              <T>
+                Back to <Var>{pathLabel(parentPath, props.projectName)}</Var>
+              </T>
+            </span>
           </MenuItem>
           <MenuSeparator />
         </>

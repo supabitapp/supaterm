@@ -444,6 +444,7 @@ export async function openDocument(
   const rendered = [];
   for (const [index, page] of pages.entries()) {
     rendered.push({
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- built in the office worker, which has no UI language
       title: page.attrs["draw:name"] || `Page ${index + 1}`,
       html: await odfHtml(page, archive),
     });
@@ -473,7 +474,9 @@ export async function openEpub(archive: JSZip): Promise<OfficeWorkerResult> {
       title:
         text(find(chapter, "title")[0] ?? find(chapter, "h1")[0] ?? chapter)
           .trim()
-          .slice(0, 120) || `Chapter ${pages.length + 1}`,
+          .slice(0, 120) ||
+        // oxlint-disable-next-line supaterm/no-untranslated-copy -- built in the office worker, which has no UI language
+        `Chapter ${pages.length + 1}`,
       html: await epubHtml(chapter, archive, path),
     });
   }
@@ -624,6 +627,7 @@ export function openRtf(bytes: ArrayBuffer): OfficeWorkerResult {
   let completedLength = 0;
   const finishPage = () => {
     if (pages.length >= 500) throw new Error("Rich text preview limited to 500 pages.");
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- built in the office worker, which has no UI language
     pages.push({ title: `Page ${pages.length + 1}`, html: `<p>${html}</p>` });
     completedLength += html.length;
     html = "";

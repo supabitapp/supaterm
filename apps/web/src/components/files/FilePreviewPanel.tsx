@@ -154,7 +154,7 @@ import {
   setProjectFileQueryData,
   useProjectFileQuery,
 } from "./projectFilesQueryState";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, Var } from "gt-react";
 
 const NO_FILE_REVISION_ATOM = Atom.make(null);
 
@@ -1726,7 +1726,10 @@ export default function FilePreviewPanel({
       file.data?.truncated &&
       renderMermaid ? (
         <div className="shrink-0 border-b border-warning/20 bg-warning-surface px-3 py-1.5 text-2xs text-warning-foreground">
-          Preview limited to the first 1 MB of a {file.data.byteLength.toLocaleString()} byte file.
+          {gt(
+            "{count, plural, one {Preview limited to the first 1 MB of a {formatted} byte file.} other {Preview limited to the first 1 MB of a {formatted} byte file.}}",
+            { count: file.data.byteLength, formatted: file.data.byteLength.toLocaleString() },
+          )}
         </div>
       ) : null}
       <FilePreviewSplit
@@ -1846,19 +1849,23 @@ export default function FilePreviewPanel({
                   </p>
                   {attemptedPath ? (
                     <p className="text-muted-foreground">
-                      Attempted path
-                      <code className="block break-all font-mono text-foreground select-all">
-                        {attemptedPath}
-                      </code>
+                      <T>
+                        Attempted path
+                        <code className="block break-all font-mono text-foreground select-all">
+                          <Var>{attemptedPath}</Var>
+                        </code>
+                      </T>
                     </p>
                   ) : null}
                   {!isHostFile ? (
                     <p className="text-muted-foreground">
-                      Workspace folder:{" "}
-                      <code className="break-all font-mono select-all">
-                        {file.readError?.cwd ?? cwd}
-                      </code>
-                      . Check the link's path or locate the file in Files.
+                      <T>
+                        Workspace folder:{" "}
+                        <code className="break-all font-mono select-all">
+                          <Var>{file.readError?.cwd ?? cwd}</Var>
+                        </code>
+                        . Check the link's path or locate the file in Files.
+                      </T>
                     </p>
                   ) : null}
                 </div>

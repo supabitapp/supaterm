@@ -206,6 +206,7 @@ self.addEventListener("message", (event: MessageEvent<TextPreviewRequest>) => {
     reply({
       type: "error",
       operation: input.type,
+      // oxlint-disable-next-line supaterm/no-untranslated-copy -- workers have no UI language; the page shows this English fallback
       message: cause instanceof Error ? cause.message : "Could not read this file.",
     }),
   );
