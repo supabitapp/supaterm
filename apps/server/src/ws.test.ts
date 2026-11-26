@@ -161,6 +161,7 @@ import * as ServerConfigModule from "./config.ts";
 import * as Keybindings from "./keybindings.ts";
 import { USAGE_LIMITS_COMMAND } from "@supaterm/shared/usageLimits";
 import * as ServerSettings from "./serverSettings.ts";
+import * as ManagedPolicy from "./policy/ManagedPolicy.ts";
 
 import * as EventStore from "./orchestration-v2/EventStore.ts";
 import * as ProjectionMaintenance from "./orchestration-v2/ProjectionMaintenance.ts";
@@ -882,7 +883,9 @@ const layerConfigSources = Layer.mergeAll(
   Keybindings.layer,
   AssetSigner.layer.pipe(Layer.provide(ServerSecretStore.layer)),
   WorkspacePreviewRevisions.layer,
-  ServerSettings.layer.pipe(Layer.provide(ServerSecretStore.layer)),
+  ServerSettings.layer.pipe(
+    Layer.provide(Layer.merge(ServerSecretStore.layer, ManagedPolicy.layerTest())),
+  ),
 ).pipe(
   Layer.provideMerge(Layer.fresh(SqlitePersistence.layerMemory)),
   Layer.provideMerge(
