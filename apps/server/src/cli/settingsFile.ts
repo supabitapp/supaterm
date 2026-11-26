@@ -163,7 +163,6 @@ export const vetManagedSettingWrite = Effect.fnUntraced(function* (
       managedBy,
     });
   }
-  return managedBy === undefined
-    ? ({ _tag: "Unmanaged" } as const)
-    : ({ _tag: "Capped", organization: managedBy, effective } as const);
+  if (managedBy === undefined) return { _tag: "Unmanaged" } as const;
+  return { _tag: "Capped", organization: managedBy, effective } as const;
 });

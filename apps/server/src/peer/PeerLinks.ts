@@ -293,20 +293,19 @@ const make = Effect.gen(function* () {
     );
 
   /** Where requests to `address` go: itself, or this server's tunnel to a relay address. */
-  const reach = (address: string, relayUrl: string | undefined) =>
-    isRelayAddress(address)
-      ? relayRefused !== undefined
-        ? Effect.fail(relayRefused)
-        : relay.open(address, RELAY_LEASE_OWNER, relayUrl).pipe(
-            Effect.mapError(
-              () =>
-                new PeerLinkError({
-                  reason: "unreachable",
-                  message: `${address} did not answer through the relay.`,
-                }),
-            ),
-          )
-      : Effect.succeed(address);
+  const reach = (address: string, relayUrl: string | undefined) => {
+    if (!isRelayAddress(address)) return Effect.succeed(address);
+    if (relayRefused !== undefined) return Effect.fail(relayRefused);
+    return relay.open(address, RELAY_LEASE_OWNER, relayUrl).pipe(
+      Effect.mapError(
+        () =>
+          new PeerLinkError({
+            reason: "unreachable",
+            message: `${address} did not answer through the relay.`,
+          }),
+      ),
+    );
+  };
 
   /** The environment answering at `address`, or why nothing there answers as Supaterm. */
   const probe = (address: string, relayUrl: string | undefined) => {
