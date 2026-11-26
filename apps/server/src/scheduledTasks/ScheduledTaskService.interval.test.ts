@@ -14,11 +14,13 @@ import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import { ServerActivation } from "../serverActivation.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ScheduledTaskService from "./ScheduledTaskService.ts";
 
 afterEach(() => vi.unstubAllEnvs());
 
 const dependencies = Layer.mergeAll(
+  ServerSettings.layerTest(),
   NodeCrypto.layer,
   Scheduler.layer,
   Layer.mock(ThreadLaunchService.ThreadLaunchService)({

@@ -38,6 +38,7 @@ import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import * as PullRequestWatchService from "../pullRequest/PullRequestWatchService.ts";
 import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as McpPendingUploads from "./McpPendingUploads.ts";
 import * as McpToolAccess from "./McpToolAccess.ts";
@@ -259,6 +260,10 @@ const withSenderThread = (
 const makeMcpAuthMiddleware = Effect.gen(function* () {
   const registry = yield* McpSessionRegistry.McpSessionRegistry;
   const clients = yield* Effect.serviceOption(McpClientAuthenticator);
+  // The orchestrator enforces the ceiling either way; this only narrows what a client asks for.
+  const runtimeModeCeiling = Option.getOrUndefined(
+    yield* Effect.serviceOption(ServerSettings.ServerSettingsService),
+  )?.managedPolicy?.limits?.maxRuntimeMode;
   const pullRequests = yield* Effect.serviceOption(PullRequestService.PullRequestService);
   const projections = yield* Effect.serviceOption(ProjectionStore.ProjectionStoreV2);
   // Every request reads it, and a remote added mid-thread shows the tools within a minute.
@@ -304,8 +309,9 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
         offerOAuth: Option.isSome(clients) && !looksLikeProviderToken(token),
       });
     }
-    const limited = withModeLimit(withSenderThread(invocation, request), request);
-    if (limited === undefined) return invalidModeLimit;
+    const asked = withModeLimit(withSenderThread(invocation, request), request);
+    if (asked === undefined) return invalidModeLimit;
+    const limited = McpInvocationContext.withRuntimeModeCeiling(asked, runtimeModeCeiling);
     const origin = Option.getOrUndefined(Option.map(requestUrl(request), (url) => url.origin));
     const forge =
       limited.thread === undefined

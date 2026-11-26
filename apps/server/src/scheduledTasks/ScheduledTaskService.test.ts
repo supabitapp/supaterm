@@ -5,6 +5,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { assert, it, vi } from "@effect/vitest";
 import {
   CommandId,
+  type ManagedPolicySummary,
   ProjectId,
   ProviderInstanceId,
   ScheduledTaskError,
@@ -31,6 +32,7 @@ import * as ThreadManagementService from "../orchestration-v2/ThreadManagementSe
 import { OrchestratorDispatchError } from "../orchestration-v2/Orchestrator.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ScheduledTaskService from "./ScheduledTaskService.ts";
 
 const isScheduledTaskError = Schema.is(ScheduledTaskError);
@@ -215,6 +217,7 @@ it.effect(
                   isScratchProject: () => Effect.succeed(false),
                 }),
                 Layer.mock(ThreadManagementService.ThreadManagementService)({}),
+                ServerSettings.layerTest(),
                 NodeCrypto.layer,
                 Scheduler.layer,
               ),
@@ -311,6 +314,7 @@ it.effect(
                   isScratchProject: () => Effect.succeed(false),
                 }),
                 Layer.mock(ThreadManagementService.ThreadManagementService)({}),
+                ServerSettings.layerTest(),
                 NodeCrypto.layer,
                 Scheduler.layer,
               ),
@@ -366,6 +370,7 @@ it.effect("thread cleanup notifies subscribers and a finishing run cannot recrea
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Scheduler.layer,
         ),
@@ -464,6 +469,7 @@ it.effect.each([
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Scheduler.layer,
         ),
@@ -505,6 +511,89 @@ it.effect.each([
   }).pipe(Effect.provide(SqlitePersistence.layerMemory)),
 );
 
+const ceilingPolicy: ManagedPolicySummary = {
+  organization: "Example Corp",
+  lockedSettings: [],
+  limits: { maxRuntimeMode: "auto-accept-edits" },
+};
+
+const ceilingLayer = (launches: Ref.Ref<number>, policy?: ManagedPolicySummary) =>
+  ScheduledTaskService.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        Layer.mock(ThreadLaunchService.ThreadLaunchService)({
+          launch: () =>
+            Ref.update(launches, (n) => n + 1).pipe(
+              Effect.as({ threadId: ThreadId.make("thread:launched") } as never),
+            ),
+        }),
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          getThreadShell: () => Effect.succeed(threadShell(ProjectId.make("project:test"))),
+        }),
+        Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
+          namedProjectsRoot: "/projects",
+          isScratchProject: () => Effect.succeed(false),
+        }),
+        ServerSettings.layerTest({}, policy),
+        NodeCrypto.layer,
+        Scheduler.layer,
+      ),
+    ),
+  );
+
+const fullAccessTask = (enabled: boolean, threadId?: ThreadId) => ({
+  id: ScheduledTaskId.make(threadId === undefined ? "task:above-ceiling" : "task:bound"),
+  title: "Nightly",
+  prompt: "Check progress",
+  enabled,
+  schedule: { type: "interval" as const, everyMs: 60_000 },
+  projectId: ProjectId.make("project:test"),
+  ...(threadId === undefined ? {} : { threadId }),
+  workspaceStrategy: { type: "root" as const },
+  modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+  runtimeMode: "full-access" as const,
+  interactionMode: "default" as const,
+});
+
+it.effect("refuses saving an enabled task above the policy ceiling", () =>
+  Effect.gen(function* () {
+    const launches = yield* Ref.make(0);
+    yield* Effect.gen(function* () {
+      const service = yield* ScheduledTaskService.ScheduledTaskService;
+      const refused = yield* service.upsert(fullAccessTask(true)).pipe(Effect.flip);
+      assert.equal(refused.message, "Example Corp limits threads to Auto-accept edits.");
+      assert.lengthOf((yield* service.list()).tasks, 0);
+      // A disabled task does not run, so it can still be saved.
+      yield* service.upsert(fullAccessTask(false));
+      assert.lengthOf((yield* service.list()).tasks, 1);
+      // Nor can it be switched back on while its mode is above the ceiling.
+      const reenabled = yield* service
+        .setEnabled({ id: ScheduledTaskId.make("task:above-ceiling"), enabled: true })
+        .pipe(Effect.flip);
+      assert.equal(reenabled.message, "Example Corp limits threads to Auto-accept edits.");
+      // A task bound to a thread runs in that thread's mode, so its own is not checked.
+      yield* service.upsert(fullAccessTask(true, ThreadId.make("thread:bound")));
+    }).pipe(Effect.provide(ceilingLayer(launches, ceilingPolicy)));
+  }).pipe(Effect.provide(SqlitePersistence.layerMemory)),
+);
+
+it.effect("a task saved above the ceiling before the policy records why it does not run", () =>
+  Effect.gen(function* () {
+    const launches = yield* Ref.make(0);
+    yield* ScheduledTaskService.ScheduledTaskService.pipe(
+      Effect.flatMap((service) => service.upsert(fullAccessTask(true))),
+      Effect.provide(ceilingLayer(launches)),
+    );
+    yield* Effect.gen(function* () {
+      const service = yield* ScheduledTaskService.ScheduledTaskService;
+      const result = yield* service.runNow({ id: ScheduledTaskId.make("task:above-ceiling") });
+      assert.equal(result.task.lastRunStatus, "failed");
+      assert.equal(result.task.lastRunError, "Example Corp limits threads to Auto-accept edits.");
+      assert.equal(yield* Ref.get(launches), 0);
+    }).pipe(Effect.provide(ceilingLayer(launches, ceilingPolicy)));
+  }).pipe(Effect.provide(SqlitePersistence.layerMemory)),
+);
+
 it.effect("a one-time task is removed once its turn completes", () =>
   Effect.gen(function* () {
     yield* TestClock.setTime(Date.parse("2026-11-01T07:00:00.000Z"));
@@ -533,6 +622,7 @@ it.effect("a one-time task is removed once its turn completes", () =>
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Scheduler.layer,
         ),
@@ -604,6 +694,7 @@ it.effect("a paused one-time task run by hand before its time is kept", () =>
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Scheduler.layer,
         ),
@@ -674,6 +765,7 @@ it.effect("a bound run follows its thread when promotion moves it mid-send", () 
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Scheduler.layer,
         ),
@@ -743,6 +835,7 @@ it.effect("a fresh-session task launches one thread, then starts each later run 
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Layer.succeed(Scheduler.Scheduler, { register: () => Effect.void }),
         ),
@@ -834,6 +927,7 @@ it.effect("a refused dispatch records its refusal, and opaque causes stay generi
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Layer.succeed(Scheduler.Scheduler, { register: () => Effect.void }),
         ),
@@ -885,6 +979,7 @@ it.effect("a first run whose thread was deleted before it bound removes the task
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Layer.succeed(Scheduler.Scheduler, { register: () => Effect.void }),
         ),
@@ -935,6 +1030,7 @@ it.effect.each(["recreated under the same id", "moved to another project"] as co
               namedProjectsRoot: "/projects",
               isScratchProject: () => Effect.succeed(false),
             }),
+            ServerSettings.layerTest(),
             NodeCrypto.layer,
             Layer.succeed(Scheduler.Scheduler, { register: () => Effect.void }),
           ),
@@ -1000,6 +1096,7 @@ it.effect("checks a task's destination thread only when the destination changes"
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Scheduler.layer,
         ),
@@ -1061,6 +1158,7 @@ it.effect("a run interrupted right after it reserves the task does not block the
             namedProjectsRoot: "/projects",
             isScratchProject: () => Effect.succeed(false),
           }),
+          ServerSettings.layerTest(),
           NodeCrypto.layer,
           Layer.succeed(Scheduler.Scheduler, { register: () => Effect.void }),
         ),
