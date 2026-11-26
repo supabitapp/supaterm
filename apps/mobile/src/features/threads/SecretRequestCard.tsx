@@ -294,7 +294,7 @@ function PendingSecretRequestForm(props: {
         </Text>
       ) : null}
       <Button
-        label="Send"
+        label={gt("Send", { $context: "verb, button" })}
         tone="primary"
         fullWidth
         disabled={locked || incomplete}

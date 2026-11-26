@@ -699,7 +699,10 @@ function ThreadDetailBody(
     if (result.value.outcome === "shared") {
       Dialog.alert(
         gt("Turn stopped; the agent process kept running"),
-        `It is shared with ${others === 0 ? "other" : others} working ${others === 1 ? "thread" : "threads"}. Stop those to free it.`,
+        gt(
+          "{count, plural, =0 {It is shared with other working threads. Stop those to free it.} one {It is shared with {count} working thread. Stop those to free it.} other {It is shared with {count} working threads. Stop those to free it.}}",
+          { count: others },
+        ),
       );
     }
   };
@@ -896,7 +899,7 @@ function ThreadDetailBody(
           ? lifecycleSnoozed
             ? gt("Waking...")
             : done
-              ? "Reopening..."
+              ? gt("Reopening...")
               : gt("Dismissing...")
           : actionLabel,
         accessibilityLabel: actionLabel,
@@ -969,7 +972,9 @@ function ThreadDetailBody(
       return {
         kind: "child-input",
         label: childThreadInputsTitle(childThreadInputs),
-        accessibilityLabel: `Open ${childInput.hasPendingApprovals ? "approval" : "question"} from ${childInput.title}`,
+        accessibilityLabel: childInput.hasPendingApprovals
+          ? gt("Open approval from {title}", { title: childInput.title })
+          : gt("Open question from {title}", { title: childInput.title }),
         onPress: () => {
           Keyboard.dismiss();
           openLinkedThread({ environmentId: props.environmentId, threadId: childInput.id });

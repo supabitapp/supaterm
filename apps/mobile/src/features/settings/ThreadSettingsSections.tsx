@@ -85,17 +85,17 @@ export function ThreadBehaviorSettingsRows(props: {
           />
         </SettingsSection>
       ) : null}
-      <SettingsSection title="Automatically mark as Done">
+      <SettingsSection title={gt("Automatically mark as Done")}>
         <SettingsSwitchRow
           icon="arrow.triangle.branch"
-          label="Automatically mark merged threads as Done"
+          label={gt("Automatically mark merged threads as Done")}
           value={referenceSettings.sidebarAutoMarkDoneOnMerge}
           disabled={disabled}
           onValueChange={(value) => writeToAll({ sidebarAutoMarkDoneOnMerge: value })}
         />
         <SettingsSwitchRow
           icon="clock"
-          label="Automatically mark inactive threads as Done"
+          label={gt("Automatically mark inactive threads as Done")}
           value={afterDays !== null}
           disabled={disabled}
           onValueChange={(value) =>
@@ -118,8 +118,8 @@ export function ThreadBehaviorSettingsRows(props: {
         {afterDays !== null ? (
           <SettingsSwitchRow
             icon={PullRequestGlyph.pullRequest}
-            label="Keep threads with an open PR"
-            subtitle="Inactivity does not mark threads with an open pull request as Done."
+            label={gt("Keep threads with an open PR")}
+            subtitle={gt("Inactivity does not mark threads with an open pull request as Done.")}
             value={referenceSettings.sidebarAutoMarkDoneKeepPullRequests}
             disabled={disabled}
             onValueChange={(value) => writeToAll({ sidebarAutoMarkDoneKeepPullRequests: value })}
@@ -130,13 +130,13 @@ export function ThreadBehaviorSettingsRows(props: {
         <SettingsSection title={gt("Across environments")}>
           <View className="gap-3 p-4">
             <Text className="text-base text-foreground">
-              Automatically mark as Done defaults differ
+              <T>Automatically mark as Done defaults differ</T>
             </Text>
             <Text className="text-sm text-foreground-muted">
               {mismatches.map((mismatch) => mismatch.label).join(", ")}
             </Text>
             <Button
-              label="Apply automatic completion defaults"
+              label={gt("Apply automatic completion defaults")}
               tone="secondary"
               disabled={disabled}
               onPress={() => writeToAll(autoMarkDonePatch)}
@@ -149,15 +149,16 @@ export function ThreadBehaviorSettingsRows(props: {
 }
 
 export function ComposerSettingsSection() {
+  const gt = useGT();
   const savePreferences = useAtomCommand(saveMobilePreferences);
   const showSkillsInSlashMenu = useAtomValue(showSkillsInSlashMenuAtom);
 
   return (
-    <SettingsSection title="Composer">
+    <SettingsSection title={gt("Composer")}>
       <SettingsSwitchRow
         icon="terminal"
-        label="Show skills in slash menu"
-        subtitle="Show skills when you type /. Skills always appear when you type $."
+        label={gt("Show skills in slash menu")}
+        subtitle={gt("Show skills when you type /. Skills always appear when you type $.")}
         value={showSkillsInSlashMenu}
         onValueChange={(value) => savePreferences({ showSkillsInSlashMenu: value })}
       />

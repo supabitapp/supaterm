@@ -39,18 +39,30 @@ import {
 import { useAtomCommand } from "../../../state/use-atom-command";
 import { useQuietThreadStructure } from "../../../state/use-thread-detail";
 import { vcsEnvironment } from "../../../state/vcs";
-import { T, useGT, msg } from "gt-react-native";
+import { T, useGT, msg, useMessages } from "gt-react-native";
+
+import type { MessageResolver } from "../../../i18n/messages";
 
 function repositoryRowDescription(
   summary: RepositorySectionSummary | null,
   error: string | null,
+  resolve: MessageResolver,
 ): string {
-  if (summary === null) return error ?? msg("Checking status");
-  if (!summary.isRepository) return msg("Not a Git repository");
-  const branch = summary.branch ?? "Detached HEAD";
-  if (summary.changedFiles === 0) return `${branch} · Clean`;
-  const count = summary.changedFiles;
-  return `${branch} · ${count} ${count === 1 ? "file" : "files"} · +${formatDiffCount(summary.insertions)} −${formatDiffCount(summary.deletions)}`;
+  if (summary === null) return error ?? resolve(msg("Checking status"));
+  if (!summary.isRepository) return resolve(msg("Not a Git repository"));
+  const branch = summary.branch ?? resolve(msg("Detached HEAD"));
+  if (summary.changedFiles === 0) return resolve(msg("{branch} · Clean", { branch }));
+  return resolve(
+    msg(
+      "{branch} · {count, plural, one {{count} file} other {{count} files}} · +{insertions} −{deletions}",
+      {
+        branch,
+        count: summary.changedFiles,
+        insertions: formatDiffCount(summary.insertions),
+        deletions: formatDiffCount(summary.deletions),
+      },
+    ),
+  );
 }
 
 const RepositoryRow = memo(function RepositoryRow(props: {
@@ -66,12 +78,13 @@ const RepositoryRow = memo(function RepositoryRow(props: {
       input: { cwd: props.section.cwd, includeRemote: false },
     }),
   );
+  const resolve = useMessages();
   const summary = repositorySectionSummary(status.data);
   return (
     <ListRow
       icon="folder"
       label={props.section.name}
-      description={repositoryRowDescription(summary, status.error)}
+      description={repositoryRowDescription(summary, status.error, resolve)}
       detail={
         summary?.isRepository && summary.pullRequest ? `#${summary.pullRequest.number}` : undefined
       }

@@ -579,7 +579,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   );
   const header = (
     <WorkspaceListHeader
-      accessibilityLabel="Supaterm, Threads"
+      accessibilityLabel={gt("{appName}, Threads", { appName: "Supaterm" })}
       onOpenEnvironments={props.onOpenEnvironmentSettings}
       onOpenSettings={props.onOpenSettings}
       search={{

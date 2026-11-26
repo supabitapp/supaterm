@@ -1,3 +1,4 @@
+import { msg, T, useGT, useMessages } from "gt-react-native";
 import { useAtomValue } from "@effect/atom-react";
 import type { ToolCallVisibility } from "@supaterm/contracts/settings";
 import { AsyncResult } from "effect/reactivity";
@@ -8,7 +9,6 @@ import { ListChoiceRow } from "../../../../components/ui/ListChoiceRow";
 import { mobilePreferencesAtom, saveMobilePreferences } from "../../../../state/preferences";
 import { useAtomCommand } from "../../../../state/use-atom-command";
 import { SettingsSection } from "../../components/SettingsSection";
-import { msg, T, useGT } from "gt-react-native";
 
 const TOOL_CALL_VISIBILITY_OPTIONS: ReadonlyArray<{
   readonly value: ToolCallVisibility;
@@ -17,11 +17,12 @@ const TOOL_CALL_VISIBILITY_OPTIONS: ReadonlyArray<{
   { value: "showAll", label: msg("Show all") },
   { value: "hideSuccessful", label: msg("Hide successful") },
   { value: "hideAll", label: msg("Hide all") },
-  { value: "zen", label: "Zen" },
+  { value: "zen", label: msg("Zen", { $context: "tool call visibility: only final answers" }) },
 ];
 
 export function ToolCallsAppearanceSection() {
   const gt = useGT();
+  const m = useMessages();
   const savePreferences = useAtomCommand(saveMobilePreferences);
   const preferences = useAtomValue(mobilePreferencesAtom);
   const selected = AsyncResult.isSuccess(preferences)
@@ -34,7 +35,7 @@ export function ToolCallsAppearanceSection() {
         {TOOL_CALL_VISIBILITY_OPTIONS.map((option, index) => (
           <ListChoiceRow
             key={option.value}
-            label={option.label}
+            label={m(option.label)}
             selected={selected === option.value}
             separated={index > 0}
             disabled={selected === null}

@@ -5,6 +5,8 @@ import type {
 } from "@supaterm/contracts";
 import { msg } from "gt-react-native";
 
+import { m, type MessageResolver } from "../../i18n/messages";
+
 /**
  * The slider holds reasoning levels only. Prompt-injected values (ultrathink and
  * friends) are typed into the prompt, never picked, and ultracode is a real option
@@ -47,14 +49,19 @@ export const LINK_ACCESS_CHOICES: ReadonlyArray<{
 }> = [
   {
     access: "read-only",
-    label: "Read only",
-    description: "Read projects and threads. Cannot start, message or change anything.",
+    label: msg("Read only"),
+    description: msg("Read projects and threads. Cannot start, message or change anything."),
   },
   ...RUNTIME_MODE_CHOICES.map((choice) => ({ ...choice, access: choice.mode })),
 ];
 
-export const linkAccessLabel = (access: AuthMcpClientAccess): string =>
-  LINK_ACCESS_CHOICES.find((choice) => choice.access === access)?.label ?? access;
+export const linkAccessLabel = (
+  access: AuthMcpClientAccess,
+  resolve: MessageResolver = m,
+): string => {
+  const label = LINK_ACCESS_CHOICES.find((choice) => choice.access === access)?.label;
+  return label === undefined ? access : resolve(label);
+};
 
 export function runtimeModeChoicesForSupportedModes(
   supportedRuntimeModes: ReadonlyArray<RuntimeMode> | undefined,

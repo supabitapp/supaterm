@@ -23,7 +23,9 @@ import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { Sheet } from "../../components/ui/Sheet";
 import { ShimmeringWorkContent } from "./thread-work-log";
 import { useVisibleSecondClock } from "./use-visible-second-clock";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
+
+import type { MessageResolver } from "../../i18n/messages";
 
 export interface WorktreeSetupCardProps {
   snapshot: WorktreeSetupSnapshot;
@@ -32,9 +34,9 @@ export interface WorktreeSetupCardProps {
   onWorkLocally: (() => void) | null;
 }
 
-function elapsed(start: string | null, end: string | null, now: number) {
+function elapsed(start: string | null, end: string | null, now: number, resolve: MessageResolver) {
   const duration = (end ? Date.parse(end) : now) - (start ? Date.parse(start) : NaN);
-  return Number.isFinite(duration) ? formatDuration(Math.max(0, duration)) : null;
+  return Number.isFinite(duration) ? formatDuration(Math.max(0, duration), resolve) : null;
 }
 
 const icons: Record<WorktreeSetupStage["status"], AppSymbolName> = {
@@ -98,6 +100,7 @@ function SetupCard(props: WorktreeSetupCardProps & SetupDetailsControl) {
 
 function WorktreeSetupHeaderCard(props: WorktreeSetupCardProps & SetupDetailsControl) {
   const gt = useGT();
+  const messages = useMessages();
   const { snapshot, detailsOpen } = props;
   const running = snapshot.phase === "running";
   const now = useVisibleSecondClock(running);
@@ -121,7 +124,7 @@ function WorktreeSetupHeaderCard(props: WorktreeSetupCardProps & SetupDetailsCon
           className="text-2xs text-foreground-secondary"
           style={{ fontVariant: ["tabular-nums"] }}
         >
-          {elapsed(snapshot.startedAt, snapshot.endedAt, now)}
+          {elapsed(snapshot.startedAt, snapshot.endedAt, now, messages)}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -214,6 +217,7 @@ function setupWentWrong(snapshot: WorktreeSetupSnapshot): boolean {
 
 function WorktreeSetupSummaryRow(props: WorktreeSetupCardProps & SetupDetailsControl) {
   const gt = useGT();
+  const messages = useMessages();
   const { snapshot } = props;
   const now = useVisibleSecondClock(false);
   const label =
@@ -240,7 +244,7 @@ function WorktreeSetupSummaryRow(props: WorktreeSetupCardProps & SetupDetailsCon
         className="text-2xs text-foreground-secondary"
         style={{ fontVariant: ["tabular-nums"] }}
       >
-        {elapsed(snapshot.startedAt, snapshot.endedAt, now)}
+        {elapsed(snapshot.startedAt, snapshot.endedAt, now, messages)}
       </Text>
       <SymbolView name="chevron.right" size={10} tintColorClassName="accent-icon-muted" />
     </Pressable>
@@ -394,6 +398,7 @@ function StageRow({
   compact?: boolean;
   animate?: boolean;
 }) {
+  const m = useMessages();
   const label =
     stage.id === "setup-script"
       ? (scriptName ?? worktreeSetupStageLabel(stage.id))
@@ -462,7 +467,7 @@ function StageRow({
           className="text-2xs text-foreground-secondary"
           style={{ fontVariant: ["tabular-nums"] }}
         >
-          {elapsed(stage.startedAt, stage.endedAt, now)}
+          {elapsed(stage.startedAt, stage.endedAt, now, m)}
         </Text>
       ) : null}
     </View>

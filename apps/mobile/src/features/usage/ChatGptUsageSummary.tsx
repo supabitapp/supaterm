@@ -7,7 +7,7 @@ import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { AppText as Text } from "../../components/ui/AppText";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { environmentPresentations } from "../../state/presentation";
-import { T, useMessages } from "gt-react-native";
+import { T, useMessages, Var } from "gt-react-native";
 
 export function ChatGptUsageSummary({
   selectedEnvironmentIds,
@@ -44,7 +44,9 @@ export function ChatGptUsageSummary({
         </Pressable>
       </View>
       <Text className="text-xs text-foreground-muted">
-        {usage.accounts.join(", ")}. Open ChatGPT with the account you connected.
+        <T>
+          <Var>{usage.accounts.join(", ")}</Var>. Open ChatGPT with the account you connected.
+        </T>
       </Text>
     </View>
   );

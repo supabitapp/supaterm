@@ -1,7 +1,9 @@
 import { resolveVoiceTranscriptionSource } from "@supaterm/client-runtime/state/transcription";
 import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
+import { msg } from "gt-react-native";
 
 import { systemVoiceLanguage } from "../../lib/voiceLanguage";
+import { m } from "../../i18n/messages";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { serverEnvironment } from "../../state/server";
 import { createEnvironmentVoiceTranscriber } from "../../state/transcription";
@@ -27,7 +29,10 @@ export function resolveComposerVoiceEngine(input: {
 }): ComposerVoiceEngineResolution {
   const { environmentId } = input;
   if (environmentId === null) {
-    return { status: "unavailable", message: "Choose an environment to transcribe voice input." };
+    return {
+      status: "unavailable",
+      message: m(msg("Choose an environment to transcribe voice input.")),
+    };
   }
   const config = appAtomRegistry.get(serverEnvironment.configValueAtom(environmentId));
   const source = config === null ? null : resolveVoiceTranscriptionSource(config);

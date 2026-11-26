@@ -133,7 +133,7 @@ import {
   useThreadSettingsSheetPresentation,
   type NavigationWithFinishTransitioning,
 } from "./use-thread-settings-sheet-presentation";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 
 export const COMPOSER_COLLAPSED_CHROME = 60;
 
@@ -376,6 +376,7 @@ export const THREAD_COMPOSER_BOTTOM_GUTTER = 6;
 
 export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps) {
   const gt = useGT();
+  const messages = useMessages();
   const project = useProject(scopeProjectRef(props.environmentId, props.selectedThread.projectId));
   const { themeVariables: materialTheme } = useAppearancePreferences();
   const composerPanel = materialTheme["--color-composer-panel"];
@@ -512,18 +513,21 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     codexFeedback: selectedProviderStatus?.driver === "codex",
     freshSession: props.onFreshSession !== undefined && draftContext === undefined,
   });
-  const sendPresentation = resolveComposerSendPresentation({
-    editingQueuedMessage: queuedEdit !== null,
-    running: props.activeThreadBusy && !draftRunsLocally,
-    canSteer: props.canSteerActiveTurn,
-    followUpBehavior: props.followUpBehavior,
-    deliveryDeferred:
-      !draftRunsLocally &&
-      (props.connectionState !== "connected" ||
-        props.queueCount > 0 ||
-        attachmentsUploading ||
-        props.awaitingCreation),
-  });
+  const sendPresentation = resolveComposerSendPresentation(
+    {
+      editingQueuedMessage: queuedEdit !== null,
+      running: props.activeThreadBusy && !draftRunsLocally,
+      canSteer: props.canSteerActiveTurn,
+      followUpBehavior: props.followUpBehavior,
+      deliveryDeferred:
+        !draftRunsLocally &&
+        (props.connectionState !== "connected" ||
+          props.queueCount > 0 ||
+          attachmentsUploading ||
+          props.awaitingCreation),
+    },
+    messages,
+  );
   const sendLabel = sendPresentation.label;
   const openUsageLimits = () => {
     const report = collectProviderUsageLimits(
@@ -603,6 +607,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const voicePresentation = resolveVoiceComposerPresentation(
     voiceInput.state,
     voiceInput.elapsedSeconds,
+    messages,
   );
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const isExpanded =
@@ -715,7 +720,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     }
     const sideChatCommand = resolveSideChatCommand(draftMessage, sideChat.disabledReason);
     if (sideChatCommand.kind === "refuse") {
-      Dialog.alert("Side chat not started", sideChatCommand.reason);
+      Dialog.alert(gt("Side chat not started"), sideChatCommand.reason);
       return;
     }
     if (sideChatCommand.kind === "start") {
@@ -844,7 +849,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       ) : showSuggestionAction ? (
         <ComposerActionButton
           size={rowControlSize}
-          accessibilityLabel="Use suggested prompt"
+          accessibilityLabel={gt("Use suggested prompt")}
           disabled={isSubmissionLocked}
           icon="text.bubble"
           variant="primary"

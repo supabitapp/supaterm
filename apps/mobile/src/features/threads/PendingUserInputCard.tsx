@@ -384,9 +384,10 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     >
       <QuestionAutoDismissToggle
         deadline={autoDismissAt}
-        accessibilityLabel={`Expand user input, ${questionCount} question${
-          questionCount === 1 ? "" : "s"
-        }`}
+        accessibilityLabel={gt(
+          "{count, plural, one {Expand user input, {count} question} other {Expand user input, {count} questions}}",
+          { count: questionCount },
+        )}
         onPress={props.onToggleCollapsed}
         className="min-h-10 flex-1 flex-row items-center gap-2 active:opacity-70"
       >
@@ -428,7 +429,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         <QuestionAutoDismissToggle
           deadline={autoDismissAt}
           accessibilityLabel={describeQuestion(questionIndex)}
-          accessibilityHint="Collapses user input"
+          accessibilityHint={gt("Collapses user input")}
           onPress={props.onToggleCollapsed}
           className="flex-1 flex-row items-center gap-2"
         >
@@ -506,7 +507,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
               />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
-                  Select one or more options.
+                  <T>Select one or more options.</T>
                 </Text>
               ) : null}
               <View className="gap-2">
@@ -589,7 +590,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       <View className="flex-row gap-2.5">
         {questionIndex > 0 ? (
           <Button
-            label="Back"
+            label={gt("Back")}
             tone="secondary"
             disabled={attachmentsPreparing}
             onPress={() => goToQuestion(questionIndex - 1)}
@@ -598,7 +599,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         <View className="flex-1">
           {isLastQuestion ? (
             <Button
-              label={questionCount > 1 ? gt("Submit answers") : "Submit answer"}
+              label={questionCount > 1 ? gt("Submit answers") : gt("Submit answer")}
               fullWidth
               tone={props.answers ? "primary" : "secondary"}
               disabled={!canSubmit}
@@ -610,7 +611,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
             />
           ) : (
             <Button
-              label="Next question"
+              label={gt("Next question")}
               tone={questionAnswered ? "primary" : "secondary"}
               disabled={!questionAnswered}
               onPress={() => goToQuestion(questionIndex + 1)}

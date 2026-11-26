@@ -78,7 +78,6 @@ function readOverflowMessage(data: string): Overflow | null {
 const withoutFragment = (url: string) => url.split("#", 1)[0];
 
 const ANNOTATE_MENU_KEY = "annotate";
-const ANNOTATE_MENU_ITEMS = [{ label: "Annotate", key: ANNOTATE_MENU_KEY }];
 
 export function HtmlRenderWebView(props: {
   readonly uri: string;
@@ -87,6 +86,7 @@ export function HtmlRenderWebView(props: {
   readonly annotation?: HtmlRenderAnnotation | undefined;
   readonly onLoadError?: () => void;
 }) {
+  const gt = useGT();
   const theme = useHtmlRenderTheme();
   const openLink = useOpenPullRequest();
   const [initialTheme] = useState(theme);
@@ -162,7 +162,12 @@ export function HtmlRenderWebView(props: {
         onRenderProcessGone={restart}
         {...(annotation
           ? {
-              menuItems: ANNOTATE_MENU_ITEMS,
+              menuItems: [
+                {
+                  label: gt("Annotate", { $context: "verb, annotates the selected text" }),
+                  key: ANNOTATE_MENU_KEY,
+                },
+              ],
               onCustomMenuSelection: (event) => {
                 const { key, selectedText } = event.nativeEvent;
                 if (key !== ANNOTATE_MENU_KEY || typeof selectedText !== "string") return;

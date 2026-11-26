@@ -50,7 +50,7 @@ import {
   useConnectionDiagnosis,
 } from "../connection/ConnectionDiagnosisDetails";
 import { environmentStatusText } from "../connection/environmentStatusText";
-import { useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 const BRANCH_SEARCH_DEBOUNCE_MS = 150;
 
@@ -104,7 +104,11 @@ function EnvironmentPickerRow(props: {
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${expanded ? "Hide" : "Show"} connection details for ${props.title}`}
+          accessibilityLabel={
+            expanded
+              ? gt("Hide connection details for {title}", { title: props.title })
+              : gt("Show connection details for {title}", { title: props.title })
+          }
           accessibilityState={{ expanded }}
           onPress={() => setExpanded(!expanded)}
           className="min-h-11 min-w-11 items-center justify-center active:opacity-65"
@@ -125,7 +129,9 @@ function EnvironmentPickerRow(props: {
           )}
           {state.retryAt ? (
             <Text className="text-sm text-foreground-muted">
-              Next reconnect at {new Date(state.retryAt).toLocaleTimeString()}
+              <T>
+                Next reconnect at <Var>{new Date(state.retryAt).toLocaleTimeString()}</Var>
+              </T>
             </Text>
           ) : null}
           {connection?.phase !== "connected" ? (

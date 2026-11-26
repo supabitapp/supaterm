@@ -54,6 +54,7 @@ import * as DateTime from "effect/DateTime";
 import * as Equal from "effect/Equal";
 import { shallow } from "zustand/vanilla/shallow";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "./i18n/messages";
 
 export { formatDuration } from "@supaterm/shared/orchestrationTiming";
 export {
@@ -325,7 +326,10 @@ export function providerErrorPresentation(
   };
 }
 
-function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry {
+function projectedWorkEntry(
+  row: OrchestrationV2ProjectedTurnItem,
+  resolve: MessageResolver,
+): WorkLogEntry {
   const { item } = row;
   const title = item.title?.trim() || null;
   const common = {
@@ -386,7 +390,7 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
     case "file_search":
       return {
         ...common,
-        label: title ?? formatSearchToolLabel(item) ?? msg("Searched files"),
+        label: title ?? formatSearchToolLabel(item, resolve) ?? msg("Searched files"),
         ...(item.pattern ? { detail: item.pattern } : {}),
         toolTitle: title ?? "File search",
         toolData: item,
@@ -429,9 +433,11 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
         label:
           title ??
           (classified === "read"
-            ? formatReadToolLabel(readPath ?? "")
+            ? formatReadToolLabel(readPath ?? "", 0, resolve)
             : classified === "search"
-              ? (formatSearchToolLabel({ input: item.input }) ?? item.toolName ?? "Tool call")
+              ? (formatSearchToolLabel({ input: item.input }, resolve) ??
+                item.toolName ??
+                "Tool call")
               : (item.toolName ?? "Tool call")),
         toolTitle: title ?? item.toolName ?? "Tool",
         toolData: { input: item.input, output: item.output },
@@ -480,6 +486,7 @@ export interface TimelineEntriesInput {
   readonly attempts?: ReadonlyArray<OrchestrationV2RunAttempt>;
   readonly nodes?: ReadonlyArray<OrchestrationV2ExecutionNode>;
   readonly plans?: ReadonlyArray<OrchestrationV2PlanArtifact>;
+  readonly resolve?: MessageResolver;
 }
 
 export interface TimelineEntriesProjection {
@@ -663,7 +670,7 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
       id: item.id,
       kind: "work",
       createdAt,
-      entry: projectedWorkEntry(row),
+      entry: projectedWorkEntry(row, input.resolve ?? m),
       ...attemptMetadata,
     });
 
@@ -867,7 +874,8 @@ function reuseTimelineEntries(
     !shallow(input.anchoredMessages, before.anchoredMessages) ||
     !shallow(input.attempts, before.attempts) ||
     !shallow(input.nodes, before.nodes) ||
-    !samePlanStatuses(input.plans, before.plans)
+    !samePlanStatuses(input.plans, before.plans) ||
+    input.resolve !== before.resolve
   ) {
     return null;
   }

@@ -1,5 +1,5 @@
 import { resetCreditChoices } from "@supaterm/shared/usageLimitsCopy";
-import { useMessages } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 import type {
   EnvironmentId,
   ProviderConsumeResetCreditInput,
@@ -16,10 +16,10 @@ import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 
 const OUTCOME_TEXT: Record<ProviderConsumeResetCreditOutcome, string> = {
-  reset: "Reset applied. Your windows have cleared.",
-  nothingToReset: "Nothing to reset right now.",
-  noCredit: "No reset credit left.",
-  alreadyRedeemed: "That credit was already redeemed.",
+  reset: msg("Reset applied. Your windows have cleared."),
+  nothingToReset: msg("Nothing to reset right now."),
+  noCredit: msg("No reset credit left."),
+  alreadyRedeemed: msg("That credit was already redeemed."),
 };
 
 /**
@@ -35,6 +35,7 @@ export function ResetCredits(props: {
   /** A smaller pill for the composer card. */
   readonly dense?: boolean;
 }) {
+  const gt = useGT();
   const messages = useMessages();
   const { environmentId, input, credits, now, dense = false } = props;
   const consume = useAtomCommand(serverEnvironment.consumeResetCredit, {
@@ -54,13 +55,13 @@ export function ResetCredits(props: {
     const result = await consume({ environmentId, input: choice.input });
     setBusy(false);
     if (result._tag === "Success") {
-      setStatus(result.value.warning ?? OUTCOME_TEXT[result.value.outcome]);
+      setStatus(result.value.warning ?? messages(OUTCOME_TEXT[result.value.outcome]));
       return;
     }
     setStatus(
       "error" in result.cause && result.cause.error instanceof Error
         ? result.cause.error.message
-        : "Could not use the reset credit.",
+        : gt("Could not use the reset credit."),
     );
   };
 
@@ -89,9 +90,9 @@ export function ResetCredits(props: {
                 }
               >
                 {busy
-                  ? "Using…"
+                  ? gt("Using…", { $context: "a reset credit is being redeemed" })
                   : confirm.armed === choice.key
-                    ? "Confirm reset"
+                    ? gt("Confirm reset")
                     : choice.actionLabel}
               </Text>
             </Pressable>

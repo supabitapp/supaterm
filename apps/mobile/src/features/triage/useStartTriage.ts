@@ -90,7 +90,7 @@ export function useStartTriage() {
       Dialog.alert(
         gt("Could not start triage"),
         gt("{message} Run {command} in a terminal on that machine instead.", {
-          message: error instanceof Error ? error.message : "An error occurred.",
+          message: error instanceof Error ? error.message : gt("An error occurred."),
           command: CLI_COMMAND,
         }),
         [

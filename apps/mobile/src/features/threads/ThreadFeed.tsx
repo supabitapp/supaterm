@@ -358,7 +358,7 @@ import {
   THREAD_FEED_MAINTAIN_SCROLL_AT_END_THRESHOLD,
 } from "./threadFeedEndFollow";
 import { useMessageTimeFormatter } from "./useMessageTimeFormatter";
-import { T, useMessages, useGT, msg } from "gt-react-native";
+import { T, useMessages, useGT, msg, useLocale } from "gt-react-native";
 import { m } from "../../i18n/messages";
 
 const WIDE_MARKDOWN_BLOCK_OPTIONS = {
@@ -460,8 +460,12 @@ const COPY_PROMPT_LINK_MENU_ACTION = {
   title: msg("Copy prompt link"),
   image: "link",
 };
-const PIN_MESSAGE_MENU_ACTION = { id: "toggle-pin", title: "Pin message", image: "pin" };
-const UNPIN_MESSAGE_MENU_ACTION = { id: "toggle-pin", title: "Unpin message", image: "pin.slash" };
+const PIN_MESSAGE_MENU_ACTION = { id: "toggle-pin", title: msg("Pin message"), image: "pin" };
+const UNPIN_MESSAGE_MENU_ACTION = {
+  id: "toggle-pin",
+  title: msg("Unpin message"),
+  image: "pin.slash",
+};
 
 interface MessagePinToggle {
   readonly pinned: boolean;
@@ -485,10 +489,11 @@ function MessagePinButton(props: {
   readonly iconSize: number;
   readonly onPress: () => void;
 }) {
+  const gt = useGT();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={props.pinned ? "Unpin message" : "Pin message"}
+      accessibilityLabel={props.pinned ? gt("Unpin message") : gt("Pin message")}
       accessibilityState={{ selected: props.pinned }}
       onPress={() => {
         void Haptics.selectionAsync();
@@ -518,6 +523,7 @@ function UserMessageCopyButton(props: {
   readonly pin?: MessagePinToggle | null;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const button = (
     <CopyTextButton
       accessibilityLabel={gt("Copy message")}
@@ -533,7 +539,7 @@ function UserMessageCopyButton(props: {
   const actions = [
     ...(linkText.length > PROMPT_LINK_MAX_PROMPT_LENGTH ? [] : [COPY_PROMPT_LINK_MENU_ACTION]),
     ...(pin ? [pin.pinned ? UNPIN_MESSAGE_MENU_ACTION : PIN_MESSAGE_MENU_ACTION] : []),
-  ];
+  ].map((action) => ({ ...action, title: m(action.title) }));
   if (actions.length === 0) return button;
   return (
     <Menu
@@ -713,6 +719,7 @@ function MessageAttachmentImage(props: {
   readonly onImageLoad?: (image: SentImageHandoff) => void;
   readonly onPressPreview: (source: FilePreviewSource) => void;
 }) {
+  const gt = useGT();
   const withGallery = useFilePreviewGallery();
   const previewSource = remoteAttachmentImageSource(props.environmentId, props.attachmentId, props);
   const { resource } = previewSource;
@@ -753,7 +760,7 @@ function MessageAttachmentImage(props: {
         className={props.className}
         maxWidth={props.maxWidth}
         height={props.height}
-        accessibilityLabel={`Open ${props.name}`}
+        accessibilityLabel={gt("Open {name}", { name: props.name })}
         {...handoffProps(handoff)}
         onPress={() => props.onPressPreview(withGallery({ ...previewSource, sourceIdentifier }))}
         onLoad={(size) => {
@@ -958,7 +965,7 @@ function MessageAttachmentFile(props: {
       <View className="min-w-0 flex-row items-center overflow-hidden rounded-xl border border-border bg-card">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Open ${attachment.name}`}
+          accessibilityLabel={gt("Open {name}", { name: attachment.name })}
           accessibilityValue={{ text: `${fileTypeLabel}, ${sizeLabel}` }}
           accessibilityState={{ disabled, busy: opening }}
           disabled={disabled}
@@ -1155,6 +1162,7 @@ function PendingMessageImage(props: {
   readonly onImageLoad?: (image: SentImageHandoff) => void;
   readonly onPressPreview: (source: FilePreviewSource) => void;
 }) {
+  const gt = useGT();
   const withGallery = useFilePreviewGallery();
   const { attachment, handoff } = props;
   const fileBacked = isFileBackedComposerAttachment(attachment);
@@ -1169,7 +1177,7 @@ function PendingMessageImage(props: {
       className={props.className}
       maxWidth={props.maxWidth}
       height={props.height}
-      accessibilityLabel={`Open ${attachment.name}`}
+      accessibilityLabel={gt("Open {name}", { name: attachment.name })}
       {...handoffProps(handoff)}
       onLoad={(size) => {
         if (uri) props.onImageLoad?.({ uri, aspectRatio: size.width / size.height });
@@ -1385,6 +1393,7 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
   readonly renderImage: MarkdownImageRenderer;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill> | undefined;
 }) {
+  const gt = useGT();
   const liveMarkdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
   useLinkedThreadLinkNames(props.markdown, props.environmentId);
   const threadIcons = useThreadChipIcons(props.environmentId, liveMarkdown);
@@ -1405,13 +1414,13 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
       messageId && onAnnotate
         ? [
             {
-              title: "Annotate",
+              title: gt("Annotate", { $context: "verb, annotates the selected text" }),
               icon: "quote.bubble",
               onPress: (selection: MarkdownTextSelection) => onAnnotate(messageId, selection),
             },
           ]
         : undefined,
-    [messageId, onAnnotate],
+    [gt, messageId, onAnnotate],
   );
 
   return (
@@ -1441,7 +1450,8 @@ function AssistantMarkdownBlocks(props: {
   readonly renderImage: MarkdownImageRenderer;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill> | undefined;
 }) {
-  const blocks = splitMarkdownDetails(props.markdown).map((block) =>
+  const m = useMessages();
+  const blocks = splitMarkdownDetails(props.markdown, m).map((block) =>
     block.kind === "details"
       ? block
       : { ...block, segments: splitCodexArtifactTemplateMarkdown(block.markdown) },
@@ -1610,6 +1620,7 @@ function AgentMessageFoldHeader(props: {
   readonly onToggle: () => void;
   readonly iconSubtleColor: ColorValue;
 }) {
+  const gt = useGT();
   const senderShell = useQuietThreadShell(
     props.senderThreadId ? scopeThreadRef(props.environmentId, props.senderThreadId) : null,
   );
@@ -1618,7 +1629,11 @@ function AgentMessageFoldHeader(props: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${props.summary}`}
-      accessibilityHint={`Double tap to ${props.expanded ? "hide" : "show"} the message.`}
+      accessibilityHint={
+        props.expanded
+          ? gt("Double tap to hide the message.")
+          : gt("Double tap to show the message.")
+      }
       accessibilityState={{ expanded: props.expanded }}
       hitSlop={4}
       className="min-h-10 flex-row items-center gap-1.5 px-3.5 py-2"
@@ -1722,7 +1737,11 @@ function ThreadAutomationMessageRow(props: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={gt("Automation: {summary}", { summary })}
-          accessibilityHint={`Double tap to ${props.expanded ? "hide" : "show"} the prompt.`}
+          accessibilityHint={
+            props.expanded
+              ? gt("Double tap to hide the prompt.")
+              : gt("Double tap to show the prompt.")
+          }
           accessibilityState={{ expanded: props.expanded }}
           hitSlop={4}
           className="min-h-10 flex-row items-center gap-1.5 px-3.5 py-2"
@@ -1896,6 +1915,7 @@ function RunFoldWorking(props: {
   startedAt: string;
   rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
 }) {
+  const gt = useGT();
   const messages = useMessages();
   const nowMs = toServerClock(props.environmentId, useVisibleSecondClock(true));
   const seconds = Math.floor((nowMs - Date.parse(props.startedAt)) / 1_000);
@@ -1909,7 +1929,12 @@ function RunFoldWorking(props: {
         numberOfLines={1}
         className="shrink font-supaterm-medium text-sm tabular-nums text-foreground-muted"
       >
-        Working for {seconds > 0 ? formatDuration(seconds * 1_000, messages) : "0s"}
+        {gt("Working for {duration}", {
+          duration:
+            seconds > 0
+              ? formatDuration(seconds * 1_000, messages)
+              : gt("{seconds}s", { seconds: 0 }),
+        })}
       </Text>
     </View>
   );
@@ -2405,7 +2430,7 @@ function renderFeedEntry(
                       <Pressable
                         key={attachment.id}
                         accessibilityRole="imagebutton"
-                        accessibilityLabel={`Open ${attachment.name}`}
+                        accessibilityLabel={m(msg("Open {name}", { name: attachment.name }))}
                         onPress={() => {
                           const source = composerImageGallery([attachment])[0];
                           if (source)
@@ -2510,7 +2535,7 @@ function renderFeedEntry(
                 !entry.acknowledged &&
                 entry.id !== props.pendingFoldMessageId
                   ? entry.pendingMessage.failure !== undefined
-                    ? "Not sent"
+                    ? m(msg("Not sent"))
                     : m(msg("Pending", { $context: "message not yet sent" }))
                   : timestampLabel}
               </Text>
@@ -2643,7 +2668,7 @@ function renderFeedEntry(
         {showAssistantMeta ? (
           <View className="mt-1 flex-row items-center gap-1">
             <CopyTextButton
-              accessibilityLabel="Copy message"
+              accessibilityLabel={m(msg("Copy message"))}
               text={renderedText}
               tintColor={iconSubtleColor}
               buttonSize={props.replyActionSize.button}
@@ -2925,6 +2950,8 @@ function useThreadFeedPresentation(
   revealedMessageId: MessageId | null,
 ) {
   const [feedCache] = useState(createThreadFeedCache);
+  const messages = useMessages();
+  const locale = useLocale();
   return appendPendingThreadMessages(
     deriveThreadFeedPresentation(
       props.feed,
@@ -2939,6 +2966,8 @@ function useThreadFeedPresentation(
       props.runlessWorkActive ?? false,
       feedCache,
       { toolCallVisibility: props.toolCallVisibility ?? "showAll", revealedMessageId },
+      messages,
+      locale,
     ),
     props.feed,
     props.queuedMessages,
@@ -3482,7 +3511,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       return (
         <Text
           accessibilityRole="link"
-          accessibilityLabel={`Open ${name}`}
+          accessibilityLabel={gt("Open {name}", { name })}
           onPress={() => onMarkdownLinkPress(image.href, true)}
           style={{
             color: markdownStyles.assistant.nativeTextStyle.linkColor,
@@ -4356,11 +4385,11 @@ function ThreadFeedLoadEarlierControl(props: ThreadFeedHistoryControls) {
         <View className="self-center">
           <Button
             label={
-              props.loading ? gt("Loading earlier activity…") : "Retry loading earlier activity"
+              props.loading ? gt("Loading earlier activity…") : gt("Retry loading earlier activity")
             }
             tone="secondary"
             accessibilityLabel={
-              props.loading ? "Loading earlier activity" : "Retry loading earlier activity"
+              props.loading ? gt("Loading earlier activity") : gt("Retry loading earlier activity")
             }
             disabled={props.loading}
             onPress={props.onLoadEarlier}

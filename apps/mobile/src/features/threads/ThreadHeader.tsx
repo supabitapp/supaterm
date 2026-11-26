@@ -13,7 +13,7 @@ import {
   type ThreadGitControlsProps,
 } from "./ThreadGitControls";
 import { pinnedMessageCaption, pinnedMessageTitle } from "./pinnedMessageLabels";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 export function ThreadHeader(props: {
   readonly title: string;
@@ -28,11 +28,12 @@ export function ThreadHeader(props: {
   readonly onJumpToPinnedMessage?: (pin: ThreadPinnedMessage) => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const goBack = useWorkspaceBackNavigation();
   const { toggleAuxiliaryPane, startNewTask } = useAdaptiveWorkspaceLayout();
   const { panes } = useWorkspacePaneState();
   const gitMenu = useThreadGitMenuDefinition(props.gitControls);
-  const terminalMenu = threadTerminalMenu(props.gitControls);
+  const terminalMenu = threadTerminalMenu(props.gitControls, m);
   const filesVisible = props.inspectorMode === "files" && panes.auxiliaryPaneVisible;
   const actions: AppBarAction[] = props.hasThreadCwd
     ? [
@@ -50,12 +51,12 @@ export function ThreadHeader(props: {
   const pinsMenu: AppBarMenu | null =
     pinnedMessages?.length && onJumpToPinnedMessage
       ? {
-          title: "Pinned messages",
+          title: gt("Pinned messages"),
           icon: "pin",
           items: pinnedMessages.map((pin) => ({
             id: pin.itemId,
-            title: pinnedMessageTitle(pin),
-            subtitle: pinnedMessageCaption(pin),
+            title: pinnedMessageTitle(pin, m),
+            subtitle: pinnedMessageCaption(pin, m),
             onPress: () => onJumpToPinnedMessage(pin),
           })),
         }

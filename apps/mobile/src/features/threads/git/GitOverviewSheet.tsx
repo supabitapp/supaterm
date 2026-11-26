@@ -54,6 +54,8 @@ import {
 import { useLinkedPullRequestActions } from "../useLinkedPullRequestActions";
 import { useGT } from "gt-react-native";
 
+import { changeRequestTermKind } from "../../../lib/changeRequestTerm";
+
 type GitOverviewSheetProps = StaticScreenProps<
   {
     readonly environmentId: string;
@@ -183,18 +185,37 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
           }),
   }));
 
-  const { shortLabel, singular } = sourceControlClients.get(
+  const changeRequest = sourceControlClients.get(
     gitStatus.data?.sourceControlProvider?.kind,
   ).changeRequest;
+  const { shortLabel } = changeRequest;
+  const term = changeRequestTermKind(changeRequest);
 
   const openExistingPr = async () => {
     const prUrl = gitStatus.data?.pr?.state === "open" ? gitStatus.data.pr.url : null;
     if (!prUrl) {
-      Dialog.alert(`No open ${shortLabel}`, `This branch does not have an open ${singular}.`);
+      Dialog.alert(
+        gt("{term, select, mr {No open MR} cr {No open change request} other {No open PR}}", {
+          term,
+        }),
+        gt(
+          "{term, select, mr {This branch does not have an open merge request.} cr {This branch does not have an open change request.} other {This branch does not have an open pull request.}}",
+          { term },
+        ),
+      );
       return;
     }
     if (!(await openPullRequest(prUrl))) {
-      Dialog.alert(`Unable to open ${shortLabel}`, `The ${singular} could not be opened.`);
+      Dialog.alert(
+        gt(
+          "{term, select, mr {Unable to open MR} cr {Unable to open change request} other {Unable to open PR}}",
+          { term },
+        ),
+        gt(
+          "{term, select, mr {The merge request could not be opened.} cr {The change request could not be opened.} other {The pull request could not be opened.}}",
+          { term },
+        ),
+      );
     }
   };
 
@@ -334,7 +355,10 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
               label={gt("Pull latest")}
               description={
                 canWriteSourceControl
-                  ? `${behindCount} commit${behindCount === 1 ? "" : "s"} behind upstream`
+                  ? gt(
+                      "{count, plural, one {{count} commit behind upstream} other {{count} commits behind upstream}}",
+                      { count: behindCount },
+                    )
                   : gt("This connection cannot change source control.")
               }
               disabled={!canWriteSourceControl || busy || !isRepo}
@@ -402,8 +426,14 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
               {linkedPrActions.canLink ? (
                 <ListRow
                   icon="link"
-                  label={`Link ${linkedPrActions.terminology.singular}`}
-                  description={`Attach a ${linkedPrActions.terminology.singular} by URL or number`}
+                  label={gt(
+                    "{term, select, mr {Link merge request} cr {Link change request} other {Link pull request}}",
+                    { term: changeRequestTermKind(linkedPrActions.terminology) },
+                  )}
+                  description={gt(
+                    "{term, select, mr {Attach a merge request by URL or number} cr {Attach a change request by URL or number} other {Attach a pull request by URL or number}}",
+                    { term: changeRequestTermKind(linkedPrActions.terminology) },
+                  )}
                   onPress={linkedPrActions.promptLink}
                 />
               ) : null}

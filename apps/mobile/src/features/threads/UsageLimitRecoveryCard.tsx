@@ -65,16 +65,22 @@ export function UsageLimitRecoveryCard({
     return null;
   const resumesUpcoming = canSchedule && scheduled && !displayPassed;
   const shownAt = resumesUpcoming ? displayAt : resetAt;
-  const resetText = shownAt
-    ? `${resumesUpcoming ? "Resumes" : resetPassed ? "Reset" : "Resets"} ${new Date(
-        shownAt,
-      ).toLocaleString(undefined, {
+  const resetDate = shownAt
+    ? new Date(shownAt).toLocaleString(undefined, {
         month: "short",
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
-      })}.`
+      })
     : null;
+  const resetText =
+    resetDate === null
+      ? null
+      : resumesUpcoming
+        ? gt("Resumes {date}.", { date: resetDate })
+        : resetPassed
+          ? gt("Reset {date}.", { date: resetDate })
+          : gt("Resets {date}.", { date: resetDate });
   const snoozed =
     limitRecoveryOwnsSnooze({
       runId,
@@ -172,8 +178,12 @@ export function UsageLimitRecoveryCard({
                 )
             : chatGptLimit
               ? (resetText ?? gt("Review your usage settings in ChatGPT."))
-              : resetText
-                ? `Usage limit reached. ${resetText}`
+              : resetDate !== null
+                ? resumesUpcoming
+                  ? gt("Usage limit reached. Resumes {date}.", { date: resetDate })
+                  : resetPassed
+                    ? gt("Usage limit reached. Reset {date}.", { date: resetDate })
+                    : gt("Usage limit reached. Resets {date}.", { date: resetDate })
                 : gt(
                     "Usage limit reached. The provider did not report a reset time. Retry manually when your limit is available.",
                   )}

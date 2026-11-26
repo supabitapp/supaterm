@@ -133,7 +133,11 @@ function BackgroundWorkRow(props: {
     <View className="border-b border-border">
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${showingOutput ? "Hide" : "Show"} output of ${item.label}`}
+        accessibilityLabel={
+          showingOutput
+            ? gt("Hide output of {label}", { label: item.label })
+            : gt("Show output of {label}", { label: item.label })
+        }
         accessibilityState={{ expanded: showingOutput }}
         onPress={() => {
           void Haptics.selectionAsync();
@@ -150,7 +154,7 @@ function BackgroundWorkRow(props: {
               environmentId: target.environmentId,
               input: { threadId: target.threadId, taskId: item.taskId },
             })}
-            waitingLabel="No output yet."
+            waitingLabel={gt("No output yet.")}
             themeAppearance={themeAppearance}
           />
         </View>

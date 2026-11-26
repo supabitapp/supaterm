@@ -3,9 +3,12 @@ import { isActiveSubagentStatus } from "@supaterm/client-runtime/state/subagentR
 import type { OrchestrationV2Subagent } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 
+import { m, type MessageResolver } from "../../i18n/messages";
+
 export function subagentCardElapsed(
   agents: ReadonlyArray<Pick<OrchestrationV2Subagent, "status" | "startedAt" | "completedAt">>,
   nowMs: number,
+  resolve: MessageResolver = m,
 ): string | null {
   const starts = agents.flatMap((agent) =>
     agent.startedAt ? [DateTime.toEpochMillis(agent.startedAt)] : [],
@@ -17,5 +20,5 @@ export function subagentCardElapsed(
     agent.completedAt ? [DateTime.toEpochMillis(agent.completedAt)] : [],
   );
   const duration = (live ? nowMs : Math.max(...ends)) - Math.min(...starts);
-  return duration > 0 ? formatDuration(duration) : null;
+  return duration > 0 ? formatDuration(duration, resolve) : null;
 }

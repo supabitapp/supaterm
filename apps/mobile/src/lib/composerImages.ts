@@ -234,8 +234,17 @@ export function skippedDuplicateAttachmentsMessage(
 ): string | null {
   if (duplicates.length === 0) return null;
   return duplicates.length === 1
-    ? `Skipped '${duplicates[0]!.name}': a file with the same name, type, and size is already attached.`
-    : `Skipped ${duplicates.length} files: files with the same names, types, and sizes are already attached.`;
+    ? m(
+        msg("Skipped ''{name}'': a file with the same name, type, and size is already attached.", {
+          name: duplicates[0]!.name,
+        }),
+      )
+    : m(
+        msg(
+          "Skipped {count} files: files with the same names, types, and sizes are already attached.",
+          { count: duplicates.length },
+        ),
+      );
 }
 
 async function ownedComposerImageAttachment(input: {

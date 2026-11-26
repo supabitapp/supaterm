@@ -46,7 +46,7 @@ import {
   resolveThreadQueueRowControls,
 } from "./threadQueueControlPresentation";
 import { ThreadQueueMessage, type QueueMessageAction } from "./ThreadQueueMessage";
-import { useMessages, msg, useGT } from "gt-react-native";
+import { useMessages, msg, T, useGT } from "gt-react-native";
 
 const QUEUE_ACTION_WIDTH = 76;
 
@@ -181,7 +181,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
       const error = squashAtomCommandFailure(result);
       Dialog.alert(
         m(msg("Could not send queued message")),
-        error instanceof Error ? error.message : "Try again.",
+        error instanceof Error ? error.message : m(msg("Try again.")),
       );
     }
   };
@@ -213,14 +213,14 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
             <Text className="text-sm text-foreground-muted">
               {editBlockedReason ??
                 (canSendQueuedMessages
-                  ? "Tap to edit · Send now or swipe for more"
-                  : "Tap to edit · Swipe for actions")}
+                  ? gt("Tap to edit · Send now or swipe for more")
+                  : gt("Tap to edit · Swipe for actions"))}
             </Text>
           ) : null}
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Close message queue"
+          accessibilityLabel={gt("Close message queue")}
           onPress={() => navigation.goBack()}
           className="size-11 items-center justify-center rounded-full bg-subtle active:opacity-70"
         >
@@ -230,10 +230,10 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
       {queuedRuns.length === 0 ? (
         <View className="gap-2 py-6">
           <Text className="text-center text-base font-supaterm-medium text-foreground">
-            Your queue is empty
+            <T>Your queue is empty</T>
           </Text>
           <Text className="text-center text-sm text-foreground-muted">
-            Messages you queue during a turn will appear here.
+            <T>Messages you queue during a turn will appear here.</T>
           </Text>
         </View>
       ) : null}
@@ -310,9 +310,11 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
             className="gap-3 bg-sheet-solid px-5 pt-3"
             style={{ paddingBottom: Math.max(insets.bottom, 16) + 12 }}
           >
-            <Text className="text-center text-sm text-foreground-muted">Paused after restart</Text>
+            <Text className="text-center text-sm text-foreground-muted">
+              <T>Paused after restart</T>
+            </Text>
             <Button
-              label={resuming ? "Resuming…" : gt("Resume queue")}
+              label={resuming ? gt("Resuming…") : gt("Resume queue")}
               tone="primary"
               fullWidth
               loading={resuming}
@@ -336,7 +338,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                   const error = squashAtomCommandFailure(result);
                   Dialog.alert(
                     gt("Could not resume queue"),
-                    error instanceof Error ? error.message : "Try again.",
+                    error instanceof Error ? error.message : gt("Try again."),
                   );
                 }
               }}
@@ -413,18 +415,19 @@ function QueueSendButton(props: {
   readonly movesCommandFirst: boolean;
   readonly onPress: () => void;
 }) {
+  const gt = useGT();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Send queued message now"
+      accessibilityLabel={gt("Send queued message now")}
       accessibilityHint={
         props.sendsNow
-          ? "Start a turn with this message"
+          ? gt("Start a turn with this message")
           : props.skipsCompaction
-            ? "Skip compaction and send this message"
+            ? gt("Skip compaction and send this message")
             : props.movesCommandFirst
-              ? "Move this command to the front of the queue"
-              : "Send into the current turn"
+              ? gt("Move this command to the front of the queue")
+              : gt("Send into the current turn")
       }
       accessibilityState={{ disabled: !props.canSend }}
       disabled={!props.canSend}
@@ -444,7 +447,7 @@ function QueueSendButton(props: {
             : "pt-1 text-2xs font-supaterm-medium text-foreground-muted"
         }
       >
-        Send now
+        <T>Send now</T>
       </Text>
     </Pressable>
   );

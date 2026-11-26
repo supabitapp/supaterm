@@ -42,6 +42,9 @@ import {
 } from "@supaterm/client-runtime/state/thread-sort";
 import { isListedThreadLineage, type EnvironmentId, type ProjectId } from "@supaterm/contracts";
 import type { MenuAction } from "@react-native-menu/menu";
+import { msg } from "gt-react-native";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 import type { ThreadListProvider } from "../../state/thread-list-environments";
 
@@ -122,13 +125,16 @@ export function resolveThreadListV2SwipeActions(input: {
 
 // Nested keeps iOS menus short: UIKit scrolls a taller menu, and that scroll
 // cancels press-drag-release selection.
-export function layoutThreadListV2RowMenuActions(input: {
-  readonly nested: boolean;
-  readonly direct: readonly MenuAction[];
-  readonly reorder: readonly MenuAction[];
-  readonly pin: readonly MenuAction[];
-  readonly secondary: readonly MenuAction[];
-}): MenuAction[] {
+export function layoutThreadListV2RowMenuActions(
+  input: {
+    readonly nested: boolean;
+    readonly direct: readonly MenuAction[];
+    readonly reorder: readonly MenuAction[];
+    readonly pin: readonly MenuAction[];
+    readonly secondary: readonly MenuAction[];
+  },
+  resolve: MessageResolver = m,
+): MenuAction[] {
   if (!input.nested) {
     return [...input.direct, ...input.reorder, ...input.pin, ...input.secondary];
   }
@@ -137,14 +143,14 @@ export function layoutThreadListV2RowMenuActions(input: {
     ...input.pin,
     {
       id: "more",
-      title: "More",
+      title: resolve(msg("More", { $context: "menu that holds more thread actions" })),
       image: "ellipsis.circle",
       subactions: [
         ...(input.reorder.length > 1
           ? [
               {
                 id: "arrange-menu",
-                title: "Arrange",
+                title: resolve(msg("Arrange", { $context: "submenu for reordering threads" })),
                 image: "arrow.up.arrow.down",
                 subactions: [...input.reorder],
               },

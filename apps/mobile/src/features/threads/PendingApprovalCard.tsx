@@ -9,7 +9,7 @@ import { View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { playDecisionHaptic } from "../../lib/decisionHaptic";
 import type { PendingApproval } from "../../lib/threadActivity";
-import { T } from "gt-react-native";
+import { T, useGT } from "gt-react-native";
 
 export interface PendingApprovalCardProps {
   readonly canOperateThread: boolean;
@@ -21,15 +21,16 @@ export interface PendingApprovalCardProps {
   ) => Promise<unknown>;
 }
 
-const DEFAULT_APPROVAL_OPTIONS: ReadonlyArray<ProviderApprovalOption> = [
-  { decision: "accept", label: "Allow once" },
-  { decision: "acceptForSession", label: "Allow session" },
-  { decision: "decline", label: "Decline" },
-];
-
 export function PendingApprovalCard(props: PendingApprovalCardProps) {
-  const options: ReadonlyArray<ProviderApprovalOption> =
-    props.approval.options ?? DEFAULT_APPROVAL_OPTIONS;
+  const gt = useGT();
+  const options: ReadonlyArray<ProviderApprovalOption> = props.approval.options ?? [
+    { decision: "accept", label: gt("Allow once") },
+    { decision: "acceptForSession", label: gt("Allow session") },
+    {
+      decision: "decline",
+      label: gt("Decline", { $context: "verb, rejects the approval request" }),
+    },
+  ];
   const warning = options.find((option) => option.warning)?.warning;
   const canRespond = props.approval.responseCapability === "live";
   const disabled = !canRespond || props.respondingApprovalId === props.approval.requestId;

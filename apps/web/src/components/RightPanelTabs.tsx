@@ -107,7 +107,9 @@ import { usePaneInputOwner } from "../chatPanes/paneScope";
 import { registerCommands } from "../shortcuts/dispatcher";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
 import { isImeComposing } from "~/lib/imeComposition";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
+
+import { m, type MessageResolver } from "../i18n/messages";
 
 export interface RightPanelTabsProps {
   mode: PreviewPanelMode;
@@ -576,6 +578,7 @@ function surfaceTitle(
   surface: RightPanelSurface,
   sessions: Readonly<Record<string, PreviewSessionSnapshot>>,
   terminalLabelsById: ReadonlyMap<string, string>,
+  resolve: MessageResolver = m,
 ): string {
   switch (surface.kind) {
     case "diff":
@@ -589,7 +592,7 @@ function surfaceTitle(
     case "terminal":
       return (
         terminalLabelsById.get(surface.activeTerminalId) ??
-        getTerminalLabel(surface.activeTerminalId)
+        getTerminalLabel(surface.activeTerminalId, resolve)
       );
     case "pull-request":
       return `#${surface.number}`;
@@ -1035,6 +1038,7 @@ function RightPanelTab(
 
 export function RightPanelTabs(props: RightPanelTabsProps) {
   const gt = useGT();
+  const messages = useMessages();
   const focusedSurface = props.surfaces.find((surface) => surface.id === props.activeSurfaceId);
   const ownsDesktopTitleBar = isElectron && props.mode === "inline";
   const browserProfiles = useBrowserDefaults().profiles;
@@ -1354,7 +1358,12 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       workspaceLabel={
         focusedSurface
           ? gt("Workspace panel: {title}", {
-              title: surfaceTitle(focusedSurface, props.previewSessions, props.terminalLabelsById),
+              title: surfaceTitle(
+                focusedSurface,
+                props.previewSessions,
+                props.terminalLabelsById,
+                messages,
+              ),
             })
           : gt("Workspace panel")
       }
@@ -1405,7 +1414,12 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                     dragDisabled={!props.onMoveSurface || renamingDevice === surface.id}
                     active={surface.id === props.activeSurfaceId}
                     pending={props.pendingSurfaceIds.has(surface.id)}
-                    title={surfaceTitle(surface, props.previewSessions, props.terminalLabelsById)}
+                    title={surfaceTitle(
+                      surface,
+                      props.previewSessions,
+                      props.terminalLabelsById,
+                      messages,
+                    )}
                     closeShortcut={closeTabShortcut}
                     audio={tabAudioState(
                       previewTabId ? (props.desktopByTabId[previewTabId] ?? null) : null,

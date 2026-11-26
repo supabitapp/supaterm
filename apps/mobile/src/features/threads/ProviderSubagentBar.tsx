@@ -16,7 +16,7 @@ import { Button } from "../../components/ui/Button";
 import { NativeChildWorkSheet } from "./NativeChildWorkSheet";
 import { ReadOnlyComposerBar } from "./ReadOnlyComposerBar";
 import { useVisibleSecondClock } from "./use-visible-second-clock";
-import { useGT } from "gt-react-native";
+import { T, useGT, Var } from "gt-react-native";
 
 export function ProviderSubagentBar(props: {
   readonly provider: { readonly driver: string; readonly iconUrl?: string | undefined } | null;
@@ -73,7 +73,9 @@ export function ProviderSubagentBar(props: {
           className="font-sans text-xs text-foreground-secondary"
           style={{ fontVariant: ["tabular-nums"] }}
         >
-          {statusLabel} · Runs on its own
+          <T>
+            <Var>{statusLabel}</Var> · Runs on its own
+          </T>
         </Text>
       </View>
       {props.inspect ? (
