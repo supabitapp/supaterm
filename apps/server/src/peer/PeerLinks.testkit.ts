@@ -28,12 +28,14 @@ import * as McpOAuth from "../auth/McpOAuth.ts";
 import * as McpOAuthHttp from "../auth/mcpOAuthHttp.ts";
 import type * as SqlClient from "effect/sql/SqlClient";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ServerHttp from "../http.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as PeerHttp from "./http.ts";
 import * as PeerClientPairing from "./PeerClientPairing.ts";
 import * as PeerLinks from "./PeerLinks.ts";
@@ -69,6 +71,7 @@ export const descriptorOf = (
 /** An environment's own sessions and pairing links, on a database and secret store of its own. */
 export const layerEnvironmentAuth = (prefix: string) =>
   EnvironmentAuth.layer.pipe(
+    Layer.provide(ManagedPolicy.layerTest()),
     Layer.provide(Sqlite.layerMemory),
     Layer.provideMerge(ServerSecretStore.layer),
     Layer.provideMerge(ServerEnvironment.layerIdentity),
@@ -144,6 +147,7 @@ export const servePeer = <E, R, E2 = never, R2 = never>(
       HttpApiBuilder.layer(PeerTestApi).pipe(
         Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
         Layer.provide(PeerHttp.layer.pipe(Layer.provide(PeerClientPairing.layerIssuer))),
+        Layer.provide(ServerSettings.layerTest()),
         Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
         Layer.provide(AuthHttp.layerAuthenticatedAuth),
       ),

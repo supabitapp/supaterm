@@ -78,6 +78,16 @@ it.effect("refuses Tailscale Serve when remote clients are not allowed", () =>
       tailscaleServeEnabled: true,
     }).pipe(Effect.flip);
     assert.include(error.message, "Tailscale Serve");
+    // Supaterm counts a Serve-enabled server as remote-reachable; the refusal still names Serve.
+    const remote = yield* ManagedLimits.checkServerReachability(desktopAndLocal, {
+      authPolicy: "remote-reachable",
+      host: undefined,
+      tailscaleServeEnabled: true,
+    }).pipe(Effect.flip);
+    assert.equal(
+      remote.message,
+      "Example Corp's policy does not allow remote clients, so Tailscale Serve cannot be turned on.",
+    );
   }),
 );
 

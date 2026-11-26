@@ -21,6 +21,7 @@ import {
   type AuthWebSocketTicketResult,
   type AuthWebSocketTicketUse,
 } from "@supaterm/contracts";
+import { isLocalLoopbackHost } from "@supaterm/shared/hostClassification";
 import { encodeOAuthScope } from "@supaterm/shared/oauthScope";
 import { buildPairingUrl } from "@supaterm/shared/remote";
 import * as Context from "effect/Context";
@@ -42,6 +43,8 @@ import * as SessionStore from "./SessionStore.ts";
 import { REUSABLE_DEV_SESSION_EXPIRES_AT, resolveReusableDevAuth } from "./ReusableDevAuth.ts";
 import { DESKTOP_RENDERER_ORIGINS } from "../httpCors.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import * as ManagedLimits from "../policy/managedLimits.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import {
   MCP_APPROVAL_SUBJECT_PREFIX,
   PEER_LINK_PAIRING_SUBJECT_PREFIX,
@@ -370,10 +373,16 @@ export class EnvironmentAuth extends Context.Service<
       readonly subject?: string;
       readonly purpose?: "startup";
       readonly mcpApproval?: AuthMcpClientAccess;
-    }) => Effect.Effect<IssuedPairingLink, ServerAuthInternalError>;
+    }) => Effect.Effect<
+      IssuedPairingLink,
+      ServerAuthInternalError | ManagedLimits.ManagedPolicyRefusedError
+    >;
     readonly issuePairingCredential: (
       input?: AuthCreatePairingCredentialInput,
-    ) => Effect.Effect<AuthPairingCredentialResult, ServerAuthInternalError>;
+    ) => Effect.Effect<
+      AuthPairingCredentialResult,
+      ServerAuthInternalError | ManagedLimits.ManagedPolicyRefusedError
+    >;
     readonly issueStartupPairingCredential: () => Effect.Effect<
       AuthPairingCredentialResult,
       ServerAuthInternalError
@@ -582,6 +591,7 @@ export const make = Effect.gen(function* () {
   const descriptor = yield* policy.getDescriptor();
   const config = yield* ServerConfig.ServerConfig;
   const environment = yield* ServerEnvironment.ServerEnvironmentIdentity;
+  const managedPolicy = yield* ManagedPolicy.ManagedPolicy;
   const devAuth = resolveReusableDevAuth(config);
 
   const authenticateToken = (
@@ -838,39 +848,21 @@ export const make = Effect.gen(function* () {
       );
     };
 
-  const issuePairingCredentialForSubject = (input: {
-    readonly scopes: ReadonlyArray<AuthEnvironmentScope>;
-    readonly subject?: string;
-    readonly label?: string;
-    readonly purpose?: "startup";
-    readonly access?: AuthMcpClientAccess;
-    readonly peerLink?: boolean;
-  }) =>
-    createPairingLink({
-      scopes: input.scopes,
-      ...(input.subject ? { subject: input.subject } : {}),
-      ...(input.label ? { label: input.label } : {}),
-      ...(input.purpose ? { purpose: input.purpose } : {}),
-      ...(input.access && !input.peerLink ? { mcpApproval: input.access } : {}),
-    }).pipe(
-      Effect.map(
-        (issued) =>
-          ({
-            id: issued.id,
-            credential: issued.credential,
-            subject: issued.subject,
-            ...(issued.label ? { label: issued.label } : {}),
-            expiresAt: issued.expiresAt,
-            ...(input.access ? { access: input.access } : {}),
-            ...(input.access && input.peerLink ? { purpose: "peer-link" as const } : {}),
-          }) satisfies AuthPairingCredentialResult,
-      ),
-    );
+  const toPairingCredential = (
+    issued: IssuedPairingLink,
+    input: { readonly access?: AuthMcpClientAccess; readonly peerLink?: boolean } = {},
+  ): AuthPairingCredentialResult => ({
+    id: issued.id,
+    credential: issued.credential,
+    subject: issued.subject,
+    ...(issued.label ? { label: issued.label } : {}),
+    expiresAt: issued.expiresAt,
+    ...(input.access ? { access: input.access } : {}),
+    ...(input.access && input.peerLink ? { purpose: "peer-link" as const } : {}),
+  });
 
-  const createPairingLink: EnvironmentAuth["Service"]["createPairingLink"] = Effect.fn(
-    "EnvironmentAuth.createPairingLink",
-  )(
-    function* (input) {
+  const issuePairingLink = Effect.fn("EnvironmentAuth.issuePairingLink")(
+    function* (input: Parameters<EnvironmentAuth["Service"]["createPairingLink"]>[0]) {
       const createdAt = yield* DateTime.now;
       const issued = yield* bootstrapCredentials.issueOneTimeToken({
         scopes: input?.scopes ?? AuthStandardClientScopes,
@@ -892,6 +884,19 @@ export const make = Effect.gen(function* () {
     },
     Effect.mapError((cause) => new ServerAuthPairingLinkCreationError({ cause })),
   );
+
+  const createPairingLink: EnvironmentAuth["Service"]["createPairingLink"] = Effect.fn(
+    "EnvironmentAuth.createPairingLink",
+  )(function* (input) {
+    // The startup link is for a browser on this machine; every other link lets a device pair.
+    if (input?.purpose !== "startup" && !ManagedLimits.allowsRemoteClients(managedPolicy)) {
+      return yield* ManagedLimits.refuseRemoteClients(
+        managedPolicy,
+        "so this server cannot create pairing links",
+      );
+    }
+    return yield* issuePairingLink(input);
+  });
 
   const listPairingLinks: EnvironmentAuth["Service"]["listPairingLinks"] = (input) =>
     bootstrapCredentials.listActive().pipe(
@@ -968,25 +973,34 @@ export const make = Effect.gen(function* () {
       Effect.withSpan("EnvironmentAuth.revokeOtherSessionsExcept"),
     );
 
-  const issuePairingCredential: EnvironmentAuth["Service"]["issuePairingCredential"] = (input) =>
-    issuePairingCredentialForSubject({
+  const issuePairingCredential: EnvironmentAuth["Service"]["issuePairingCredential"] = (input) => {
+    const peerLink = input?.purpose === "peer-link";
+    return createPairingLink({
       scopes: input?.access
         ? mcpClientScopes(input.access)
         : (input?.scopes ?? AuthStandardClientScopes),
-      ...(input?.purpose === "peer-link"
-        ? { subject: `${PEER_LINK_PAIRING_SUBJECT_PREFIX}${input.access}`, peerLink: true }
-        : {}),
+      ...(peerLink ? { subject: `${PEER_LINK_PAIRING_SUBJECT_PREFIX}${input.access}` } : {}),
       ...(input?.label ? { label: input.label } : {}),
-      ...(input?.access ? { access: input.access } : {}),
-    }).pipe(Effect.withSpan("EnvironmentAuth.issuePairingCredential"));
+      ...(input?.access && !peerLink ? { mcpApproval: input.access } : {}),
+    }).pipe(
+      Effect.map((issued) =>
+        toPairingCredential(issued, {
+          ...(input?.access ? { access: input.access } : {}),
+          peerLink,
+        }),
+      ),
+      Effect.withSpan("EnvironmentAuth.issuePairingCredential"),
+    );
+  };
 
   const issueStartupPairingCredential: EnvironmentAuth["Service"]["issueStartupPairingCredential"] =
     () => {
-      const fallback = issuePairingCredentialForSubject({
+      // Unguarded: startup already refused auth policies the managed policy leaves out.
+      const fallback = issuePairingLink({
         scopes: AuthStandardClientScopes,
         subject: INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT,
         purpose: "startup",
-      });
+      }).pipe(Effect.map((issued) => toPairingCredential(issued)));
       if (!devAuth) {
         return fallback.pipe(Effect.withSpan("EnvironmentAuth.issueStartupPairingCredential"));
       }
@@ -1217,6 +1231,11 @@ export const make = Effect.gen(function* () {
       Effect.withSpan("EnvironmentAuth.consumeMcpApprovalCode"),
     );
 
+  yield* revokePairedClientsThePolicyDisallows(managedPolicy, {
+    sessions,
+    pairingLinks: bootstrapCredentials,
+  });
+
   return EnvironmentAuth.of({
     getDescriptor: Effect.fn("EnvironmentAuth.getDescriptor")(function () {
       return Effect.succeed(descriptor);
@@ -1256,6 +1275,49 @@ const mcpApprovalLevel = (subject: string): AuthMcpClientAccess | undefined => {
   return isMcpClientAccess(level) ? level : undefined;
 };
 
+/** Codes that let a client elsewhere pair: plain pairing links, agent approval codes, and peer links. */
+const linkPairedSubject = (subject: string) =>
+  subject === "one-time-token" ||
+  subject.startsWith(MCP_APPROVAL_SUBJECT_PREFIX) ||
+  subject.startsWith(PEER_LINK_PAIRING_SUBJECT_PREFIX);
+
+/**
+ * Revokes sessions and unused links from pairing the policy no longer allows, so a policy rolled
+ * out to a machine that already had phones paired takes effect on the next start.
+ */
+const revokePairedClientsThePolicyDisallows = Effect.fn(
+  "EnvironmentAuth.revokePairedClientsThePolicyDisallows",
+)(function* (
+  policy: ManagedPolicy.ManagedPolicy["Service"],
+  stores: {
+    readonly sessions: SessionStore.SessionStore["Service"];
+    readonly pairingLinks: PairingGrantStore.PairingGrantStore["Service"];
+  },
+) {
+  if (ManagedLimits.allowsRemoteClients(policy)) return;
+  const sessions = (yield* stores.sessions.listActive()).filter(
+    (session) =>
+      linkPairedSubject(session.subject) ||
+      // The startup link also pairs browsers on this machine; only a device elsewhere goes.
+      (session.subject === INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT &&
+        session.client.ipAddress !== undefined &&
+        !isLocalLoopbackHost(session.client.ipAddress)),
+  );
+  const links = (yield* stores.pairingLinks.listActive()).filter((link) =>
+    linkPairedSubject(link.subject),
+  );
+  yield* Effect.forEach(sessions, (session) => stores.sessions.revoke(session.sessionId), {
+    discard: true,
+  });
+  yield* Effect.forEach(links, (link) => stores.pairingLinks.revoke(link.id), { discard: true });
+  if (sessions.length > 0 || links.length > 0) {
+    yield* Effect.logInfo("Revoked clients the managed policy does not allow.", {
+      sessions: sessions.length,
+      pairingLinks: links.length,
+    });
+  }
+});
+
 export const layer = Layer.effect(EnvironmentAuth, make).pipe(
   Layer.provideMerge(PairingGrantStore.layer),
   Layer.provideMerge(SessionStore.layer),
@@ -1265,6 +1327,7 @@ export const layer = Layer.effect(EnvironmentAuth, make).pipe(
 const layerStorage = Layer.mergeAll(ServerSecretStore.layer, SqlitePersistence.layerCliConfig);
 
 export const layerRuntime = layer.pipe(
+  Layer.provideMerge(ManagedPolicy.layer),
   Layer.provideMerge(layerStorage),
   Layer.provideMerge(ServerEnvironment.layerIdentity),
 );

@@ -33,6 +33,7 @@ import * as HttpEffect from "effect/http/HttpEffect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
+import type * as ManagedLimits from "../policy/managedLimits.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as SessionStore from "./SessionStore.ts";
 import { deriveAuthClientMetadata } from "./utils.ts";
@@ -113,7 +114,10 @@ export function failEnvironmentScopeRequired(requiredScope: AuthEnvironmentScope
   );
 }
 
-export function failEnvironmentOperationForbidden(reason: EnvironmentOperationForbiddenReason) {
+export function failEnvironmentOperationForbidden(
+  reason: EnvironmentOperationForbiddenReason,
+  detail?: string,
+) {
   return currentEnvironmentTraceId.pipe(
     Effect.flatMap((traceId) =>
       Effect.fail(
@@ -121,11 +125,16 @@ export function failEnvironmentOperationForbidden(reason: EnvironmentOperationFo
           code: "operation_forbidden",
           reason,
           traceId,
+          ...(detail === undefined ? {} : { detail }),
         }),
       ),
     ),
   );
 }
+
+/** A managed policy's refusal, with its explanation naming the organization. */
+export const failManagedPolicyRefused = (error: ManagedLimits.ManagedPolicyRefusedError) =>
+  failEnvironmentOperationForbidden("managed_policy_refused", error.message);
 
 export function failEnvironmentNotFound(reason: EnvironmentResourceNotFoundReason) {
   return currentEnvironmentTraceId.pipe(
@@ -384,6 +393,7 @@ export const layer = HttpApiBuilder.group(
           Effect.catchIf(EnvironmentAuth.isServerAuthInternalError, (error) =>
             failEnvironmentInternal("pairing_credential_issuance_failed", error),
           ),
+          Effect.catchTags({ ManagedPolicyRefusedError: failManagedPolicyRefused }),
         ),
       )
       .handle(

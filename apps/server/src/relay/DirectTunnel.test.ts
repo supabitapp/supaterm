@@ -29,6 +29,7 @@ import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as DirectTunnel from "./DirectTunnel.ts";
 import * as DirectTunnelHttp from "./DirectTunnelHttp.ts";
 import * as RelayIdentity from "./RelayIdentity.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as RelayIngress from "./RelayIngress.ts";
 
 const layerConfig = (overrides: Partial<ServerConfig.ServerConfig["Service"]> = {}) =>
@@ -97,6 +98,7 @@ const startHost = (limits: DirectTunnel.DirectTunnelLimits) =>
         Layer.provideMerge(DirectTunnel.layerWithLimits(limits)),
         Layer.provideMerge(
           EnvironmentAuth.layer.pipe(
+            Layer.provide(ManagedPolicy.layerTest()),
             Layer.provideMerge(SqlitePersistence.layerMemory),
             Layer.provide(ServerEnvironment.layerIdentity),
           ),
