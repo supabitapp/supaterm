@@ -37,6 +37,7 @@ import {
   type OrchestrationV2UserInputQuestion,
   type ProviderOptionDescriptor,
   type ProviderUserInputAnswers,
+  type RuntimeMode,
 } from "@supaterm/contracts";
 import { GrokSettings } from "@supaterm/provider-grok/settings";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -3116,6 +3117,56 @@ describe("AcpAdapterV2", () => {
         ),
       );
       assert.notInclude(outgoing.map(rawProtocolMethod), "session/prompt");
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.live("applies no native mode an administrator's ceiling cannot place", () =>
+    Effect.gen(function* () {
+      const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+      const mockAgentPath = yield* Path.Path.pipe(
+        Effect.flatMap((path) =>
+          path.fromFileUrl(new URL("../../../scripts/acp-mock-agent.ts", import.meta.url)),
+        ),
+      );
+      const modeRequests = (maxRuntimeMode: RuntimeMode | undefined) =>
+        Effect.gen(function* () {
+          const protocolEvents = yield* Queue.unbounded<EffectAcpProtocol.AcpProtocolLogEvent>();
+          const instanceId = ProviderInstanceId.make("acp-test-mode-ceiling");
+          const adapter = yield* makeAcpAdapterV2({
+            instanceId,
+            flavor: {
+              driver: ACP_TEST_DRIVER,
+              capabilities: AcpProviderCapabilitiesV2,
+              makeRuntime: makeMockRuntime({ childProcessSpawner, mockAgentPath, protocolEvents }),
+            },
+            selfInvocation: yield* resolveSelfInvocation(),
+          });
+          yield* adapter.openSession({
+            threadId: ThreadId.make("thread-acp-mode-ceiling"),
+            providerSessionId: ProviderSessionId.make("provider-session-acp-mode-ceiling"),
+            modelSelection: {
+              instanceId,
+              model: "composer-2",
+              options: [{ id: ACP_SESSION_MODE_OPTION_ID, value: "code" }],
+            },
+            runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+              runtimeMode: "auto-accept-edits",
+              ...(maxRuntimeMode === undefined ? {} : { maxRuntimeMode }),
+              interactionMode: "default",
+              cwd: process.cwd(),
+            }),
+          });
+          return Array.from(yield* Queue.takeAll(protocolEvents)).filter(
+            (event) =>
+              event.direction === "outgoing" &&
+              (rawProtocolMethod(event) === "session/set_mode" ||
+                (rawProtocolMethod(event) === "session/set_config_option" &&
+                  rawProtocolRequestParam(event, "configId") === "mode")),
+          ).length;
+        }).pipe(Effect.scoped);
+
+      assert.isAbove(yield* modeRequests(undefined), 0);
+      assert.equal(yield* modeRequests("auto-accept-edits"), 0);
     }).pipe(Effect.provide(layerTest)),
   );
 
