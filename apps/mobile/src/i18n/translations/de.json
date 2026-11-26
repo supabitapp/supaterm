@@ -2317,6 +2317,8 @@
   "c7d8f7eb12735b71": "Geplante Aufgabe",
   "fb4a7f9335463af5": "Basis-Branch",
   "ee3ea4351c88e7d7": "Dieses Projekt ist nicht mehr verfügbar.",
+  "a65bb790e0221cd6": "Wähle die Repositorys, an denen jeder Lauf arbeitet.",
+  "83c7e13442e46223": "Jedes erhält einen eigenen Worktree auf dem Branch des Laufs.",
   "201317aac48d4d9f": "Thread-Suche leeren",
   "1917e5cb40cfe44d": "Ziel",
   "73c444d8a301d049": "Öffne zuerst ein Formular für eine geplante Aufgabe.",

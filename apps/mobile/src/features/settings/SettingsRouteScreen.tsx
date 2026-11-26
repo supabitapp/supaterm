@@ -130,6 +130,7 @@ function environmentsRow(label: string, count: number): SettingsListRow {
 
 function SettingsList(props: { readonly connections: readonly SettingsListRow[] }) {
   const gt = useGT();
+  const m = useMessages();
   // UIKit's scroll-edge material takes the scroll view's own color; like the chat list, match
   // the sidebar's surface so the bar doesn't darken over content at rest.
   // Grouped cards only lift off the screen surface; the drawer is as dark as they are.
@@ -148,6 +149,7 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
       ...indexSections,
     ],
     query,
+    m,
   );
 
   return (

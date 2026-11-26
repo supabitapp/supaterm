@@ -106,10 +106,9 @@ const collectShellResume = Effect.fnUntraced(function* (input: {
               }),
             ),
         }),
-        Layer.mock(ProjectStore.ProjectStoreV2)({
-          listShells: () => Effect.succeed(Array.from(input.projects?.values() ?? [])),
-        }),
+        Layer.mock(ProjectStore.ProjectStoreV2)({}),
         Layer.mock(ProjectService.ProjectService)({
+          listShells: () => Effect.succeed(Array.from(input.projects?.values() ?? [])),
           getShell: (projectId) =>
             Effect.succeed(Option.fromUndefinedOr(input.projects?.get(projectId))),
         }),

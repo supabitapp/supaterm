@@ -48,6 +48,7 @@ export async function loadMcpBridge(
     readonly toolSearchDisabled?: boolean;
     readonly allowsTool?: (name: string) => boolean;
     readonly runtimeMode?: string;
+    readonly workspaceInstructions?: string;
     readonly inputSchema?: Record<string, unknown>;
   } = {},
 ) {
@@ -93,6 +94,7 @@ export async function loadMcpBridge(
         SUPATERM_MCP_BEARER_TOKEN: "fixture-token",
         SUPATERM_PI_MCP_EXTENSION_PATH: "/fixture/pi-supaterm-extension.ts",
         SUPATERM_PI_RUNTIME_MODE: options.runtimeMode,
+        SUPATERM_PI_WORKSPACE_INSTRUCTIONS: options.workspaceInstructions,
       },
     },
     AbortSignal,

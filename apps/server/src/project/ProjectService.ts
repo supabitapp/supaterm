@@ -237,9 +237,11 @@ export const make = Effect.gen(function* () {
   // Clients read `trackedFolders` off the project, so the stored list is brought back in step
   // with the disk when a project is read, at most this often. Server work reads the disk itself.
   const folderSyncDue = new Map<ProjectId, number>();
-  const syncFolders = Effect.fn("ProjectService.syncFolders")(function* (
-    row: ProjectStore.ProjectRow,
-  ) {
+  const syncFolders = Effect.fn("ProjectService.syncFolders")(function* (row: {
+    readonly projectId: ProjectId;
+    readonly workspaceRoot: string;
+    readonly trackedFolders: ReadonlyArray<ProjectTrackedFolder>;
+  }) {
     const now = yield* Clock.currentTimeMillis;
     if ((folderSyncDue.get(row.projectId) ?? 0) > now) return;
     folderSyncDue.set(row.projectId, now + FOLDER_SYNC_INTERVAL_MS);
@@ -821,7 +823,14 @@ export const make = Effect.gen(function* () {
   );
 
   const enrichShell = (shell: OrchestrationProjectShell) =>
-    projectEnrichment.getAvailable(shell.workspaceRoot).pipe(
+    syncFolders({
+      projectId: shell.id,
+      workspaceRoot: shell.workspaceRoot,
+      trackedFolders: shell.trackedFolders ?? [],
+    }).pipe(
+      Effect.ignoreCause({ log: true }),
+      Effect.forkIn(scope),
+      Effect.andThen(projectEnrichment.getAvailable(shell.workspaceRoot)),
       Effect.map((enrichment) => ({
         ...shell,
         repositoryIdentity: enrichment.repositoryIdentity,

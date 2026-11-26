@@ -2320,6 +2320,8 @@
   "c7d8f7eb12735b71": "Scheduled task",
   "fb4a7f9335463af5": "Base branch",
   "ee3ea4351c88e7d7": "This project is no longer available.",
+  "a65bb790e0221cd6": "Choose the repositories each run works on.",
+  "83c7e13442e46223": "Each gets its own worktree on the run's branch.",
   "201317aac48d4d9f": "Clear thread search",
   "1917e5cb40cfe44d": "Destination",
   "73c444d8a301d049": "Open a scheduled task form first.",

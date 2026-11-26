@@ -15,7 +15,12 @@ import { buildModelOptions, groupByProvider } from "../../lib/modelOptions";
 import { resolveProviderOptionDescriptors } from "../../lib/providerOptions";
 import { useEnvironmentServerConfig, useProjects, useThreadShells } from "../../state/entities";
 import { useDebouncedValue, usePaginatedBranches, useThreadSearch } from "../../state/queries";
-import { BranchPickerScreen } from "../threads/NewTaskContextPickerScreens";
+import { resolveWorktreeRepositorySelection } from "@supaterm/client-runtime/state/thread-repositories";
+import {
+  BranchPickerScreen,
+  RepositoriesPickerScreen,
+} from "../threads/NewTaskContextPickerScreens";
+import { useWorktreeRepositoryChoices } from "../../state/use-worktree-repository-choices";
 import { ThreadSettingsPickerScreen } from "../threads/ThreadSettingsSheet";
 import { SettingsScreen } from "./components/SettingsScreen";
 import {
@@ -184,6 +189,41 @@ export function ScheduledTaskBranchPickerRouteScreen() {
               : current,
           ),
       }}
+    />
+  );
+}
+
+export function ScheduledTaskRepositoriesPickerRouteScreen() {
+  const gt = useGT();
+  const { editor, setEditor } = useScheduledTaskEditor();
+  const projects = useProjects();
+  const project =
+    projects.find(
+      (entry) =>
+        entry.environmentId === editor?.environmentId && entry.id === editor.draft.projectId,
+    ) ?? null;
+  const { choices } = useWorktreeRepositoryChoices(project, editor !== null);
+
+  if (!editor) return <MissingTaskDraft />;
+
+  const selection = resolveWorktreeRepositorySelection({
+    choices,
+    chosen: editor.draft.repositories,
+  });
+  return (
+    <RepositoriesPickerScreen
+      choices={choices}
+      selection={selection}
+      hint={
+        selection.needsChoice
+          ? gt("Choose the repositories each run works on.")
+          : gt("Each gets its own worktree on the run's branch.")
+      }
+      onChange={(repositories) =>
+        setEditor((current) =>
+          current ? { ...current, draft: { ...current.draft, repositories } } : current,
+        )
+      }
     />
   );
 }

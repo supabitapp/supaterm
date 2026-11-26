@@ -1,6 +1,7 @@
 import { scheduledTaskThreadMode } from "@supaterm/contracts";
 import type {
   ModelSelection,
+  OrchestrationV2ThreadLaunchWorkspaceStrategy,
   ServerConfig,
   ProjectId,
   RuntimeMode,
@@ -124,6 +125,8 @@ export type ScheduledTaskDraft = {
   readonly threadMode: ScheduledTaskThreadMode;
   readonly workspace: Workspace;
   readonly baseRef: string;
+  /** Tracked repositories the new worktree takes; undefined leaves the server's default. */
+  readonly repositories: ReadonlyArray<string> | undefined;
   readonly checkoutPath: string;
   readonly enabled: boolean;
   readonly startFromOrigin: boolean;
@@ -149,6 +152,7 @@ function draftSignature(draft: ScheduledTaskDraft): string {
     draft.threadMode,
     draft.workspace,
     draft.baseRef,
+    draft.repositories,
     draft.checkoutPath,
     draft.enabled,
     draft.startFromOrigin,
@@ -192,7 +196,24 @@ export function changeDraftProject(
   projectId: ProjectId,
 ): ScheduledTaskDraft {
   if (projectId === draft.projectId) return draft;
-  return { ...unbindDraftFromThread(draft), projectId };
+  return { ...unbindDraftFromThread(draft), projectId, repositories: undefined };
+}
+
+export function workspaceStrategyFromDraft(
+  draft: ScheduledTaskDraft,
+  baseRef: string,
+): OrchestrationV2ThreadLaunchWorkspaceStrategy {
+  if (draft.workspace === "root") return { type: "root" };
+  if (draft.workspace === "existing_worktree")
+    return { type: "existing_worktree", worktreePath: draft.checkoutPath.trim() };
+  return {
+    type: "worktree",
+    baseRef,
+    startFromOrigin: draft.startFromOrigin,
+    ...(draft.repositories === undefined
+      ? {}
+      : { repositories: draft.repositories.map((path) => ({ path })) }),
+  };
 }
 
 export function createDraft(
@@ -211,6 +232,7 @@ export function createDraft(
     threadMode: "new_thread",
     workspace: "worktree",
     baseRef: "",
+    repositories: undefined,
     checkoutPath: "",
     enabled: true,
     startFromOrigin: true,
@@ -231,6 +253,10 @@ export function editDraft(task: ScheduledTask): ScheduledTaskDraft {
     threadMode: scheduledTaskThreadMode(task),
     workspace: task.workspaceStrategy.type,
     baseRef: task.workspaceStrategy.type === "worktree" ? task.workspaceStrategy.baseRef : "",
+    repositories:
+      task.workspaceStrategy.type === "worktree"
+        ? task.workspaceStrategy.repositories?.map((repository) => repository.path)
+        : undefined,
     checkoutPath:
       task.workspaceStrategy.type === "existing_worktree"
         ? task.workspaceStrategy.worktreePath

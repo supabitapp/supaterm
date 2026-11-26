@@ -976,7 +976,10 @@ it.effect("a rejected initial message leaves no title change and no new thread",
 // Stands `projectId` in for a plain folder, not a Git repository, so Git fails
 // there with the error a real one raises. It is the Scratch project unless
 // `scratch` is false.
-function scratchHarness({ scratch = true }: { readonly scratch?: boolean } = {}) {
+function scratchHarness({
+  scratch = true,
+  nestedRepository = false,
+}: { readonly scratch?: boolean; readonly nestedRepository?: boolean } = {}) {
   const claimed: Array<ThreadId> = [];
   const scratchRoot = project.workspaceRoot;
   const notARepository = (operation: string, cwd: string) =>
@@ -987,6 +990,23 @@ function scratchHarness({ scratch = true }: { readonly scratch?: boolean } = {})
       detail: "Failed to resolve the VCS driver for this Git command.",
     });
   const harness = makeHarness({
+    ...(nestedRepository && {
+      taskFolders: Layer.mock(TaskFolders.TaskFolders)({
+        plan: (input) =>
+          Effect.succeed(
+            input.projectId === projectId
+              ? {
+                  projectId,
+                  projectRoot: scratchRoot,
+                  projectIsRepository: false,
+                  anchor: scratchRoot,
+                  repositories: [{ name: "api", path: `${scratchRoot}/api` }],
+                  trackedRepositories: [`${scratchRoot}/api`],
+                }
+              : null,
+          ),
+      }),
+    }),
     managedFolders: Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
       namedProjectsRoot: "/projects",
       isScratchProject: (id) => Effect.succeed(scratch && id === projectId),
@@ -1252,16 +1272,24 @@ it.effect("launches a worktree request for Scratch at the root, in its own folde
   }).pipe(Effect.provide(harness.layer));
 });
 
-it.effect.each([true, false])(
-  "stores a non-Git scheduled task at the root and keeps worktrees elsewhere (Scratch: %s)",
-  (scratch) => {
-    const harness = scratchHarness({ scratch });
+it.effect.each([
+  { scratch: true, nestedRepository: false, plainKeepsWorktree: false },
+  { scratch: false, nestedRepository: false, plainKeepsWorktree: false },
+  { scratch: true, nestedRepository: true, plainKeepsWorktree: false },
+  { scratch: false, nestedRepository: true, plainKeepsWorktree: true },
+])(
+  "stores a non-Git scheduled task at the root and keeps worktrees elsewhere (Scratch: $scratch, nested repository: $nestedRepository)",
+  ({ scratch, nestedRepository, plainKeepsWorktree }) => {
+    const harness = scratchHarness({ scratch, nestedRepository });
     return Effect.gen(function* () {
       const tasks = yield* ScheduledTasks.ScheduledTaskService;
       const plain = yield* tasks.upsert(
         scheduledTaskInput("scheduled-task:plain-upsert", projectId),
       );
-      assert.deepEqual(plain.task.workspaceStrategy, { type: "root" });
+      assert.deepEqual(
+        plain.task.workspaceStrategy,
+        plainKeepsWorktree ? worktreeStrategy : { type: "root" },
+      );
       const git = yield* tasks.upsert(
         scheduledTaskInput("scheduled-task:git-upsert", otherProjectId),
       );

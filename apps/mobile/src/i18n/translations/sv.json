@@ -2319,6 +2319,8 @@
   "c7d8f7eb12735b71": "Schemalagd uppgift",
   "fb4a7f9335463af5": "Basgren",
   "ee3ea4351c88e7d7": "Projektet är inte längre tillgängligt.",
+  "a65bb790e0221cd6": "Välj vilka repon varje körning arbetar i.",
+  "83c7e13442e46223": "Varje repo får en egen worktree på körningens gren.",
   "201317aac48d4d9f": "Rensa trådsökningen",
   "1917e5cb40cfe44d": "Mål",
   "73c444d8a301d049": "Öppna ett formulär för schemalagd uppgift först.",

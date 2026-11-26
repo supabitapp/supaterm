@@ -10,6 +10,7 @@ import {
   SUPATERM_MCP_URL_ENV,
   SUPATERM_PI_RUNTIME_MODE_ENV,
   SUPATERM_PI_MCP_EXTENSION_PATH_ENV,
+  SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV,
 } from "./mcpExtensionSource.ts";
 
 const RESERVED_PI_LAUNCH_ARGUMENTS = new Set([
@@ -259,6 +260,8 @@ export function buildPiRpcLaunch(input: {
   readonly disableExtensions?: boolean;
   readonly disableTools?: boolean;
   readonly runtimeMode?: "approval-required" | "auto-accept-edits" | "auto" | "full-access";
+  /** The folder map of a multi-folder thread, which the extension adds to the system prompt. */
+  readonly workspaceInstructions?: string;
 }): {
   readonly args: ReadonlyArray<string>;
   readonly env: NodeJS.ProcessEnv;
@@ -298,6 +301,7 @@ export function buildPiRpcLaunch(input: {
   delete environment[SUPATERM_MCP_URL_ENV];
   delete environment[SUPATERM_MCP_BEARER_ENV];
   delete environment[SUPATERM_PI_MCP_EXTENSION_PATH_ENV];
+  delete environment[SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV];
 
   return {
     args,
@@ -311,6 +315,9 @@ export function buildPiRpcLaunch(input: {
             [SUPATERM_PI_RUNTIME_MODE_ENV]:
               input.runtimeMode === "auto" ? "approval-required" : input.runtimeMode,
           }
+        : {}),
+      ...(hasSupatermExtension && input.workspaceInstructions
+        ? { [SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV]: input.workspaceInstructions }
         : {}),
       ...(hasSupatermMcp && input.mcpSession !== undefined
         ? {

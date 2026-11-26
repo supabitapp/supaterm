@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { m, type MessageResolver } from "../../i18n/messages";
 import { filterSettingsSections } from "./settings-search";
 
 const SECTIONS = [
@@ -14,6 +15,7 @@ const SECTIONS = [
   {
     title: "Interface",
     rows: [
+      { id: "SettingsOrganization", label: "General" },
       { id: "SettingsAppearance", label: "Appearance" },
       { id: "SettingsKeyboard", label: "Keyboard" },
     ],
@@ -57,9 +59,19 @@ describe("filterSettingsSections", () => {
       expected: [["Server settings", ["Provider accounts"]]],
     },
     { query: "usage", expected: [[null, ["Usage"]]] },
+    { query: "language", expected: [["Interface", ["General"]]] },
     { query: "zzzz", expected: [] },
   ])("$query", ({ query, expected }) => {
     expect(visible(query)).toEqual(expected);
+  });
+
+  it("finds General by the word for Language in the language shown", () => {
+    const german = (message: string) => (m(message) === "Language" ? "Sprache" : m(message));
+    expect(
+      filterSettingsSections(SECTIONS, "sprache", german as MessageResolver).map((section) =>
+        section.rows.map((row) => row.label),
+      ),
+    ).toEqual([["General"]]);
   });
 
   it("drops sections that start empty", () => {

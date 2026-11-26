@@ -2,7 +2,6 @@ import { useAtomValue } from "@effect/atom-react";
 import { type ReactNode, useRef, useState } from "react";
 import type {
   EnvironmentId,
-  OrchestrationV2ThreadLaunchWorkspaceStrategy,
   ProjectId,
   ScheduledTask,
   ScheduledTaskId,
@@ -22,9 +21,12 @@ import {
 } from "@supaterm/client-runtime/state/runtime";
 import { ChevronDownIcon, MessageSquareIcon } from "@supaterm/icons";
 import { resolvePastedPath } from "@supaterm/shared/path";
+import { resolveWorktreeRepositorySelection } from "@supaterm/client-runtime/state/thread-repositories";
+import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { msg, T, useGT, useMessages } from "gt-react";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
+import { useWorktreeRepositoryChoices } from "../../hooks/useWorktreeRepositoryChoices";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import { useEnvironment, type EnvironmentPresentation } from "../../state/environments";
@@ -44,7 +46,9 @@ import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { SETTINGS_PICKER_TRIGGER_CLASSNAME } from "../settings/settingsLayout";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { createModelSelection } from "@supaterm/shared/model";
+import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 import {
   Combobox,
   ComboboxEmpty,
@@ -87,6 +91,7 @@ import {
   toDateTimeLocalValue,
   unbindDraftFromThread,
   WEEKDAY_LABELS,
+  workspaceStrategyFromDraft,
   type DraftState,
   type WorkspaceMode,
 } from "./automations.logic";
@@ -130,6 +135,7 @@ const EMPTY_DRAFT: DraftState = {
   workspaceMode: "worktree",
   baseRef: "",
   startFromOrigin: true,
+  repositories: undefined,
   existingWorktreePath: "",
   modelSelection: null,
   runtimeMode: "full-access",
@@ -150,6 +156,72 @@ function Field({
     <div className="space-y-1.5">
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
+    </div>
+  );
+}
+
+/** The tracked repositories each run's new worktree takes. Hidden for a project that tracks none. */
+function ScheduledTaskRepositories({
+  project,
+  repositories,
+  onChange,
+}: {
+  readonly project: EnvironmentProject | null;
+  readonly repositories: ReadonlyArray<string> | undefined;
+  readonly onChange: (repositories: ReadonlyArray<string>) => void;
+}) {
+  const gt = useGT();
+  const { choices } = useWorktreeRepositoryChoices(project);
+  if (choices === null || choices.length === 0) return null;
+  const selection = resolveWorktreeRepositorySelection({ choices, chosen: repositories });
+  const selected = new Set(selection.selected);
+  return (
+    <div className="space-y-1.5">
+      <Label>
+        <T>Repositories</T>
+      </Label>
+      <div className="max-h-52 overflow-y-auto rounded-md border">
+        {choices.map((choice) => (
+          <label
+            key={choice.repositoryPath}
+            className="flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5 text-sm not-last:border-b"
+          >
+            <Checkbox
+              className="self-center"
+              checked={selected.has(choice.repositoryPath)}
+              onCheckedChange={(next) =>
+                onChange(
+                  choices.flatMap((candidate) =>
+                    (
+                      candidate.repositoryPath === choice.repositoryPath
+                        ? next
+                        : selected.has(candidate.repositoryPath)
+                    )
+                      ? [candidate.repositoryPath]
+                      : [],
+                  ),
+                )
+              }
+            />
+            <span className="min-w-0 truncate">{choice.name}</span>
+            {choice.relativePath !== undefined && choice.relativePath !== choice.name ? (
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                {choice.relativePath}
+              </span>
+            ) : null}
+          </label>
+        ))}
+      </div>
+      <p
+        className={cn(
+          "text-xs",
+          selection.needsChoice ? "text-warning-foreground" : "text-muted-foreground",
+        )}
+      >
+        {selection.needsChoice
+          ? gt("Choose the repositories each run works on.")
+          : gt("Each gets its own worktree on the run's branch.")}
+      </p>
     </div>
   );
 }
@@ -505,16 +577,7 @@ export function AutomationEditorDialog({
       );
       return;
     }
-    const workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy =
-      draft.workspaceMode === "root"
-        ? { type: "root" }
-        : draft.workspaceMode === "existing_worktree"
-          ? { type: "existing_worktree", worktreePath: draft.existingWorktreePath.trim() }
-          : {
-              type: "worktree",
-              baseRef: worktreeBaseRef,
-              startFromOrigin: draft.startFromOrigin,
-            };
+    const workspaceStrategy = workspaceStrategyFromDraft(draft, worktreeBaseRef);
     const input: ScheduledTaskUpsertInput = {
       ...(draft.editingId ? { id: draft.editingId as ScheduledTaskId, requireExisting: true } : {}),
       title: draft.title.trim(),
@@ -593,6 +656,7 @@ export function AutomationEditorDialog({
                     modelSelection: null,
                     baseRef: "",
                     startFromOrigin: true,
+                    repositories: undefined,
                     existingWorktreePath: "",
                   }));
                 }}
@@ -761,6 +825,13 @@ export function AutomationEditorDialog({
                   disabled={saving || !connected}
                 />
               </Field>
+            ) : null}
+            {draft.workspaceMode === "worktree" ? (
+              <ScheduledTaskRepositories
+                project={selectedProject ?? null}
+                repositories={draft.repositories}
+                onChange={(repositories) => setDraft((current) => ({ ...current, repositories }))}
+              />
             ) : null}
             {draft.workspaceMode === "existing_worktree" ? (
               <Field label={gt("Checkout path")} htmlFor="scheduled-task-checkout">

@@ -8,6 +8,7 @@ import {
   type ScheduledTaskThreadMode,
   scheduledTaskThreadMode,
   type ModelSelection,
+  type OrchestrationV2ThreadLaunchWorkspaceStrategy,
   type RuntimeMode,
   type ProviderInteractionMode,
   type ServerSettings,
@@ -236,6 +237,8 @@ export interface DraftState {
   readonly workspaceMode: WorkspaceMode;
   readonly baseRef: string;
   readonly startFromOrigin: boolean;
+  /** Tracked repositories the new worktree takes; undefined leaves the server's default. */
+  readonly repositories: ReadonlyArray<string> | undefined;
   readonly existingWorktreePath: string;
   readonly modelSelection: ModelSelection | null;
   readonly runtimeMode: RuntimeMode;
@@ -332,6 +335,10 @@ export function taskToDraft(task: ScheduledTask): DraftState {
       task.workspaceStrategy.type === "worktree"
         ? (task.workspaceStrategy.startFromOrigin ?? false)
         : true,
+    repositories:
+      task.workspaceStrategy.type === "worktree"
+        ? task.workspaceStrategy.repositories?.map((repository) => repository.path)
+        : undefined,
     existingWorktreePath:
       task.workspaceStrategy.type === "existing_worktree"
         ? task.workspaceStrategy.worktreePath
@@ -368,7 +375,24 @@ export function unbindDraftFromThread(draft: DraftState): DraftState {
 
 export function changeDraftProject(draft: DraftState, projectId: string): DraftState {
   if (projectId === draft.projectId) return draft;
-  return { ...unbindDraftFromThread(draft), projectId };
+  return { ...unbindDraftFromThread(draft), projectId, repositories: undefined };
+}
+
+export function workspaceStrategyFromDraft(
+  draft: DraftState,
+  baseRef: string,
+): OrchestrationV2ThreadLaunchWorkspaceStrategy {
+  if (draft.workspaceMode === "root") return { type: "root" };
+  if (draft.workspaceMode === "existing_worktree")
+    return { type: "existing_worktree", worktreePath: draft.existingWorktreePath.trim() };
+  return {
+    type: "worktree",
+    baseRef,
+    startFromOrigin: draft.startFromOrigin,
+    ...(draft.repositories === undefined
+      ? {}
+      : { repositories: draft.repositories.map((path) => ({ path })) }),
+  };
 }
 
 /** Threads a task can move to. The current one is left out; the picker always shows it. */
