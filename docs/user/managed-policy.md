@@ -208,8 +208,9 @@ empty.
   when someone asks. `off` stops checks and installs, for machines that get Supaterm from a
   container image or device management.
 - `feedUrl`: `supaterm update`, and server updates started from another device, install from your
-  mirror instead of GitHub. Lay it out like a GitHub release: the update files such as
-  `latest-linux.yml` (and their `nightly` versions if you allow nightly) at the URL's root, and the
+  mirror instead of GitHub. Lay it out like a GitHub release: the update file for each platform
+  you run (`latest-mac.yml`, `latest-linux.yml`, `latest-linux-arm64.yml`, `latest.yml` for
+  Windows, and their `nightly` versions if you allow nightly) at the URL's root, and the
   `supaterm-*` archives and `SHA256SUMS` under `v<version>/`. Publish only the versions you have
   approved.
 - `allowNightly: false` makes the nightly channel unavailable.
