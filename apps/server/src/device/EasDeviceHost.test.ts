@@ -60,6 +60,7 @@ const fakeExpo = (
     readonly sessionGate?: () => Gate | undefined;
     readonly activeIncludesCreated?: boolean;
     readonly failPreview?: boolean;
+    readonly missingPreviewEndpoint?: boolean;
     readonly omitCreatedFromActive?: boolean;
     /** The session's agent-device daemon answers with a server error. */
     readonly failAgent?: () => boolean;
@@ -117,6 +118,10 @@ const fakeExpo = (
               variables: Record<string, { name?: string } & Record<string, unknown>>;
             })
           : { query: "", variables: {} };
+      // Another account cannot see this account's sessions.
+      if (request.headers.authorization === "Bearer other-account-token") {
+        return HttpClientResponse.fromWeb(request, new Response("Forbidden", { status: 403 }));
+      }
       expect(request.headers.authorization).toBe("Bearer expo-token");
       const operation = /(?:query|mutation) (\w+)/.exec(body.query)?.[1] ?? "unknown";
       calls.push({ operation, variables: body.variables });
@@ -220,7 +225,9 @@ const fakeExpo = (
                         agentDeviceRemoteSessionUrl: "https://agent.test",
                         agentDeviceRemoteSessionToken: "agent-token",
                         webPreviewToken: "preview-token",
-                        previewApiUrl: "https://preview.test?token=preview-token",
+                        previewApiUrl: options.missingPreviewEndpoint
+                          ? null
+                          : "https://preview.test?token=preview-token",
                       },
                     },
                   },
@@ -386,6 +393,38 @@ describe("Expo Simulators host", () => {
             label: (provider) => Effect.succeed(provider),
             read: (references) =>
               Effect.succeed(references.map(() => (readable.value ? "expo-token" : later))),
+            invalidate: () => Effect.void,
+          }),
+        ),
+      ),
+    );
+  });
+
+  it.effect("retries a failed start's stop with the account that started it", () => {
+    let token = "expo-token";
+    let stopFails = true;
+    return Effect.gen(function* () {
+      const expo = fakeExpo({ failStop: () => stopFails, missingPreviewEndpoint: true });
+      const source = { provider: SecretProviderId.make("homelab"), reference: "expo#token" };
+      const scope = yield* Scope.make();
+      const host = yield* makeHost(expo, config({ accessToken: source }), scope);
+      const ready = yield* host.ensureReady(() => Effect.void);
+      const [catalogDevice] = (yield* ready.devices.list).devices;
+      yield* ready.devices.boot(catalogDevice!).pipe(Effect.flip);
+      expect(expo.stopped()).toEqual(["session-1"]);
+
+      stopFails = false;
+      token = "other-account-token";
+      yield* ready.devices.list;
+      expect(expo.stopped()).toEqual(["session-1", "session-1"]);
+      yield* Scope.close(scope, Exit.void);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        layerWith(
+          Layer.succeed(SecretResolver.SecretResolver, {
+            label: (provider) => Effect.succeed(provider),
+            read: (references) => Effect.succeed(references.map(() => token)),
             invalidate: () => Effect.void,
           }),
         ),
