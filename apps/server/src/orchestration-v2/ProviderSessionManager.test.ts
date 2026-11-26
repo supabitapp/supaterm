@@ -499,6 +499,7 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
     readonly spawnBeforeOpen?: boolean;
     readonly scopeCloseReached?: Deferred.Deferred<void>;
     readonly eventStreamsEnded?: Queue.Queue<ProviderSessionId>;
+    readonly runtimeDriver?: ProviderDriverKind;
   } = {},
 ) {
   const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
@@ -569,7 +570,7 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
 
         return {
           instanceId: ProviderInstanceId.make("codex"),
-          driver: CODEX_DRIVER,
+          driver: options.runtimeDriver ?? CODEX_DRIVER,
           providerSessionId: input.providerSessionId,
           ...(options.normalizeThreadLoadModelSelection === undefined
             ? {}
@@ -702,6 +703,7 @@ function layerTest(input: {
   readonly serverSettingsLayer?: ReturnType<typeof ServerSettings.layerTest>;
   readonly projectServiceLayer?: Layer.Layer<ProjectService.ProjectService>;
   readonly installationGateLayer?: Layer.Layer<ProviderInstallationGate.ProviderInstallationGate>;
+  readonly runtimeDriver?: ProviderDriverKind;
 }) {
   const layerConfiguredEventSink =
     input.flakyReleaseWrites !== undefined
@@ -756,6 +758,7 @@ function layerTest(input: {
       ...(input.eventStreamsEnded === undefined
         ? {}
         : { eventStreamsEnded: input.eventStreamsEnded }),
+      ...(input.runtimeDriver === undefined ? {} : { runtimeDriver: input.runtimeDriver }),
     }).pipe(Effect.map(ProviderAdapterRegistry.layerSingle)),
   );
   const layerConfiguredMcpRegistry =
@@ -2122,9 +2125,16 @@ it.effect(
     }),
 );
 
-it.effect.each([{ resume: "native resume", minutes: 2 }])(
+it.effect.each([
+  { resume: "native resume", runtimeDriver: CODEX_DRIVER, minutes: 2 },
+  {
+    resume: "no native resume",
+    runtimeDriver: ProviderDriverKind.make("acpRegistry"),
+    minutes: 30,
+  },
+])(
   "ProviderSessionManagerV2 releases an idle session with $resume after $minutes minutes",
-  ({ minutes }) =>
+  ({ runtimeDriver, minutes }) =>
     Effect.gen(function* () {
       const state = yield* Ref.make(emptyState);
       yield* Effect.gen(function* () {
@@ -2146,7 +2156,7 @@ it.effect.each([{ resume: "native resume", minutes: 2 }])(
         assert.isTrue(yield* manager.isLive(providerSessionId));
         yield* TestClock.adjust("1 second");
         assert.isFalse(yield* manager.isLive(providerSessionId));
-      }).pipe(Effect.provide(layerTest({ state })));
+      }).pipe(Effect.provide(layerTest({ state, runtimeDriver })));
     }),
 );
 
