@@ -28,6 +28,7 @@ export * from "./keybindings.ts";
 export * from "./codexMicro.ts";
 export * from "./sidePulse.ts";
 export * from "./server.ts";
+export * from "./themeLimits.ts";
 export * from "./settings.ts";
 export * from "./git.ts";
 export * from "./vcs.ts";

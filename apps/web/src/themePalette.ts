@@ -1,5 +1,6 @@
 import { pipe } from "effect/Function";
-import { THEME_CSS_MAX_LENGTH, type EnvironmentTheme } from "@supaterm/contracts";
+import type { EnvironmentTheme } from "@supaterm/contracts";
+import { THEME_CSS_MAX_LENGTH } from "@supaterm/contracts/themeLimits";
 import * as Equal from "effect/Equal";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";

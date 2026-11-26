@@ -34,6 +34,7 @@ import { ServerProviderTranscription } from "./transcription.ts";
 import { ServerSettings } from "./settings.ts";
 import { RelayConnectionInfo, RelayServerUrl } from "./relay.ts";
 import { DesktopUpdateChannelSchema } from "./ipc.ts";
+import { THEME_CSS_MAX_LENGTH } from "./themeLimits.ts";
 
 const KeybindingsMalformedConfigIssue = Schema.Struct({
   kind: Schema.Literal("keybindings.malformed-config"),
@@ -668,8 +669,6 @@ const EnvironmentThemeColors = Schema.Record(
   Schema.String.check(Schema.isPattern(/^[a-zA-Z][a-zA-Z0-9]{0,63}$/)),
   TrimmedNonEmptyString.check(Schema.isMaxLength(64)),
 );
-
-export const THEME_CSS_MAX_LENGTH = 100_000;
 
 const environmentThemeFields = {
   version: Schema.optional(Schema.Literal(1)),
