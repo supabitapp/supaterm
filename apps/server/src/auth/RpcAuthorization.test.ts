@@ -1048,7 +1048,7 @@ it.effect("sends OTLP endpoint checks only for connections that can save the end
   }),
 );
 
-it.effect("checks a secret reference only for connections that can change settings", () =>
+it.effect("checks a secret reference only for connections that can manage providers", () =>
   Effect.gen(function* () {
     const group = WsRpcGroup.omit(
       ...[...WsRpcGroup.requests.keys()].filter(
@@ -1089,7 +1089,13 @@ it.effect("checks a secret reference only for connections that can change settin
     expect(checked).toBe(0);
 
     const settingsWriter = yield* makeClient([AuthSettingsWriteScope]);
-    expect(yield* settingsWriter[WS_METHODS.serverCheckSecretSource](input)).toEqual({
+    expect(
+      yield* settingsWriter[WS_METHODS.serverCheckSecretSource](input).pipe(Effect.flip),
+    ).toMatchObject({ requiredScope: AuthProvidersManageScope });
+    expect(checked).toBe(0);
+
+    const providerManager = yield* makeClient([AuthSettingsWriteScope, AuthProvidersManageScope]);
+    expect(yield* providerManager[WS_METHODS.serverCheckSecretSource](input)).toEqual({
       _tag: "Resolved",
     });
     expect(checked).toBe(1);
