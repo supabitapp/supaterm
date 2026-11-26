@@ -74,8 +74,9 @@ and start a server you run with `supaterm serve`. Removing a policy brings back 
 saved settings.
 
 The server does not start when the policy is unreadable, invalid, uses keys from a newer Supaterm
-version, or conflicts with another policy source. Check every policy with `supaterm policy check`,
-and update Supaterm before you deploy keys a newer version added.
+version, or conflicts with another policy source. The desktop app then says the policy stopped it
+and shows the server's error for users to send you. Check every policy with
+`supaterm policy check`, and update Supaterm before you deploy keys a newer version added.
 
 ## Settings
 
