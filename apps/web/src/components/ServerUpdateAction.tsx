@@ -28,6 +28,9 @@ import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { manualServerUpdateCommand } from "~/versionSkew";
 import { useServerConfigs } from "~/state/entities";
+import { readManagedPolicy, useManagedPolicy } from "~/state/managedPolicy";
+import { managedServerUpdateDenial } from "~/state/managedPolicy.logic";
+import { ManagedControl } from "./ManagedPolicy";
 import { crossesReleaseTrack } from "@supaterm/shared/cliRelease";
 import { Button } from "./ui/button";
 import { toastManager } from "./ui/toast";
@@ -103,6 +106,20 @@ export function useServerUpdate() {
     { quiet = false }: { readonly quiet?: boolean } = {},
   ): Promise<ServerUpdateOutcome> => {
     const { environmentId, serverLabel, selfUpdate, targetVersion } = target;
+    const denial = managedServerUpdateDenial(
+      readManagedPolicy(environmentId),
+      selfUpdate === "desktop-managed" ? undefined : targetVersion,
+    );
+    if (denial !== undefined) {
+      if (!quiet) {
+        toastManager.add({
+          type: "error",
+          title: `${serverLabel} not updated`,
+          description: denial,
+        });
+      }
+      return { status: "failed", message: denial };
+    }
     if (
       !canUpdateServer(appAtomRegistry.get(environmentSession.sessionStateAtom(environmentId))) ||
       pendingUpdateEnvironmentIds.has(environmentId)
@@ -165,6 +182,10 @@ export function ServerUpdatesAction({
     (target) =>
       target.selfUpdate !== null &&
       (target.selfUpdate !== "desktop-managed" || target.desktopAppUpdate) &&
+      managedServerUpdateDenial(
+        serverConfigs.get(target.environmentId)?.managedPolicy,
+        target.selfUpdate === "desktop-managed" ? undefined : target.targetVersion,
+      ) === undefined &&
       !refusedCrossing(target, serverConfigs.get(target.environmentId)?.environment.serverVersion),
   );
   const handleUpdate = async () => {
@@ -250,6 +271,10 @@ export function ServerUpdateAction({
 }: ServerUpdateTarget & UpdateButtonProps) {
   const isDesktopAppUpdate = selfUpdate === "desktop-managed";
   const serverVersion = useServerConfigs().get(environmentId)?.environment.serverVersion;
+  const updatesDenial = managedServerUpdateDenial(
+    useManagedPolicy(environmentId),
+    isDesktopAppUpdate ? undefined : targetVersion,
+  );
   const sessionStateAtom = environmentSession.sessionStateAtom(environmentId);
   const canUpdate = useAtomValue(sessionStateAtom, canUpdateServer);
   const update = useServerUpdate();
@@ -301,6 +326,18 @@ export function ServerUpdateAction({
       targetVersion,
     });
   };
+
+  if (updatesDenial !== undefined) {
+    return appearance === "icon" ? (
+      <ManagedControl reason={updatesDenial}>
+        <Button size="icon-xs" variant="ghost-muted" aria-label={updatesDenial} disabled>
+          <CircleArrowUpIcon className="size-3.5" />
+        </Button>
+      </ManagedControl>
+    ) : (
+      <span className="text-muted-foreground text-xs">{updatesDenial}</span>
+    );
+  }
 
   if (selfUpdate === "desktop-managed" && !desktopAppUpdate) {
     return (

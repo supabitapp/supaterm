@@ -1,8 +1,11 @@
 import {
   isManagedSettingPath,
+  managedNightlyDeniedMessage,
+  managedUpdatesDenial,
   type ManagedPolicySummary,
   type ProviderDriverKind,
 } from "@supaterm/contracts";
+import { cliReleaseChannelOf } from "@supaterm/shared/cliRelease";
 
 /** The reason a control the policy pins shows: "Managed by Example Corp." */
 export function managedByMessage(organization: string): string {
@@ -62,4 +65,23 @@ export function managedInstanceLocks(
     wholeEnvironment: paths.includes("environment"),
     reason: managedByMessage(policy.organization),
   };
+}
+
+/**
+ * Why a server's policy refuses moving it to `targetVersion`; the server refuses with the same
+ * message. `targetVersion` is undefined when the server picks its own version, as desktop apps do.
+ */
+export function managedServerUpdateDenial(
+  policy: ManagedPolicySummary | undefined,
+  targetVersion: string | undefined,
+): string | undefined {
+  return (
+    managedUpdatesDenial(policy) ??
+    (policy !== undefined &&
+    policy.limits?.updates?.allowNightly === false &&
+    targetVersion !== undefined &&
+    cliReleaseChannelOf(targetVersion) !== "stable"
+      ? managedNightlyDeniedMessage(policy.organization)
+      : undefined)
+  );
 }
