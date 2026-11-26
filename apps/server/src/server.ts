@@ -479,6 +479,7 @@ const layerProjectFaviconResolver = ProjectFaviconResolver.layer.pipe(
 const layerRelayAccess = Layer.merge(RelayAccess.layer, DirectTunnel.layer).pipe(
   Layer.provideMerge(RelayIdentity.layer.pipe(Layer.provide(ServerSecretStore.layer))),
   Layer.provide(layerServerSettings),
+  Layer.provide(ManagedPolicy.layer),
 );
 const layerServerEnvironment = Layer.effect(
   ServerEnvironment.ServerEnvironment,
@@ -775,7 +776,12 @@ const layerMakeRoutes = Layer.mergeAll(
   Layer.provide(
     Layer.mergeAll(PeerForwarding.layer, PeerThreadRelay.layer, PeerClientPairing.layer).pipe(
       Layer.provideMerge(PeerMcpClient.layer),
-      Layer.provideMerge(PeerLinks.layer.pipe(Layer.provide(RelayCompanion.layer()))),
+      Layer.provideMerge(
+        PeerLinks.layer.pipe(
+          Layer.provide(RelayCompanion.layer()),
+          Layer.provide(ManagedPolicy.layer),
+        ),
+      ),
     ),
   ),
   Layer.provide(PreviewAutomationBroker.layer),

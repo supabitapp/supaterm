@@ -16,6 +16,8 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
+import * as ManagedLimits from "../policy/managedLimits.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as ServerSettingsService from "../serverSettings.ts";
 import * as RelayIdentity from "./RelayIdentity.ts";
 import { RelayIngress } from "./RelayIngress.ts";
@@ -38,6 +40,10 @@ const make = Effect.gen(function* () {
   const identity = yield* RelayIdentity.RelayIdentity;
   const ingress = yield* RelayIngress;
   const settings = yield* ServerSettingsService.ServerSettingsService;
+  const policy = yield* ManagedPolicy.ManagedPolicy;
+  // The policy is fixed for the server's life; without the relay, publicRelayEnabled has no effect.
+  const relayAllowed = ManagedLimits.allowsRelay(policy);
+  const isEnabled = (value: ServerSettings) => relayAllowed && value.publicRelayEnabled;
   const status = yield* SubscriptionRef.make<RelayHostStatus>({ state: "off" });
   const lock = yield* Semaphore.make(1);
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
@@ -71,12 +77,10 @@ const make = Effect.gen(function* () {
     function* (activate: boolean) {
       if (disposed) return yield* new RelayPreparationError({ reason: "unavailable" });
       const value = yield* settings.getSettings;
-      const relayUrl = value.publicRelayEnabled
-        ? normalizeRelayServerUrl(value.publicRelayUrl)
-        : null;
+      const relayUrl = isEnabled(value) ? normalizeRelayServerUrl(value.publicRelayUrl) : null;
       if (running !== undefined && running.relayUrl === relayUrl) return;
       stop();
-      if (!value.publicRelayEnabled) return yield* SubscriptionRef.set(status, { state: "off" });
+      if (!isEnabled(value)) return yield* SubscriptionRef.set(status, { state: "off" });
       if (relayUrl === null) return yield* SubscriptionRef.set(status, { state: "invalid-url" });
       const existing = yield* identity.existing;
       if (!activate && Option.isNone(existing))
@@ -103,6 +107,15 @@ const make = Effect.gen(function* () {
     ),
   );
   const prepare = Effect.gen(function* () {
+    if (!relayAllowed) {
+      return yield* new RelayPreparationError({
+        reason: "managed-policy",
+        detail: ManagedLimits.refuseRelay(
+          policy,
+          "so this server cannot create relay pairing links",
+        ).message,
+      });
+    }
     yield* reconcile(true);
     return yield* SubscriptionRef.changes(status).pipe(
       Stream.filter((value) => value.state !== "connecting" && value.state !== "idle"),
@@ -149,7 +162,7 @@ const make = Effect.gen(function* () {
       ),
     );
     const refresh = Effect.fnUntraced(function* (value: ServerSettings) {
-      if (!value.publicRelayEnabled)
+      if (!isEnabled(value))
         yield* Effect.gen(function* () {
           stop();
           yield* SubscriptionRef.set(status, { state: "off" });

@@ -7,6 +7,7 @@ import {
   EnvironmentId,
   type AuthMcpClientAccess,
   type ExecutionEnvironmentDescriptor,
+  type ManagedPolicyDocument,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
@@ -222,11 +223,19 @@ export const layerLinkingEnvironment = <E = never>(
     SqlClient.SqlClient,
     E | Layer.Error<typeof Sqlite.layerMemory>
   > = Sqlite.layerMemory,
+  policy?: ManagedPolicyDocument,
 ) =>
   PeerMcpClient.layer.pipe(
     Layer.provideMerge(PeerLinks.layer),
     Layer.provideMerge(database),
-    Layer.provide(Layer.mergeAll(secrets, FetchHttpClient.layer, RelayCompanion.layer())),
+    Layer.provide(
+      Layer.mergeAll(
+        secrets,
+        FetchHttpClient.layer,
+        RelayCompanion.layer(),
+        ManagedPolicy.layerTest(policy),
+      ),
+    ),
     // Peers here are served on 127.0.0.1, so only `localhost` stands for this machine.
     Layer.provide(Layer.succeed(PeerLinks.LoopbackHost, (host) => host === "localhost")),
     // Services that act for this environment, such as delegation, name it too.

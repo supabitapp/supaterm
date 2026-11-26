@@ -1,5 +1,6 @@
 import {
   DEFAULT_SERVER_SETTINGS,
+  type ManagedPolicyDocument,
   type RelayHostStatus,
   type RelayConnectionInfo,
   type ServerSettings,
@@ -16,6 +17,7 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as TestClock from "effect/testing/TestClock";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as ServerSettingsService from "../serverSettings.ts";
 import * as RelayAccess from "./RelayAccess.ts";
 import * as RelayIdentity from "./RelayIdentity.ts";
@@ -29,7 +31,9 @@ beforeEach(() => {
   startRelayTransport.mockReset();
 });
 
-const fixture = Effect.gen(function* () {
+const makeFixture = Effect.fn("RelayAccessTest.fixture")(function* (
+  policy?: ManagedPolicyDocument,
+) {
   const settings = yield* SubscriptionRef.make(DEFAULT_SERVER_SETTINGS);
   const changes = yield* PubSub.unbounded<ServerSettings>();
   const secrets = new Map<string, Uint8Array>();
@@ -63,6 +67,7 @@ const fixture = Effect.gen(function* () {
       }),
     ),
     Layer.provide(Layer.succeed(RelayIngress, { accept: () => {} })),
+    Layer.provide(ManagedPolicy.layerTest(policy)),
   );
   const setEnabled = (enabled: boolean) =>
     SubscriptionRef.updateAndGet(settings, (value) => ({
@@ -75,6 +80,7 @@ const fixture = Effect.gen(function* () {
     );
   return { settings, secrets, layer, setEnabled, setRelayUrl };
 });
+const fixture = makeFixture();
 const awaitState = (service: RelayAccess.RelayAccess["Service"], state: RelayHostStatus["state"]) =>
   service.status.pipe(
     Stream.filter((value) => value.state === state),
@@ -291,6 +297,29 @@ it.effect("advertises the first activation and later changes without activating 
         "stop:wss://second.example.test",
         "advertise:off",
       ]);
+    }).pipe(Effect.provide(test.layer));
+  }),
+);
+
+it.effect.each([
+  { relay: false } satisfies NonNullable<ManagedPolicyDocument["limits"]>,
+  { clients: ["desktop", "local-browser"] } satisfies NonNullable<ManagedPolicyDocument["limits"]>,
+])("stays off and refuses relay pairing when the policy does not allow it (%#)", (limits) =>
+  Effect.gen(function* () {
+    const test = yield* makeFixture({ schemaVersion: 1, organization: "Example Corp", limits });
+    test.secrets.set("relay-identity", new Uint8Array(32).fill(4));
+    yield* Effect.gen(function* () {
+      const service = yield* RelayAccess.RelayAccess;
+      yield* service.start;
+      yield* test.setEnabled(true);
+      yield* awaitState(service, "off");
+      const refused = yield* service.prepare.pipe(Effect.flip);
+      expect(refused.reason).toBe("managed-policy");
+      expect(refused.message).toBe(
+        "Example Corp's policy does not allow the Encrypted Relay, so this server cannot create relay pairing links.",
+      );
+      expect(yield* service.advertisement).toEqual({});
+      expect(startRelayTransport).not.toHaveBeenCalled();
     }).pipe(Effect.provide(test.layer));
   }),
 );
