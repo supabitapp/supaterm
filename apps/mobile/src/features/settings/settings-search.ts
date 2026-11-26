@@ -1,5 +1,7 @@
 import { foldSearchQuery, rankSearchItems, scoreSearchTerms } from "@supaterm/shared/paletteSearch";
+import { msg } from "gt-react-native";
 
+import { m, type MessageResolver } from "../../i18n/messages";
 import type { SettingsPageTarget } from "./components/settings-page-targets";
 
 /** What each page holds besides its row's label, so search finds a setting by its own name. */
@@ -41,6 +43,10 @@ const SETTINGS_SEARCH_TERMS = {
   SettingsScheduledTasks: ["automations", "schedule", "cron", "recurring"],
   SettingsProjectOverview: ["project", "overview", "checkouts", "delete project"],
   SettingsOrganization: [
+    "language",
+    "locale",
+    "translation",
+    "english",
     "project grouping",
     "group projects",
     "organization",
@@ -121,6 +127,10 @@ const SETTINGS_SEARCH_TERMS = {
 const termsById: ReadonlyMap<string, readonly string[]> = new Map(
   Object.entries(SETTINGS_SEARCH_TERMS),
 );
+// Someone who switched to a language they cannot read looks for its name in either language.
+const translatedTermsById: ReadonlyMap<string, readonly string[]> = new Map([
+  ["SettingsOrganization", [msg("Language")]],
+]);
 
 export interface SettingsSearchRow {
   readonly id: string;
@@ -139,7 +149,7 @@ export interface SettingsSearchSection<Row extends SettingsSearchRow> {
 export function filterSettingsSections<
   Row extends SettingsSearchRow,
   Section extends SettingsSearchSection<Row>,
->(sections: readonly Section[], query: string): Section[] {
+>(sections: readonly Section[], query: string, resolve: MessageResolver = m): Section[] {
   const normalizedQuery = foldSearchQuery(query);
   const rows = sections.flatMap((section) =>
     section.rows.map((row) => ({ row, section: section.title })),
@@ -149,7 +159,12 @@ export function filterSettingsSections<
         rankSearchItems(rows, ({ row, section }, options) =>
           scoreSearchTerms(
             normalizedQuery,
-            [row.label, ...(section ? [section] : []), ...(termsById.get(row.id) ?? [])],
+            [
+              row.label,
+              ...(section ? [section] : []),
+              ...(termsById.get(row.id) ?? []),
+              ...(translatedTermsById.get(row.id) ?? []).map((term) => resolve(term)),
+            ],
             options,
           ),
         ).map(({ item }) => item.row),
