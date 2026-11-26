@@ -7,6 +7,7 @@ import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 
 import { channelSwitchLabel } from "./sidebar/updateEverything.logic";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "../i18n/messages";
 
 export type DesktopUpdateButtonAction = "download" | "install" | "none";
 
@@ -100,57 +101,99 @@ export function getArm64IntelBuildWarningDescription(state: DesktopUpdateState):
   );
 }
 
-export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string {
+export function getDesktopUpdateButtonTooltip(
+  state: DesktopUpdateState,
+  resolve: MessageResolver = m,
+): string {
   if (
     state.notAppliedVersion !== undefined &&
     (state.status === "available" || state.status === "downloaded") &&
     getDesktopUpdateDownloadedVersion(state) === state.notAppliedVersion
   ) {
-    return `Update ${state.notAppliedVersion} did not apply. Click to retry.`;
+    return resolve(
+      msg("Update {version} did not apply. Click to retry.", { version: state.notAppliedVersion }),
+    );
   }
   if (
     (state.status === "available" || state.status === "error") &&
     state.errorContext === "download" &&
     state.availableVersion
   ) {
-    return `Download failed for ${state.availableVersion}. Click to retry.`;
+    return resolve(
+      msg("Download failed for {version}. Click to retry.", { version: state.availableVersion }),
+    );
   }
   if (state.status === "available") {
-    return `Update ${state.availableVersion ?? "available"} ready to download`;
+    return state.availableVersion === null
+      ? resolve(msg("Update available ready to download"))
+      : resolve(msg("Update {version} ready to download", { version: state.availableVersion }));
   }
   if (state.status === "downloading") {
-    const progress =
-      typeof state.downloadPercent === "number" ? ` (${Math.floor(state.downloadPercent)}%)` : "";
-    return `Downloading update${progress}`;
+    return typeof state.downloadPercent === "number"
+      ? resolve(
+          msg("Downloading update ({percent}%)", { percent: Math.floor(state.downloadPercent) }),
+        )
+      : resolve(msg("Downloading update"));
   }
   if (state.status === "downloaded") {
     if (state.errorContext === "install" && state.downloadedVersion) {
-      return `Install failed for ${state.downloadedVersion}. Click to retry.`;
+      return resolve(
+        msg("Install failed for {version}. Click to retry.", { version: state.downloadedVersion }),
+      );
     }
-    return `Update ${state.downloadedVersion ?? state.availableVersion ?? "ready"} downloaded. Click to restart and install.`;
+    const version = state.downloadedVersion ?? state.availableVersion;
+    return version === null
+      ? resolve(msg("Update ready downloaded. Click to restart and install."))
+      : resolve(msg("Update {version} downloaded. Click to restart and install.", { version }));
   }
   if (state.status === "error") {
     if (state.errorContext === "install" && state.downloadedVersion) {
-      return `Install failed for ${state.downloadedVersion}. Click to retry.`;
+      return resolve(
+        msg("Install failed for {version}. Click to retry.", { version: state.downloadedVersion }),
+      );
     }
     if (state.downloadedVersion) {
-      return `Update ${state.downloadedVersion} downloaded. Click to restart and install.`;
+      return resolve(
+        msg("Update {version} downloaded. Click to restart and install.", {
+          version: state.downloadedVersion,
+        }),
+      );
     }
-    return state.message ?? msg("Update failed");
+    return state.message ?? resolve(msg("Update failed"));
   }
   // The updater discards every release of the other track, so "up to date" would be false here.
   const buildChannel = desktopUpdateChannelOf(state.currentVersion);
   if (state.status === "up-to-date" && buildChannel !== state.channel) {
-    return `This ${channelSwitchLabel(buildChannel)} build ignores ${channelSwitchLabel(state.channel)} releases. Review the update track in Settings to finish the switch.`;
+    return resolve(
+      msg(
+        "This {build} build ignores {track} releases. Review the update track in Settings to finish the switch.",
+        {
+          build: channelSwitchLabel(buildChannel),
+          track: channelSwitchLabel(state.channel),
+        },
+      ),
+    );
   }
-  return msg("Up to date");
+  return resolve(msg("Up to date"));
 }
 
 export function getDesktopUpdateInstallConfirmationMessage(
   state: Pick<DesktopUpdateState, "availableVersion" | "downloadedVersion">,
+  resolve: MessageResolver = m,
 ): string {
   const version = state.downloadedVersion ?? state.availableVersion;
-  return `Install update${version ? ` ${version}` : ""} and restart Supaterm?\n\nAny running tasks will be interrupted. Make sure you're ready before continuing.`;
+  return version
+    ? resolve(
+        msg(
+          "Install update {version} and restart Supaterm?\n\nAny running tasks will be interrupted. Make sure you're ready before continuing.",
+          { version },
+        ),
+      )
+    : resolve(
+        msg(
+          "Install update and restart Supaterm?\n\nAny running tasks will be interrupted. Make sure you're ready before continuing.",
+        ),
+      );
 }
 
 export function getDesktopUpdateActionError(result: DesktopUpdateActionResult): string | null {
