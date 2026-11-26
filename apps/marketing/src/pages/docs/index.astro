@@ -20,7 +20,7 @@ const docs = (await getCollection("docs"))
     <ul class="docs-index">
       {docs.map((doc) => (
         <li>
-          <a href={`/docs/${doc.id}`}>
+          <a href={`/docs/${doc.id}/`}>
             <span class="docs-index-title">{doc.title}</span>
             <span class="docs-index-description">{doc.description}</span>
           </a>

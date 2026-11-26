@@ -6,7 +6,7 @@ const PROSE_BLOCK = /^[^#`|>\-*\d<]/;
 
 export function rewriteUserDocHref(href: string): string {
   const sibling = SIBLING_DOC_LINK.exec(href);
-  if (sibling) return `/docs/${sibling[1]}${sibling[2] ?? ""}`;
+  if (sibling) return `/docs/${sibling[1]}/${sibling[2] ?? ""}`;
   if (href.startsWith("../")) return new URL(href, USER_DOCS_SOURCE_URL).href;
   return href;
 }

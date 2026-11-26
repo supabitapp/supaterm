@@ -4,8 +4,8 @@ import { rewriteUserDocHref, summarizeUserDoc } from "./docs";
 
 describe("rewriteUserDocHref", () => {
   it.each([
-    ["./remote-access.md", "/docs/remote-access"],
-    ["remote-access.md#browser-host-setup", "/docs/remote-access#browser-host-setup"],
+    ["./remote-access.md", "/docs/remote-access/"],
+    ["remote-access.md#browser-host-setup", "/docs/remote-access/#browser-host-setup"],
     ["#queued-messages", "#queued-messages"],
     [
       "../operations/development.md#first-checkout",
