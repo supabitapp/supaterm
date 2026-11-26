@@ -202,8 +202,16 @@ const layerServices = layerManagement.pipe(
       getEnvironmentId: Effect.succeed(EnvironmentId.make("transfer-test")),
     }),
   ),
+  Layer.provideMerge(
+    Layer.unwrap(
+      Effect.map(ProjectStore.ProjectStoreV2, (store) =>
+        Layer.mock(ProjectService.ProjectService)({
+          listShells: (options) => store.listShells(options).pipe(Effect.orDie),
+        }),
+      ),
+    ),
+  ),
   Layer.provideMerge(ProjectStore.layer),
-  Layer.provideMerge(Layer.mock(ProjectService.ProjectService)({})),
   Layer.provideMerge(layerEnrichment),
   Layer.provideMerge(layerPersistence),
 );
