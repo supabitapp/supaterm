@@ -190,17 +190,15 @@ function ScheduledTaskRepositories({
             <Checkbox
               className="self-center"
               checked={selected.has(choice.repositoryPath)}
-              onCheckedChange={(next) =>
+              onCheckedChange={(checked) =>
                 onChange(
-                  choices.flatMap((candidate) =>
-                    (
-                      candidate.repositoryPath === choice.repositoryPath
-                        ? next
-                        : selected.has(candidate.repositoryPath)
-                    )
-                      ? [candidate.repositoryPath]
-                      : [],
-                  ),
+                  choices.flatMap(({ repositoryPath }) => {
+                    const keep =
+                      repositoryPath === choice.repositoryPath
+                        ? checked
+                        : selected.has(repositoryPath);
+                    return keep ? [repositoryPath] : [];
+                  }),
                 )
               }
             />
