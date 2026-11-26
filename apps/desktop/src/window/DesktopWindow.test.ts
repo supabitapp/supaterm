@@ -896,12 +896,14 @@ describe("DesktopWindow", () => {
           );
           const menu = yield* Queue.take(menus);
           assert.deepEqual(
-            menu.template.filter((item) => item.role).map((item) => [item.role, item.enabled]),
+            menu.template
+              .filter((item) => item.role)
+              .map((item) => [item.role, item.label, item.enabled]),
             [
-              ["cut", false],
-              ["copy", true],
-              ["paste", false],
-              ["selectAll", true],
+              ["cut", "Cut", false],
+              ["copy", "Copy", true],
+              ["paste", "Paste", false],
+              ["selectAll", "Select All", true],
             ],
           );
           const reload = menu.template.find((item) => item.label === "Reload");
