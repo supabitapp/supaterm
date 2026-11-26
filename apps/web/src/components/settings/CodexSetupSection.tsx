@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
 import { isLocalProviderAuthConnection } from "./CodexSetupSection.logic";
-import { AuthProvidersManageScope } from "@supaterm/contracts";
+import { AuthProvidersManageScope, ProviderDriverKind } from "@supaterm/contracts";
 import {
   readPreparedConnection,
   useEnvironmentScope,
@@ -43,6 +43,9 @@ import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { waitForQuerySettled } from "../../state/waitForQuerySettled";
 import { Button } from "../ui/button";
 import { ChatGptConnectionButton } from "./ChatGptConnectionButton";
+import { ManagedControl } from "../ManagedPolicy";
+import { useManagedPolicy } from "../../state/managedPolicy";
+import { managedInstanceLocks } from "../../state/managedPolicy.logic";
 import { ChatGptUsageButton } from "./ChatGptUsageButton";
 import { ChatGptAccountPicker } from "./ChatGptAccountPicker";
 import { Input } from "../ui/input";
@@ -108,6 +111,12 @@ interface CodexSetupSectionProps {
 
 export function CodexSetupSection(props: CodexSetupSectionProps) {
   const [requested, setRequested] = useState(false);
+  // A policy that owns Codex's launch settings also rules out ChatGPT's own runtime.
+  const codexLocks = managedInstanceLocks(
+    useManagedPolicy(props.environmentId),
+    ProviderDriverKind.make("codex"),
+  );
+  const chatGptDenial = codexLocks?.configKeys.has("setupMode") ? codexLocks.reason : undefined;
   const existingState = getOnboardingProviderState(props.provider);
   const existingReady = props.enabled && existingState === "ready";
   const existingAuthenticated = props.provider?.auth.status === "authenticated";
@@ -153,16 +162,18 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
           ) : existingAuthenticated ? (
             <span className="text-xs text-muted-foreground">{existingSummary.headline}</span>
           ) : (
-            <ChatGptConnectionButton
-              size="sm"
-              disabled={props.readOnly}
-              onClick={() => {
-                setRequested(true);
-                props.onModeChange("managed");
-              }}
-            >
-              Continue with ChatGPT
-            </ChatGptConnectionButton>
+            <ManagedControl reason={chatGptDenial}>
+              <ChatGptConnectionButton
+                size="sm"
+                disabled={props.readOnly}
+                onClick={() => {
+                  setRequested(true);
+                  props.onModeChange("managed");
+                }}
+              >
+                Continue with ChatGPT
+              </ChatGptConnectionButton>
+            </ManagedControl>
           )
         }
         secondaryControl={
