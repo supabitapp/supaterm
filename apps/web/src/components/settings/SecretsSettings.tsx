@@ -26,7 +26,7 @@ import { useSettingsScope } from "./SettingsScopeContext";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { searchableSetting } from "./settingsSearch";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const SECRET_PROVIDER_KINDS: Readonly<Record<string, { readonly name: string }>> = {
   one_password: { name: "1Password" },
@@ -42,7 +42,9 @@ export function SecretsSettingsPanel() {
       environment.serverConfig.secretProviderSettings !== true ? (
         <SettingsSection {...searchableSetting("secret-providers")}>
           <p className="px-4 py-3 text-sm text-muted-foreground">
-            Update Supaterm on {environment.label} to manage its secret providers.
+            <T>
+              Update Supaterm on <Var>{environment.label}</Var> to manage its secret providers.
+            </T>
           </p>
         </SettingsSection>
       ) : connected ? (
@@ -215,7 +217,11 @@ function RemoveSecretProviderButton({
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogPopup>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove {label}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              <T>
+                Remove <Var>{label}</Var>?
+              </T>
+            </AlertDialogTitle>
             <SecretProviderUses environmentId={environmentId} id={id} label={label} />
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -251,14 +257,19 @@ function SecretProviderUses({
   if (uses.length === 0) {
     return (
       <AlertDialogDescription>
-        Nothing reads from {label}. The secrets themselves are untouched.
+        <T>
+          Nothing reads from <Var>{label}</Var>. The secrets themselves are untouched.
+        </T>
       </AlertDialogDescription>
     );
   }
   return (
     <>
       <AlertDialogDescription>
-        These read from {label} and will be unset. The secrets themselves are untouched.
+        <T>
+          These read from <Var>{label}</Var> and will be unset. The secrets themselves are
+          untouched.
+        </T>
       </AlertDialogDescription>
       <ul className="max-h-48 list-disc space-y-0.5 overflow-y-auto ps-5 text-sm wrap-anywhere">
         {uses.map((use) => (

@@ -328,6 +328,7 @@ function RemoveRuntimeButton({
   readonly disabled: boolean;
   readonly onRemove: () => void;
 }) {
+  const gt = useGT();
   const confirm = useInlineConfirm<"remove">();
   const armed = confirm.armed === "remove";
   return (
@@ -338,7 +339,9 @@ function RemoveRuntimeButton({
             size="icon-sm"
             variant="ghost"
             className="col-start-1 row-start-1"
-            aria-label={armed ? "Confirm remove downloaded runtime" : "Remove downloaded runtime"}
+            aria-label={
+              armed ? gt("Confirm remove downloaded runtime") : gt("Remove downloaded runtime")
+            }
             disabled={disabled}
             {...confirm.bind("remove", onRemove)}
           />
@@ -350,8 +353,11 @@ function RemoveRuntimeButton({
       </TooltipTrigger>
       <TooltipPopup>
         {armed
-          ? `Click again to remove the downloaded runtime from ${environmentLabel}. Google sign-in and thread history are kept.`
-          : "Remove downloaded runtime"}
+          ? gt(
+              "Click again to remove the downloaded runtime from {environment}. Google sign-in and thread history are kept.",
+              { environment: environmentLabel },
+            )
+          : gt("Remove downloaded runtime")}
       </TooltipPopup>
     </Tooltip>
   );

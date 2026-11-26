@@ -25,7 +25,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SettingsRow } from "./settingsLayout";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const ProviderAuthTerminal = lazy(() => import("./ProviderAuthTerminal"));
 
@@ -176,15 +176,17 @@ export function ProviderAuthenticationSection({
       description={
         signedIn && !active && provider.auth.email?.trim() ? (
           <span>
-            Signed in as{" "}
-            <RedactedSensitiveText
-              key={provider.auth.email}
-              value={provider.auth.email}
-              ariaLabel={gt("Toggle account email visibility")}
-              revealTooltip={gt("Click to reveal email")}
-              hideTooltip={gt("Click to hide email")}
-              className="max-w-full truncate"
-            />
+            <T>
+              Signed in as{" "}
+              <RedactedSensitiveText
+                key={provider.auth.email}
+                value={provider.auth.email}
+                ariaLabel={gt("Toggle account email visibility")}
+                revealTooltip={gt("Click to reveal email")}
+                hideTooltip={gt("Click to hide email")}
+                className="max-w-full truncate"
+              />
+            </T>
           </span>
         ) : (
           <span role="status">{accountDescription}</span>
@@ -354,9 +356,13 @@ export function ProviderAuthenticationSection({
         <>
           {interaction?.type === "deviceCode" ? (
             <p className="py-2 text-sm text-muted-foreground">
-              Enter code{" "}
-              <code className="select-all font-mono text-foreground">{interaction.userCode}</code>{" "}
-              in your browser.
+              <T>
+                Enter code{" "}
+                <code className="select-all font-mono text-foreground">
+                  <Var>{interaction.userCode}</Var>
+                </code>{" "}
+                in your browser.
+              </T>
             </p>
           ) : null}
           {interaction?.type === "terminal" ? (

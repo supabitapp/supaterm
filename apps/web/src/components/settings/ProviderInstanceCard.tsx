@@ -84,9 +84,10 @@ import {
   getProviderSummary,
   getProviderVersionLabel,
 } from "./providerStatus";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages, Var } from "gt-react";
 
 const ENVIRONMENT_VARIABLE_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const ENVIRONMENT_VARIABLE_NAME_PLACEHOLDER = "VARIABLE_NAME";
 
 function ProviderStatusDiagnostic({
   detail,
@@ -338,9 +339,15 @@ function ProviderEnvironmentFieldRow(props: {
               variant="ghost-destructive"
               icon={<XIcon className="size-3.5" />}
               label={gt("Clear {field}", { field: props.field.label })}
-              confirmLabel={`Confirm clear ${props.field.label}`}
+              confirmLabel={gt("Confirm clear {field}", { field: props.field.label })}
               tooltip={gt("Clear {field}", { field: props.field.label })}
-              confirmTooltip={`Click again to clear ${props.field.label}.${props.field.sensitive === false ? "" : " The stored secret can't be recovered."}`}
+              confirmTooltip={
+                props.field.sensitive === false
+                  ? gt("Click again to clear {field}.", { field: props.field.label })
+                  : gt("Click again to clear {field}. The stored secret can't be recovered.", {
+                      field: props.field.label,
+                    })
+              }
               onConfirm={() => props.onRemove(props.field)}
             />
           ) : null}
@@ -469,7 +476,7 @@ export function ProviderEnvironmentSection(props: {
                   value={variable.name}
                   onCommit={(name) => updateVariable(variable.id, { name: name.trim() })}
                   disabled={variable.valueRedacted === true}
-                  placeholder="VARIABLE_NAME"
+                  placeholder={ENVIRONMENT_VARIABLE_NAME_PLACEHOLDER}
                   spellCheck={false}
                   aria-label={gt("Environment variable name {number}", { number: index + 1 })}
                 />
@@ -549,19 +556,30 @@ export function ProviderEnvironmentSection(props: {
                   label={gt("Remove environment variable {name}", {
                     name: variable.name || index + 1,
                   })}
-                  confirmLabel={`Confirm remove environment variable ${variable.name || index + 1}`}
-                  tooltip="Remove variable"
-                  confirmTooltip={`Click again to remove ${variable.name || "this variable"}.${variable.sensitive ? " Its secret value can't be recovered." : ""}`}
+                  confirmLabel={gt("Confirm remove environment variable {name}", {
+                    name: variable.name || index + 1,
+                  })}
+                  tooltip={gt("Remove variable")}
+                  confirmTooltip={
+                    variable.sensitive
+                      ? gt("Click again to remove {name}. Its secret value can't be recovered.", {
+                          name: variable.name || gt("this variable"),
+                        })
+                      : gt("Click again to remove {name}.", {
+                          name: variable.name || gt("this variable"),
+                        })
+                  }
                   onConfirm={() => removeVariable(variable.id)}
                 />
               </div>
             );
           })}
           <p className="text-xs text-muted-foreground">
-            Sensitive values are stored separately and never returned to the app.
             {rows.some((row) => row.valueRedacted === true)
-              ? " Enter a new value to rename a saved one or make it plain text."
-              : null}
+              ? gt(
+                  "Sensitive values are stored separately and never returned to the app. Enter a new value to rename a saved one or make it plain text.",
+                )
+              : gt("Sensitive values are stored separately and never returned to the app.")}
           </p>
         </div>
       ) : null}
@@ -770,13 +788,14 @@ export function ProviderInstanceCard({
   projectOverride,
 }: ProviderInstanceCardProps) {
   const gt = useGT();
+  const m = useMessages();
   const enabled = projectOverride?.effectiveEnabled ?? resolveProviderInstanceEnabled(instance);
   const effectiveProvider = liveProvider && { ...liveProvider, enabled };
   const compatibility = enabled ? liveProvider?.compatibilityAdvisory : undefined;
   const statusKey = enabled ? getProviderStatusKey(effectiveProvider) : "disabled";
   const statusStyle = PROVIDER_STATUS_STYLES[statusKey];
   const summary = enabled
-    ? getProviderSummary(effectiveProvider)
+    ? getProviderSummary(effectiveProvider, m)
     : { headline: gt("Disabled", { $context: "provider status" }), detail: null };
   const authEmail = liveProvider?.auth.email?.trim();
   const isAuthenticated = enabled && liveProvider?.auth.status === "authenticated";
@@ -789,6 +808,7 @@ export function ProviderInstanceCard({
     liveProvider?.versionAdvisory,
     liveProvider?.compatibilityAdvisory,
     enabled,
+    m,
   );
   const updateCommand = versionAdvisory?.updateCommand ?? null;
   const updateState = liveProvider?.updateState;
@@ -983,7 +1003,9 @@ export function ProviderInstanceCard({
     isAuthenticated && authEmail ? (
       <>
         {needsAttention ? statusDotNode : null}
-        <span>Authenticated as</span>
+        <span>
+          <T>Authenticated as</T>
+        </span>
         <ProviderAuthEmail email={authEmail} />
         {authLabel ? <span>· {authLabel}</span> : null}
         {inlineStatusDetail ? (
@@ -1178,7 +1200,7 @@ export function ProviderInstanceCard({
             <span className="flex items-center">
               {projectOverride.valueMixed ? (
                 <Badge size="sm" variant="secondary">
-                  Mixed
+                  {gt("Mixed", { $context: "values differ across targets" })}
                 </Badge>
               ) : (
                 <ProjectOverrideInheritance
@@ -1229,9 +1251,19 @@ export function ProviderInstanceCard({
             disabled={readOnly}
             icon={<TrashIcon />}
             label={gt("Delete instance {instanceId}", { instanceId })}
-            confirmLabel={`Confirm delete instance ${instanceId}`}
-            tooltip="Delete instance"
-            confirmTooltip={`Click again to delete ${displayName}. Its settings, variables, and custom models are removed${instance.driver === "acpRegistry" ? ", and its agent files are uninstalled unless another instance uses them" : ""}.`}
+            confirmLabel={gt("Confirm delete instance {instanceId}", { instanceId })}
+            tooltip={gt("Delete instance")}
+            confirmTooltip={
+              instance.driver === "acpRegistry"
+                ? gt(
+                    "Click again to delete {name}. Its settings, variables, and custom models are removed, and its agent files are uninstalled unless another instance uses them.",
+                    { name: displayName },
+                  )
+                : gt(
+                    "Click again to delete {name}. Its settings, variables, and custom models are removed.",
+                    { name: displayName },
+                  )
+            }
             onConfirm={onDelete}
           />
         ) : null}
@@ -1295,8 +1327,13 @@ export function ProviderInstanceCard({
       title={gt("Driver")}
       description={
         <span>
-          This instance uses <code className="text-foreground">{String(instance.driver)}</code>,
-          which is not available in this build. Its configuration is preserved.
+          <T>
+            This instance uses{" "}
+            <code className="text-foreground">
+              <Var>{String(instance.driver)}</Var>
+            </code>
+            , which is not available in this build. Its configuration is preserved.
+          </T>
         </span>
       }
     />

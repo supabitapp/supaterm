@@ -385,11 +385,17 @@ export function ProviderModelsSection({
             </Button>
           ) : null}
           <span className="text-xs text-muted-foreground">
-            {models.length} model{models.length === 1 ? "" : "s"}
+            {gt("{count, plural, one {{count} model} other {{count} models}}", {
+              count: models.length,
+            })}
             {favoriteCount > 0
-              ? ` · ${favoriteCount} favorite${favoriteCount === 1 ? "" : "s"}`
+              ? ` · ${gt("{count, plural, one {{count} favorite} other {{count} favorites}}", {
+                  count: favoriteCount,
+                })}`
               : ""}
-            {hiddenCount > 0 ? ` · ${hiddenCount} hidden` : ""}
+            {hiddenCount > 0
+              ? ` · ${gt("{count, plural, other {{count} hidden}}", { count: hiddenCount })}`
+              : ""}
           </span>
         </div>
         {driverKind !== "antigravity" && !isAdding ? (
@@ -672,9 +678,9 @@ const ProviderModelRow = memo(function ProviderModelRow({
               variant="ghost-muted"
               icon={<XIcon className="size-3" />}
               label={gt("Remove {name}", { name: model.slug })}
-              confirmLabel={`Confirm remove ${model.slug}`}
-              tooltip="Remove custom model"
-              confirmTooltip={`Click again to remove ${model.name}`}
+              confirmLabel={gt("Confirm remove {name}", { name: model.slug })}
+              tooltip={gt("Remove custom model")}
+              confirmTooltip={gt("Click again to remove {name}", { name: model.name })}
               onConfirm={() => onRemove(model.slug)}
             />
           </>

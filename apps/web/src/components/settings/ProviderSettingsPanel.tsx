@@ -123,7 +123,7 @@ import {
   resolveRemoteOperateAccess,
   resolveSelectedProviderEnvironmentId,
 } from "./ProviderSettingsPanel.logic";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, Var } from "gt-react";
 
 function modelListChanges(current: ReadonlyArray<string>, next: ReadonlyArray<string>) {
   const currentSet = new Set(current);
@@ -157,6 +157,7 @@ function configuredBinaryPath(config: unknown): string {
 // Subscribes on its own: a status push restamps `checkedAt` on every provider,
 // and this label is the only part of the panel that shows it.
 function ProviderLastChecked({ environmentId }: { environmentId: EnvironmentId }) {
+  const gt = useGT();
   const serverProviders =
     useAtomValue(serverEnvironment.providersValueAtom(environmentId)) ?? EMPTY_SERVER_PROVIDERS;
   const lastCheckedAt =
@@ -183,12 +184,15 @@ function ProviderLastChecked({ environmentId }: { environmentId: EnvironmentId }
   return (
     <span>
       {lastCheckedRelative.suffix ? (
-        <>
-          Checked <span className="font-mono tabular-nums">{lastCheckedRelative.value}</span>{" "}
-          {lastCheckedRelative.suffix}
-        </>
+        <T context="the time is an elapsed time such as 5m">
+          Checked{" "}
+          <span className="font-mono tabular-nums">
+            <Var>{lastCheckedRelative.value}</Var>
+          </span>{" "}
+          ago
+        </T>
       ) : (
-        <>Checked {lastCheckedRelative.value}</>
+        gt("Checked {time}", { time: lastCheckedRelative.value })
       )}
     </span>
   );
@@ -1005,7 +1009,10 @@ export function EnvironmentProviderSettings({
           <SettingsGroup divided={false} className="overflow-hidden">
             <SettingsRow
               title={gt("Limited permissions")}
-              description={`This session can view ${environmentLabel}'s providers but can't change their settings.`}
+              description={gt(
+                "This session can view {environment}''s providers but can't change their settings.",
+                { environment: environmentLabel },
+              )}
             />
           </SettingsGroup>
         ) : null}
@@ -1080,7 +1087,9 @@ export function EnvironmentProviderSettings({
                 className={!canWriteSettings ? "opacity-50" : undefined}
               >
                 <SettingResetButton
-                  label="provider health check interval"
+                  label={gt("provider health check interval", {
+                    $context: "setting name in a reset button label",
+                  })}
                   onClick={() =>
                     updateSettings(
                       backgroundActivityOverrideSettings(
@@ -1104,7 +1113,9 @@ export function EnvironmentProviderSettings({
               )}
             >
               <IntervalSecondsField
-                label="provider health check interval"
+                label={gt("provider health check interval", {
+                  $context: "setting name in a number field label",
+                })}
                 value={providerHealthRefreshIntervalSeconds}
                 min={0}
                 step={PROVIDER_HEALTH_INTERVAL_STEP_SECONDS}
@@ -1378,13 +1389,22 @@ function ProviderInstanceRow({
       headerAction={
         mode === "editor" && isDefault && isDirty ? (
           <SettingResetButton
-            label={`${resetLabel} provider settings`}
-            confirmTooltip={`Click again to reset ${resetLabel} to its defaults. Its variables and custom models are cleared${
+            label={gt("{provider} provider settings", {
+              provider: resetLabel,
+              $context: "setting name in a reset button label",
+            })}
+            confirmTooltip={
               resolveProviderInstanceEnabled(instance) &&
               !resolveProviderInstanceEnabled({ driver })
-                ? ", and it will be turned off"
-                : ""
-            }.`}
+                ? gt(
+                    "Click again to reset {provider} to its defaults. Its variables and custom models are cleared, and it will be turned off.",
+                    { provider: resetLabel },
+                  )
+                : gt(
+                    "Click again to reset {provider} to its defaults. Its variables and custom models are cleared.",
+                    { provider: resetLabel },
+                  )
+            }
             onClick={() => actions.resetDefaultInstance(driver)}
           />
         ) : null
