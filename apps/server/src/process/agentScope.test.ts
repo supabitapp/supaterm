@@ -11,6 +11,7 @@ import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Logger from "effect/Logger";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { vi } from "vite-plus/test";
 
@@ -151,6 +152,29 @@ const sliceOf = (launch: { readonly args: ReadonlyArray<string> }) =>
 
 const stopsOf = (calls: ReadonlyArray<ReadonlyArray<string>>) =>
   calls.filter(([, verb]) => verb === "stop");
+
+/** An active scope as systemd and the kernel report it, with the agent itself gone. */
+const exitedAgent = (
+  units: Map<string, { activeState: string; result: string }>,
+  cgroupRoot: string,
+  unit: string,
+  { populated, oomKills }: { readonly populated: boolean; readonly oomKills: number | undefined },
+) => {
+  const controlGroup = NodePath.join(cgroupRoot, unit);
+  NodeFS.mkdirSync(controlGroup, { recursive: true });
+  NodeFS.writeFileSync(
+    NodePath.join(controlGroup, "cgroup.events"),
+    `populated ${populated ? 1 : 0}\nfrozen 0\n`,
+  );
+  // An undefined count leaves memory.events unreadable.
+  if (oomKills !== undefined) {
+    NodeFS.writeFileSync(
+      NodePath.join(controlGroup, "memory.events"),
+      `low 0\nhigh 0\nmax 0\noom ${oomKills}\noom_kill ${oomKills}\noom_group_kill 0\n`,
+    );
+  }
+  units.set(unit, { activeState: "active", result: "success" });
+};
 
 const launchCodex = (
   scope: Effect.Success<typeof make>,
@@ -437,4 +461,80 @@ describe("AgentScope service", () => {
       liveOwner: true,
     }),
   );
+
+  it.effect("stops leftover processes only in an active agent scope", () =>
+    withFakeSystemd(({ scope, units, calls, cgroupRoot }) =>
+      Effect.gen(function* () {
+        const agent = yield* scope.wrap({ command: "agent", args: [], name: "t", threadId: "a" });
+        const unit = unitOf(agent);
+        expect(agent.unit).toBe(unit);
+
+        yield* scope.stop("session-2.scope");
+        expect(calls.some((args) => args.includes("session-2.scope"))).toBe(false);
+        yield* scope.stop(unit);
+        exitedAgent(units, cgroupRoot, unit, { populated: false, oomKills: 0 });
+        yield* scope.stop(unit);
+        exitedAgent(units, cgroupRoot, unit, { populated: true, oomKills: 0 });
+        units.get(unit)!.activeState = "deactivating";
+        yield* scope.stop(unit);
+        expect(stopsOf(calls)).toEqual([]);
+
+        units.get(unit)!.activeState = "active";
+        yield* scope.stop(unit);
+        expect(stopsOf(calls)).toEqual([["--user", "stop", "--no-block", unit]]);
+        expect(yield* scope.oomKilled("a")).toBe(false);
+      }),
+    ),
+  );
+
+  it.effect.each([true, false])(
+    "cleans up an OOM exit without losing its diagnosis (OOMPolicy=%s)",
+    (oomPolicy) =>
+      withFakeSystemd(
+        ({ scope, units, calls, cgroupRoot }) =>
+          Effect.gen(function* () {
+            const agent = yield* scope.wrap({
+              command: "agent",
+              args: [],
+              name: "t",
+              threadId: "a",
+            });
+            const unit = unitOf(agent);
+            exitedAgent(units, cgroupRoot, unit, { populated: true, oomKills: undefined });
+            yield* scope.stop(unit);
+            expect(stopsOf(calls)).toEqual(
+              oomPolicy ? [] : [["--user", "stop", "--no-block", unit]],
+            );
+
+            // The kernel records the kill before systemd records the OOM result.
+            exitedAgent(units, cgroupRoot, unit, { populated: true, oomKills: 1 });
+            yield* scope.stop(unit);
+            expect(stopsOf(calls)).toHaveLength(oomPolicy ? 0 : 2);
+
+            if (oomPolicy) {
+              units.set(unit, { activeState: "failed", result: "oom-kill" });
+              expect(yield* scope.oomKilled("a")).toBe(true);
+              units.delete(unit);
+              expect(yield* scope.oomKilled("a")).toBe(true);
+            }
+          }),
+        { oomPolicy },
+      ),
+  );
+
+  it.effect("reports failed daemon cleanup without failing session teardown", () => {
+    const warnings: Array<unknown> = [];
+    const logger = Logger.make(({ message }) => {
+      warnings.push(message);
+    });
+    return withFakeSystemd(({ scope, units, failingVerbs, cgroupRoot }) =>
+      Effect.gen(function* () {
+        const agent = yield* scope.wrap({ command: "agent", args: [], name: "t", threadId: "a" });
+        exitedAgent(units, cgroupRoot, unitOf(agent), { populated: true, oomKills: 0 });
+        failingVerbs.add("stop");
+        yield* scope.stop(unitOf(agent));
+        expect(warnings.flat()).toContain("Could not stop an exited agent's scope");
+      }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false }))),
+    );
+  });
 });
