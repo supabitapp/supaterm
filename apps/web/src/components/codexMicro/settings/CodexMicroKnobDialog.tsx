@@ -1,5 +1,6 @@
 import type { CodexMicroEncoderInput, CodexMicroLayout } from "@supaterm/contracts";
 import { HandIcon, MousePointerClickIcon, RotateCcwIcon, RotateCwIcon } from "@supaterm/icons";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 
 import { CodexMicroInputDialog, type CodexMicroInputRow } from "./CodexMicroInputDialog";
 import {
@@ -9,10 +10,30 @@ import {
 } from "./CodexMicroSettings.logic";
 
 const INPUTS = [
-  { value: "left", label: "Turn left", icon: RotateCcwIcon },
-  { value: "right", label: "Turn right", icon: RotateCwIcon },
-  { value: "click", label: "Click", icon: MousePointerClickIcon },
-  { value: "longPress", label: "Press and hold", icon: HandIcon },
+  {
+    value: "left",
+    label: msg("Turn left"),
+    assignLabel: msg("Assign turn left"),
+    icon: RotateCcwIcon,
+  },
+  {
+    value: "right",
+    label: msg("Turn right"),
+    assignLabel: msg("Assign turn right"),
+    icon: RotateCwIcon,
+  },
+  {
+    value: "click",
+    label: msg("Click", { $context: "knob input" }),
+    assignLabel: msg("Assign click"),
+    icon: MousePointerClickIcon,
+  },
+  {
+    value: "longPress",
+    label: msg("Press and hold"),
+    assignLabel: msg("Assign press and hold"),
+    icon: HandIcon,
+  },
 ] as const satisfies ReadonlyArray<CodexMicroInputRow<CodexMicroEncoderInput>>;
 
 export function CodexMicroKnobDialog({
@@ -24,16 +45,18 @@ export function CodexMicroKnobDialog({
   onChange: (layout: CodexMicroLayout) => void;
   onClose: () => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const custom = layout.encoderMode === "custom";
   const mode = codexMicroEncoderModeOption(layout.encoderMode);
 
   return (
     <CodexMicroInputDialog
-      title="Knob"
-      description="Choose an action for each turn, click, and long press"
-      label="Knob inputs"
+      title={gt("Knob")}
+      description={gt("Choose an action for each turn, click, and long press")}
+      label={gt("Knob inputs")}
       rows={INPUTS}
-      getAssignmentLabel={(input) => codexMicroEncoderInputLabel(layout, input)}
+      getAssignmentLabel={(input) => codexMicroEncoderInputLabel(layout, input, m)}
       getAction={(input) => (custom ? layout.encoder[input] : undefined)}
       onAssign={(input, action) =>
         onChange(codexMicroLayoutWithEncoderAction(layout, input, action))
@@ -42,7 +65,10 @@ export function CodexMicroKnobDialog({
     >
       {custom ? null : (
         <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-          {mode.label}: {mode.description} Assigning an action switches the knob to Custom.
+          <T>
+            <Var>{m(mode.label)}</Var>: <Var>{m(mode.description)}</Var> Assigning an action
+            switches the knob to Custom.
+          </T>
         </p>
       )}
     </CodexMicroInputDialog>

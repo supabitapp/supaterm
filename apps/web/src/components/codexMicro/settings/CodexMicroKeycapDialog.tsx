@@ -5,7 +5,10 @@ import type {
   CodexMicroKeySlot,
   CodexMicroLayout,
 } from "@supaterm/contracts";
+import { msg, T, useGT, useMessages, Var } from "gt-react";
 import { useState } from "react";
+
+import type { MessageResolver } from "~/i18n/messages";
 
 import { cn } from "~/lib/utils";
 import {
@@ -43,10 +46,10 @@ import {
 import { codexMicroSlotName, filterCodexMicroKeycaps } from "./CodexMicroSettings.logic";
 
 const DEFAULT_CHOICE = "default";
-const DEFAULT_CHOICE_LABEL = "Use keycap default";
+const DEFAULT_CHOICE_LABEL = msg("Use keycap default");
 const UNASSIGNED_CHOICE = "unassigned";
 const TEXT_CHOICE = "text";
-const TEXT_CHOICE_LABEL = "Insert text…";
+const TEXT_CHOICE_LABEL = msg("Insert text…");
 const MAX_TEXT_LENGTH = 500;
 
 function initialChoice(action: CodexMicroAction | null | undefined): string {
@@ -73,10 +76,14 @@ function chosenSlot(
   return action === null ? null : { keycapId, action };
 }
 
-function choiceLabel(choice: string, action: CodexMicroAction | undefined | null): string {
-  if (choice === DEFAULT_CHOICE) return DEFAULT_CHOICE_LABEL;
-  if (choice === TEXT_CHOICE) return TEXT_CHOICE_LABEL;
-  return codexMicroActionLabel(action ?? null);
+function choiceLabel(
+  choice: string,
+  action: CodexMicroAction | undefined | null,
+  resolve: MessageResolver,
+): string {
+  if (choice === DEFAULT_CHOICE) return resolve(DEFAULT_CHOICE_LABEL);
+  if (choice === TEXT_CHOICE) return resolve(TEXT_CHOICE_LABEL);
+  return codexMicroActionLabel(action ?? null, resolve);
 }
 
 function KeycapTile({
@@ -123,6 +130,8 @@ export function CodexMicroKeycapDialog({
   onSave: (layout: CodexMicroLayout) => void;
   onClose: () => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const current = layout.slots[slot];
   const currentChoice = initialChoice(current.action);
   const [keycapId, setKeycapId] = useState(current.keycapId);
@@ -131,7 +140,7 @@ export function CodexMicroKeycapDialog({
     current.action?.type === "composer-text" ? current.action.text : "",
   );
   const [query, setQuery] = useState("");
-  const keycaps = filterCodexMicroKeycaps(codexMicroKeycapsForSlot(slot), query);
+  const keycaps = filterCodexMicroKeycaps(codexMicroKeycapsForSlot(slot), query, m);
   const keycap = codexMicroKeycap(keycapId);
   const holder = codexMicroKeycapHolder(layout, slot, keycapId);
   // An action the picker doesn't list stays selectable, so saving the keycap alone keeps it.
@@ -158,21 +167,27 @@ export function CodexMicroKeycapDialog({
     >
       <DialogPopup className="w-full sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Edit keycap</DialogTitle>
-          <DialogDescription>Choose what appears on {codexMicroSlotName(slot)}</DialogDescription>
+          <DialogTitle>
+            <T>Edit keycap</T>
+          </DialogTitle>
+          <DialogDescription>
+            <T>
+              Choose what appears on <Var>{codexMicroSlotName(slot)}</Var>
+            </T>
+          </DialogDescription>
         </DialogHeader>
         <DialogPanel className="flex min-h-0 flex-col">
           <Input
             type="search"
             value={query}
-            aria-label="Search keycaps"
-            placeholder="Search keycaps"
+            aria-label={gt("Search keycaps")}
+            placeholder={gt("Search keycaps")}
             onChange={(event) => setQuery(event.currentTarget.value)}
           />
           <ScrollArea scrollFade className="max-h-80">
             <div
               role="group"
-              aria-label="Keycaps"
+              aria-label={gt("Keycaps")}
               className="grid grid-cols-4 gap-2 p-0.5 sm:grid-cols-6"
             >
               {keycaps.map((entry) => (
@@ -185,22 +200,31 @@ export function CodexMicroKeycapDialog({
               ))}
             </div>
             {keycaps.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No keycaps found.</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                <T>No keycaps found.</T>
+              </p>
             ) : null}
           </ScrollArea>
           {holder ? (
             <p className="text-xs text-muted-foreground">
-              {keycap.label} is on {codexMicroSlotName(holder)}. Saving swaps the two keycaps.
+              <T>
+                <Var>{keycap.label}</Var> is on <Var>{codexMicroSlotName(holder)}</Var>. Saving
+                swaps the two keycaps.
+              </T>
             </p>
           ) : null}
           <div className="space-y-3 rounded-xl border border-border/60 p-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0 space-y-0.5">
-                <h3 className="text-sm font-medium">Assigned action</h3>
+                <h3 className="text-sm font-medium">
+                  <T>Assigned action</T>
+                </h3>
                 <p className="text-xs text-muted-foreground">
                   {keycap.defaultAction
-                    ? `Keycap default: ${codexMicroActionLabel(keycap.defaultAction)}`
-                    : "No default action"}
+                    ? gt("Keycap default: {action}", {
+                        action: codexMicroActionLabel(keycap.defaultAction, m),
+                      })
+                    : gt("No default action")}
                 </p>
               </div>
               <Select
@@ -209,37 +233,41 @@ export function CodexMicroKeycapDialog({
                   if (typeof value === "string") setChoice(value);
                 }}
               >
-                <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Assigned action">
-                  <SelectValue>{choiceLabel(choice, selection?.action)}</SelectValue>
+                <SelectTrigger
+                  size="sm"
+                  className="w-full sm:w-56"
+                  aria-label={gt("Assigned action")}
+                >
+                  <SelectValue>{choiceLabel(choice, selection?.action, m)}</SelectValue>
                 </SelectTrigger>
                 <SelectPopup align="end" alignItemWithTrigger={false}>
                   <SelectItem hideIndicator value={DEFAULT_CHOICE}>
-                    {DEFAULT_CHOICE_LABEL}
+                    {m(DEFAULT_CHOICE_LABEL)}
                   </SelectItem>
                   <SelectItem hideIndicator value={UNASSIGNED_CHOICE}>
-                    Unassigned
+                    <T>Unassigned</T>
                   </SelectItem>
                   {preservedAction ? (
                     <SelectItem hideIndicator value={currentChoice}>
-                      {codexMicroActionLabel(preservedAction)}
+                      {codexMicroActionLabel(preservedAction, m)}
                     </SelectItem>
                   ) : null}
                   {CODEX_MICRO_COMMAND_GROUPS.map((group) => (
                     <SelectGroup key={group.label}>
-                      <SelectGroupLabel>{group.label}</SelectGroupLabel>
+                      <SelectGroupLabel>{m(group.label)}</SelectGroupLabel>
                       {group.options.map((option) => (
                         <SelectItem
                           hideIndicator
                           key={codexMicroActionValue(option.action)}
                           value={codexMicroActionValue(option.action)}
                         >
-                          {option.label}
+                          {m(option.label)}
                         </SelectItem>
                       ))}
                     </SelectGroup>
                   ))}
                   <SelectItem hideIndicator value={TEXT_CHOICE}>
-                    {TEXT_CHOICE_LABEL}
+                    {m(TEXT_CHOICE_LABEL)}
                   </SelectItem>
                 </SelectPopup>
               </Select>
@@ -249,13 +277,13 @@ export function CodexMicroKeycapDialog({
                 <Input
                   value={text}
                   maxLength={MAX_TEXT_LENGTH}
-                  aria-label="Text to insert"
+                  aria-label={gt("Text to insert")}
                   aria-describedby="codex-micro-insert-text-hint"
-                  placeholder="Text to insert"
+                  placeholder={gt("Text to insert")}
                   onChange={(event) => setText(event.currentTarget.value)}
                 />
                 <p id="codex-micro-insert-text-hint" className="text-xs text-muted-foreground">
-                  Adds custom text to the active prompt without sending it
+                  <T>Adds custom text to the active prompt without sending it</T>
                 </p>
               </div>
             ) : null}
@@ -263,10 +291,10 @@ export function CodexMicroKeycapDialog({
         </DialogPanel>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            <T>Cancel</T>
           </Button>
           <Button disabled={selection === null} onClick={save}>
-            Save
+            <T>Save</T>
           </Button>
         </DialogFooter>
       </DialogPopup>
