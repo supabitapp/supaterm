@@ -31,6 +31,7 @@ import { AppText as Text } from "./ui/AppText";
 import { Sheet } from "./ui/Sheet";
 import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { getMobileTerminalTheme } from "../features/terminal/terminalTheme";
+import { changeRequestTermKind } from "../features/pull-requests/pullRequestActions";
 import { T, useGT, Var } from "gt-react-native";
 
 function ContextField(props: { label: string; value: string | null | undefined; code?: boolean }) {
@@ -187,10 +188,12 @@ export function ComposerContextSheet(props: {
     record?.kind === "review-comment" && "pullRequest" in record
       ? record.pullRequest?.url
       : undefined;
-  const changeRequestTerm = (
-    (pullRequestUrl ? sourceControlClients.findByChangeRequestUrl(pullRequestUrl) : undefined) ??
-    sourceControlClients.get(undefined)
-  ).changeRequest.singular;
+  const term = changeRequestTermKind(
+    (
+      (pullRequestUrl ? sourceControlClients.findByChangeRequestUrl(pullRequestUrl) : undefined) ??
+      sourceControlClients.get(undefined)
+    ).changeRequest,
+  );
   const terminal = record?.kind === "terminal" && !("payload" in record) ? record : null;
   return (
     <Sheet title={terminal?.terminalLabel ?? props.label} onClose={props.onClose}>
@@ -431,7 +434,10 @@ export function ComposerContextSheet(props: {
               props.onClose();
               void openPullRequest(pullRequestUrl).catch(() =>
                 Dialog.alert(
-                  gt("Could not open {term}", { term: changeRequestTerm }),
+                  gt(
+                    "Could not open {term, select, mr {merge request} cr {change request} other {pull request}}",
+                    { term },
+                  ),
                   gt("Try again when connected."),
                 ),
               );
@@ -439,9 +445,10 @@ export function ComposerContextSheet(props: {
             className="rounded-xl bg-subtle p-4"
           >
             <Text className="text-foreground">
-              <T>
-                Open <Var>{changeRequestTerm}</Var>
-              </T>
+              {gt(
+                "Open {term, select, mr {merge request} cr {change request} other {pull request}}",
+                { term },
+              )}
             </Text>
           </Pressable>
         ) : null}
@@ -455,7 +462,10 @@ export function ComposerContextSheet(props: {
         ) : null}
         {props.onOpenPullRequest && !pullRequestUrl ? (
           <Button
-            label={gt("Open {term}", { term: changeRequestTerm })}
+            label={gt(
+              "Open {term, select, mr {merge request} cr {change request} other {pull request}}",
+              { term },
+            )}
             tone="secondary"
             onPress={props.onOpenPullRequest}
             fullWidth
