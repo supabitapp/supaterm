@@ -102,6 +102,7 @@ function PendingSecretRequestForm(props: {
   readonly item: SecretRequestItem;
   readonly iconColor: ColorValue;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { item } = props;
   const answer = useAtomCommand(serverEnvironment.answerSecretRequest, {
@@ -150,7 +151,11 @@ function PendingSecretRequestForm(props: {
     }
     if (reply.type === "save") setValues(reply.values);
     if (!isAtomCommandInterrupted(result)) {
-      pipe(squashAtomCommandFailure(result), secretRequestFailureMessage, setError);
+      pipe(
+        squashAtomCommandFailure(result),
+        (failure) => secretRequestFailureMessage(failure, messages),
+        setError,
+      );
     }
   };
   const save = (typed: Readonly<Record<string, string>>) => {

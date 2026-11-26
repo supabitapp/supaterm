@@ -25,7 +25,7 @@ import {
 import { vcsEnvironment } from "../../../state/vcs";
 import { useReturnToThread } from "../thread-inspector-navigation";
 import { SheetActionButton } from "./gitSheetComponents";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 type GitConfirmSheetProps = StaticScreenProps<
   {
@@ -43,6 +43,7 @@ const CONFIRMABLE_ACTIONS: ReadonlyArray<DefaultBranchConfirmableAction> = [
 ];
 
 export function GitConfirmSheet(props: GitConfirmSheetProps) {
+  const messages = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const returnToThread = useReturnToThread();
@@ -80,14 +81,17 @@ export function GitConfirmSheet(props: GitConfirmSheetProps) {
   const copy = useMemo(
     () =>
       confirmAction && branchName
-        ? resolveDefaultBranchActionDialogCopy({
-            action: confirmAction,
-            branchName,
-            includesCommit,
-            terminology,
-          })
+        ? resolveDefaultBranchActionDialogCopy(
+            {
+              action: confirmAction,
+              branchName,
+              includesCommit,
+              terminology,
+            },
+            messages,
+          )
         : null,
-    [branchName, confirmAction, includesCommit, terminology],
+    [branchName, confirmAction, includesCommit, terminology, messages],
   );
 
   const continuePendingAction = async () => {

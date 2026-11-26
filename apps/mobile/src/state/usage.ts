@@ -17,6 +17,7 @@ import { environmentPresentations } from "./presentation";
 import { serverEnvironment } from "./server";
 import { environmentSession, readEnvironmentScope } from "./session";
 import { msg } from "gt-react-native";
+import { m } from "../i18n/messages";
 
 export interface EnvironmentUsageStatus {
   readonly environmentId: EnvironmentId;
@@ -36,11 +37,14 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
     const statuses: EnvironmentUsageStatus[] = [];
     for (const [environmentId, presentation] of presentations) {
       const sessionResult = get(environmentSession.sessionStateAtom(environmentId));
-      const access = resolveUsageAccess({
-        connectionPhase: presentation.connection.phase,
-        session: AsyncResult.getOrElse(sessionResult, () => null),
-        hasSessionError: sessionResult._tag === "Failure",
-      });
+      const access = resolveUsageAccess(
+        {
+          connectionPhase: presentation.connection.phase,
+          session: AsyncResult.getOrElse(sessionResult, () => null),
+          hasSessionError: sessionResult._tag === "Failure",
+        },
+        m,
+      );
       if (!access.canReadDiagnostics) {
         statuses.push({
           environmentId,

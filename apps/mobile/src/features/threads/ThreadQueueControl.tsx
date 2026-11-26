@@ -74,9 +74,12 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const threadKey = scopedThreadKey(target.environmentId, target.threadId);
   const editing = useQueuedRunEdit(threadKey);
   const pendingRequests = useAtomValue(environmentThreadDetails.pendingRequestsAtom(target));
-  const editBlockedReason = queuedRunEditBlockedReason({
-    openQuestionCount: pendingRequests?.userInputs.length ?? 0,
-  });
+  const editBlockedReason = queuedRunEditBlockedReason(
+    {
+      openQuestionCount: pendingRequests?.userInputs.length ?? 0,
+    },
+    m,
+  );
   const promote = useAtomCommand(threadEnvironment.promoteQueuedRun, "promote queued message");
   const cancel = useAtomCommand(threadEnvironment.cancelQueuedRun, "remove queued message");
   const resume = useAtomCommand(threadEnvironment.resumeThreadQueue, "resume queue");
@@ -357,6 +360,7 @@ function QueueRowSwipeable(props: {
   readonly onRemove: () => void;
   readonly children: React.ReactNode;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const swipeableRef = useRef<SwipeableMethods | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -386,7 +390,7 @@ function QueueRowSwipeable(props: {
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL}
+            accessibilityLabel={m(REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL)}
             disabled={!props.enabled}
             onPress={() => {
               swipeableRef.current?.close();

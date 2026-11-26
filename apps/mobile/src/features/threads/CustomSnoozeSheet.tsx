@@ -33,7 +33,7 @@ import { StandaloneStack } from "../layout/nested-stacks";
 import { ScrollView, useWindowDimensions, View } from "react-native";
 
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const durationAmounts = Array.from({ length: 99 }, (_, index) => index + 1);
 const modes = [
@@ -50,6 +50,7 @@ export function CustomSnoozeSheet(props: {
   readonly onClose: () => void;
   readonly onSnooze: (snoozedUntil: string) => void;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const { width, height } = useWindowDimensions();
   const [mode, setMode] = useState<CustomSnoozeInput["mode"]>("date");
@@ -127,7 +128,7 @@ export function CustomSnoozeSheet(props: {
                 >
                   {modes.map((option) => (
                     <Text key={option.value} modifiers={[tag(option.value)]}>
-                      {option.label}
+                      {m(option.label)}
                     </Text>
                   ))}
                 </Picker>
@@ -190,7 +191,7 @@ export function CustomSnoozeSheet(props: {
                             foregroundStyle(colors["--color-foreground"]),
                           ]}
                         >
-                          {option.label}
+                          {m(option.label)}
                         </Text>
                       ))}
                     </Picker>

@@ -501,13 +501,16 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const onOpenRelatedThreadStable = useStableCallback(onOpenRelatedThread);
   const childThreadInputs = useChildThreadInputs(activeThreadRef);
 
-  const childInputNow = childInputNowItem({
-    childThreadInputs,
-    parentAwaitingUser: Boolean(
-      activePendingApproval || activePendingUserInput || activeThreadShell?.hasPendingUserInput,
-    ),
-    onOpenThread: onOpenRelatedThreadStable,
-  });
+  const childInputNow = childInputNowItem(
+    {
+      childThreadInputs,
+      parentAwaitingUser: Boolean(
+        activePendingApproval || activePendingUserInput || activeThreadShell?.hasPendingUserInput,
+      ),
+      onOpenThread: onOpenRelatedThreadStable,
+    },
+    messages,
+  );
   const sendStandaloneCommand = async (text: string, failureMessage: string) => {
     if (!activeThread || !clientSettingsHydrated || sendInFlightRef.current) return;
     const context = composerRef.current?.getSendContext();
@@ -549,12 +552,15 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
 
   const goalNow =
     activeThread && activeGoal !== null
-      ? goalNowItem({
-          threadId: activeThread.id,
-          goal: activeGoal,
-          isWorking,
-          onSendCommand: sendStandaloneCommandStable,
-        })
+      ? goalNowItem(
+          {
+            threadId: activeThread.id,
+            goal: activeGoal,
+            isWorking,
+            onSendCommand: sendStandaloneCommandStable,
+          },
+          messages,
+        )
       : null;
   const forceStop = useForceStopThread(environmentId);
   const anyRunStop = useAtomValue(

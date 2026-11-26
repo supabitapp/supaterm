@@ -39,9 +39,13 @@ export function ComposerCodeBlockLanguagePicker(props: {
   const gt = useGT();
   const [query, setQuery] = useState("");
   const current = codeLanguageEntry(props.language)?.id ?? props.language;
-  const items: CodeBlockLanguage[] = CODE_BLOCK_LANGUAGES.some((entry) => entry.id === current)
-    ? [...CODE_BLOCK_LANGUAGES]
-    : [{ id: current, label: current }, ...CODE_BLOCK_LANGUAGES];
+  const languages: CodeBlockLanguage[] = CODE_BLOCK_LANGUAGES.map((entry) => ({
+    ...entry,
+    label: messages(entry.label),
+  }));
+  const items: CodeBlockLanguage[] = languages.some((entry) => entry.id === current)
+    ? languages
+    : [{ id: current, label: current }, ...languages];
   const needle = query.trim().toLowerCase();
   const filteredItems = needle
     ? items.filter(

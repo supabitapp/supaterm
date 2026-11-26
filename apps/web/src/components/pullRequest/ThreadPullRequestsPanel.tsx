@@ -112,6 +112,7 @@ function LinkRowImpl({
   onIntent: (link: ThreadPullRequestLink | null) => void;
   canStartWatch: boolean;
 }) {
+  const resolve = useMessages();
   const gt = useGT();
   const openPrLink = useOpenPrLink(threadRef);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -205,7 +206,7 @@ function LinkRowImpl({
                 #{link.number}
               </TooltipTrigger>
               <TooltipPopup>
-                {SOURCE_LABELS[link.source]} · <RelativeTime timestamp={link.linkedAt} />
+                {resolve(SOURCE_LABELS[link.source])} · <RelativeTime timestamp={link.linkedAt} />
               </TooltipPopup>
             </Tooltip>
           }

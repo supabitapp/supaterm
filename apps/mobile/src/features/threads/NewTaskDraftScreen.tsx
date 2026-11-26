@@ -162,6 +162,7 @@ export function NewTaskDraftScreen(props: {
   readonly draftId?: string;
   readonly incomingShareId?: string;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const messages = useMessages();
   const [creationMetadata] = useState(makeTurnCommandMetadata);
@@ -254,13 +255,16 @@ export function NewTaskDraftScreen(props: {
   };
   const uploadStates = useAtomValue(composerAttachmentUploadsAtom);
   const attachmentBlockReason = selectedProject
-    ? composerAttachmentUploadBlockReason({
-        environmentId: selectedProject.environmentId,
-        attachments: flow.attachments,
-        connected: environmentConnected,
-        serverConfig: selectedEnvironmentServerConfig,
-        states: uploadStates,
-      })
+    ? composerAttachmentUploadBlockReason(
+        {
+          environmentId: selectedProject.environmentId,
+          attachments: flow.attachments,
+          connected: environmentConnected,
+          serverConfig: selectedEnvironmentServerConfig,
+          states: uploadStates,
+        },
+        m,
+      )
     : null;
   const attachmentsUploading =
     environmentConnected &&

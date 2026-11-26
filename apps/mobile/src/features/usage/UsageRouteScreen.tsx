@@ -81,6 +81,10 @@ function UsageScreen(props: {
   const gt = useGT();
   const m = useMessages();
   const viewOptions = VIEW_OPTIONS.map((option) => ({ ...option, label: m(option.label) }));
+  const windowOptions = WINDOW_OPTIONS.map((option) => ({
+    ...option,
+    accessibilityLabel: m(option.accessibilityLabel),
+  }));
   const insets = useSafeAreaInsets();
   const headerOnly = use(NativeWorkspaceTabActivityContext)?.headerOnly === true;
   const [selection, setSelection] = useState(() => ({
@@ -251,7 +255,7 @@ function UsageScreen(props: {
                   <View className="flex-1" />
                 ) : (
                   <SegmentedControl
-                    options={WINDOW_OPTIONS}
+                    options={windowOptions}
                     selected={windowDays}
                     onSelect={selectWindow}
                     size="compact"
@@ -291,7 +295,7 @@ function UsageScreen(props: {
                 <>
                   {wide ? null : (
                     <SegmentedControl
-                      options={WINDOW_OPTIONS}
+                      options={windowOptions}
                       selected={windowDays}
                       onSelect={selectWindow}
                       size="compact"
@@ -324,7 +328,7 @@ function UsageScreen(props: {
                           className="text-center text-base text-foreground-muted"
                         >
                           {selectedEnvironments.length > 1 ? `${environment.label}: ` : null}
-                          {environment.error}
+                          {m(environment.error)}
                         </Text>
                       ))}
                     </View>
@@ -788,8 +792,8 @@ function usageEnvironmentStatus(
   }
   if (environment.error)
     return environment.summary
-      ? resolve(msg("{error} Showing saved totals.", { error: environment.error }))
-      : environment.error;
+      ? resolve(msg("{error} Showing saved totals.", { error: resolve(environment.error) }))
+      : resolve(environment.error);
   if (!environment.isConnected)
     return environment.summary
       ? resolve(msg("Disconnected · showing saved usage"))

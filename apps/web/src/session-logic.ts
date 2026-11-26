@@ -57,7 +57,6 @@ import { msg } from "gt-react";
 
 import { m, type MessageResolver } from "./i18n/messages";
 
-export { formatDuration } from "@supaterm/shared/orchestrationTiming";
 export {
   workEntryDisplayIndicatesToolFailure,
   workEntryIndicatesToolFailure,
@@ -293,13 +292,14 @@ function projectedWorkEntryTone(item: OrchestrationV2TurnItem): WorkLogEntry["to
 
 export function providerErrorPresentation(
   item: Extract<OrchestrationV2TurnItem, { readonly type: "error" }>,
+  resolve: MessageResolver = m,
 ): { readonly label: string; readonly detail: string } {
   if (item.retry === undefined) {
     return {
       label:
         item.failure.class === "usage_limit"
-          ? msg("Usage limit reached")
-          : item.title?.trim() || msg("Provider error"),
+          ? resolve(msg("Usage limit reached"))
+          : item.title?.trim() || resolve(msg("Provider error")),
       detail: item.failure.message,
     };
   }
@@ -307,19 +307,41 @@ export function providerErrorPresentation(
     item.retry.maxAttempts === null
       ? `${item.retry.attempt}`
       : `${item.retry.attempt}/${item.retry.maxAttempts}`;
+  const counts = { progress, attempt: item.retry.attempt };
   const label =
     item.status === "running"
-      ? `Retrying provider (${progress})`
+      ? resolve(msg("Retrying provider ({progress})", { progress }))
       : item.status === "completed"
-        ? `Provider recovered (${progress} retries)`
+        ? resolve(
+            msg(
+              "{attempt, plural, one {Provider recovered ({progress} retries)} other {Provider recovered ({progress} retries)}}",
+            ),
+            counts,
+          )
         : item.status === "failed"
-          ? `${item.failure.class === "usage_limit" ? "Usage limit reached" : "Provider error"} after ${progress} retries`
-          : `Provider retry stopped (${progress})`;
+          ? item.failure.class === "usage_limit"
+            ? resolve(
+                msg(
+                  "{attempt, plural, one {Usage limit reached after {progress} retries} other {Usage limit reached after {progress} retries}}",
+                ),
+                counts,
+              )
+            : resolve(
+                msg(
+                  "{attempt, plural, one {Provider error after {progress} retries} other {Provider error after {progress} retries}}",
+                ),
+                counts,
+              )
+          : resolve(msg("Provider retry stopped ({progress})", { progress }));
   const retryDelay =
     item.status === "running" && item.retry.retryDelayMs !== null && item.retry.retryDelayMs > 0
       ? item.retry.retryDelayMs < 1_000
-        ? ` Retrying in ${item.retry.retryDelayMs}ms.`
-        : ` Retrying in ${(item.retry.retryDelayMs / 1_000).toFixed(1).replace(/\.0$/u, "")}s.`
+        ? ` ${resolve(msg("Retrying in {delay}ms.", { delay: item.retry.retryDelayMs }))}`
+        : ` ${resolve(
+            msg("Retrying in {delay}s.", {
+              delay: (item.retry.retryDelayMs / 1_000).toFixed(1).replace(/\.0$/u, ""),
+            }),
+          )}`
       : "";
   return {
     label,
@@ -414,7 +436,7 @@ function projectedWorkEntry(
         ...(item.level === "info" ? {} : { sourceActivityKind: "runtime.warning" }),
       };
     case "error": {
-      const presentation = providerErrorPresentation(item);
+      const presentation = providerErrorPresentation(item, resolve);
       return {
         ...common,
         ...presentation,

@@ -297,7 +297,7 @@ export default function DiffPanel({
   const routeThreadRef = threadRef ?? urlThreadRef;
   const activeThreadId = routeThreadRef?.threadId ?? null;
   const activeThread = useQuietThreadShell(routeThreadRef);
-  const fileAccess = useFilesystemReadAccess(activeThread?.environmentId ?? null);
+  const fileAccess = useFilesystemReadAccess(activeThread?.environmentId ?? null, messages);
   const { canReadFiles } = fileAccess;
   const activeProjectId = activeThread?.projectId ?? null;
   const activeProject = useProject(
@@ -501,7 +501,7 @@ export default function DiffPanel({
           canRefreshGitDiff ? workspaceMutationId : undefined,
         )
       : null;
-  const branchDiffPreview = useEnvironmentQuery(branchDiffPreviewAtom);
+  const branchDiffPreview = useEnvironmentQuery(branchDiffPreviewAtom, messages);
   const branchDiffPreviewIsPending = useEnvironmentQueryRefresh(branchDiffPreviewAtom).isPending;
   const branchCommitsQuery = useEnvironmentQuery(
     visible && isGitRepo && canReadFiles && activeThread && gitCwd
@@ -513,6 +513,7 @@ export default function DiffPanel({
           },
         })
       : null,
+    messages,
   );
   const branchCommits = openCommitMenu ?? branchCommitsQuery.data;
   const activeThreadRefreshKey = routeThreadRef

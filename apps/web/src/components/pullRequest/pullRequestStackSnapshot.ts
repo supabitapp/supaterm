@@ -1,5 +1,7 @@
 import type { PullRequestRef, PullRequestStack, ThreadPullRequestLink } from "@supaterm/contracts";
 import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
+import { type MessageResolver } from "~/i18n/messages";
 
 /** Saved membership supports navigation, never action head SHAs. */
 export function savedPullRequestStack(
@@ -56,6 +58,7 @@ export function pullRequestStackView(
     error: string | null;
   },
   saved: PullRequestStack | null,
+  resolve: MessageResolver = m,
 ) {
   const data = query.isSuccess ? query.data : (query.data ?? saved);
   return {
@@ -66,9 +69,9 @@ export function pullRequestStackView(
       data === null
         ? null
         : query.error
-          ? msg("Stack data may be stale. We couldn’t refresh it.")
+          ? resolve(msg("Stack data may be stale. We couldn’t refresh it."))
           : !query.isSuccess || query.isPending
-            ? msg("Refreshing stack… Showing saved data.")
+            ? resolve(msg("Refreshing stack… Showing saved data."))
             : null,
   };
 }

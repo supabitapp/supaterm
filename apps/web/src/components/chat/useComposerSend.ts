@@ -516,14 +516,17 @@ export function useComposerSend(input: ComposerSendInput) {
               attachmentId: attachment.id,
             })),
           }),
-          titleSeed: deriveThreadTitleSeed({
-            text: trimmedPrompt,
-            attachments: snapshot.attachments.map((attachment) => ({
-              type: attachment.type,
-              name: attachment.name,
-            })),
-            fallbackLabels: sendTitleFallbackLabels(snapshot),
-          }),
+          titleSeed: deriveThreadTitleSeed(
+            {
+              text: trimmedPrompt,
+              attachments: snapshot.attachments.map((attachment) => ({
+                type: attachment.type,
+                name: attachment.name,
+              })),
+              fallbackLabels: sendTitleFallbackLabels(snapshot),
+            },
+            resolveMessage,
+          ),
           attachments: snapshot.attachments,
         };
       }
@@ -696,35 +699,38 @@ export function useComposerSend(input: ComposerSendInput) {
         return;
       }
       feedbackUploadsInFlightRef.current.add(routeThreadKey);
-      await submitCodexFeedback({
-        submission: {
-          id: newMessageId(),
-          command: trimmed,
-          createdAt: new Date().toISOString(),
+      await submitCodexFeedback(
+        {
+          submission: {
+            id: newMessageId(),
+            command: trimmed,
+            createdAt: new Date().toISOString(),
+          },
+          clearDraft: () => {
+            promptRef.current = "";
+            clearComposerDraftContent(composerDraftTarget);
+            composerRef.current?.resetCursorState();
+          },
+          onUpdate: (submission) => {
+            setFeedbackSubmissionsByThreadKey((current) => {
+              const existing = current[routeThreadKey] ?? [];
+              const found = existing.some((entry) => entry.id === submission.id);
+              return {
+                ...current,
+                [routeThreadKey]: found
+                  ? existing.map((entry) => (entry.id === submission.id ? submission : entry))
+                  : [...existing, submission],
+              };
+            });
+          },
+          upload: () =>
+            uploadThreadFeedback({
+              environmentId: activeThread.environmentId,
+              input: { threadId: activeThread.id, ...feedbackCommand },
+            }),
         },
-        clearDraft: () => {
-          promptRef.current = "";
-          clearComposerDraftContent(composerDraftTarget);
-          composerRef.current?.resetCursorState();
-        },
-        onUpdate: (submission) => {
-          setFeedbackSubmissionsByThreadKey((current) => {
-            const existing = current[routeThreadKey] ?? [];
-            const found = existing.some((entry) => entry.id === submission.id);
-            return {
-              ...current,
-              [routeThreadKey]: found
-                ? existing.map((entry) => (entry.id === submission.id ? submission : entry))
-                : [...existing, submission],
-            };
-          });
-        },
-        upload: () =>
-          uploadThreadFeedback({
-            environmentId: activeThread.environmentId,
-            input: { threadId: activeThread.id, ...feedbackCommand },
-          }),
-      }).finally(() => {
+        resolveMessage,
+      ).finally(() => {
         feedbackUploadsInFlightRef.current.delete(routeThreadKey);
       });
 
@@ -991,14 +997,17 @@ export function useComposerSend(input: ComposerSendInput) {
     const forkSideChatFirst = isLocalDraftThread ? sideChatDraftParentRef : null;
     const savedDraft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
     const saveTurn = async () => {
-      const title = deriveThreadTitleSeed({
-        text: trimmed,
-        attachments: composerAttachmentsSnapshot.map((attachment) => ({
-          type: attachment.type,
-          name: attachment.name,
-        })),
-        fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
-      });
+      const title = deriveThreadTitleSeed(
+        {
+          text: trimmed,
+          attachments: composerAttachmentsSnapshot.map((attachment) => ({
+            type: attachment.type,
+            name: attachment.name,
+          })),
+          fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
+        },
+        resolveMessage,
+      );
       const localAttachments = captureOutboxAttachments(environmentId, composerAttachmentsSnapshot);
       const linkPullRequestUrl =
         isLocalDraftThread && forkSideChatFirst === null && multipleModelSelections === null

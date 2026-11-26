@@ -494,13 +494,16 @@ function SourceControlRow(props: {
   readonly hint: string;
   readonly isFirst: boolean;
 }) {
+  const messages = useMessages();
   const navigation = useNavigation();
   const title =
-    props.source === "url" ? "Git URL" : `${addProjectRemoteSourceLabel(props.source)} repository`;
+    props.source === "url"
+      ? "Git URL"
+      : `${addProjectRemoteSourceLabel(props.source, messages)} repository`;
   const subtitle =
     props.source === "url"
       ? "Clone from a remote URL"
-      : `Clone ${addProjectRemoteSourceLabel(props.source)} ${props.hint}`;
+      : `Clone ${addProjectRemoteSourceLabel(props.source, messages)} ${props.hint}`;
   const icon =
     props.source === "url" ? (
       <SymbolView
@@ -891,6 +894,7 @@ export function AddProjectRepositoryScreen(props: {
   readonly environmentId?: string | string[];
   readonly source?: string | string[];
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const lookupRepositoryQuery = useAtomQueryRunner(sourceControlEnvironment.repository, {
     reportFailure: false,
@@ -952,7 +956,9 @@ export function AddProjectRepositoryScreen(props: {
   };
 
   return (
-    <AddProjectShell title={source === "url" ? gt("Git URL") : addProjectRemoteSourceLabel(source)}>
+    <AddProjectShell
+      title={source === "url" ? gt("Git URL") : addProjectRemoteSourceLabel(source, messages)}
+    >
       {error ? <ErrorBanner message={error} /> : null}
       {environment ? (
         <>
@@ -995,6 +1001,7 @@ function FolderBrowser(props: {
   readonly pinnedDirectoryName?: string;
   readonly cloning?: boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const browsePath = getFilesystemBrowsePath(props.pathInput, props.environment.platform);
   const browseInput =
@@ -1003,12 +1010,15 @@ function FolderBrowser(props: {
     environmentSession.sessionStateAtom(props.environment.environmentId),
   );
   const fileEnvironment = useEnvironmentPresentation(props.environment.environmentId);
-  const fileAccess = resolveFilesystemReadAccess({
-    isCatalogReady: fileEnvironment.isReady,
-    connection: fileEnvironment.presentation?.connection ?? null,
-    session: fileAccessSession.data,
-    sessionError: fileAccessSession.error,
-  });
+  const fileAccess = resolveFilesystemReadAccess(
+    {
+      isCatalogReady: fileEnvironment.isReady,
+      connection: fileEnvironment.presentation?.connection ?? null,
+      session: fileAccessSession.data,
+      sessionError: fileAccessSession.error,
+    },
+    messages,
+  );
   const { canReadFiles } = fileAccess;
   const browseState = useEnvironmentQuery(
     !canReadFiles || browseInput === null
@@ -1391,11 +1401,14 @@ export function AddProjectLocalFolderScreen(props: { readonly environmentId?: st
   const submitPath = async () => {
     if (!environment || isBrowseNavigating || isSubmitting) return;
     setError(null);
-    const resolved = resolveAddProjectPath({
-      rawPath: pathInput,
-      currentProjectCwd: null,
-      platform: environment.platform,
-    });
+    const resolved = resolveAddProjectPath(
+      {
+        rawPath: pathInput,
+        currentProjectCwd: null,
+        platform: environment.platform,
+      },
+      m,
+    );
     if (!resolved.ok) {
       setError(resolved.error);
       return;
@@ -1492,11 +1505,14 @@ export function AddProjectDestinationScreen(props: {
       return;
     }
     setError(null);
-    const resolved = resolveAddProjectPath({
-      rawPath: pathInput,
-      currentProjectCwd: null,
-      platform: environment.platform,
-    });
+    const resolved = resolveAddProjectPath(
+      {
+        rawPath: pathInput,
+        currentProjectCwd: null,
+        platform: environment.platform,
+      },
+      m,
+    );
     if (!resolved.ok) {
       setError(resolved.error);
       return;

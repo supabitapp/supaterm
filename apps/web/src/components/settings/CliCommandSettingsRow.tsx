@@ -34,7 +34,7 @@ export function useDesktopCliCommand() {
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: FAILURE_TITLES[action],
+            title: m(FAILURE_TITLES[action]),
             description: error instanceof Error ? error.message : m(msg("Something went wrong.")),
           }),
         );

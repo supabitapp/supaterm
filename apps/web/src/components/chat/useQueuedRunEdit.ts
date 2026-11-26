@@ -78,7 +78,7 @@ import {
 } from "./queuedMessageEdit";
 import type { EditQueuedRunRequest } from "./QueuedRunsControl";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
 
 interface EditingQueuedRun {
@@ -230,6 +230,7 @@ export function useQueuedRunEdit(input: {
   readonly promptRef: { current: string };
   readonly composerRef: RefObject<ChatComposerHandle | null>;
 }) {
+  const messages = useMessages();
   const {
     environmentId,
     routeThreadRef,
@@ -447,7 +448,7 @@ export function useQueuedRunEdit(input: {
       environmentThreadDetails.quietThreadAtom({ environmentId, threadId: edited.threadId }),
     )?.projection;
     if (!projection) return;
-    const workflow = deriveThreadQueueWorkflowState(projection);
+    const workflow = deriveThreadQueueWorkflowState(projection, undefined, messages);
     const queued = workflow.queuedRuns.find(({ run }) => run.id === edited.runId);
     if (
       queued === undefined ||

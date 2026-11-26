@@ -25,7 +25,7 @@ import {
   type ReviewSectionItem,
 } from "./reviewModel";
 import { setReviewSelectedSectionId, type ReviewCacheForThread } from "./reviewState";
-import { msg } from "gt-react-native";
+import { msg, useMessages } from "gt-react-native";
 
 const NO_GIT_SECTIONS_ATOM = Atom.make<ReadonlyArray<ReviewDiffPreviewSource>>([]).pipe(
   Atom.keepAlive,
@@ -42,18 +42,22 @@ export function useReviewSections(input: {
   readonly threadId?: ThreadId;
   readonly reviewCache: ReviewCacheForThread;
 }) {
+  const messages = useMessages();
   const { environmentId, reviewCache, threadId } = input;
   const enabled = input.enabled ?? true;
   const fileAccessSession = useEnvironmentQuery(
     environmentId === undefined ? null : environmentSession.sessionStateAtom(environmentId),
   );
   const fileEnvironment = useEnvironmentPresentation(environmentId ?? null);
-  const fileAccess = resolveFilesystemReadAccess({
-    isCatalogReady: fileEnvironment.isReady,
-    connection: fileEnvironment.presentation?.connection ?? null,
-    session: fileAccessSession.data,
-    sessionError: fileAccessSession.error,
-  });
+  const fileAccess = resolveFilesystemReadAccess(
+    {
+      isCatalogReady: fileEnvironment.isReady,
+      connection: fileEnvironment.presentation?.connection ?? null,
+      session: fileAccessSession.data,
+      sessionError: fileAccessSession.error,
+    },
+    messages,
+  );
   const { canReadFiles } = fileAccess;
   const selectedThread = useSelectedThreadProjection();
   const { selectedThreadCwd } = useSelectedThreadWorktree();
@@ -185,7 +189,7 @@ export function useReviewSections(input: {
         ? activeTurnDiff.error
         : (selectedGitPreview?.error ?? null)) ??
       (selectedSection === null && !fileAccess.isPending && !canReadFiles
-        ? (fileAccess.error ?? msg("This connection cannot read local diffs."))
+        ? (fileAccess.error ?? messages(msg("This connection cannot read local diffs.")))
         : null),
     isSelectedSectionPending:
       selectedSection?.kind === "turn"

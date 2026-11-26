@@ -231,7 +231,7 @@ const COMPOSER_ATTACHMENT_ENTERING =
 const AnimatedGlassSurface = Animated.createAnimatedComponent(GlassSurface);
 
 const FOLLOW_UP_ACTION_LABEL = {
-  queue: "Queue",
+  queue: msg("Queue", { $context: "verb, send after the current turn" }),
   steer: msg("Steer now"),
   restart: msg("Restart turn"),
 } as const;
@@ -250,6 +250,7 @@ function SendActionButton(props: {
   readonly onSend: (followUp?: ActiveTurnComposerAction) => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const { presentation } = props;
   const button = (
     <ComposerActionButton
@@ -282,8 +283,8 @@ function SendActionButton(props: {
       }}
       actions={actions.map((action) => ({
         id: action,
-        title: FOLLOW_UP_ACTION_LABEL[action],
-        subtitle: FOLLOW_UP_ACTION_SUBTITLE[action],
+        title: m(FOLLOW_UP_ACTION_LABEL[action]),
+        subtitle: m(FOLLOW_UP_ACTION_SUBTITLE[action]),
         state: action === presentation.action ? ("on" as const) : ("off" as const),
       }))}
       onPressAction={({ nativeEvent }) => {
@@ -622,13 +623,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     : COMPACT_SURFACE_INSET;
   const showsCompactDictation = isVoiceInputPresented && !isExpanded;
   const isToolbarVisible = isExpanded || isVoiceInputPresented;
-  const attachmentBlockReason = composerAttachmentUploadBlockReason({
-    environmentId: props.environmentId,
-    attachments: draftAttachments,
-    connected: props.connectionState === "connected",
-    serverConfig: props.serverConfig,
-    states: uploadStates,
-  });
+  const attachmentBlockReason = composerAttachmentUploadBlockReason(
+    {
+      environmentId: props.environmentId,
+      attachments: draftAttachments,
+      connected: props.connectionState === "connected",
+      serverConfig: props.serverConfig,
+      states: uploadStates,
+    },
+    messages,
+  );
   const contextImports = useAtomValue(composerContextImportsAtom);
   const sendBlockedReason =
     (queuedEdit?.saving === true ? gt("Saving…") : null) ??
@@ -1154,7 +1158,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 alternateSubmitTitle={
                   sendPresentation.alternate === null
                     ? sendPresentation.label
-                    : FOLLOW_UP_ACTION_LABEL[sendPresentation.alternate]
+                    : messages(FOLLOW_UP_ACTION_LABEL[sendPresentation.alternate])
                 }
                 scrollEnabled={isExpanded}
                 singleLineCentered={!isExpanded}

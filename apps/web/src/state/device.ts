@@ -19,6 +19,7 @@ import { connectionAtomRuntime } from "../connection/runtime";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentSession } from "./session";
 import { formatEnvironmentQueryError, useEnvironmentQuery } from "./query";
+import { useMessages } from "gt-react";
 
 export const deviceEnvironment = createDeviceEnvironmentAtoms(connectionAtomRuntime);
 
@@ -40,8 +41,10 @@ export function useDeviceState(environmentId: EnvironmentId | null): {
   readonly error: string | null;
   readonly refresh: () => void;
 } {
+  const resolve = useMessages();
   const query = useEnvironmentQuery(
     environmentId === null ? null : deviceEnvironment.state({ environmentId, input: {} }),
+    resolve,
   );
   return {
     state: query.data ?? EMPTY_DEVICE_STATE,

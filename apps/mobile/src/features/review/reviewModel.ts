@@ -188,7 +188,7 @@ function gitSubtitle(
   resolve: MessageResolver = m,
 ): string | null {
   if (section.kind === "working-tree") {
-    return UNCOMMITTED_SUBTITLE;
+    return resolve(UNCOMMITTED_SUBTITLE);
   }
   if (section.baseRef) {
     return `${section.baseRef} ... ${section.headRef ?? "HEAD"}`;
@@ -318,14 +318,17 @@ function countReviewRenderableCharacters(file: ReviewRenderableFile): number {
   );
 }
 
-export function getReviewFilePreviewState(file: ReviewRenderableFile): ReviewFilePreviewState {
+export function getReviewFilePreviewState(
+  file: ReviewRenderableFile,
+  resolve: MessageResolver = m,
+): ReviewFilePreviewState {
   const extension = getFileExtension(file.path);
   if (extension && NON_TEXT_FILE_EXTENSIONS.has(extension)) {
     return {
       kind: "suppressed",
       reason: "non-text",
-      title: msg("Non-text file"),
-      message: msg("Diff preview is not available for this file format."),
+      title: resolve(msg("Non-text file")),
+      message: resolve(msg("Diff preview is not available for this file format.")),
       actionLabel: null,
     };
   }
@@ -336,9 +339,9 @@ export function getReviewFilePreviewState(file: ReviewRenderableFile): ReviewFil
     return {
       kind: "suppressed",
       reason: "large",
-      title: msg("Large diff"),
-      message: msg("Large diffs are not rendered by default."),
-      actionLabel: msg("Load diff"),
+      title: resolve(msg("Large diff")),
+      message: resolve(msg("Large diffs are not rendered by default.")),
+      actionLabel: resolve(msg("Load diff")),
     };
   }
 
@@ -609,7 +612,7 @@ export function buildReviewSectionItems(input: {
           id: `git:${kind}`,
           kind,
           title: section.title,
-          subtitle: gitSubtitle(section),
+          subtitle: gitSubtitle(section, resolve),
           diff: section.diff,
           source: section,
           ...(section.files ? { files: section.files } : {}),
@@ -732,10 +735,17 @@ export function buildReviewParsedDiff(
 export function applyReviewDiffMetadata(
   previewDiff: ReviewParsedDiff,
   selectedSection: Pick<ReviewSectionItem, "files" | "truncated"> | null,
+  resolve: MessageResolver = m,
 ): ReviewParsedDiff {
   if (previewDiff.kind === "empty") return previewDiff;
   const notice = selectedSection?.truncated
-    ? `This preview exceeds the size limit. Changes shown are incomplete.${selectedSection.files ? " Counts include all changes." : ""}`
+    ? selectedSection.files
+      ? resolve(
+          msg(
+            "This preview exceeds the size limit. Changes shown are incomplete. Counts include all changes.",
+          ),
+        )
+      : resolve(msg("This preview exceeds the size limit. Changes shown are incomplete."))
     : previewDiff.notice;
   if (previewDiff.kind !== "files" || !selectedSection?.files) return { ...previewDiff, notice };
   const totals = selectedSection.files.reduce(

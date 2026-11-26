@@ -22,7 +22,9 @@ import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import type { ProjectOverrideEntry, ScopedSettingsTarget } from "./scopedSettings";
 import { isProjectScopedSettingKey } from "./scopedSettings";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
+import { m } from "../../i18n/messages";
+import { type MessageResolver } from "../../i18n/messages";
 
 interface InheritanceLayer {
   readonly key: "project" | "environment" | "supaterm.json" | "built-in";
@@ -55,62 +57,82 @@ const BACKGROUND_ACTIVITY_PROFILE_LABELS: Record<string, string> = {
   balanced: msg("Balanced"),
   performance: msg("Performance"),
   "battery-saver": msg("Battery saver"),
-  custom: "Advanced",
+  custom: msg("Advanced", { $context: "background activity power profile" }),
 };
 
-function formatValue(key: keyof ServerSettings, value: unknown): string {
+function formatValue(
+  key: keyof ServerSettings,
+  value: unknown,
+  resolve: MessageResolver = m,
+): string {
   if (value === null || value === undefined) {
     return key === "pullRequestMergeMethod"
-      ? msg("Last selected")
+      ? resolve(msg("Last selected"))
       : key === "sidebarAutoMarkDoneAfterDays"
-        ? msg("Never")
+        ? resolve(msg("Never"))
         : key === "defaultModelSelection"
-          ? msg("Automatic")
+          ? resolve(msg("Automatic"))
           : key === "sourceControlWriterModelSelection"
-            ? msg("Text generation model")
+            ? resolve(msg("Text generation model"))
             : key === "reviewGuideModelSelection"
-              ? msg("Source control writer model")
+              ? resolve(msg("Source control writer model"))
               : key === "defaultThreadEnvMode" || key === "worktreeSubmodules"
-                ? msg("Inherit")
-                : msg("Not set");
+                ? resolve(msg("Inherit"))
+                : resolve(msg("Not set"));
   }
   if (key === "branchNamePrefixFromRepository") {
-    return value ? msg("Repository name prefix") : msg("Static prefix");
+    return value ? resolve(msg("Repository name prefix")) : resolve(msg("Static prefix"));
   }
-  if (typeof value === "boolean") return value ? msg("On") : msg("Off");
+  if (typeof value === "boolean") {
+    return value
+      ? resolve(msg("On", { $context: "setting value" }))
+      : resolve(msg("Off", { $context: "setting value" }));
+  }
   if (typeof value === "number") {
     return key === "sidebarAutoMarkDoneAfterDays"
-      ? `${value} ${value === 1 ? "day" : "days"}`
+      ? resolve(msg("{count, plural, one {{count} day} other {{count} days}}", { count: value }))
       : String(value);
   }
   if (typeof value === "string") {
     if (key === "defaultThreadEnvMode" && (value === "local" || value === "worktree")) {
-      return resolveEnvModeLabel(value);
+      return resolveEnvModeLabel(value, resolve);
     }
     if (key === "worktreeSubmodules" && value in WORKTREE_SUBMODULES_LABELS) {
-      return WORKTREE_SUBMODULES_LABELS[value as WorktreeSubmodules];
+      return resolve(WORKTREE_SUBMODULES_LABELS[value as WorktreeSubmodules]);
     }
     if (key === "pullRequestMergeMethod" && value in PULL_REQUEST_MERGE_METHOD_LABELS) {
-      return PULL_REQUEST_MERGE_METHOD_LABELS[
-        value as keyof typeof PULL_REQUEST_MERGE_METHOD_LABELS
-      ];
+      return resolve(
+        PULL_REQUEST_MERGE_METHOD_LABELS[value as keyof typeof PULL_REQUEST_MERGE_METHOD_LABELS],
+      );
     }
-    return value === "" ? msg("Empty") : value;
+    return value === "" ? resolve(msg("Empty")) : value;
   }
-  if (Array.isArray(value)) return `${value.length} ${value.length === 1 ? "item" : "items"}`;
+  if (Array.isArray(value)) {
+    return resolve(
+      msg("{count, plural, one {{count} item} other {{count} items}}", { count: value.length }),
+    );
+  }
   if (typeof value === "object") {
     if (key === "backgroundActivity" && "profile" in value && typeof value.profile === "string") {
-      return BACKGROUND_ACTIVITY_PROFILE_LABELS[value.profile] ?? value.profile;
+      const label = BACKGROUND_ACTIVITY_PROFILE_LABELS[value.profile];
+      return label ? resolve(label) : value.profile;
     }
     if ("model" in value && typeof value.model === "string") return value.model;
     if ("mode" in value && typeof value.mode === "string") {
-      if (key === "worktreeCleanup") return value.mode === "off" ? msg("Off") : msg("Custom");
+      if (key === "worktreeCleanup") {
+        return value.mode === "off"
+          ? resolve(msg("Off", { $context: "setting value" }))
+          : resolve(msg("Custom", { $context: "setting value" }));
+      }
       return key === "sourceControlWritingStyle"
-        ? (WRITING_STYLE_LABELS[value.mode] ?? value.mode)
+        ? (() => {
+            const label = WRITING_STYLE_LABELS[value.mode];
+            return label ? resolve(label) : value.mode;
+          })()
         : value.mode;
     }
   }
-  return msg("Custom");
+  return resolve(msg("Custom", { $context: "setting value" }));
 }
 
 /** Matches resolveProjectSettings order. */
@@ -118,6 +140,7 @@ export function settingInheritanceLayers(
   target: ScopedSettingsTarget,
   environmentSettings: ServerSettings,
   key: keyof ServerSettings,
+  resolve: MessageResolver = m,
 ): readonly InheritanceLayer[] {
   const environmentValue = environmentSettings[key];
   const source = isProjectScopedSettingKey(key) ? target.sources[key] : "environment";
@@ -127,8 +150,11 @@ export function settingInheritanceLayers(
   if (target.projectId !== null && isProjectScopedSettingKey(key)) {
     layers.push({
       key: "project",
-      label: msg("Project"),
-      value: source === "project" ? formatValue(key, target.settings[key]) : "Inherits",
+      label: resolve(msg("Project")),
+      value:
+        source === "project"
+          ? formatValue(key, target.settings[key], resolve)
+          : resolve(msg("Inherits")),
       effective: source === "project",
       set: source === "project",
     });
@@ -136,7 +162,7 @@ export function settingInheritanceLayers(
   layers.push({
     key: "environment",
     label: target.label,
-    value: environmentSet ? formatValue(key, environmentValue) : "Inherits",
+    value: environmentSet ? formatValue(key, environmentValue, resolve) : resolve(msg("Inherits")),
     effective: source === "environment" && environmentSet,
     set: environmentSet,
   });
@@ -144,7 +170,10 @@ export function settingInheritanceLayers(
     layers.push({
       key: "supaterm.json",
       label: "supaterm.json",
-      value: source === "supaterm.json" ? formatValue(key, target.settings[key]) : "Inherits",
+      value:
+        source === "supaterm.json"
+          ? formatValue(key, target.settings[key], resolve)
+          : resolve(msg("Inherits")),
       effective: source === "supaterm.json",
       set: source === "supaterm.json",
     });
@@ -155,8 +184,8 @@ export function settingInheritanceLayers(
     : DEFAULT_SERVER_SETTINGS[key];
   layers.push({
     key: "built-in",
-    label: msg("Default"),
-    value: formatValue(key, builtIn),
+    label: resolve(msg("Default", { $context: "built-in default value" })),
+    value: formatValue(key, builtIn, resolve),
     effective: source === "environment" && !environmentSet,
     set: true,
   });
@@ -203,6 +232,7 @@ export function SettingInheritance({
   overridingProjects?: readonly SettingOverridingProject[];
   onClearOverrides?: (entries: readonly ProjectOverrideEntry[]) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const scopeContext = useOptionalSettingsScope();
   const key = keys[0];
@@ -225,7 +255,12 @@ export function SettingInheritance({
     const secondary = [labels.secondary, path?.split(/[\\/]/).filter(Boolean).slice(-2).join("/")]
       .filter(Boolean)
       .join(" · ");
-    const layers = settingInheritanceLayers(target, environment.serverConfig.settings, explained);
+    const layers = settingInheritanceLayers(
+      target,
+      environment.serverConfig.settings,
+      explained,
+      messages,
+    );
     const winningLayer = layers.find((layer) => layer.effective);
     return [
       {

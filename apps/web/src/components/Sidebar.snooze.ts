@@ -12,6 +12,8 @@ import { serverEnvironment } from "../state/server";
 import { formatShortTimestamp } from "../timestampFormat";
 import { toastManager } from "./ui/toast";
 import { msg } from "gt-react";
+import { m } from "../i18n/messages";
+import { type MessageResolver } from "../i18n/messages";
 
 export { snoozeWakeLabel, type SnoozePreset };
 
@@ -30,6 +32,7 @@ export function pickSnoozePreset(
   id: string,
   timestampFormat: TimestampFormat,
   environmentId: EnvironmentId,
+  resolve: MessageResolver = m,
 ): SnoozePreset | undefined {
   const picked = pickSharedSnoozePreset({
     shown,
@@ -40,8 +43,8 @@ export function pickSnoozePreset(
   if (!picked) {
     toastManager.add({
       type: "warning",
-      title: msg("Could not snooze thread"),
-      description: msg("That snooze time has passed. Choose another time."),
+      title: resolve(msg("Could not snooze thread")),
+      description: resolve(msg("That snooze time has passed. Choose another time.")),
     });
   }
   return picked;

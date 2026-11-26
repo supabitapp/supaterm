@@ -62,12 +62,15 @@ export function extensionStatusBannerItem(
 }
 
 /** Subagents and side chats waiting on the user, unless the parent is itself waiting on them. */
-export function childInputNowItem(input: {
-  readonly childThreadInputs: ReadonlyArray<EnvironmentThreadShell>;
-  readonly parentAwaitingUser: boolean;
-  // A task delegated to a linked environment lives there, not where the parent runs.
-  readonly onOpenThread: (threadId: ThreadId, environmentId: EnvironmentId) => void;
-}): (ThreadNowItem & { readonly waitingLabel: string }) | null {
+export function childInputNowItem(
+  input: {
+    readonly childThreadInputs: ReadonlyArray<EnvironmentThreadShell>;
+    readonly parentAwaitingUser: boolean;
+    // A task delegated to a linked environment lives there, not where the parent runs.
+    readonly onOpenThread: (threadId: ThreadId, environmentId: EnvironmentId) => void;
+  },
+  resolve: MessageResolver = m,
+): (ThreadNowItem & { readonly waitingLabel: string }) | null {
   const { childThreadInputs, onOpenThread } = input;
   const first = childThreadInputs[0];
   if (!first || input.parentAwaitingUser) return null;
@@ -81,8 +84,8 @@ export function childInputNowItem(input: {
     ),
     title: childThreadInputsTitle(childThreadInputs),
     waitingLabel: childThreadInputs.every((child) => child.lineage.sideChat === true)
-      ? msg("Side chat waiting")
-      : msg("Subagent waiting"),
+      ? resolve(msg("Side chat waiting"))
+      : resolve(msg("Subagent waiting")),
     description: childThreadInputs.map((child, index) => (
       <Fragment key={child.id}>
         {index > 0 ? " " : null}
@@ -103,14 +106,17 @@ export function childInputNowItem(input: {
 }
 
 /** The thread's goal, for the end of the timeline. */
-export function goalNowItem(input: {
-  readonly threadId: ThreadId;
-  readonly goal: OrchestrationV2ProviderGoal;
-  readonly isWorking: boolean;
-  readonly onSendCommand: (text: string, failureMessage: string) => Promise<void>;
-}): ThreadNowItem {
+export function goalNowItem(
+  input: {
+    readonly threadId: ThreadId;
+    readonly goal: OrchestrationV2ProviderGoal;
+    readonly isWorking: boolean;
+    readonly onSendCommand: (text: string, failureMessage: string) => Promise<void>;
+  },
+  resolve: MessageResolver = m,
+): ThreadNowItem {
   const { isWorking, onSendCommand } = input;
-  const presentation = presentProviderGoal(input.goal, isWorking);
+  const presentation = presentProviderGoal(input.goal, isWorking, resolve);
   return {
     id: `goal:${input.threadId}`,
     icon: <TargetIcon />,

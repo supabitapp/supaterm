@@ -289,6 +289,13 @@ const UPDATE_BRANCH_REBASE_FAILURE_HINT = msg(
   "The host refused it. A rebase stops at the first commit that does not apply cleanly; updating with a merge commit may still work.",
 );
 
+const AUTO_MERGE_LABELS: Record<PullRequestMergeMethod, string> = {
+  merge: msg("Auto-merge (merge)"),
+  squash: msg("Auto-merge (squash and merge)"),
+  rebase: msg("Auto-merge (rebase and merge)"),
+  "fast-forward": msg("Auto-merge (fast-forward merge)"),
+};
+
 const TABS: ReadonlyArray<{ value: PullRequestDetailTab; label: string }> = [
   { value: "summary", label: msg("Summary", { $context: "pull request tab" }) },
   { value: "guide", label: msg("Guide", { $context: "pull request tab" }) },
@@ -1406,13 +1413,13 @@ export function PullRequestDetailPanel({
     projectDefaultMergeMethod,
     lastSelectedMergeMethod,
   );
-  const selectedMergeMethodLabel = PULL_REQUEST_MERGE_METHOD_LABELS[selectedMergeMethod];
-  const pendingAutoMergeLabel = `Auto-merge (${selectedMergeMethodLabel.toLowerCase()})`;
+  const selectedMergeMethodLabel = resolve(PULL_REQUEST_MERGE_METHOD_LABELS[selectedMergeMethod]);
+  const pendingAutoMergeLabel = resolve(AUTO_MERGE_LABELS[selectedMergeMethod]);
   const autoMergeArmed = detail?.state === "open" && detail.autoMergeEnabled === true;
   const armedMergeMethod = detail?.autoMergeMethod;
   const armedAutoMergeLabel = armedMergeMethod
-    ? `Auto-merge (${PULL_REQUEST_MERGE_METHOD_LABELS[armedMergeMethod].toLowerCase()})`
-    : "Auto-merge";
+    ? resolve(AUTO_MERGE_LABELS[armedMergeMethod])
+    : gt("Auto-merge");
   const workflowApprovalsRequired =
     detail?.state === "open" ? (detail.workflowApprovalsRequired ?? 0) : 0;
   const freshness = detail === null ? null : resolveBaseFreshness(detail);

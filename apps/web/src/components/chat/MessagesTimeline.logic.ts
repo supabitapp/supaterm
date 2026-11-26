@@ -34,9 +34,9 @@ import {
   workEntryHiddenByToolCallVisibility,
   type ToolGroupSummaryKind,
 } from "@supaterm/client-runtime/work-log/presentation";
+import { formatDuration } from "@supaterm/shared/orchestrationTimingCopy";
 import {
   deriveRevertTurnCountByUserMessageId,
-  formatDuration,
   isStreamingMessageTextUpdate,
   isStreamingTurnItemTextUpdate,
   timelineEntryIsPersistentResourceCard,
@@ -174,6 +174,7 @@ export function workEntryDisplay(
   const commandless = commandlessCommandLabel(
     entry,
     liveActivityToolStatus(entry.toolLifecycleStatus, false),
+    resolve,
   );
   if (commandless) return { text: commandless };
   const action = toolGroupAction(entry);
@@ -210,7 +211,7 @@ export function workEntryDisplay(
     );
   }
   if (action === "read" && !entry.viewedImagePath) {
-    return { text: msg("Read file") };
+    return { text: resolve(msg("Read file")) };
   }
   const heading = normalizeCompactToolLabel(entry.toolTitle || entry.label);
   return { text: `${heading.charAt(0).toUpperCase()}${heading.slice(1)}` };
@@ -306,7 +307,8 @@ export function liveWorkEntryLabel(
     return `${verb} ${commandProgramName(command) ?? "command"}`;
   }
   return (
-    commandlessCommandLabel(entry, status) ?? workEntryDisplayLabel(entry, workspaceRoot, resolve)
+    commandlessCommandLabel(entry, status, resolve) ??
+    workEntryDisplayLabel(entry, workspaceRoot, resolve)
   );
 }
 
@@ -1299,7 +1301,7 @@ function deriveTurnFolds(input: {
             maxIsoTimestamp(group.terminalEntry?.message.updatedAt ?? null, lastEntryEnd) ??
               lastEntryEnd,
           );
-    const duration = elapsedMs !== null ? formatDuration(elapsedMs) : null;
+    const duration = elapsedMs !== null ? formatDuration(elapsedMs, m) : null;
     const label = isLatestInterruptedTurn
       ? duration
         ? `You stopped after ${duration}`
@@ -1341,7 +1343,7 @@ function deriveTurnFolds(input: {
         entryIds: new Set(entries.map((entry) => entry.id)),
         label:
           segmentMs !== null
-            ? m(msg("Continued for {duration}", { duration: formatDuration(segmentMs) }))
+            ? m(msg("Continued for {duration}", { duration: formatDuration(segmentMs, m) }))
             : m(msg("Continued")),
       });
     }
@@ -2039,7 +2041,7 @@ export function deriveMessagesTimelineRows(
         createdAt: supersededFold.createdAt,
         runId: supersededFold.runId,
         attemptId: supersededFold.attemptId,
-        label: msg("Superseded attempt"),
+        label: resolve(msg("Superseded attempt")),
         expanded: input.expandedAttemptIds?.has(supersededFold.attemptId) ?? false,
       });
     }
@@ -2310,7 +2312,7 @@ export function deriveMessagesTimelineRows(
           kind: "context-compaction",
           id: `compaction:${compactionRunId}`,
           createdAt: timelineEntry.createdAt,
-          label: pending ? msg("Compacting context") : msg("Context compaction"),
+          label: pending ? resolve(msg("Compacting context")) : resolve(msg("Context compaction")),
           tokenCounts: null,
           active: pending,
         });

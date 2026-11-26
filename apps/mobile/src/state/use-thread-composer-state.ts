@@ -751,31 +751,34 @@ export function useThreadComposerState() {
         return null;
       }
       const metadata = makeQueuedMessageMetadata();
-      await submitCodexFeedback({
-        submission: {
-          id: MessageId.make(metadata.messageId),
-          command: text,
-          createdAt: metadata.createdAt,
+      await submitCodexFeedback(
+        {
+          submission: {
+            id: MessageId.make(metadata.messageId),
+            command: text,
+            createdAt: metadata.createdAt,
+          },
+          clearDraft: () => clearComposerDraftContent(threadKey),
+          onUpdate: (submission) => {
+            setFeedbackSubmissionsByThreadKey((current) => {
+              const existing = current[threadKey] ?? [];
+              const found = existing.some((entry) => entry.id === submission.id);
+              return {
+                ...current,
+                [threadKey]: found
+                  ? existing.map((entry) => (entry.id === submission.id ? submission : entry))
+                  : [...existing, submission],
+              };
+            });
+          },
+          upload: () =>
+            uploadThreadFeedback({
+              environmentId: thread.environmentId,
+              input: { threadId: thread.id, ...feedbackCommand },
+            }),
         },
-        clearDraft: () => clearComposerDraftContent(threadKey),
-        onUpdate: (submission) => {
-          setFeedbackSubmissionsByThreadKey((current) => {
-            const existing = current[threadKey] ?? [];
-            const found = existing.some((entry) => entry.id === submission.id);
-            return {
-              ...current,
-              [threadKey]: found
-                ? existing.map((entry) => (entry.id === submission.id ? submission : entry))
-                : [...existing, submission],
-            };
-          });
-        },
-        upload: () =>
-          uploadThreadFeedback({
-            environmentId: thread.environmentId,
-            input: { threadId: thread.id, ...feedbackCommand },
-          }),
-      });
+        m,
+      );
       return null;
     }
 

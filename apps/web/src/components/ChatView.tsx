@@ -932,6 +932,7 @@ export default function ChatView(props: ChatViewProps) {
         draftThread,
         (draftFallback ? draftFallback.selection : draftDefaultModelSelection) ??
           NO_PROVIDER_MODEL_SELECTION,
+        messages,
       )
     : undefined;
   const isServerThread = serverThread !== null;
@@ -1681,8 +1682,8 @@ export default function ChatView(props: ChatViewProps) {
     submission.status === "interrupted"
       ? []
       : [
-          { ...codexFeedbackMessage(submission), runId: null },
-          { ...codexFeedbackMessage(submission, "assistant"), runId: null },
+          { ...codexFeedbackMessage(submission, undefined, messages), runId: null },
+          { ...codexFeedbackMessage(submission, "assistant", messages), runId: null },
         ],
   );
   const timelineEntriesInput = {
@@ -2434,12 +2435,15 @@ export default function ChatView(props: ChatViewProps) {
     : selectedThreadBranch;
   const worktreeBaseRefsSettled = worktreeBaseRefs.data !== null && !worktreeBaseRefs.isRefreshing;
   // Only a new thread's draft holds a choice; anything else leaves it to the server's default.
-  const worktreeRepositories = resolveWorktreeRepositorySelection({
-    choices: worktreeRepositoryChoices.choices,
-    chosen: isLocalDraftThread
-      ? (draftThread?.worktreeRepositories ?? rememberedWorktreeRepositories)
-      : undefined,
-  }).strategyRepositories;
+  const worktreeRepositories = resolveWorktreeRepositorySelection(
+    {
+      choices: worktreeRepositoryChoices.choices,
+      chosen: isLocalDraftThread
+        ? (draftThread?.worktreeRepositories ?? rememberedWorktreeRepositories)
+        : undefined,
+    },
+    messages,
+  ).strategyRepositories;
   const localCheckoutBranchMismatch = isServerThread
     ? resolveLocalCheckoutBranchMismatch({
         effectiveEnvMode: envMode,
@@ -2606,13 +2610,16 @@ export default function ChatView(props: ChatViewProps) {
   const activeThreadReferenceCopyTarget =
     activeThreadRef === null || !isServerThread
       ? null
-      : resolveThreadReferenceCopyTarget({
-          threadRef: activeThreadRef,
-          title: activeThread?.title ?? "",
-          openPanelPullRequestUrl,
-          pullRequests: activeThread?.pullRequests,
-          linkedPullRequestUrl: linkedThreadPullRequest?.url ?? null,
-        });
+      : resolveThreadReferenceCopyTarget(
+          {
+            threadRef: activeThreadRef,
+            title: activeThread?.title ?? "",
+            openPanelPullRequestUrl,
+            pullRequests: activeThread?.pullRequests,
+            linkedPullRequestUrl: linkedThreadPullRequest?.url ?? null,
+          },
+          messages,
+        );
   const copyActiveThreadReference = () => {
     if (activeThreadReferenceCopyTarget === null) return;
     void copyThreadReference(activeThreadReferenceCopyTarget);
@@ -2816,6 +2823,7 @@ export default function ChatView(props: ChatViewProps) {
           },
         }
       : null,
+    messages,
   );
   const composerBannerItems = ((): ComposerBannerStackItem[] => {
     const fallbackSelection = draftFallback?.selection;
@@ -3293,9 +3301,10 @@ export default function ChatView(props: ChatViewProps) {
         threadId={activeThread.id}
         deferredSteering={deferredSteering}
         editingRunId={queuedRunEdit.editingRunId}
-        editBlockedReason={queuedRunEditBlockedReason({
-          openQuestionCount: pendingUserInputs.length,
-        })}
+        editBlockedReason={queuedRunEditBlockedReason(
+          { openQuestionCount: pendingUserInputs.length },
+          messages,
+        )}
         onEditQueuedRun={queuedRunEdit.beginEdit}
         onCancelEdit={queuedRunEdit.cancelEdit}
         timestampFormat={timestampFormat}

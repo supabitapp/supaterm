@@ -6,7 +6,8 @@
  */
 import type { RunId } from "@supaterm/contracts";
 import { Atom, type AtomRegistry } from "effect/reactivity";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export interface QueuedRunStatus {
   readonly id: RunId;
@@ -67,10 +68,15 @@ export function resolveQueuedEditExit(input: {
  * can. An open question takes the composer over for its answer, so an edit
  * begun then would happen out of sight and could be sent before it is seen.
  */
-export function queuedRunEditBlockedReason(input: {
-  readonly openQuestionCount: number;
-}): string | null {
-  return input.openQuestionCount > 0 ? msg("Answer the question to edit queued messages") : null;
+export function queuedRunEditBlockedReason(
+  input: {
+    readonly openQuestionCount: number;
+  },
+  resolve: MFunctionType = mFallback,
+): string | null {
+  return input.openQuestionCount > 0
+    ? resolve(msg("Answer the question to edit queued messages"))
+    : null;
 }
 
 interface ExitWatch<E> {

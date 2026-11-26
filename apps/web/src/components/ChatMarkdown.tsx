@@ -1133,6 +1133,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
     return <p {...props}>{renderSkillInlineMarkdownChildren(children, skills, threadRef)}</p>;
   },
   blockquote: function MarkdownBlockquote({ node: _node, children, ...props }) {
+    const m = useMessages();
     const alertKind = String((props as Record<string, unknown>)["data-alert"] ?? "");
     const alert = GITHUB_ALERT_PRESENTATIONS[alertKind];
     if (!alert) {
@@ -1151,7 +1152,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
           className={cn("flex items-center gap-1.5 font-medium", alert.titleClassName)}
         >
           <alert.Icon aria-hidden className="size-3.5 shrink-0" />
-          {alert.label}
+          {m(alert.label)}
         </p>
         {children}
       </div>

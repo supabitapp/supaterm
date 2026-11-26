@@ -24,7 +24,7 @@ import { environmentSession, usePreparedConnection } from "./session";
 import { useEnvironmentPresentation } from "./presentation";
 import { useEnvironmentQuery } from "./query";
 import { useAtomQueryRunner } from "./use-atom-query-runner";
-import { msg } from "gt-react-native";
+import { msg, useMessages } from "gt-react-native";
 import { m } from "../i18n/messages";
 
 export type { AssetUrlFailureReason, AssetUrlState } from "./asset-url-state";
@@ -49,16 +49,20 @@ export function useAssetUrlState(
   resource: AssetResource | null,
   revision?: string | null,
 ): AssetUrlState {
+  const messages = useMessages();
   const fileAccessSession = useEnvironmentQuery(
     environmentId === null ? null : environmentSession.sessionStateAtom(environmentId),
   );
   const fileEnvironment = useEnvironmentPresentation(environmentId);
-  const fileAccess = resolveFilesystemReadAccess({
-    isCatalogReady: fileEnvironment.isReady,
-    connection: fileEnvironment.presentation?.connection ?? null,
-    session: fileAccessSession.data,
-    sessionError: fileAccessSession.error,
-  });
+  const fileAccess = resolveFilesystemReadAccess(
+    {
+      isCatalogReady: fileEnvironment.isReady,
+      connection: fileEnvironment.presentation?.connection ?? null,
+      session: fileAccessSession.data,
+      sessionError: fileAccessSession.error,
+    },
+    messages,
+  );
   const blocked = blockedAssetUrlState(resource, fileAccess);
   const preparedConnection = usePreparedConnection(environmentId);
   const connectionPhase = fileEnvironment.presentation?.connection.phase ?? "available";

@@ -21,7 +21,7 @@ import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collaps
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 class LicenseManifestLoadError extends Schema.TaggedError<LicenseManifestLoadError>()(
   "LicenseManifestLoadError",
@@ -73,6 +73,7 @@ function LicenseNoticeRow({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
@@ -90,7 +91,7 @@ function LicenseNoticeRow({
               ) : null}
             </span>
             <span className="max-w-[42%] shrink-0 truncate text-xs text-muted-foreground">
-              {entry.license} · {formatLicenseBundles(entry.bundles)}
+              {entry.license} · {formatLicenseBundles(entry.bundles, messages)}
             </span>
           </CollapsibleTrigger>
           {entry.sourceUrl ? (

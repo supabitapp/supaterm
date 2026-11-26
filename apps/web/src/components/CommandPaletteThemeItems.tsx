@@ -18,7 +18,7 @@ import {
   ThemePreviewCircle,
 } from "./settings/ThemePreviewCircles";
 import { stackedThreadToast, toastManager } from "./ui/toast";
-import { msg, useGT, T } from "gt-react";
+import { msg, useGT, T, useMessages } from "gt-react";
 import { m } from "../i18n/messages";
 
 const APPEARANCE_OPTIONS = [
@@ -54,6 +54,7 @@ function useThemeCards() {
 }
 
 export function useCommandPaletteThemeItems() {
+  const messages = useMessages();
   const gt = useGT();
   const {
     theme,
@@ -136,7 +137,7 @@ export function useCommandPaletteThemeItems() {
         items: APPEARANCE_OPTIONS.map(({ mode, label, icon: Icon }) => ({
           kind: "action",
           value: `appearance:${mode}`,
-          title: label,
+          title: messages(label),
           searchTerms: [label, "appearance", "mode"],
           icon: <Icon className={ITEM_ICON_CLASS} />,
           titleTrailingContent:

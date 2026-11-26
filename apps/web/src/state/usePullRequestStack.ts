@@ -16,6 +16,7 @@ import {
 import { pullRequestStackAtom } from "./pullRequests";
 import { useEnvironmentQuery } from "./query";
 import { environmentThreadShells } from "./threads";
+import { useMessages } from "gt-react";
 
 const NOT_ANSWERED = Atom.make(false);
 
@@ -38,17 +39,19 @@ export function usePullRequestStack(
   environmentId: EnvironmentId,
   reference: PullRequestRef | null,
 ) {
+  const resolve = useMessages();
   const links = useAtomValue(environmentPullRequestLinksAtom(environmentId));
   const saved = reference === null ? null : savedPullRequestStack(links, reference);
   const query = useEnvironmentQuery(
     reference === null ? null : pullRequestStackAtom({ environmentId, input: reference }),
+    resolve,
   );
   const answered = useAtomValue(
     reference === null
       ? NOT_ANSWERED
       : pullRequestStackAtom.answered({ environmentId, input: reference }),
   );
-  const view = pullRequestStackView(query, saved);
+  const view = pullRequestStackView(query, saved, resolve);
   // A saved answer paints; merging waits for this session's own host answer.
   return { ...query, ...view, isFresh: view.isFresh && answered };
 }

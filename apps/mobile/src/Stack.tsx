@@ -148,7 +148,7 @@ import { useNativeLayoutMetrics } from "./native/native-layout-metrics";
 import { isPresentedRoute } from "./native/workspace-stack-projection";
 import { runningThreadKeepAliveAtom } from "./state/threads";
 import { workspaceDetailRouter } from "./features/layout/workspace/workspace-detail-selection";
-import { T, useGT, msg } from "gt-react-native";
+import { T, useGT, msg, useMessages } from "gt-react-native";
 
 const settingsPage = (title: string) => pageRoute({ title, itemStyle: "standard" });
 
@@ -165,12 +165,29 @@ const THREAD_SETTINGS_ROUTE = sheetRoute({
 // header peeking above it once the keyboard opens.
 const SEARCH_SHEET_ROUTE = sheetRoute({ detent: 0.75, android: "card", itemStyle: "editor" });
 
+// Resolved in the rendered Navigator's screenOptions so each header title follows the UI language;
+// route options stay plain objects because registerPresentedRoutes reads them at load.
+const ROUTE_TITLES: Readonly<Record<string, string>> = {
+  Settings: msg("Settings"),
+  ComponentCatalog: msg("UI components"),
+  SideChatDraft: msg("Side chat"),
+  NewTaskProject: msg("Choose project"),
+  NewTaskEnvironment: msg("Environment"),
+  NewTaskBranch: msg("Branch"),
+  NewTaskRepositories: msg("Repositories"),
+  AddProject: msg("Add project"),
+  ThreadFiles: msg("Files"),
+  SettingsLegal: msg("Legal"),
+  Connections: msg("Environments"),
+  ConnectionsNew: msg("Add Environment"),
+};
+
 const SETTINGS_SCREENS = {
   Settings: createNativeStackScreen({
     screen: SettingsRouteScreen,
     linking: "settings",
     options: {
-      ...pageRoute({ title: msg("Settings"), itemStyle: "standard", root: true }),
+      ...pageRoute({ itemStyle: "standard", root: true }),
       ...(Platform.OS === "android" ? { animation: "none" as const } : {}),
     },
   }),
@@ -481,7 +498,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
           ComponentCatalog: createNativeStackScreen({
             screen: ComponentCatalogScreen,
             linking: "dev/components",
-            options: { title: msg("UI components") },
           }),
         }
       : {}),
@@ -575,33 +591,33 @@ const RootStackConfig = createWorkspaceStackNavigator({
     }),
     SideChatDraft: createNativeStackScreen({
       screen: SideChatDraftRouteScreen,
-      options: pageRoute({ title: msg("Side chat") }),
+      options: pageRoute(),
     }),
     NewTaskProject: createNativeStackScreen({
       screen: NewTaskRouteScreen,
       linking: { path: "new", alias: ["new/project"] },
-      options: pageRoute({ title: msg("Choose project") }),
+      options: pageRoute(),
     }),
     NewTaskEnvironment: createNativeStackScreen({
       linking: "new/draft/environment",
       screen: NewTaskEnvironmentPickerRouteScreen,
-      options: pageRoute({ title: msg("Environment") }),
+      options: pageRoute(),
     }),
     NewTaskBranch: createNativeStackScreen({
       linking: "new/draft/branch",
       screen: NewTaskBranchPickerRouteScreen,
-      options: pageRoute({ title: msg("Branch") }),
+      options: pageRoute(),
     }),
     NewTaskRepositories: createNativeStackScreen({
       linking: "new/draft/repositories",
       screen: NewTaskRepositoriesPickerRouteScreen,
-      options: pageRoute({ title: msg("Repositories") }),
+      options: pageRoute(),
     }),
     AddProject: createNativeStackScreen({
       linking: "new/add-project",
       screen: AddProjectSourceRoute,
 
-      options: pageRoute({ title: msg("Add project") }),
+      options: pageRoute(),
     }),
     AddProjectRepository: createNativeStackScreen({
       linking: "new/add-project/repository",
@@ -683,7 +699,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
     ThreadFiles: createNativeStackScreen({
       screen: ThreadFilesTreeScreen,
       linking: `${THREAD_LINKING_PREFIX}/files`,
-      options: pageRoute({ title: msg("Files") }),
+      options: pageRoute(),
     }),
     ThreadFile: createNativeStackScreen({
       screen: ThreadFileScreen,
@@ -753,13 +769,12 @@ const RootStackConfig = createWorkspaceStackNavigator({
     SettingsLegal: createNativeStackScreen({
       screen: SettingsLegalRouteScreen,
       linking: "settings/legal",
-      options: modalRoute({ header: "solid", title: msg("Legal") }),
+      options: modalRoute({ header: "solid" }),
     }),
     Connections: createNativeStackScreen({
       screen: ConnectionsRouteScreen,
       linking: "connections",
       options: sheetRoute({
-        title: msg("Environments"),
         detent: 0.55,
         maxDetent: 0.7,
         android: "card",
@@ -768,7 +783,7 @@ const RootStackConfig = createWorkspaceStackNavigator({
     ConnectionsNew: createNativeStackScreen({
       screen: ConnectionsNewRouteScreen,
       linking: "connections/new",
-      options: sheetRoute({ title: msg("Add Environment"), detent: 0.55, maxDetent: 0.7 }),
+      options: sheetRoute({ detent: 0.55, maxDetent: 0.7 }),
     }),
     NotFound: createNativeStackScreen({
       screen: NotFoundScreen,
@@ -832,6 +847,7 @@ export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navig
   const { themeAppearance } = useAppearancePreferences();
   const nativeMetrics = useNativeLayoutMetrics();
   const usesSplitView = deriveLayout({ width, height, nativeMetrics }).usesSplitView;
+  const resolve = useMessages();
 
   return (
     <Navigator
@@ -839,15 +855,20 @@ export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navig
       screenOptions={({ route, navigation }) => {
         const statusBarStyle = themeAppearance === "dark" ? "light" : "dark";
         const statusBarOptions = Platform.OS === "ios" ? ({ statusBarStyle } as const) : {};
-        return Platform.OS === "android"
-          ? {
-              animation: androidWorkspaceDestinationAnimation(
-                route,
-                navigation.getState().routes,
-                usesSplitView,
-              ),
-            }
-          : statusBarOptions;
+        const title =
+          ROUTE_TITLES[route.name] === undefined ? undefined : resolve(ROUTE_TITLES[route.name]);
+        return {
+          ...(title === undefined ? {} : { title }),
+          ...(Platform.OS === "android"
+            ? {
+                animation: androidWorkspaceDestinationAnimation(
+                  route,
+                  navigation.getState().routes,
+                  usesSplitView,
+                ),
+              }
+            : statusBarOptions),
+        };
       }}
     />
   );

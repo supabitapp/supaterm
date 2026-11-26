@@ -210,6 +210,7 @@ function UsageModelDialogHost({
 
 export function UsagePage() {
   const gt = useGT();
+  const m = useMessages();
   const [preferences, setPreferences] = useState(readUsagePagePreferences);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const hour12 = usePrimarySettings((settings) => resolveHour12(settings.timestampFormat));
@@ -437,7 +438,7 @@ export function UsagePage() {
             <ShortcutToggle
               key={option.value}
               value={option.value}
-              label={option.label}
+              label={m(option.label)}
               shortcut={shortcutFor(option)}
             />
           ))}
@@ -456,7 +457,7 @@ export function UsagePage() {
             <ShortcutToggle
               key={option.days}
               value={String(option.days)}
-              label={option.label}
+              label={m(option.label)}
               shortcut={shortcutFor(option)}
             />
           ))}
@@ -486,7 +487,7 @@ export function UsagePage() {
             className="w-auto min-w-0"
           >
             <SelectValue>
-              {METRIC_OPTIONS.find((option) => option.value === metric)?.label}
+              {m(METRIC_OPTIONS.find((option) => option.value === metric)?.label ?? "")}
             </SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -494,7 +495,7 @@ export function UsagePage() {
               <ShortcutSelectItem
                 key={option.value}
                 value={option.value}
-                label={option.label}
+                label={m(option.label)}
                 shortcut={shortcutFor(option)}
               />
             ))}
@@ -512,7 +513,7 @@ export function UsagePage() {
             className="w-auto min-w-0"
           >
             <SelectValue>
-              {WINDOW_OPTIONS.find((option) => option.days === windowDays)?.label}
+              {m(WINDOW_OPTIONS.find((option) => option.days === windowDays)?.label ?? "")}
             </SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
@@ -520,7 +521,7 @@ export function UsagePage() {
               <ShortcutSelectItem
                 key={option.days}
                 value={String(option.days)}
-                label={option.label}
+                label={m(option.label)}
                 shortcut={shortcutFor(option)}
               />
             ))}

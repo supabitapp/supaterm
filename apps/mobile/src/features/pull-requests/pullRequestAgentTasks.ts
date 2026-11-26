@@ -25,6 +25,7 @@ export function pullRequestAgentThreadActions(
   threads: PullRequestLinkedThreadsResult["threads"],
   task: PullRequestAgentTask,
   canAsk: boolean,
+  resolve: MessageResolver = m,
 ): MenuAction[] {
   const active: MenuAction[] = [];
   const done: MenuAction[] = [];
@@ -33,19 +34,23 @@ export function pullRequestAgentThreadActions(
       id: `${task}:${thread.id}`,
       title: thread.title,
       subtitle: thread.archivedAt
-        ? msg("Archived thread")
+        ? resolve(msg("Archived thread"))
         : thread.done
-          ? msg("Done thread")
-          : msg("Continue thread"),
+          ? resolve(msg("Done thread"))
+          : resolve(msg("Continue thread")),
       image: "bubble.left.and.bubble.right",
       attributes: { disabled: task !== "ask" && Boolean(thread.archivedAt) },
     };
     (thread.done ? done : active).push(action);
   }
   return [
-    ...(canAsk ? [{ id: `${task}:new`, title: msg("Start a new thread"), image: "plus" }] : []),
+    ...(canAsk
+      ? [{ id: `${task}:new`, title: resolve(msg("Start a new thread")), image: "plus" }]
+      : []),
     ...active,
-    ...(done.length ? [{ id: `${task}:done`, title: msg("Done threads"), subactions: done }] : []),
+    ...(done.length
+      ? [{ id: `${task}:done`, title: resolve(msg("Done threads")), subactions: done }]
+      : []),
   ];
 }
 

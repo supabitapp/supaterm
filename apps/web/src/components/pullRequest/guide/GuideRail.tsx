@@ -5,7 +5,7 @@ import { cn } from "~/lib/utils";
 
 import { Badge } from "../../ui/badge";
 import { stopSubline } from "@supaterm/client-runtime/review-guide-tour";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 export function GuideRail({
   stops,
@@ -18,6 +18,7 @@ export function GuideRail({
   seen: ReadonlySet<number>;
   onSelect: (position: number) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const reviewed = seen.size;
   const renderStop = (stop: PullRequestReviewGuideStop, index: number) => (
@@ -34,7 +35,7 @@ export function GuideRail({
                 <T>Look closely</T>
               </Badge>
             ) : null}
-            <span>{stopSubline(stop)}</span>
+            <span>{stopSubline(stop, messages)}</span>
           </>
         }
       />

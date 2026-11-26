@@ -441,7 +441,10 @@ const USER_FACING_FAILURE_TAGS = new Set([
  * through: anything else (transport or encoding failures) gets the generic
  * copy, so the pairing code can never surface in the UI.
  */
-export function linkRequestFailureMessage(failure: unknown): string {
+export function linkRequestFailureMessage(
+  failure: unknown,
+  resolve: MFunctionType = mFallback,
+): string {
   if (
     typeof failure === "object" &&
     failure !== null &&
@@ -454,5 +457,5 @@ export function linkRequestFailureMessage(failure: unknown): string {
   ) {
     return failure.message;
   }
-  return msg("Could not answer the request. Try again.");
+  return resolve(msg("Could not answer the request. Try again."));
 }

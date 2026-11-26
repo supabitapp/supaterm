@@ -2,7 +2,7 @@ import {
   type ConnectionTarget,
   connectionAddressLabel,
   connectionRouteId,
-  connectionRouteLabel,
+  connectionRouteLabelText,
   connectionRoutes,
 } from "@supaterm/client-runtime/connection";
 import type { DesktopSshEnvironmentTarget, EnvironmentMachineKind } from "@supaterm/contracts";
@@ -37,7 +37,8 @@ export function environmentTransportLabel(
   if (routes.length > 1 && activeTarget !== null) {
     const activeId = connectionRouteId(activeTarget);
     const active = routes.find((route) => connectionRouteId(route.target) === activeId);
-    if (active !== undefined) return `via ${connectionRouteLabel(active)}`;
+    if (active !== undefined)
+      return resolve(msg("via {route}", { route: connectionRouteLabelText(active, resolve) }));
   }
   if (isDesktopLocalConnectionTarget(entry.target)) return "WSL";
   if (
@@ -49,7 +50,7 @@ export function environmentTransportLabel(
   }
   return environment.displayUrl === null
     ? resolve(msg("Remote link"))
-    : connectionAddressLabel(environment.displayUrl);
+    : connectionAddressLabel(environment.displayUrl, resolve);
 }
 
 export function EnvironmentTransportLabel({

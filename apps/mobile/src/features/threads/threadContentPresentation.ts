@@ -17,21 +17,23 @@ export function projectThreadContentPresentation(input: {
   readonly detailError: string | null;
   readonly detailDeleted: boolean;
   readonly connectionState: EnvironmentConnectionPhase;
+  readonly resolve?: MessageResolver;
 }): ThreadContentPresentation {
+  const resolve = input.resolve ?? m;
   if (input.hasDetail) {
     return { kind: "ready" };
   }
   if (input.detailDeleted) {
     return {
       kind: "unavailable",
-      title: msg("Thread unavailable"),
-      detail: msg("This thread was deleted or is no longer available."),
+      title: resolve(msg("Thread unavailable")),
+      detail: resolve(msg("This thread was deleted or is no longer available.")),
     };
   }
   if (input.detailError !== null) {
     return {
       kind: "unavailable",
-      title: msg("Could not load conversation"),
+      title: resolve(msg("Could not load conversation")),
       detail: input.detailError,
     };
   }
@@ -44,8 +46,8 @@ export function projectThreadContentPresentation(input: {
   }
   return {
     kind: "unavailable",
-    title: msg("Messages not cached"),
-    detail: msg("Reconnect this environment to load the conversation."),
+    title: resolve(msg("Messages not cached")),
+    detail: resolve(msg("Reconnect this environment to load the conversation.")),
   };
 }
 

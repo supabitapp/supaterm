@@ -318,6 +318,7 @@ export function workEntryRowDisplay(
   const commandless = commandlessCommandLabel(
     entry,
     liveActivityToolStatus(entry.toolLifecycleStatus, false),
+    resolve,
   );
   if (commandless) return { text: commandless };
   const action = toolGroupAction(entry);
@@ -399,6 +400,7 @@ const presentedActivityGroupsCache = new WeakMap<
     readonly activeRunId: RunId | null;
     readonly isWorking: boolean;
     readonly activeTail: boolean;
+    readonly locale: string | undefined;
     readonly rows: ReadonlyArray<ThreadFeedEntry>;
   }
 >();
@@ -1957,6 +1959,8 @@ export function deriveThreadFeedPresentation(
         activeRunId,
         isWorking,
         isActiveTailGroup,
+        resolve,
+        locale,
       );
     }
   }
@@ -2154,6 +2158,8 @@ function appendPresentedFeedEntry(
   activeRunId: RunId | null,
   isWorking: boolean,
   activeTail: boolean,
+  resolve: MessageResolver,
+  locale: string | undefined,
 ): void {
   if (entry.type !== "activity-group") {
     result.push(entry);
@@ -2175,13 +2181,22 @@ function appendPresentedFeedEntry(
     cached.activeRunId !== activeRunId ||
     cached.isWorking !== isWorking ||
     cached.activeTail !== activeTail ||
+    cached.locale !== locale ||
     cached.rows.some(
       (row) => row.type === "work-toggle" && expandedWorkGroupIds.has(row.groupId) !== row.expanded,
     )
   ) {
     const rows: ThreadFeedEntry[] = [];
-    appendActivityGroupRows(rows, entry, expandedWorkGroupIds, activeRunId, isWorking, activeTail);
-    cached = { activeRunId, isWorking, activeTail, rows };
+    appendActivityGroupRows(
+      rows,
+      entry,
+      expandedWorkGroupIds,
+      activeRunId,
+      isWorking,
+      activeTail,
+      resolve,
+    );
+    cached = { activeRunId, isWorking, activeTail, locale, rows };
     presentedActivityGroupsCache.set(entry, cached);
   }
   for (const row of cached.rows) {
@@ -2196,6 +2211,7 @@ function appendActivityGroupRows(
   activeRunId: RunId | null,
   isWorking: boolean,
   activeTail: boolean,
+  resolve: MessageResolver,
 ): void {
   const groupAnchorIdByActivityId = new Map<string, string>();
   let groupAnchorId: string | null = null;
@@ -2230,6 +2246,7 @@ function appendActivityGroupRows(
       activeRunId,
       isWorking,
       activeTail && isTrailingRun,
+      resolve,
     );
     const paths = workEntriesViewedImagePaths(groupableRun.map((activity) => activity.workEntry));
     if (paths.length > 0) {
@@ -2271,6 +2288,7 @@ function appendToolGroupRows(
   activeRunId: RunId | null,
   isWorking: boolean,
   activeTail: boolean,
+  resolve: MessageResolver,
 ): void {
   const expanded = expandedWorkGroupIds.has(groupId);
   const latestActiveActivity = activities.findLast(
@@ -2300,11 +2318,11 @@ function appendToolGroupRows(
       ? latestActivity.lifecycleStatus === "inProgress"
         ? "Thinking"
         : "Thought"
-      : liveToolActivitySummary(latestActivity, live)
+      : liveToolActivitySummary(latestActivity, live, resolve)
     : singleActivity !== null &&
         singleActivity.toolLike &&
         toolGroupAction(singleActivity.workEntry) !== "edit"
-      ? singleToolCallLabel(singleActivity, expanded)
+      ? singleToolCallLabel(singleActivity, expanded, resolve)
       : singleActivity !== null && !singleActivity.toolLike
         ? singleActivity.workEntry.label
         : groupSummary.summary;
@@ -2388,7 +2406,11 @@ function appendToolGroupRows(
   });
 }
 
-function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boolean): string {
+function liveToolActivitySummary(
+  activity: ThreadFeedActivity,
+  presentTense: boolean,
+  resolve: MessageResolver,
+): string {
   const status = liveActivityToolStatus(activity.lifecycleStatus, presentTense);
   if (activity.workEntry.itemType === "reasoning") {
     return compactWorkEntryText(
@@ -2420,7 +2442,7 @@ function liveToolActivitySummary(activity: ThreadFeedActivity, presentTense: boo
     return `${verb} ${program ?? "command"}`;
   }
   return (
-    commandlessCommandLabel(activity.workEntry, status) ??
+    commandlessCommandLabel(activity.workEntry, status, resolve) ??
     compactWorkEntryText(activity.detail ?? activity.summary)
   );
 }

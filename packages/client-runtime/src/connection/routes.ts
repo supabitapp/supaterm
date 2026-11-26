@@ -23,7 +23,8 @@ import {
   type ConnectionRoute,
 } from "./catalog.ts";
 import { BearerConnectionTarget, type ConnectionTarget } from "./model.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export type ConnectionRouteKind =
   | "loopback"
@@ -290,6 +291,21 @@ export function connectionRouteLabel(route: ConnectionRoute): string {
     }
     case "public":
       return routeHostname(route) ?? msg("Remote link");
+  }
+}
+
+/** @public */
+export function connectionRouteLabelText(
+  route: ConnectionRoute,
+  resolve: MFunctionType = mFallback,
+): string {
+  switch (connectionRouteKind(route)) {
+    case "loopback":
+      return resolve(msg("This device"));
+    case "public":
+      return routeHostname(route) ?? resolve(msg("Remote link"));
+    default:
+      return connectionRouteLabel(route);
   }
 }
 

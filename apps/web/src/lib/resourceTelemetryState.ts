@@ -12,7 +12,7 @@ import { useEnvironmentQuery } from "../state/query";
 import { serverEnvironment } from "../state/server";
 import { readEnvironmentScope, useEnvironmentScope } from "../state/session";
 import { useAtomCommand } from "../state/use-atom-command";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
 import { m } from "../i18n/messages";
 
 export interface ResourceTelemetryState {
@@ -26,6 +26,7 @@ export interface ResourceTelemetryState {
 export function useResourceTelemetry(
   targetEnvironmentId?: EnvironmentId | null,
 ): ResourceTelemetryState {
+  const resolve = useMessages();
   const primaryEnvironment = usePrimaryEnvironment();
   const environmentId =
     targetEnvironmentId === undefined
@@ -36,6 +37,7 @@ export function useResourceTelemetry(
     environmentId === null || !canReadDiagnostics
       ? null
       : serverEnvironment.resourceTelemetry({ environmentId, input: {} }),
+    resolve,
   );
   const retryCommand = useAtomCommand(serverEnvironment.retryResourceTelemetry, {
     reportFailure: false,
@@ -67,6 +69,7 @@ export function useResourceTelemetryHistory(
   input: ResourceTelemetryHistoryInput,
   targetEnvironmentId?: EnvironmentId | null,
 ) {
+  const resolve = useMessages();
   const primaryEnvironment = usePrimaryEnvironment();
   const environmentId =
     targetEnvironmentId === undefined
@@ -77,5 +80,6 @@ export function useResourceTelemetryHistory(
     environmentId === null || !canReadDiagnostics
       ? null
       : serverEnvironment.resourceTelemetryHistory({ environmentId, input }),
+    resolve,
   );
 }

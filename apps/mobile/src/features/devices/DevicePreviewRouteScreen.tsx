@@ -184,10 +184,11 @@ export function DevicePreviewScreen({
       onPress: () =>
         Dialog.alert(
           m(msg("Device tool versions")),
-          deviceToolUpdateOwnership +
+          m(deviceToolUpdateOwnership) +
             "\n\n" +
             deviceToolUpdatePolicy(
               state.data?.hosts.find((host) => host.id === preview?.session.hostId)?.tools,
+              m,
             ) +
             "\n\n" +
             deviceToolVersionLabels(

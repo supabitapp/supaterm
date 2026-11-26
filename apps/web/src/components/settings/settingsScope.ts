@@ -6,6 +6,8 @@ import type {
 } from "../../sidebarProjectGrouping";
 import type { EnvironmentPresentation } from "../../state/environments";
 import { msg } from "gt-react";
+import { m } from "../../i18n/messages";
+import { type MessageResolver } from "../../i18n/messages";
 
 export interface SettingsScopeSearch {
   project?: string | undefined;
@@ -60,6 +62,7 @@ export function resolveSettingsScope(
   search: SettingsScopeSearch,
   groups: readonly SidebarProjectSnapshot[],
   environments: readonly Pick<EnvironmentPresentation, "environmentId" | "label">[],
+  resolve: MessageResolver = m,
 ): ResolvedSettingsScope {
   const unavailable = (
     reason: Extract<ResolvedSettingsScope, { kind: "unavailable" }>["reason"],
@@ -67,7 +70,7 @@ export function resolveSettingsScope(
   ): ResolvedSettingsScope => ({
     kind: "unavailable",
     reason,
-    label: msg("Unavailable selection"),
+    label: resolve(msg("Unavailable selection")),
     message,
     members: [],
     environmentIds: [],
@@ -144,7 +147,7 @@ export function resolveSettingsScope(
   }
   return {
     kind: "all",
-    label: msg("All environments"),
+    label: resolve(msg("All environments")),
     members: [],
     environmentIds: environments.map((candidate) => candidate.environmentId),
   };

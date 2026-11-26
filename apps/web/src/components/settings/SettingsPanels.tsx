@@ -707,6 +707,7 @@ export function useSettingsRestore(onRestored?: () => void) {
 const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 7;
 
 export function GeneralSettingsPanel() {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
@@ -764,17 +765,17 @@ export function GeneralSettingsPanel() {
                 aria-label={gt("Thread grouping")}
               >
                 <SelectValue>
-                  {
+                  {m(
                     THREAD_GROUPING_OPTIONS.find(
                       (option) => option.value === settings.sidebarThreadGrouping,
-                    )?.label
-                  }
+                    )?.label ?? "",
+                  )}
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
                 {THREAD_GROUPING_OPTIONS.map((option) => (
                   <SelectItem hideIndicator key={option.value} value={option.value}>
-                    {option.label}
+                    {m(option.label)}
                   </SelectItem>
                 ))}
               </SelectPopup>
@@ -842,13 +843,13 @@ export function GeneralSettingsPanel() {
             >
               <SelectTrigger size="sm" className="w-full sm:w-44" aria-label={gt("Project order")}>
                 <SelectValue>
-                  {SIDEBAR_PROJECT_SORT_ORDER_LABELS[settings.sidebarProjectSortOrder]}
+                  {m(SIDEBAR_PROJECT_SORT_ORDER_LABELS[settings.sidebarProjectSortOrder])}
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
                 {SidebarProjectSortOrder.literals.map((sortOrder) => (
                   <SelectItem hideIndicator key={sortOrder} value={sortOrder}>
-                    {SIDEBAR_PROJECT_SORT_ORDER_LABELS[sortOrder]}
+                    {m(SIDEBAR_PROJECT_SORT_ORDER_LABELS[sortOrder])}
                   </SelectItem>
                 ))}
               </SelectPopup>
@@ -1256,6 +1257,7 @@ const TOOL_CALL_VISIBILITY_LABELS: Record<ToolCallVisibility, string> = {
 const isToolCallVisibility = Schema.is(ToolCallVisibility);
 
 function ToolCallVisibilityRow() {
+  const messages = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
@@ -1284,12 +1286,14 @@ function ToolCallVisibilityRow() {
           }}
         >
           <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={gt("Tool calls in chat")}>
-            <SelectValue>{TOOL_CALL_VISIBILITY_LABELS[settings.toolCallVisibility]}</SelectValue>
+            <SelectValue>
+              {messages(TOOL_CALL_VISIBILITY_LABELS[settings.toolCallVisibility])}
+            </SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {ToolCallVisibility.literals.map((value) => (
               <SelectItem key={value} value={value}>
-                {TOOL_CALL_VISIBILITY_LABELS[value]}
+                {messages(TOOL_CALL_VISIBILITY_LABELS[value])}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -1308,6 +1312,7 @@ const SCREEN_READER_ANNOUNCEMENTS_LABELS: Record<ScreenReaderAnnouncements, stri
 const isScreenReaderAnnouncements = Schema.is(ScreenReaderAnnouncements);
 
 function ScreenReaderAnnouncementsRow() {
+  const messages = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
@@ -1348,13 +1353,13 @@ function ScreenReaderAnnouncementsRow() {
             aria-label={gt("Screen reader announcements")}
           >
             <SelectValue>
-              {SCREEN_READER_ANNOUNCEMENTS_LABELS[settings.screenReaderAnnouncements]}
+              {messages(SCREEN_READER_ANNOUNCEMENTS_LABELS[settings.screenReaderAnnouncements])}
             </SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {ScreenReaderAnnouncements.literals.map((value) => (
               <SelectItem key={value} value={value}>
-                {SCREEN_READER_ANNOUNCEMENTS_LABELS[value]}
+                {messages(SCREEN_READER_ANNOUNCEMENTS_LABELS[value])}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -1560,6 +1565,7 @@ export function DiffsSettingsPanel() {
 }
 
 export function ThreadsSettingsPanel() {
+  const messages = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const settings = useScopedSettings();
@@ -2015,16 +2021,16 @@ export function ThreadsSettingsPanel() {
               >
                 <SelectValue>
                   {(value: ResponseStreamingMode | null) =>
-                    value === null ? "Mixed" : RESPONSE_STREAMING_MODE_LABELS[value]
+                    value === null ? gt("Mixed") : messages(RESPONSE_STREAMING_MODE_LABELS[value])
                   }
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
                 <SelectItem hideIndicator value="turn">
-                  {RESPONSE_STREAMING_MODE_LABELS.turn}
+                  {messages(RESPONSE_STREAMING_MODE_LABELS.turn)}
                 </SelectItem>
                 <SelectItem hideIndicator value="paragraph">
-                  {RESPONSE_STREAMING_MODE_LABELS.paragraph}
+                  {messages(RESPONSE_STREAMING_MODE_LABELS.paragraph)}
                 </SelectItem>
               </SelectPopup>
             </Select>

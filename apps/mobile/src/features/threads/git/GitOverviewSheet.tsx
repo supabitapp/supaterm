@@ -52,7 +52,7 @@ import {
   useLinkedPullRequestLines,
 } from "../LinkedPullRequestList";
 import { useLinkedPullRequestActions } from "../useLinkedPullRequestActions";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 import { changeRequestTermKind } from "../../../lib/changeRequestTerm";
 
@@ -78,6 +78,7 @@ export function GitOverviewSheet(props: GitOverviewSheetProps) {
 }
 
 function GitOverviewSheetContent(props: GitOverviewSheetProps) {
+  const m = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -154,20 +155,25 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
   const currentStatusSummary =
     repository !== undefined
       ? gitStatus.data?.isRepo
-        ? `${gitStatus.data.refName ?? "Detached HEAD"} · ${statusSummary(gitStatus.data)}`
-        : statusSummary(gitStatus.data)
+        ? `${gitStatus.data.refName ?? gt("Detached HEAD")} · ${statusSummary(gitStatus.data, m)}`
+        : statusSummary(gitStatus.data, m)
       : taskFolder !== null && trackedRepositoryCount > 0
-        ? `${taskFolder.repositories.length} ${taskFolder.repositories.length === 1 ? "repository worktree" : "repository worktrees"}`
+        ? gt(
+            "{count, plural, one {{count} repository worktree} other {{count} repository worktrees}}",
+            { count: taskFolder.repositories.length },
+          )
         : trackedRepositoryCount > 0
-          ? `${trackedRepositoryCount} ${trackedRepositoryCount === 1 ? "repository" : "repositories"}`
-          : statusSummary(gitStatus.data);
+          ? gt("{count, plural, one {{count} repository} other {{count} repositories}}", {
+              count: trackedRepositoryCount,
+            })
+          : statusSummary(gitStatus.data, m);
   const currentWorktreePath = repository === undefined ? selectedThreadWorktreePath : null;
   const gitOperationLabel = gitState.gitOperationLabel;
   const busy = gitOperationLabel !== null;
   const hasPrimaryRemote = gitStatus.data?.hasPrimaryRemote ?? false;
   const isDefaultRef = gitStatus.data?.isDefaultRef ?? false;
 
-  const menuItems = isRepo ? buildMenuItems(gitStatus.data, busy, hasPrimaryRemote) : [];
+  const menuItems = isRepo ? buildMenuItems(gitStatus.data, busy, hasPrimaryRemote, m) : [];
 
   const sheetMenuItems = menuItems.map((item) => ({
     item: {
@@ -177,12 +183,15 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
     disabledReason:
       !canWriteSourceControl && item.kind !== "open_pr"
         ? gt("This connection cannot change source control.")
-        : getGitActionDisabledReason({
-            item,
-            gitStatus: gitStatus.data,
-            isBusy: busy,
-            hasOriginRemote: hasPrimaryRemote,
-          }),
+        : getGitActionDisabledReason(
+            {
+              item,
+              gitStatus: gitStatus.data,
+              isBusy: busy,
+              hasOriginRemote: hasPrimaryRemote,
+            },
+            m,
+          ),
   }));
 
   const changeRequest = sourceControlClients.get(

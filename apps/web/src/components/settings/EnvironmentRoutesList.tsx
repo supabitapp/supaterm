@@ -24,7 +24,7 @@ import {
   connectionRouteAddress,
   connectionRouteId,
   connectionRouteKind,
-  connectionRouteLabel,
+  connectionRouteLabelText,
   connectionRoutes,
   isLearned,
   pendingRouteOrder,
@@ -57,6 +57,7 @@ export function EnvironmentRoutesList({
   readonly onAddRoute: () => void;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const registry = useContext(RegistryContext);
   const saved = connectionRoutes(environment.entry);
   const savedIds = saved.map((route) => connectionRouteId(route.target));
@@ -86,7 +87,12 @@ export function EnvironmentRoutesList({
   const confirmRemove = async (route: ConnectionRoute) => {
     const address = connectionRouteAddress(route);
     const confirmed = await requestConfirmDialog(
-      `Remove ${connectionRouteLabel(route)} route?${address === null ? "" : `\n${address}`}`,
+      address === null
+        ? gt("Remove {route} route?", { route: connectionRouteLabelText(route, messages) })
+        : gt("Remove {route} route?\n{address}", {
+            route: connectionRouteLabelText(route, messages),
+            address,
+          }),
       { variant: "destructive" },
     );
     if (confirmed !== true) return;
@@ -186,7 +192,7 @@ function SortableRouteRow({
   const gt = useGT();
   const messages = useMessages();
   const id = connectionRouteId(route.target);
-  const label = connectionRouteLabel(route);
+  const label = connectionRouteLabelText(route, messages);
   const address = connectionRouteAddress(route);
   // A route a connect skips has no speed worth measuring.
   const measured = useAtomValue(

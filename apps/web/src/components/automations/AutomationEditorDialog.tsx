@@ -170,10 +170,11 @@ function ScheduledTaskRepositories({
   readonly repositories: ReadonlyArray<string> | undefined;
   readonly onChange: (repositories: ReadonlyArray<string>) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { choices } = useWorktreeRepositoryChoices(project);
   if (choices === null || choices.length === 0) return null;
-  const selection = resolveWorktreeRepositorySelection({ choices, chosen: repositories });
+  const selection = resolveWorktreeRepositorySelection({ choices, chosen: repositories }, messages);
   const selected = new Set(selection.selected);
   return (
     <div className="space-y-1.5">

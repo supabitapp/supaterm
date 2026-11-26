@@ -108,6 +108,7 @@ function PendingSecretRequestForm(props: {
   readonly environmentId: EnvironmentId;
   readonly item: SecretRequestItem;
 }) {
+  const messages = useMessages();
   const { item } = props;
   const formId = useId();
   const inputs = secretRequestInputs(item);
@@ -154,7 +155,11 @@ function PendingSecretRequestForm(props: {
     }
     if (reply.type === "save") setValues(reply.values);
     if (!isAtomCommandInterrupted(result)) {
-      pipe(squashAtomCommandFailure(result), secretRequestFailureMessage, setError);
+      pipe(
+        squashAtomCommandFailure(result),
+        (failure) => secretRequestFailureMessage(failure, messages),
+        setError,
+      );
     }
   };
 

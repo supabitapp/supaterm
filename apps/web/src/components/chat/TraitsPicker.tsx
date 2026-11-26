@@ -58,6 +58,7 @@ import {
 import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
 import { msg, T, useGT } from "gt-react";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
 
@@ -73,33 +74,36 @@ export function readPromptUltrathink(prompt: string): PromptUltrathink {
 }
 
 const SAVED_OPTION_LABELS: Readonly<Record<string, string>> = {
-  agent: "Agent",
-  effort: "Effort",
+  agent: msg("Agent", { $context: "model option name" }),
+  effort: msg("Effort", { $context: "model option name" }),
   reasoningEffort: msg("Reasoning effort"),
-  variant: "Reasoning",
+  variant: msg("Reasoning", { $context: "model option name" }),
 };
 
-function savedOptionLabel(id: string): string {
-  return (
-    SAVED_OPTION_LABELS[id] ??
-    id.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (character) => character.toUpperCase())
-  );
+function savedOptionLabel(id: string, resolve: MessageResolver): string {
+  const saved = SAVED_OPTION_LABELS[id];
+  return saved !== undefined
+    ? resolve(saved)
+    : id
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/^./, (character) => character.toUpperCase());
 }
 
 function buildUnavailableModelOptionDescriptors(
   selections: ProviderOptions | null | undefined,
+  resolve: MessageResolver,
 ): ReadonlyArray<ProviderOptionDescriptor> {
   return (selections ?? []).map((selection) =>
     typeof selection.value === "boolean"
       ? {
           id: selection.id,
-          label: savedOptionLabel(selection.id),
+          label: savedOptionLabel(selection.id, resolve),
           type: "boolean" as const,
           currentValue: selection.value,
         }
       : {
           id: selection.id,
-          label: savedOptionLabel(selection.id),
+          label: savedOptionLabel(selection.id, resolve),
           type: "select" as const,
           options: [{ id: selection.value, label: selection.value }],
           currentValue: selection.value,
@@ -136,6 +140,7 @@ function getSelectedTraits(
   promptUltrathink: PromptUltrathink,
   modelOptions: ProviderOptions | null | undefined,
   allowPromptInjectedEffort: boolean,
+  resolve: MessageResolver = m,
 ) {
   const caps = getProviderModelCapabilities(models, model, provider);
   const modelIsUnavailable =
@@ -144,6 +149,7 @@ function getSelectedTraits(
   const descriptors = modelIsUnavailable
     ? buildUnavailableModelOptionDescriptors(
         modelOptions?.filter((option) => option.id !== "agent" || option.value !== "plan"),
+        resolve,
       )
     : getProviderOptionDescriptors({
         caps,

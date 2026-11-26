@@ -4,10 +4,11 @@ import { resolveEnvironmentMachineKind } from "@supaterm/contracts";
 import type { AppBarMenu } from "../../../components/ui/AppBar.types";
 import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../../components/EnvironmentMachineSymbol";
 import { useSettingsEnvironmentFilter } from "../settings-environment-filter";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 /** The settings scope filter, as an `AppBar` menu. */
 export function useSettingsEnvironmentMenu(): AppBarMenu {
+  const messages = useMessages();
   const gt = useGT();
   const {
     availableTargets,
@@ -43,7 +44,9 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
             id: `environment:${entry.environmentId}`,
             title: entry.label,
             icon: ENVIRONMENT_MACHINE_SYMBOLS[resolveEnvironmentMachineKind(entry.serverConfig)],
-            subtitle: entry.displayUrl ? connectionAddressLabel(entry.displayUrl) : undefined,
+            subtitle: entry.displayUrl
+              ? connectionAddressLabel(entry.displayUrl, messages)
+              : undefined,
             selected: selectedIds === null || selectedIds.has(entry.environmentId),
             onPress: () => toggleEnvironment(entry.environmentId),
           })),

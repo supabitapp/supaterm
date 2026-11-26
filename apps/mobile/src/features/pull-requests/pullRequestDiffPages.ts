@@ -177,6 +177,7 @@ export function withWithheldFiles(
   loads: ReadonlyMap<string, WithheldFileLoad>,
   canLoad: boolean,
   scope: string,
+  resolve: MessageResolver = m,
 ): ReviewParsedDiff {
   if (parsed.kind !== "files" || !parsed.files.some((file) => file.withheld)) return parsed;
   const files = parsed.files.map((file): ReviewRenderableFile => {
@@ -189,7 +190,7 @@ export function withWithheldFiles(
     if (loaded !== null) return { ...loaded, id: file.id };
     return {
       ...file,
-      notice: withheldFileNotice(load, canLoad),
+      notice: withheldFileNotice(load, canLoad, resolve),
       noticeTone: "warning",
       noticeActionable: canLoad && (load === undefined || load.status === "error"),
     };

@@ -751,6 +751,7 @@ function ProjectsSection({
   readonly projectImport: ReturnType<typeof useProjectImport>;
   readonly isImporting: boolean;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const [reviewing, setReviewing] = useState(false);
   const {
@@ -911,7 +912,7 @@ function ProjectsSection({
         </div>
       ) : null}
       {visibleImportError ? (
-        <p className="pt-1 pl-8 text-sm text-destructive">{visibleImportError}</p>
+        <p className="pt-1 pl-8 text-sm text-destructive">{m(visibleImportError)}</p>
       ) : null}
     </WelcomeSection>
   );

@@ -47,7 +47,7 @@ import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 
 const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: "play", label: msg("Play") },
@@ -181,6 +181,7 @@ function ProjectScriptEditorForm({
   onDelete,
   onClose,
 }: Omit<ProjectScriptEditorProps, "request"> & { readonly request: ProjectScriptEditorRequest }) {
+  const m = useMessages();
   const gt = useGT();
   const canEditActions = useEnvironmentScope(environmentId, editScope);
   const canWriteSettings = useEnvironmentScope(environmentId, AuthSettingsWriteScope);
@@ -369,7 +370,7 @@ function ProjectScriptEditorForm({
                             }}
                           >
                             <ScriptIcon icon={entry.id} className="size-4" />
-                            <span>{entry.label}</span>
+                            <span>{m(entry.label)}</span>
                           </button>
                         );
                       })}

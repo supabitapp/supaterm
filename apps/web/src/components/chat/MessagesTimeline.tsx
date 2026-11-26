@@ -170,7 +170,8 @@ import { TimelineSystemDivider } from "./TimelineSystemDivider";
 import { forwardWheelToTimeline } from "./timelineMinimapWheel";
 import { ThreadActivityAnnouncer } from "./ThreadActivityAnnouncer";
 import { useClientSettings } from "../../hooks/useSettings";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, useMessages, Var } from "gt-react";
+import { threadErrorText } from "@supaterm/client-runtime/state/threads";
 
 const NOOP_USE_ARTIFACT_TEMPLATE = () => {};
 const EMPTY_PENDING_APPROVALS: ReadonlyArray<PendingApproval> = [];
@@ -1794,6 +1795,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
 
 function TimelineHistoryControl(props: MessagesTimelineHistoryControls) {
   const gt = useGT();
+  const m = useMessages();
   if (!props.loading && props.error === null) {
     return null;
   }
@@ -1821,7 +1823,7 @@ function TimelineHistoryControl(props: MessagesTimelineHistoryControls) {
         ) : null}
         {props.error !== null ? (
           <p role="status" className="text-center text-muted-foreground text-xs">
-            {props.error}
+            {threadErrorText(props.error, m)}
           </p>
         ) : null}
       </div>

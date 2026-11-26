@@ -44,7 +44,7 @@ import {
   type UsagePriceTarget,
   type UsagePriceWriteResult,
 } from "./usagePriceTargets";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 
 const priceTargetsAtom = Atom.make((get): readonly UsagePriceTarget[] =>
   [...get(environmentPresentations.presentationsAtom)].map(([environmentId, environment]) => {
@@ -103,8 +103,11 @@ export function UsagePriceOverrides({
   readonly initialModel?: string | undefined;
   readonly onOpenChange: (open: boolean) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
-  const environments = useAtomValue(priceTargetsAtom);
+  const environments = useAtomValue(priceTargetsAtom).map((target) =>
+    target.unavailable === null ? target : { ...target, unavailable: messages(target.unavailable) },
+  );
   const [selectedIds, setSelectedIds] = useState(initialSelectedEnvironmentIds);
   const selected = environments.filter(
     (environment) => selectedIds === null || selectedIds.has(environment.environmentId),
@@ -160,7 +163,7 @@ export function UsagePriceOverrides({
     ...drafts.filter((draft) => draft.isNew),
   ];
   const stagedDrafts = drafts.filter((draft) => !isEmptyUsagePriceDraft(draft));
-  const errors = usagePriceTableErrors(selected, stagedDrafts);
+  const errors = usagePriceTableErrors(selected, stagedDrafts, messages);
   // New rows still block Save, but show a price error only once a price or mapping is typed.
   const awaitingPrice = new Set<string>();
   for (const draft of stagedDrafts) {
@@ -219,13 +222,13 @@ export function UsagePriceOverrides({
   };
   const editCell = (row: UsagePriceDraft, field: UsagePriceField, value: string) => {
     const values = { ...row.values, [field]: value };
-    const original = usagePriceCell(selected, row.model, field);
+    const original = usagePriceCell(selected, row.model, field, messages);
     if (matchesSaved(row, original, value)) delete values[field];
     updateOrDropDraft({ ...row, values });
   };
   const editAlias = (row: UsagePriceDraft, value: string) => {
     const { alias: _alias, ...rest } = row;
-    const original = usageAliasCell(selected, row.model);
+    const original = usageAliasCell(selected, row.model, messages);
     updateOrDropDraft(
       matchesSaved(row, original, value)
         ? // A restored mapping hides the price inputs, so their typed values go too.
@@ -245,7 +248,10 @@ export function UsagePriceOverrides({
         ) ?? { ...destination, prices: null, aliases: null, unavailable: "Environment removed" },
     );
     const changes = new Map(
-      targets.map((target) => [target.environmentId, usagePriceTableChanges(target, edits)]),
+      targets.map((target) => [
+        target.environmentId,
+        usagePriceTableChanges(target, edits, messages),
+      ]),
     );
     setPending(true);
     setAttempt((previous) => ({
@@ -381,7 +387,7 @@ export function UsagePriceOverrides({
                         <T>Map to</T>
                       </TableHead>
                       {USAGE_PRICE_FIELDS.map((field) => (
-                        <TableHead key={field.key}>{field.label}</TableHead>
+                        <TableHead key={field.key}>{messages(field.label)}</TableHead>
                       ))}
                       <TableHead>
                         <Button
@@ -413,7 +419,7 @@ export function UsagePriceOverrides({
                       </TableRow>
                     ) : (
                       rows.map((row) => {
-                        const aliasCell = usageAliasCell(selected, row.model);
+                        const aliasCell = usageAliasCell(selected, row.model, messages);
                         const alias = (row.alias ?? aliasCell.value).trim();
                         const error = awaitingPrice.has(row.id) ? undefined : errors.get(row.id);
                         return (
@@ -489,7 +495,12 @@ export function UsagePriceOverrides({
                               </TableCell>
                             ) : (
                               USAGE_PRICE_FIELDS.map((field) => {
-                                const cell = usagePriceCell(selected, row.model, field.key);
+                                const cell = usagePriceCell(
+                                  selected,
+                                  row.model,
+                                  field.key,
+                                  messages,
+                                );
                                 const value =
                                   row.values[field.key] ?? (row.isNew ? "" : cell.value);
                                 return (
@@ -498,7 +509,7 @@ export function UsagePriceOverrides({
                                       size="compact"
                                       inputMode="decimal"
                                       aria-label={gt("{field} price for {model}", {
-                                        field: field.label,
+                                        field: messages(field.label),
                                         model: row.model || "new model",
                                       })}
                                       value={value}

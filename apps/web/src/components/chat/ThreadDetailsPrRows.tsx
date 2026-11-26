@@ -35,6 +35,7 @@ import {
 } from "../ThreadStatusIndicators";
 
 import { ThreadDetailsPrRow } from "./ThreadDetailsPrRow";
+import { useMessages } from "gt-react";
 
 function ThreadDetailsPrLinkRow({
   environmentId,
@@ -51,6 +52,7 @@ function ThreadDetailsPrLinkRow({
   onActed?: (() => void) | undefined;
   onStopWatching?: (() => void) | undefined;
 }) {
+  const m = useMessages();
   const projects = useProjects();
   const parsed = sourceControlClients.parseChangeRequestUrl(link.url)?.link;
   const project =
@@ -68,7 +70,7 @@ function ThreadDetailsPrLinkRow({
       pr={pr}
       number={link.number}
       reference={link}
-      status={prStatusIndicator(pr, linked?.sourceControlProvider)}
+      status={prStatusIndicator(pr, linked?.sourceControlProvider, m)}
       project={project}
       title={link.snapshot?.title ?? null}
       composerTarget={composerTarget}

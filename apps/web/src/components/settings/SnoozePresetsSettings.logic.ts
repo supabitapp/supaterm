@@ -1,6 +1,7 @@
 import type { SnoozePresetSetting } from "@supaterm/contracts/settings";
 import { resolveSnoozePreset } from "@supaterm/client-runtime/state/thread-snooze";
 import * as Equal from "effect/Equal";
+import { m } from "~/i18n/messages";
 
 /**
  * Reads a server value against the editor's writes still in flight. Matching one acknowledges
@@ -28,7 +29,7 @@ export function sortSnoozeRows<K>(
   const order = presets
     .map((preset, index) => ({
       index,
-      wake: resolveSnoozePreset(preset, now)?.snoozedUntil ?? null,
+      wake: resolveSnoozePreset(preset, now, undefined, m)?.snoozedUntil ?? null,
     }))
     .toSorted((a, b) =>
       a.wake === b.wake ? 0 : a.wake === null ? 1 : b.wake === null ? -1 : a.wake < b.wake ? -1 : 1,

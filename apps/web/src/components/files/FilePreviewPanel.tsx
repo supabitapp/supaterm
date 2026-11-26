@@ -1328,7 +1328,7 @@ export default function FilePreviewPanel({
   const isHtml = relativePath !== null && !isPdf && isBrowserPreviewFile(relativePath);
   const isHostFile =
     attachment !== undefined || (relativePath !== null && isHostPath(relativePath));
-  const fileAccess = useFilesystemReadAccess(environmentId);
+  const fileAccess = useFilesystemReadAccess(environmentId, m);
   const { canReadFiles } = fileAccess;
   const canWriteFiles = useEnvironmentScope(environmentId, AuthFilesystemWriteScope);
   const file = useProjectFileQuery(

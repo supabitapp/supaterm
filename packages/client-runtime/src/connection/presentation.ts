@@ -7,7 +7,7 @@ import type { ConnectionTarget, SupervisorConnectionState } from "./model.ts";
 import {
   connectionRouteAddress,
   connectionRouteId,
-  connectionRouteLabel,
+  connectionRouteLabelText,
   connectionRoutes,
   routeHttpBaseUrl,
 } from "./routes.ts";
@@ -181,7 +181,7 @@ export function environmentConnectionAddress(
       (candidate) => connectionRouteId(candidate.target) === activeId,
     );
     if (route !== undefined) {
-      const label = connectionRouteLabel(route);
+      const label = connectionRouteLabelText(route, resolve);
       const address = connectionRouteAddress(route);
       return address === null ? label : `${label} · ${address}`;
     }

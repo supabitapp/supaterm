@@ -92,6 +92,7 @@ export function SavedBackendListRow({
   onRemove,
   onAddRoute,
 }: SavedBackendListRowProps) {
+  const messages = useMessages();
   const gt = useGT();
   const m = useMessages();
   const [renameOpen, setRenameOpen] = useState(false);
@@ -176,9 +177,9 @@ export function SavedBackendListRow({
 
   const statusTooltip = `${environmentTransportLabel(environment, undefined, m)}\n${
     unsupported
-      ? (environment.connection.error ?? connectionStatusText(environment.connection))
+      ? (environment.connection.error ?? connectionStatusText(environment.connection, messages))
       : enabled
-        ? connectionStatusText(environment.connection)
+        ? connectionStatusText(environment.connection, messages)
         : "Switched off"
   }${
     versionMismatch

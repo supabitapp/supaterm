@@ -3,6 +3,7 @@ import { useState, useSyncExternalStore } from "react";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { getDocumentActivity, subscribeDocumentActivity } from "~/lib/documentActivity";
 import { msg } from "gt-react";
+import { m } from "~/i18n/messages";
 
 const POLL_INTERVAL_MS = 1500;
 const CHECK_FAILED_MESSAGE = msg("Could not check permissions. We'll try again automatically.");
@@ -38,7 +39,7 @@ export function createPermissionPoller<Id extends string>(
         try {
           publish({ status: await check(), error: null });
         } catch {
-          publish({ status: snapshot.status, error: CHECK_FAILED_MESSAGE });
+          publish({ status: snapshot.status, error: m(CHECK_FAILED_MESSAGE) });
         }
         checking = false;
       };

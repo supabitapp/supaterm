@@ -29,7 +29,7 @@ import {
   isListableHostFolder,
 } from "./filePath";
 import { useProjectEntriesQuery } from "./projectFilesQueryState";
-import { T, useGT, Var } from "gt-react";
+import { T, useGT, Var, useMessages } from "gt-react";
 
 interface FileBreadcrumbsProps {
   readonly cwd: string;
@@ -85,12 +85,14 @@ function BreadcrumbMenuContent(props: {
   readonly rootPath: string;
   readonly workspaceMutationId: string | null;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const entriesQuery = useProjectEntriesQuery(
     props.environmentId,
     props.cwd,
     props.directoryPath,
     props.workspaceMutationId,
+    messages,
   );
   const { resolvedTheme } = useTheme();
   const entries = entriesQuery.data?.entries ?? [];

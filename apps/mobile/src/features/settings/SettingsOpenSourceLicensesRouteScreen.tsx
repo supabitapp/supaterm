@@ -21,7 +21,7 @@ import { ListRow } from "../../components/ui/ListRow";
 import { SettingsScreen } from "./components/SettingsScreen";
 
 import { getMobileThirdPartyLicenses } from "./mobileThirdPartyLicenses";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 function useMobileThirdPartyLicenses() {
   return useMemo(() => {
@@ -119,6 +119,7 @@ export function SettingsOpenSourceLicensesRouteScreen() {
 type LicenseDetailProps = StaticScreenProps<{ readonly entryKey: string }>;
 
 export function SettingsOpenSourceLicenseRouteScreen({ route }: LicenseDetailProps) {
+  const messages = useMessages();
   const gt = useGT();
   const insets = useSafeAreaInsets();
   const manifest = useMobileThirdPartyLicenses();
@@ -151,7 +152,7 @@ export function SettingsOpenSourceLicenseRouteScreen({ route }: LicenseDetailPro
         <View className="gap-2 px-1">
           <Text className="text-2xl font-supaterm-bold text-foreground">{entry.name}</Text>
           <Text className="text-base leading-normal text-foreground-muted">
-            {[entry.version, entry.license, formatLicenseBundles(entry.bundles)]
+            {[entry.version, entry.license, formatLicenseBundles(entry.bundles, messages)]
               .filter((value): value is string => Boolean(value))
               .join(" · ")}
           </Text>

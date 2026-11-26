@@ -32,8 +32,8 @@ import { crossesReleaseTrack } from "@supaterm/shared/cliRelease";
 import { Button } from "./ui/button";
 import { toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
-import { msg, T, useGT } from "gt-react";
-import { m } from "../i18n/messages";
+import { msg, T, useGT, useMessages } from "gt-react";
+import { m, type MessageResolver } from "../i18n/messages";
 
 const UPDATE_STAGE_LABELS: Record<ServerUpdateStage, string> = {
   downloading: msg("Downloading…"),
@@ -42,8 +42,11 @@ const UPDATE_STAGE_LABELS: Record<ServerUpdateStage, string> = {
 };
 const pendingUpdateEnvironmentIds = new Set<EnvironmentId>();
 
-export function serverUpdateStageLabel(stage: ServerUpdateStage): string {
-  return UPDATE_STAGE_LABELS[stage];
+export function serverUpdateStageLabel(
+  stage: ServerUpdateStage,
+  resolve: MessageResolver = m,
+): string {
+  return resolve(UPDATE_STAGE_LABELS[stage]);
 }
 
 const CROSS_TRACK_NOTE = "Switch tracks in About → Update track";
@@ -231,13 +234,16 @@ export function ServerUpdateProgress({
 }: {
   readonly state: Exclude<ServerUpdateState, { status: "idle" }>;
 }) {
+  const messages = useMessages();
   if (state.status === "failed") {
     return (
       <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-destructive" role="alert">
         <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
         <Tooltip>
-          <TooltipTrigger render={<span className="min-w-0 truncate">{state.message}</span>} />
-          <TooltipPopup side="top">{state.message}</TooltipPopup>
+          <TooltipTrigger
+            render={<span className="min-w-0 truncate">{messages(state.message)}</span>}
+          />
+          <TooltipPopup side="top">{messages(state.message)}</TooltipPopup>
         </Tooltip>
       </div>
     );
@@ -245,7 +251,7 @@ export function ServerUpdateProgress({
   return (
     <div className="mt-1 flex items-center gap-2 text-xs font-medium text-foreground">
       <span className="size-1.5 shrink-0 rounded-full bg-foreground" aria-hidden="true" />
-      <span>{serverUpdateStageLabel(state.stage)}</span>
+      <span>{serverUpdateStageLabel(state.stage, messages)}</span>
     </div>
   );
 }

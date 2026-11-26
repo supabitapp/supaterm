@@ -9,10 +9,13 @@ import { m, type MessageResolver } from "~/i18n/messages";
 
 export const parseEasDeviceHostDraft = Schema.decodeUnknownOption(EasDeviceHostConfig);
 
-export const newEasDeviceHost = (id: string): EasDeviceHostConfigType => ({
+export const newEasDeviceHost = (
+  id: string,
+  resolve: MessageResolver = m,
+): EasDeviceHostConfigType => ({
   kind: "eas",
   id,
-  label: msg("Expo Simulators"),
+  label: resolve(msg("Expo Simulators")),
   accessToken: "",
   maxSessionMinutes: 30,
   idleMinutes: 10,

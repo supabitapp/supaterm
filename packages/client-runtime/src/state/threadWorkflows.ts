@@ -207,6 +207,7 @@ export function deriveThreadQueueWorkflowState(
     /** The server advertises `deferredSteering`; older servers reject a steer during setup. */
     readonly deferredSteering?: boolean;
   },
+  resolve: MFunctionType = mFallback,
 ): ThreadQueueWorkflowState {
   const activeRun = resolveActiveThreadRun(projection);
   const session = resolveThreadProviderSession(projection);
@@ -232,7 +233,7 @@ export function deriveThreadQueueWorkflowState(
     const message = projection.messages.find((candidate) => candidate.id === run.userMessageId);
     return {
       run,
-      text: message?.text ?? msg("Queued message"),
+      text: message?.text ?? resolve(msg("Queued message")),
       attachments: message?.attachments ?? [],
       messageId: run.userMessageId,
       ...(message?.context ? { context: message.context } : {}),

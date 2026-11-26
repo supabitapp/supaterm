@@ -18,7 +18,7 @@ import { Button } from "../../components/ui/Button";
 import { environmentCatalog } from "../../connection/catalog";
 import { cn } from "../../lib/cn";
 import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 const HOP_MARK = { ok: "✓", failed: "✕", unchecked: "–" } as const;
 const HOP_NOTE = { ok: "", failed: " · Failed", unchecked: " · Not checked" } as const;
@@ -28,6 +28,7 @@ export function useConnectionDiagnosis(
   environmentId: EnvironmentId,
   presentation: EnvironmentPresentation | null,
 ) {
+  const messages = useMessages();
   const state = AsyncResult.getOrElse(
     useAtomValue(environmentCatalog.stateAtom(environmentId)),
     () => AVAILABLE_CONNECTION_STATE,
@@ -38,13 +39,16 @@ export function useConnectionDiagnosis(
   const routes = usableRoutes(presentation.entry);
   const relayOnly =
     routes.length === 1 && routes.some((route) => connectionRouteKind(route) === "relay");
-  const diagnosis = presentConnectionDiagnosis({
-    hostLabel: presentation.entry.target.label,
-    state,
-    via: relayOnly ? "relay" : "direct",
-    clientVersion: Constants.expoConfig?.version,
-    serverVersion: presentation.serverConfig?.environment.serverVersion,
-  });
+  const diagnosis = presentConnectionDiagnosis(
+    {
+      hostLabel: presentation.entry.target.label,
+      state,
+      via: relayOnly ? "relay" : "direct",
+      clientVersion: Constants.expoConfig?.version,
+      serverVersion: presentation.serverConfig?.environment.serverVersion,
+    },
+    messages,
+  );
   return { diagnosis, state };
 }
 

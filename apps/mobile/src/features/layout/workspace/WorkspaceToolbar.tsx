@@ -60,7 +60,7 @@ export function WorkspaceToolbar(props: {
   // The Settings list takes the selected tab's place, so search follows it.
   const selectedTab = workspace.settingsOpen ? "settings" : workspace.state.selectedTab;
   const tab = workspace.state.tabs[selectedTab];
-  const searchLabel = SEARCH_LABELS[selectedTab === "usage" ? "threads" : selectedTab];
+  const searchLabel = messages(SEARCH_LABELS[selectedTab === "usage" ? "threads" : selectedTab]);
   // iPhone draws the thread filter from the list's own header actions.
   const showsThreadFilter = deviceType !== "phone" && selectedTab === "threads";
 

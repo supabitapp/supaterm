@@ -33,7 +33,7 @@ import {
   resolveServerSelfUpdateCapability,
   supportsDesktopAppUpdate,
 } from "../../versionSkew";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
 
 export type EnvironmentUnavailableState = {
@@ -58,6 +58,7 @@ interface SystemComposerBannersInput {
  * a server update, and auto-balanced machines that need one.
  */
 export function useSystemComposerBanners(input: SystemComposerBannersInput) {
+  const messages = useMessages();
   const gt = useGT();
   const {
     activeEnvironment,
@@ -229,8 +230,8 @@ export function useSystemComposerBanners(input: SystemComposerBannersInput) {
         title: `${updateFailed ? "Could not update" : "Updating"} ${versionMismatchServerLabel}`,
         description:
           serverUpdateState.status === "failed"
-            ? serverUpdateState.message
-            : serverUpdateStageLabel(serverUpdateState.stage),
+            ? messages(serverUpdateState.message)
+            : serverUpdateStageLabel(serverUpdateState.stage, messages),
         actions: !updateFailed ? (
           disconnectAction
         ) : !versionMismatch ||

@@ -82,7 +82,7 @@ export function buildHomeListFilterMenu(
     items: THREAD_GROUPING_OPTIONS.map((option) => ({
       type: "action",
       id: `grouping:${option.value}`,
-      title: option.label,
+      title: resolve(option.label),
       state: option.value === props.grouping ? "on" : "off",
       onPress: () => props.onGroupingChange(option.value),
     })),

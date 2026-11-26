@@ -15,6 +15,7 @@ import {
   turnDetail,
   type TurnDetailMemory,
 } from "./turnDetailAnnouncement";
+import { m } from "../../i18n/messages";
 
 // Long enough for a screen reader to finish a short label before the next one.
 const ACTIVITY_GAP_MS = 2_000;
@@ -110,12 +111,11 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
       return;
     }
     const previous = memoryRef.current?.threadKey === threadKey ? memoryRef.current : null;
-    const turn = nextThreadAnnouncement(previous?.memory ?? null, {
-      status,
-      requestId,
-      runId,
-      runStatus,
-    });
+    const turn = nextThreadAnnouncement(
+      previous?.memory ?? null,
+      { status, requestId, runId, runStatus },
+      m,
+    );
     // A new level starts from what the turn already holds, so raising it mid-turn replays nothing.
     const previousDetail = previous?.level === level ? previous.detail : null;
     const detail = nextTurnDetailAnnouncement(previousDetail, {

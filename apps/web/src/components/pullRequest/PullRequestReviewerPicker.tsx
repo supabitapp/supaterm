@@ -28,7 +28,7 @@ import { toastManager } from "../ui/toast";
 import { PullRequestCandidatePicker } from "./PullRequestCandidatePicker";
 import { PullRequestActorLabel } from "./pullRequestPresentation";
 import { readableFailure } from "./pullRequestDetail.logic";
-import { useGT, msg } from "gt-react";
+import { useGT, msg, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
 
 const TRUNCATED_LABELS: Record<ReviewerTruncation, (error: string | null) => string> = {
@@ -53,6 +53,7 @@ export function PullRequestReviewerPicker({
   allowed: boolean;
   searchable: boolean;
 }) {
+  const resolve = useMessages();
   const gt = useGT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -60,6 +61,7 @@ export function PullRequestReviewerPicker({
 
   const candidatesQuery = useEnvironmentQuery(
     open ? pullRequestEnvironment.reviewerCandidates({ environmentId, input: reference }) : null,
+    resolve,
   );
   // Past the first page the host is asked, since what was loaded cannot answer for the rest.
   const debouncedQuery = useDebouncedValue(query.trim(), 250);

@@ -985,7 +985,7 @@ function CheckoutGitActionsControl({
   const ignoreWhitespaceSetting = useClientSettings((settings) => settings.diffIgnoreWhitespace);
   const ignoreWhitespace =
     useDiffPanelSessionStore((state) => state.ignoreWhitespace) ?? ignoreWhitespaceSetting;
-  const { canReadFiles } = useFilesystemReadAccess(activeEnvironmentId);
+  const { canReadFiles } = useFilesystemReadAccess(activeEnvironmentId, messages);
   // Same input and workspace revision as the Diff panel's branch query, so both read one
   // cached result. Status totals are this reader's own revision because edits, pulls and
   // resets outside a turn leave the mutation id as is.

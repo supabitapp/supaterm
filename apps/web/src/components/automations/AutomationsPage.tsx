@@ -2,7 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { connectionStatusTitle } from "@supaterm/client-runtime/connection";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { CircleAlertIcon, Clock3Icon, PlusIcon } from "@supaterm/icons";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 import { type ReactNode, useState } from "react";
 import { getRouteApi } from "@tanstack/react-router";
 import type { EnvironmentId, ScheduledTask } from "@supaterm/contracts";
@@ -263,6 +263,7 @@ function AutomationEnvironmentList({
   onCreate,
   onEdit,
 }: AutomationListProps & { readonly states: readonly AutomationEnvironmentState[] }) {
+  const messages = useMessages();
   const gt = useGT();
   const environments = states.map((state) => state.environment);
   const loaded = states.flatMap(({ environment, connected, tasks, timeZone, error }) =>
@@ -284,7 +285,7 @@ function AutomationEnvironmentList({
   for (const { environment, connected, tasks, error } of states) {
     const label = settingsScopeEnvironmentLabel(environment, environments);
     if (!connected) {
-      notConnected.push(`${label} (${connectionStatusTitle(environment.connection)})`);
+      notConnected.push(`${label} (${connectionStatusTitle(environment.connection, messages)})`);
     } else if (error !== null) {
       failed.push(`${label}: ${error}`);
     } else if (!tasks) {

@@ -12,6 +12,7 @@ import * as Schema from "effect/Schema";
 import { APP_VERSION } from "./branding";
 import { getLocalStorageItem, setLocalStorageItem } from "./hooks/useLocalStorage";
 import { msg } from "gt-react";
+import { m, type MessageResolver } from "./i18n/messages";
 
 export interface VersionMismatch {
   readonly clientVersion: string;
@@ -49,6 +50,7 @@ function versionCore(version: string): string {
 export function resolveVersionMismatch(
   serverVersion: string | null | undefined,
   clientVersion: string = APP_VERSION,
+  resolve: MessageResolver = m,
 ): VersionMismatch | null {
   const normalizedClientVersion = normalizeVersion(clientVersion);
   const normalizedServerVersion = normalizeVersion(serverVersion);
@@ -75,7 +77,9 @@ export function resolveVersionMismatch(
   return {
     clientVersion: normalizedClientVersion,
     serverVersion: normalizedServerVersion,
-    hint: msg("Version mismatch. Try syncing the client and server to the same Supaterm version."),
+    hint: resolve(
+      msg("Version mismatch. Try syncing the client and server to the same Supaterm version."),
+    ),
   };
 }
 

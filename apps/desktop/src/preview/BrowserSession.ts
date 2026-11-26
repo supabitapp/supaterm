@@ -472,7 +472,7 @@ export const make = Effect.gen(function* BrowserSessionMake() {
             signal: dismiss.signal,
             message: `${host} has an untrusted certificate`,
             detail: [
-              reason,
+              m(reason),
               "",
               `Issued to: ${promptCertificateName(certificate.subjectName)}`,
               `Issued by: ${promptCertificateName(certificate.issuerName)}`,

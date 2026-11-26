@@ -72,7 +72,7 @@ export function issueCommandError(
   resolve: MessageResolver = m,
 ) {
   if (!AsyncResult.isFailure(result)) return null;
-  if (isAtomCommandInterrupted(result)) return ENVIRONMENT_REQUEST_INTERRUPTED;
+  if (isAtomCommandInterrupted(result)) return resolve(ENVIRONMENT_REQUEST_INTERRUPTED);
   const cause = squashAtomCommandFailure(result);
   return cause instanceof Error ? cause.message : resolve(msg("The tracker refused it."));
 }

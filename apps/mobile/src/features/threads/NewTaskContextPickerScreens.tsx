@@ -54,7 +54,7 @@ import {
   useConnectionDiagnosis,
 } from "../connection/ConnectionDiagnosisDetails";
 import { environmentStatusText } from "../connection/environmentStatusText";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, Var, useMessages } from "gt-react-native";
 
 const BRANCH_SEARCH_DEBOUNCE_MS = 150;
 
@@ -66,6 +66,7 @@ function EnvironmentPickerRow(props: {
   isLast: boolean;
   onPress: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [expanded, setExpanded] = useState(false);
   const { presentation } = useEnvironmentPresentation(props.environmentId);
@@ -74,7 +75,7 @@ function EnvironmentPickerRow(props: {
   const connection = presentation?.connection;
   const status =
     diagnosis?.headline ??
-    (connection ? environmentStatusText({ ...connection, error: null }) : "Offline");
+    (connection ? environmentStatusText({ ...connection, error: null }, messages) : "Offline");
   return (
     <View className={cn("bg-grouped-card", !props.isLast && "border-b border-border-subtle")}>
       <View className="flex-row items-center">

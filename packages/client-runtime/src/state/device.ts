@@ -7,7 +7,8 @@ import {
   createEnvironmentRpcCommand,
   createEnvironmentRpcSubscriptionAtomFamily,
 } from "./runtime.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 export function createDeviceEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | R, E>,
@@ -107,18 +108,26 @@ export function deviceToolVersionLabels(tools: DeviceToolVersions | undefined) {
   });
 }
 
-export function deviceToolUpdatePolicy(tools: DeviceToolVersions | undefined) {
-  if (!tools) return msg("Versions have not been checked. Reconnect the host and check versions.");
+export function deviceToolUpdatePolicy(
+  tools: DeviceToolVersions | undefined,
+  resolve: MFunctionType = mFallback,
+) {
+  if (!tools)
+    return resolve(msg("Versions have not been checked. Reconnect the host and check versions."));
   const outdated = [tools.hub, tools.agent].filter(
     (tool) =>
       tool.installedVersions.length > 0 && !tool.installedVersions.includes(tool.requiredVersion),
   );
   return outdated.length > 0
-    ? msg(
-        "Update pending. Required tools will install automatically when next used. The host needs network access; an older install is not used as a fallback.",
+    ? resolve(
+        msg(
+          "Update pending. Required tools will install automatically when next used. The host needs network access; an older install is not used as a fallback.",
+        ),
       )
-    : msg(
-        "Required tools are installed automatically when needed. Checking versions does not install or start anything.",
+    : resolve(
+        msg(
+          "Required tools are installed automatically when needed. Checking versions does not install or start anything.",
+        ),
       );
 }
 export const deviceToolUpdateOwnership =

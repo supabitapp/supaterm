@@ -87,6 +87,7 @@ function PendingLinkRequest(props: {
   readonly environmentId: EnvironmentId;
   readonly item: LinkRequestItem;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const { item } = props;
   const [open, setOpen] = useState(false);
@@ -109,7 +110,7 @@ function PendingLinkRequest(props: {
       setDeclining(false),
     );
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      setError(linkRequestFailureMessage(squashAtomCommandFailure(result)));
+      setError(linkRequestFailureMessage(squashAtomCommandFailure(result), m));
     }
   };
 
@@ -240,7 +241,7 @@ function LinkRequestSheet(props: {
       const minted = await mintPairingCodeOn(targetId, access);
       if (Result.isFailure(minted)) {
         setMintFailed((failed) => new Set(failed).add(targetId));
-        setError(linkRequestFailureMessage(minted.failure));
+        setError(linkRequestFailureMessage(minted.failure, m));
         return null;
       }
       code = minted.success;
@@ -268,7 +269,7 @@ function LinkRequestSheet(props: {
       setPairingCode("");
       props.onClose();
     } else if (!isAtomCommandInterrupted(result)) {
-      setError(linkRequestFailureMessage(squashAtomCommandFailure(result)));
+      setError(linkRequestFailureMessage(squashAtomCommandFailure(result), m));
     }
   };
 
