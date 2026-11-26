@@ -74,7 +74,7 @@ import {
 } from "./filePath";
 import { useWorkspaceFileAssetUrlState } from "./workspaceFileAssetUrl";
 import { MOBILE_FULL_FILE_MAX_BYTES, useFullFileText } from "./useFullFileText";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 function FilesBrowserHeader(props: {
   readonly projectName: string;
@@ -474,6 +474,7 @@ function FilesToolbarBottomFade() {
 }
 
 export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
+  const messages = useMessages();
   const navigation = useNavigation();
   const gt = useGT();
   const { fileInspector } = useWorkspacePaneState();
@@ -487,12 +488,15 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
     environmentId !== null ? environmentSession.sessionStateAtom(environmentId) : null,
   );
   const fileEnvironment = useEnvironmentPresentation(environmentId);
-  const fileAccess = resolveFilesystemReadAccess({
-    isCatalogReady: fileEnvironment.isReady,
-    connection: fileEnvironment.presentation?.connection ?? null,
-    session: fileAccessSession.data,
-    sessionError: fileAccessSession.error,
-  });
+  const fileAccess = resolveFilesystemReadAccess(
+    {
+      isCatalogReady: fileEnvironment.isReady,
+      connection: fileEnvironment.presentation?.connection ?? null,
+      session: fileAccessSession.data,
+      sessionError: fileAccessSession.error,
+    },
+    messages,
+  );
   const { canReadFiles } = fileAccess;
   const entriesQuery = useFileTreeEntries({
     environmentId,
@@ -633,6 +637,7 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
 }
 
 export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
+  const messages = useMessages();
   const navigation = useNavigation();
   const gt = useGT();
   const { fileInspector } = useWorkspacePaneState();
@@ -645,12 +650,15 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
     environmentId !== null ? environmentSession.sessionStateAtom(environmentId) : null,
   );
   const fileEnvironment = useEnvironmentPresentation(environmentId);
-  const fileAccess = resolveFilesystemReadAccess({
-    isCatalogReady: fileEnvironment.isReady,
-    connection: fileEnvironment.presentation?.connection ?? null,
-    session: fileAccessSession.data,
-    sessionError: fileAccessSession.error,
-  });
+  const fileAccess = resolveFilesystemReadAccess(
+    {
+      isCatalogReady: fileEnvironment.isReady,
+      connection: fileEnvironment.presentation?.connection ?? null,
+      session: fileAccessSession.data,
+      sessionError: fileAccessSession.error,
+    },
+    messages,
+  );
   const { canReadFiles } = fileAccess;
   const targetPath =
     cwd !== null && relativePath !== null ? resolveWorkspaceFilePath(cwd, relativePath) : null;

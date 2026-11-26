@@ -890,11 +890,11 @@ function TaskForm({
           {offersThreadModes ? (
             <SelectRow
               label={gt("Runs go to")}
-              value={THREAD_MODE_LABELS[draft.threadMode]}
+              value={m(THREAD_MODE_LABELS[draft.threadMode])}
               actions={(Object.keys(THREAD_MODE_LABELS) as ScheduledTaskThreadMode[]).map(
                 (mode) => ({
                   id: mode,
-                  title: THREAD_MODE_LABELS[mode],
+                  title: m(THREAD_MODE_LABELS[mode]),
                   state: draft.threadMode === mode ? "on" : undefined,
                 }),
               )}
@@ -975,10 +975,13 @@ function TaskForm({
             <PickerRow
               label={gt("Repositories")}
               value={m(
-                resolveWorktreeRepositorySelection({
-                  choices: repositoryChoices,
-                  chosen: draft.repositories,
-                }).label,
+                resolveWorktreeRepositorySelection(
+                  {
+                    choices: repositoryChoices,
+                    chosen: draft.repositories,
+                  },
+                  m,
+                ).label,
               )}
               borderTop
               disabled={saving || dictationPending || environmentUnavailable}

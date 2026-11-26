@@ -157,7 +157,10 @@ export function SnapShotSetupDialog({
               title: gt("Check capture access"),
               description: gt("The extension isn't ready yet. Try again in a moment."),
             }
-          : GNOME_ACCESS_COPY[extension.status]
+          : {
+              title: messages(GNOME_ACCESS_COPY[extension.status].title),
+              description: messages(GNOME_ACCESS_COPY[extension.status].description),
+            }
         : helperBackend
           ? helper?.status === "ready"
             ? {

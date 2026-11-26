@@ -3,13 +3,14 @@ import { fileDisplayName } from "@supaterm/shared/path";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import type { EnvironmentPresentation } from "../../state/environments";
 import type { ResolvedSettingsScope, SettingsScopeSearch } from "./settingsScope";
+import { m } from "~/i18n/messages";
 
 type ScopeCheckout = SidebarProjectSnapshot["memberProjects"][number];
 type ScopeEnvironment = Pick<EnvironmentPresentation, "environmentId" | "label" | "displayUrl">;
 
 export function settingsScopeEnvironmentAddress(environment: ScopeEnvironment) {
   if (!environment.displayUrl) return environment.environmentId;
-  const relayLabel = connectionAddressLabel(environment.displayUrl);
+  const relayLabel = connectionAddressLabel(environment.displayUrl, m);
   if (relayLabel !== environment.displayUrl) return relayLabel;
   try {
     return new URL(environment.displayUrl).host || environment.displayUrl;

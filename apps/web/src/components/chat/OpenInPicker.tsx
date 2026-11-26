@@ -50,17 +50,19 @@ import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useComposerMenuState } from "./useComposerMenuState";
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
 import { T, useGT, Var, useMessages } from "gt-react";
+import type { MessageResolver } from "../../i18n/messages";
 
 type OpenInOption = EditorIconOption & { label: string };
 
 const resolveOpenInOptions = (
   platform: string,
   availableEditors: ReadonlyArray<EditorId>,
+  resolve: MessageResolver,
 ): ReadonlyArray<OpenInOption> => {
   const availableEditorSet = new Set(availableEditors);
   return editorIconOptions(platform).flatMap((option) =>
     availableEditorSet.has(option.value)
-      ? [{ ...option, label: editorLabelForPlatform(option.value, platform) }]
+      ? [{ ...option, label: editorLabelForPlatform(option.value, platform, resolve) }]
       : [],
   );
 };
@@ -156,7 +158,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   // Only the focused pane's picker answers the shortcut.
   const ownsPaneInput = useIsPaneInputOwner();
   const backgroundThread = use(BackgroundThreadContext);
-  const options = resolveOpenInOptions(navigator.platform, effectiveEditors);
+  const options = resolveOpenInOptions(navigator.platform, effectiveEditors, messages);
   const primaryOption = options.find(({ value }) => value === preferredEditor) ?? null;
   const openInLabel = primaryOption
     ? gt("Open in {editor}", { editor: primaryOption.label })

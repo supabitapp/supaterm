@@ -39,11 +39,14 @@ export function WorktreeBaseBranchPicker({
   const refreshLocalStatusForPicker = useAtomCommand(vcsEnvironment.refreshLocalStatusForPicker, {
     reportFailure: false,
   });
-  const branches = usePaginatedBranches({
-    environmentId,
-    cwd,
-    query: sanitizeNewRefName(query.trim()),
-  });
+  const branches = usePaginatedBranches(
+    {
+      environmentId,
+      cwd,
+      query: sanitizeNewRefName(query.trim()),
+    },
+    messages,
+  );
   const selectedRefQuery = useEnvironmentQuery(
     cwd && value
       ? vcsEnvironment.listRefs({

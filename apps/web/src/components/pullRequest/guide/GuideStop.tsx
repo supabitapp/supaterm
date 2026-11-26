@@ -29,7 +29,7 @@ import { GuideFileDiff } from "./GuideFileDiff";
 import { GuideNotes } from "./GuideNotes";
 import { GuideProse } from "./GuideProse";
 import { letterStopNotes } from "@supaterm/client-runtime/review-guide-tour";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 
 const ATTENTION_LABELS = {
   tradeoff: msg("A tradeoff to weigh"),
@@ -75,6 +75,7 @@ export function GuideStop({
   onFinish: (() => void) | null;
   onOpenFile: (path: string) => void;
 }) {
+  const resolve = useMessages();
   const gt = useGT();
   const { lettered, byExcerpt } = letterStopNotes(stop);
   const excerptPaths = new Set(stop.excerpts.map((excerpt) => excerpt.path));
@@ -151,7 +152,7 @@ export function GuideStop({
         {stop.attention !== null ? (
           <Alert controlAlignment="first-line">
             <EyeIcon />
-            <AlertTitle>{ATTENTION_LABELS[stop.attention.kind]}</AlertTitle>
+            <AlertTitle>{resolve(ATTENTION_LABELS[stop.attention.kind])}</AlertTitle>
             <AlertDescription>
               <div>
                 <GuideProse text={stop.attention.note} />

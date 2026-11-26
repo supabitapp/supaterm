@@ -265,9 +265,9 @@ export function CreatePairingLinkDialog({
                       }
                     />
                     <span className="min-w-0 space-y-0.5">
-                      <span className="block text-xs font-medium">{title}</span>
+                      <span className="block text-xs font-medium">{m(title)}</span>
                       <span className="block text-xs leading-5 text-muted-foreground">
-                        {description}
+                        {m(description)}
                       </span>
                       {scope === AuthTerminalOperateScope && selectedScopes.includes(scope) ? (
                         <span className="block text-xs text-warning">

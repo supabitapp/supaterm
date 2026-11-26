@@ -62,7 +62,8 @@ import {
   type EnvironmentThreadState,
   type EnvironmentThreadStatus,
 } from "./threadState.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 const THREAD_SUBSCRIPTION_RETRY_DELAY = "250 millis";
 
@@ -72,18 +73,36 @@ function statusWithoutLiveData(
   return Option.isSome(data) ? "cached" : "empty";
 }
 
+const THREAD_SYNC_ERROR = msg("Could not synchronize the thread.");
+const HISTORY_LOAD_ERROR = msg("Could not load earlier activity.");
+const WORK_HISTORY_CHANGED_ERROR = msg("Work history changed. Retry loading it.");
+const THREAD_ERRORS: ReadonlySet<string> = new Set([
+  THREAD_SYNC_ERROR,
+  HISTORY_LOAD_ERROR,
+  WORK_HISTORY_CHANGED_ERROR,
+]);
+
+/**
+ * A thread or history error in the active language. Errors this module wrote translate;
+ * messages from the server or another error stay as they are.
+ * @public
+ */
+export function threadErrorText(error: string, resolve: MFunctionType = mFallback): string {
+  return THREAD_ERRORS.has(error) ? resolve(error) : error;
+}
+
 function formatThreadError(cause: Cause.Cause<unknown>): string {
   const error = Cause.squash(cause);
   return error instanceof Error && error.message.trim().length > 0
     ? error.message
-    : msg("Could not synchronize the thread.");
+    : THREAD_SYNC_ERROR;
 }
 
 function formatHistoryError(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
-  return msg("Could not load earlier activity.");
+  return HISTORY_LOAD_ERROR;
 }
 
 // Steers join a running turn; every other user message opens one. The timeline shows every
@@ -787,7 +806,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       latest: EnvironmentThreadState,
     ): ThreadHistoryController.ThreadHistoryLoadEarlierResult =>
       workAnchorId !== undefined && workCursor(latest) !== null
-        ? { _tag: "error", message: msg("Work history changed. Retry loading it.") }
+        ? { _tag: "error", message: WORK_HISTORY_CHANGED_ERROR }
         : { _tag: "noop" };
     if (workAnchorId === undefined)
       yield* patchHistoryMeta((history) =>
@@ -1052,9 +1071,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
   const backOffAfterDefect = Effect.suspend(() => {
     const retryDelay = subscriptionRetryDelay(THREAD_SUBSCRIPTION_RETRY_DELAY, defectRetries);
     defectRetries += 1;
-    return setStreamError(msg("Could not synchronize the thread.")).pipe(
-      Effect.andThen(Effect.sleep(retryDelay)),
-    );
+    return setStreamError(THREAD_SYNC_ERROR).pipe(Effect.andThen(Effect.sleep(retryDelay)));
   });
   const followThread = (): Effect.Effect<
     void,
@@ -1177,7 +1194,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
             return yield* Queue.offer(resubscribes, undefined);
           }
           if (!Cause.hasDies(cause)) {
-            return yield* setStreamError(msg("Could not synchronize the thread."));
+            return yield* setStreamError(THREAD_SYNC_ERROR);
           }
           yield* Ref.set(forceSnapshot, true);
           if (yield* Ref.getAndSet(resuming, false)) {

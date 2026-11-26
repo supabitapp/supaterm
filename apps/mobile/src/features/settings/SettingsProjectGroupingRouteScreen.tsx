@@ -17,7 +17,7 @@ import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoi
 import { SettingsSection } from "./components/SettingsSection";
 import { NewThreadSettingsSection } from "./ThreadSettingsSections";
 import { LanguageSettingsSection } from "./SettingsLanguageRouteScreen";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const GROUPING_OPTIONS: ReadonlyArray<{
   readonly mode: SidebarProjectGroupingMode;
@@ -42,6 +42,7 @@ const GROUPING_OPTIONS: ReadonlyArray<{
 ];
 
 export function SettingsProjectGroupingRouteScreen() {
+  const m = useMessages();
   const gt = useGT();
   const insets = useSafeAreaInsets();
   const { grouping, setGrouping, loaded } = useMobileThreadGrouping();
@@ -66,7 +67,7 @@ export function SettingsProjectGroupingRouteScreen() {
           {THREAD_GROUPING_OPTIONS.map((option, index) => (
             <SettingsChoiceRow
               key={option.value}
-              label={option.label}
+              label={m(option.label)}
               selected={grouping === option.value}
               separated={index > 0}
               disabled={!loaded}
@@ -78,8 +79,8 @@ export function SettingsProjectGroupingRouteScreen() {
           {GROUPING_OPTIONS.map((option, index) => (
             <SettingsChoiceRow
               key={option.mode}
-              label={option.label}
-              description={option.description}
+              label={m(option.label)}
+              description={m(option.description)}
               selected={selectedMode === option.mode}
               separated={index > 0}
               disabled={!preferencesReady}

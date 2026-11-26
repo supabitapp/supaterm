@@ -138,6 +138,7 @@ export function useSideChat(input: {
   };
   readonly onError: (message: string) => void;
 }) {
+  const messages = useMessages();
   const openPaneThread = usePaneThreadNavigation();
 
   const openDraft = (prompt = "", from?: ComposerThreadTarget) => {
@@ -202,7 +203,8 @@ export function useSideChat(input: {
               ...(content?.context ? { context: content.context } : {}),
             },
             modelSelection,
-            titleSeed: content?.titleSeed ?? deriveThreadTitleSeed({ text, attachments: [] }),
+            titleSeed:
+              content?.titleSeed ?? deriveThreadTitleSeed({ text, attachments: [] }, messages),
             runtimeMode,
             interactionMode: modes.interactionMode,
             dispatchMode: "auto",

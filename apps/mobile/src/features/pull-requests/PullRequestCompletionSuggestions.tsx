@@ -5,7 +5,7 @@ import { GlassSurface } from "../../components/ui/GlassSurface";
 import { PullRequestAvatar } from "./PullRequestPresentation";
 import type { PullRequestCompletion } from "@supaterm/shared/pullRequestComposerTrigger";
 import type { usePullRequestCompletions } from "./usePullRequestCompletions";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 const COPY = {
   mention: {
@@ -63,6 +63,7 @@ export function PullRequestCompletionSuggestions({
 }: {
   readonly completions: ReturnType<typeof usePullRequestCompletions>;
 }) {
+  const m = useMessages();
   const gt = useGT();
   if (completions.kind === null) return null;
   const copy = COPY[completions.kind];
@@ -77,7 +78,7 @@ export function PullRequestCompletionSuggestions({
           className="max-h-[180px]"
           keyboardShouldPersistTaps="always"
           showsVerticalScrollIndicator={false}
-          accessibilityLabel={copy.label}
+          accessibilityLabel={m(copy.label)}
         >
           {completions.candidates.map((completion, index) => (
             <Pressable
@@ -98,7 +99,7 @@ export function PullRequestCompletionSuggestions({
       ) : (
         <View className="px-3.5 py-2.5">
           <Text className="text-xs text-foreground-tertiary">
-            {copy[completions.isLoading ? "pending" : completions.failed ? "failed" : "none"]}
+            {m(copy[completions.isLoading ? "pending" : completions.failed ? "failed" : "none"])}
           </Text>
         </View>
       )}

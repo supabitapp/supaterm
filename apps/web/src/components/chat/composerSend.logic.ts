@@ -40,16 +40,19 @@ export function referencedThreadContexts(draft: {
 }
 
 /** Why a send waits for the user to pick a machine when no machine was chosen automatically. */
-export function loadBalancingSendWarning(input: {
-  readonly pending: boolean;
-  readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
-  readonly candidateEnvironmentIds: ReadonlyArray<EnvironmentId>;
-}) {
+export function loadBalancingSendWarning(
+  input: {
+    readonly pending: boolean;
+    readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
+    readonly candidateEnvironmentIds: ReadonlyArray<EnvironmentId>;
+  },
+  resolve: MessageResolver = m,
+) {
   if (input.pending) {
     return {
-      title: msg("Checking machine resources"),
-      description: msg(
-        "Resource checks are still running. You can choose a machine in the composer.",
+      title: resolve(msg("Checking machine resources")),
+      description: resolve(
+        msg("Resource checks are still running. You can choose a machine in the composer."),
       ),
     };
   }
@@ -59,13 +62,17 @@ export function loadBalancingSendWarning(input: {
       input.threadContexts.every((record) => record.environmentId === environmentId),
     );
   return {
-    title: msg("Choose a machine to continue"),
+    title: resolve(msg("Choose a machine to continue")),
     description: noMachineReadsEveryThread
-      ? msg(
-          "No machine can read every attached thread. Choose a machine in the composer or remove the threads.",
+      ? resolve(
+          msg(
+            "No machine can read every attached thread. Choose a machine in the composer or remove the threads.",
+          ),
         )
-      : msg(
-          "No eligible machine has available resources. Choose a machine in the composer to override.",
+      : resolve(
+          msg(
+            "No eligible machine has available resources. Choose a machine in the composer to override.",
+          ),
         ),
   };
 }

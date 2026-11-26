@@ -29,7 +29,7 @@ import { composerPullRequests } from "../../../state/pull-requests";
 import { usePullRequestPermissions } from "../usePullRequestPermissions";
 import { pullRequestTarget } from "../usePullRequestDiff";
 import { useReviewGuide } from "./useReviewGuide";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 export type GuideStopParams = PullRequestParams & {
   readonly position: number;
   readonly guideHeadSha: string;
@@ -95,6 +95,7 @@ export function PullRequestGuideContent({
   );
 }
 export function PullRequestGuideStopScreen({ route }: StaticScreenProps<GuideStopParams>) {
+  const m = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const state = useReviewGuide(route.params);
@@ -181,7 +182,7 @@ export function PullRequestGuideStopScreen({ route }: StaticScreenProps<GuideSto
                     <View className="flex-row items-center gap-2">
                       <SymbolView name="eye" size={17} tintColorClassName="accent-icon-muted" />
                       <Text className="text-sm font-supaterm-semibold">
-                        {attentionLabels[stop.attention.kind]}
+                        {m(attentionLabels[stop.attention.kind])}
                       </Text>
                     </View>
                     <PullRequestMarkdown lineBreaks={false} markdown={stop.attention.note} />

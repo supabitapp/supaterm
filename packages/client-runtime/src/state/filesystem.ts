@@ -22,16 +22,20 @@ import {
   isFilesystemBrowseQuery,
 } from "./projects.ts";
 import { createEnvironmentRpcCommand, createEnvironmentRpcQueryAtomFamily } from "./runtime.ts";
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
 const BROWSE_IDLE_TTL_MS = 5_000;
 
-export function resolveFilesystemReadAccess(input: {
-  readonly isCatalogReady: boolean;
-  readonly connection: Pick<EnvironmentConnectionPresentation, "phase" | "error"> | null;
-  readonly session: SessionGrantInput | null;
-  readonly sessionError: string | null;
-}) {
+export function resolveFilesystemReadAccess(
+  input: {
+    readonly isCatalogReady: boolean;
+    readonly connection: Pick<EnvironmentConnectionPresentation, "phase" | "error"> | null;
+    readonly session: SessionGrantInput | null;
+    readonly sessionError: string | null;
+  },
+  resolve: MFunctionType = mFallback,
+) {
   if (input.sessionError !== null) {
     return { canReadFiles: false, isPending: false, error: input.sessionError };
   }
@@ -48,7 +52,7 @@ export function resolveFilesystemReadAccess(input: {
       isPending,
       error: isPending
         ? null
-        : (input.connection?.error ?? msg("This environment is not connected.")),
+        : (input.connection?.error ?? resolve(msg("This environment is not connected."))),
     };
   }
   return {

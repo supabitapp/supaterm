@@ -38,7 +38,7 @@ import {
   applySnoozePickerTime,
   snoozeDateToPickerDate,
 } from "./customSnoozeDate";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 type Props = {
   readonly onClose: () => void;
@@ -65,6 +65,7 @@ function systemUses24HourClock() {
 
 export function CustomSnoozeSheet(props: Props) {
   const gt = useGT();
+  const m = useMessages();
   const { themeAppearance, themeVariables: colors } = useAppearancePreferences();
   const [is24Hour, setIs24Hour] = useState(systemUses24HourClock);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to AppState to re-read the native 24-hour clock setting when the app resumes
@@ -154,7 +155,7 @@ export function CustomSnoozeSheet(props: Props) {
                 <RNHostView matchContents={{ vertical: true }} modifiers={[fillMaxWidth()]}>
                   <SegmentedControl
                     variant="card"
-                    options={modes}
+                    options={modes.map((option) => ({ ...option, label: m(option.label) }))}
                     selected={mode}
                     onSelect={(value) => {
                       setMode(value);
@@ -243,7 +244,7 @@ export function CustomSnoozeSheet(props: Props) {
                   <RNHostView matchContents={{ vertical: true }} modifiers={[fillMaxWidth()]}>
                     <SegmentedControl
                       variant="card"
-                      options={units}
+                      options={units.map((option) => ({ ...option, label: m(option.label) }))}
                       selected={unit}
                       onSelect={setUnit}
                     />

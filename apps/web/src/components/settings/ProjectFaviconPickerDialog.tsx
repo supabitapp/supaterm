@@ -19,12 +19,22 @@ import { CommandDialog, CommandDialogPopup, CommandFooterAction } from "../ui/co
 import { toastManager } from "../ui/toast";
 import { ProjectFaviconThumbnail } from "./ProjectFaviconThumbnail";
 import { useGT, msg, useMessages } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
-function emptyMessage(query: string, error: string | null, isPending: boolean): string {
+function emptyMessage(
+  query: string,
+  error: string | null,
+  isPending: boolean,
+  resolve: MessageResolver,
+): string {
   if (error) return error;
   if (isPending)
-    return query.trim() ? msg("Searching project files…") : msg("Indexing project files…");
-  return query.trim() ? msg("No matching image files.") : msg("No image files found.");
+    return query.trim()
+      ? resolve(msg("Searching project files…"))
+      : resolve(msg("Indexing project files…"));
+  return query.trim()
+    ? resolve(msg("No matching image files."))
+    : resolve(msg("No image files found."));
 }
 export function canPickExternalProjectFavicon(cwd: string, platform: string): boolean {
   return !isWindowsPlatform(platform) || isWindowsAbsolutePath(cwd);
@@ -145,7 +155,7 @@ export function ProjectFaviconPickerDialog(props: {
                 props.onOpenChange(false);
                 void item.run();
               }}
-              emptyStateMessage={emptyMessage(query, result.error, result.isPending)}
+              emptyStateMessage={emptyMessage(query, result.error, result.isPending, messages)}
             />
           </CommandPaletteContent>
         </CommandDialogPopup>

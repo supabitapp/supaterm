@@ -36,7 +36,7 @@ import {
   supportsEnvironmentUpdate,
 } from "./environment-maintenance";
 import { environmentReleaseCheckAtom, releaseCheckValue } from "./environmentUpdateCheck";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, useMessages, Var } from "gt-react-native";
 
 export function SettingsEnvironmentDetailRouteScreen({
   route,
@@ -52,6 +52,7 @@ export function SettingsEnvironmentDetailRouteScreen({
 }
 function EnvironmentDetail({ environmentId }: { readonly environmentId: EnvironmentId }) {
   const gt = useGT();
+  const messages = useMessages();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const connections = useRemoteConnections();
@@ -259,7 +260,7 @@ function EnvironmentDetail({ environmentId }: { readonly environmentId: Environm
                       </Text>
                     ) : updateState.status === "failed" ? (
                       <Text selectable className="text-sm text-danger-foreground">
-                        {updateState.message}
+                        {messages(updateState.message)}
                       </Text>
                     ) : null}
                     {checkedRelease ? (

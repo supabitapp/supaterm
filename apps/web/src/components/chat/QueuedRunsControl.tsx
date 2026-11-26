@@ -47,7 +47,7 @@ import type { TimestampFormat } from "@supaterm/contracts/settings";
 import { TimelineRowTimestamp } from "./TimelineRowParts";
 import { FoldedMessageHeader, useScheduledTaskTitle } from "./TimelineUserMessageRow";
 import { buildExpandedImagePreview, type ExpandedImagePreview } from "./ExpandedImagePreview";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
 import { m } from "../../i18n/messages";
 
 export interface EditQueuedRunRequest {
@@ -98,6 +98,7 @@ export function QueuedRunsControl({
   readonly onOpenThread: (threadId: ThreadId, environmentId?: EnvironmentId) => void;
   readonly onImageExpand: (preview: ExpandedImagePreview) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const projection = useQuietThreadProjection(
     scopeThreadRef(props.environmentId, props.threadId),
@@ -115,7 +116,11 @@ export function QueuedRunsControl({
     queuedImageAttachmentResources,
   );
   const workflow = projection
-    ? deriveThreadQueueWorkflowState(projection, { deferredSteering: props.deferredSteering })
+    ? deriveThreadQueueWorkflowState(
+        projection,
+        { deferredSteering: props.deferredSteering },
+        messages,
+      )
     : null;
   const queued = workflow?.queuedRuns ?? [];
   const activeRun = workflow?.activeRun ?? null;

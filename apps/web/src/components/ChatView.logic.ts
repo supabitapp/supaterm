@@ -410,12 +410,13 @@ export function buildLocalDraftThread(
   threadId: ThreadId,
   draftThread: DraftThreadState,
   fallbackModelSelection: ModelSelection,
+  resolve: MessageResolver = m,
 ): Thread {
   const timestamp = DateTime.makeUnsafe(draftThread.createdAt);
   return presentThreadShell(draftThread.environmentId, {
     id: threadId,
     projectId: draftThread.projectId,
-    title: msg("New thread"),
+    title: resolve(msg("New thread")),
     providerInstanceId: fallbackModelSelection.instanceId,
     modelSelection: fallbackModelSelection,
     runtimeMode: draftThread.runtimeMode,
@@ -845,13 +846,16 @@ export function deriveLockedProvider(input: {
   return narrowedThreadProvider ?? narrowedSelectedProvider ?? null;
 }
 
-export function getStartedThreadModelChangeBlockReason(input: {
-  hasStartedSession: boolean;
-  supportsProviderSwitchingViaHandoff?: boolean;
-  currentModelSelection: ModelSelection;
-  currentProviderInstanceId?: ModelSelection["instanceId"] | null | undefined;
-  nextModelSelection: ModelSelection;
-}): { title: string; description: string } | null {
+export function getStartedThreadModelChangeBlockReason(
+  input: {
+    hasStartedSession: boolean;
+    supportsProviderSwitchingViaHandoff?: boolean;
+    currentModelSelection: ModelSelection;
+    currentProviderInstanceId?: ModelSelection["instanceId"] | null | undefined;
+    nextModelSelection: ModelSelection;
+  },
+  resolve: MessageResolver = m,
+): { title: string; description: string } | null {
   if (!input.hasStartedSession) {
     return null;
   }
@@ -866,8 +870,10 @@ export function getStartedThreadModelChangeBlockReason(input: {
     return null;
   }
   return {
-    title: msg("Start a new chat to switch providers"),
-    description: msg("This thread does not support switching providers after it has started."),
+    title: resolve(msg("Start a new chat to switch providers")),
+    description: resolve(
+      msg("This thread does not support switching providers after it has started."),
+    ),
   };
 }
 
@@ -1203,10 +1209,10 @@ export function makeModelDisabledReason(
 ) {
   return (instanceId: ProviderInstanceId, model: string): string | null => {
     if (!context) return null;
-    const reason = getStartedThreadModelChangeBlockReason({
-      ...context,
-      nextModelSelection: { instanceId, model },
-    });
+    const reason = getStartedThreadModelChangeBlockReason(
+      { ...context, nextModelSelection: { instanceId, model } },
+      resolve,
+    );
     return reason
       ? resolve(
           msg("{reason} Start a new thread to use this model.", { reason: reason.description }),
@@ -1476,14 +1482,17 @@ export function planComposerTurn(input: {
 }
 
 /** Fallback title sources for a message with no text of its own. */
-export function sendTitleFallbackLabels(snapshot: ComposerSendSnapshot) {
+export function sendTitleFallbackLabels(
+  snapshot: ComposerSendSnapshot,
+  resolve: MessageResolver = m,
+) {
   const terminalContext = snapshot.terminalContexts[0];
   const reviewComment = snapshot.reviewComments[0];
   const previewAnnotation = snapshot.previewAnnotations[0];
   return [
     terminalContext ? formatTerminalContextLabel(terminalContext) : undefined,
     reviewComment ? `Review: ${reviewCommentContextLabel(reviewComment)}` : undefined,
-    previewAnnotation ? previewAnnotationContextLabel(previewAnnotation) : undefined,
+    previewAnnotation ? previewAnnotationContextLabel(previewAnnotation, resolve) : undefined,
   ];
 }
 

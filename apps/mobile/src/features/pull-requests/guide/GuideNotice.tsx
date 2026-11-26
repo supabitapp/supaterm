@@ -6,13 +6,14 @@ import { SymbolView } from "../../../components/ui/AppSymbol";
 import { PR_ROW_EXIT, PR_ROW_LAYOUT } from "../pullRequestAnimations";
 import { guideNoticeState } from "./reviewGuideState";
 import type { useReviewGuide } from "./useReviewGuide";
-import { T, useGT, Var } from "gt-react-native";
+import { T, useGT, Var, useMessages } from "gt-react-native";
 
 const NOTICE_ENTER = FadeIn.delay(180).duration(120).reduceMotion(ReduceMotion.System);
 
 export function GuideNotice({ state }: { readonly state: ReturnType<typeof useReviewGuide> }) {
+  const messages = useMessages();
   const gt = useGT();
-  const notice = guideNoticeState(state);
+  const notice = guideNoticeState(state, messages);
   if (notice.kind === "ready") return null;
   const compact = state.data?.guide != null;
   const failed = notice.kind === "failed" || notice.kind === "unavailable";

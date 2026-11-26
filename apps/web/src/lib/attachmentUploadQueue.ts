@@ -191,7 +191,7 @@ const failUpload = (job: UploadJob, reason: string, attachmentId?: string) =>
 /** Uploads one composer attachment, writing the state its composer shows as it goes. */
 const uploadJob = Effect.fn("WebAttachmentUploads.upload")(function* (job: UploadJob) {
   if (!canOperate(job.environmentId)) {
-    return yield* failUpload(job, msg("This connection cannot upload attachments."));
+    return yield* failUpload(job, m(msg("This connection cannot upload attachments.")));
   }
   if (job.persistedAttachmentId) {
     const verification = yield* verifyPersistedAttachmentUpload({
@@ -232,8 +232,8 @@ const uploadJob = Effect.fn("WebAttachmentUploads.upload")(function* (job: Uploa
       return yield* failUpload(
         job,
         verification.status === "missing"
-          ? msg("Uploaded file expired. Remove it and attach it again.")
-          : msg("Uploaded file could not be verified. Retry when the server reconnects."),
+          ? m(msg("Uploaded file expired. Remove it and attach it again."))
+          : m(msg("Uploaded file could not be verified. Retry when the server reconnects.")),
       );
     }
   }
@@ -244,11 +244,11 @@ const uploadJob = Effect.fn("WebAttachmentUploads.upload")(function* (job: Uploa
       : PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES.find(
           (supportedMimeType) => supportedMimeType === job.image.mimeType.toLowerCase(),
         );
-  if (!mimeType) return yield* failUpload(job, msg("Unsupported image type"));
+  if (!mimeType) return yield* failUpload(job, m(msg("Unsupported image type")));
   const file = job.image.file;
-  if (!file) return yield* failUpload(job, msg("Original file is no longer available"));
+  if (!file) return yield* failUpload(job, m(msg("Original file is no longer available")));
   if (!canOperate(job.environmentId)) {
-    return yield* failUpload(job, msg("This connection cannot upload attachments."));
+    return yield* failUpload(job, m(msg("This connection cannot upload attachments.")));
   }
 
   let lastStep = -1;
@@ -306,14 +306,14 @@ const uploadJob = Effect.fn("WebAttachmentUploads.upload")(function* (job: Uploa
   return yield* failUpload(
     job,
     result.step === "mint"
-      ? msg("Upload could not start")
+      ? m(msg("Upload could not start"))
       : result.step === "resolve-url"
         ? canOperate(job.environmentId)
-          ? msg("Not connected")
-          : msg("This connection cannot upload attachments.")
+          ? m(msg("Not connected"))
+          : m(msg("This connection cannot upload attachments."))
         : result.error instanceof Error
           ? result.error.message
-          : "Upload failed",
+          : m(msg("Upload failed")),
     result.attachmentId ?? undefined,
   );
 });
@@ -325,7 +325,7 @@ const uploads = createAttachmentUploadRegistry<UploadJob>({
   upload: (job) =>
     uploadJob(job).pipe(
       Effect.catchDefect((defect) =>
-        failUpload(job, msg("Upload failed")).pipe(
+        failUpload(job, m(msg("Upload failed"))).pipe(
           Effect.ensuring(Effect.logWarning("Composer attachment upload threw", defect)),
         ),
       ),

@@ -9,7 +9,7 @@ import type { DeviceScreenSize } from "@supaterm/client-runtime/device/stream";
 import { DeviceDuoGlyph } from "./DeviceDuoGlyph";
 import { Button } from "~/components/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
-import { msg, useGT } from "gt-react";
+import { msg, useGT, useMessages } from "gt-react";
 
 const FOLDS = [
   { id: "closed", angle: 0 },
@@ -27,6 +27,7 @@ export function DeviceDuoControls(props: {
   enabled: boolean;
   onCommand: (command: DuoCommand) => void;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const { screen } = props;
   const { fold, stand, phoneVertical: reportedVertical, settled } = duoFoldState(screen);
@@ -99,7 +100,7 @@ export function DeviceDuoControls(props: {
         {STANDS.map(({ id, label }) =>
           button(
             id,
-            label,
+            m(label),
             screen.hingePose === id,
             () => {
               if (!stand) setStandVertical(settledVertical);

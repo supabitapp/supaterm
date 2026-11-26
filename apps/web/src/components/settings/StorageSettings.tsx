@@ -47,7 +47,7 @@ import {
   useUpdateScopedSettings,
 } from "./useScopedSettings";
 import { settingsScopeEnvironmentLabel } from "./settingsScopeAxis";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 
 export function WorktreesDirectoryRow() {
   const searchableSetting = useSearchableSetting();
@@ -565,6 +565,7 @@ function StorageCleanupScopeNotice() {
 }
 
 export function WorktreeCleanupSection() {
+  const messages = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { scope, connectedEnvironments, targets, target } = useSettingsScope();
@@ -767,7 +768,7 @@ export function WorktreeCleanupSection() {
                     <SelectValue>
                       {ruleStatus("worktreeKeepWhen")
                         ? gt("Mixed")
-                        : KEEP_WHEN_LABELS[settings.worktreeKeepWhen]}
+                        : messages(KEEP_WHEN_LABELS[settings.worktreeKeepWhen])}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectPopup align="end" alignItemWithTrigger={false}>

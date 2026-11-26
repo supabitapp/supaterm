@@ -837,24 +837,36 @@ function formatGoalTokens(tokens: number): string {
 export function presentProviderGoal(
   goal: OrchestrationV2ProviderGoal,
   working: boolean,
+  resolve: MFunctionType = mFallback,
 ): ProviderGoalPresentation {
   const usage: Array<string> = [];
   if (goal.tokensUsed !== undefined && goal.tokensUsed > 0) {
     usage.push(
       goal.tokenBudget == null
-        ? `${formatGoalTokens(goal.tokensUsed)} tokens`
-        : `${formatGoalTokens(goal.tokensUsed)} / ${formatGoalTokens(goal.tokenBudget)} tokens`,
+        ? resolve(msg("{used} tokens", { used: formatGoalTokens(goal.tokensUsed) }))
+        : resolve(
+            msg("{used} / {budget} tokens", {
+              used: formatGoalTokens(goal.tokensUsed),
+              budget: formatGoalTokens(goal.tokenBudget),
+            }),
+          ),
     );
   }
   if (goal.timeUsedSeconds !== undefined && goal.timeUsedSeconds >= 60) {
     usage.push(formatDuration(goal.timeUsedSeconds * 1_000));
   }
   if (goal.checks !== undefined && goal.checks > 0) {
-    usage.push(`${goal.checks} ${goal.checks === 1 ? "check" : "checks"}`);
+    usage.push(
+      resolve(
+        msg("{count, plural, one {{count} check} other {{count} checks}}", { count: goal.checks }),
+      ),
+    );
   }
   return {
     title:
-      goal.status === "active" && !working ? msg("Goal set") : PROVIDER_GOAL_TITLES[goal.status],
+      goal.status === "active" && !working
+        ? resolve(msg("Goal set"))
+        : resolve(PROVIDER_GOAL_TITLES[goal.status]),
     objective: goal.objective,
     usage: usage.length === 0 ? null : usage.join(" · "),
     canResume: goal.status !== "active" && goal.status !== "complete",

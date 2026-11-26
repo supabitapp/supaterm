@@ -1,3 +1,4 @@
+import { errorDisplayMessage } from "./errors/translatable.ts";
 import {
   SecretReference,
   secretRequestPageUrl,
@@ -259,7 +260,10 @@ const USER_FACING_FAILURE_TAGS = new Set(["SecretRequestError", "EnvironmentAuth
  * Only known server errors pass their message through: anything else (transport or encoding
  * failures) gets the generic copy, so the typed value can never surface in the UI.
  */
-export function secretRequestFailureMessage(failure: unknown): string {
+export function secretRequestFailureMessage(
+  failure: unknown,
+  resolve: MFunctionType = mFallback,
+): string {
   if (
     typeof failure === "object" &&
     failure !== null &&
@@ -270,7 +274,7 @@ export function secretRequestFailureMessage(failure: unknown): string {
     typeof failure.message === "string" &&
     failure.message.trim().length > 0
   ) {
-    return failure.message;
+    return errorDisplayMessage(failure, resolve) ?? failure.message;
   }
-  return msg("Could not answer the request. Try again.");
+  return resolve(msg("Could not answer the request. Try again."));
 }

@@ -5,18 +5,22 @@ import {
 } from "@supaterm/contracts";
 
 import type { EnvironmentConnectionPhase } from "../connection/presentation.ts";
-import { msg } from "gt-i18n";
+import { msg, mFallback } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 
-export function resolveUsageAccess(input: {
-  readonly connectionPhase: EnvironmentConnectionPhase;
-  readonly session: SessionGrantInput | null;
-  readonly hasSessionError: boolean;
-}) {
+export function resolveUsageAccess(
+  input: {
+    readonly connectionPhase: EnvironmentConnectionPhase;
+    readonly session: SessionGrantInput | null;
+    readonly hasSessionError: boolean;
+  },
+  resolve: MFunctionType = mFallback,
+) {
   if (input.hasSessionError) {
     return {
       canReadDiagnostics: false,
       isPending: false,
-      error: msg("Could not check this connection's access to diagnostics and usage."),
+      error: resolve(msg("Could not check this connection's access to diagnostics and usage.")),
     };
   }
   if (input.session === null) {
@@ -29,7 +33,7 @@ export function resolveUsageAccess(input: {
     return {
       canReadDiagnostics: false,
       isPending,
-      error: isPending ? null : msg("This environment is not connected."),
+      error: isPending ? null : resolve(msg("This environment is not connected.")),
     };
   }
   const canReadDiagnostics = sessionGrantsScope(input.session, AuthDiagnosticsReadScope);
@@ -38,6 +42,6 @@ export function resolveUsageAccess(input: {
     isPending: false,
     error: canReadDiagnostics
       ? null
-      : msg("This connection does not have access to diagnostics and usage."),
+      : resolve(msg("This connection does not have access to diagnostics and usage.")),
   };
 }

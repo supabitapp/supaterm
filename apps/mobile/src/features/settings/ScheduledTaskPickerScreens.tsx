@@ -29,7 +29,7 @@ import {
   useScheduledTaskEditor,
 } from "./scheduled-task-editor";
 import { moveDraftToThread, unbindDraftFromThread } from "./scheduledTaskDraft";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 
 function MissingTaskDraft() {
   const gt = useGT();
@@ -194,6 +194,7 @@ export function ScheduledTaskBranchPickerRouteScreen() {
 }
 
 export function ScheduledTaskRepositoriesPickerRouteScreen() {
+  const messages = useMessages();
   const gt = useGT();
   const { editor, setEditor } = useScheduledTaskEditor();
   const projects = useProjects();
@@ -206,10 +207,13 @@ export function ScheduledTaskRepositoriesPickerRouteScreen() {
 
   if (!editor) return <MissingTaskDraft />;
 
-  const selection = resolveWorktreeRepositorySelection({
-    choices,
-    chosen: editor.draft.repositories,
-  });
+  const selection = resolveWorktreeRepositorySelection(
+    {
+      choices,
+      chosen: editor.draft.repositories,
+    },
+    messages,
+  );
   return (
     <RepositoriesPickerScreen
       choices={choices}
@@ -231,6 +235,7 @@ export function ScheduledTaskRepositoriesPickerRouteScreen() {
 const THREAD_SEARCH_PLACEHOLDER = msg("Search threads, including older ones");
 
 export function ScheduledTaskThreadPickerRouteScreen() {
+  const m = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -244,7 +249,7 @@ export function ScheduledTaskThreadPickerRouteScreen() {
   const search = {
     value: query,
     onChangeText: setQuery,
-    placeholder: THREAD_SEARCH_PLACEHOLDER,
+    placeholder: m(THREAD_SEARCH_PLACEHOLDER),
     accessibilityLabel: gt("Search threads"),
     clearAccessibilityLabel: gt("Clear thread search"),
     mode: "inline" as const,
@@ -262,7 +267,9 @@ export function ScheduledTaskThreadPickerRouteScreen() {
 
   const needle = query.trim().toLocaleLowerCase();
   const rows = [
-    ...(needle ? [] : [{ key: "new-thread", title: NEW_THREAD_DESTINATION_LABEL, thread: null }]),
+    ...(needle
+      ? []
+      : [{ key: "new-thread", title: m(NEW_THREAD_DESTINATION_LABEL), thread: null }]),
     ...(threadId !== null && currentLabel.toLocaleLowerCase().includes(needle)
       ? [{ key: threadId, title: currentLabel, thread: null }]
       : []),

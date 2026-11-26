@@ -713,12 +713,12 @@ function BrowserLinkTargetSetting({ disabled }: { readonly disabled: boolean }) 
           }}
         >
           <SelectTrigger size="sm" className="w-full sm:w-40" aria-label={gt("Open links in")}>
-            <SelectValue>{LINK_TARGET_LABELS[linkTarget]}</SelectValue>
+            <SelectValue>{m(LINK_TARGET_LABELS[linkTarget])}</SelectValue>
           </SelectTrigger>
           <SelectPopup align="end" alignItemWithTrigger={false}>
             {(Object.keys(LINK_TARGET_LABELS) as ReadonlyArray<BrowserLinkTarget>).map((target) => (
               <SelectItem hideIndicator key={target} value={target}>
-                {LINK_TARGET_LABELS[target]}
+                {m(LINK_TARGET_LABELS[target])}
               </SelectItem>
             ))}
           </SelectPopup>

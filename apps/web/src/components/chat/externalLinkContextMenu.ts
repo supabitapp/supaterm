@@ -35,9 +35,11 @@ function externalLinkContextMenuItems(options: {
   readonly canOpenInPreview: boolean;
   readonly threadLinkAction?: "link-to-thread" | "unlink-from-thread" | undefined;
 }): readonly ContextMenuItem<ExternalLinkContextMenuAction>[] {
-  const items = options.canOpenInPreview
-    ? EXTERNAL_LINK_CONTEXT_MENU_ITEMS
-    : EXTERNAL_LINK_CONTEXT_MENU_ITEMS.filter((item) => item.id !== "open-in-preview");
+  const items = (
+    options.canOpenInPreview
+      ? EXTERNAL_LINK_CONTEXT_MENU_ITEMS
+      : EXTERNAL_LINK_CONTEXT_MENU_ITEMS.filter((item) => item.id !== "open-in-preview")
+  ).map((item) => ({ id: item.id, label: m(item.label) }));
   if (options.threadLinkAction === undefined) return items;
   return [
     {

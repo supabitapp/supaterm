@@ -49,7 +49,8 @@ import {
   showThemeInspectorHover,
   type ThemeElementInspection,
 } from "./themeInspector";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 const THEME_EDITOR_SIMPLE_ROLES: ReadonlyArray<ThemeColorRole> = ["canvas", "accent"];
 
@@ -251,6 +252,11 @@ function getThemeEditorColorFamily(role: ThemeColorRole): ThemeEditorColorFamily
   return THEME_EDITOR_COLOR_FAMILY_BY_ROLE.get(role) ?? null;
 }
 
+function themeEditorRoleLabel(role: ThemeColorRole, resolve: MessageResolver = m): string {
+  const family = getThemeEditorColorFamily(role);
+  return family ? resolve(family.label) : getThemeRoleLabel(role);
+}
+
 type ThemeEditorColors = ThemeColors;
 type ThemeEditorColorsByAppearance = Record<ThemeAppearance, ThemeEditorColors>;
 
@@ -341,6 +347,7 @@ export function ThemeEditorPanel({
   seedName?: string | undefined;
   restoreTheme: () => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const isEditing = editingTheme !== null;
   const [name, setName] = useState("");
@@ -646,10 +653,7 @@ export function ThemeEditorPanel({
     };
     const showInspection = (inspection: ThemeElementInspection) => {
       hoverInspection = inspection;
-      showThemeInspectorHover(
-        inspection,
-        getThemeEditorColorFamily(inspection.role)?.label ?? getThemeRoleLabel(inspection.role),
-      );
+      showThemeInspectorHover(inspection, themeEditorRoleLabel(inspection.role));
     };
     const handlePointerOver = (event: PointerEvent) => {
       const target = event.target;
@@ -717,11 +721,7 @@ export function ThemeEditorPanel({
       hoverFrame = requestAnimationFrame(() => {
         hoverFrame = null;
         if (hoverInspection) {
-          showThemeInspectorHover(
-            hoverInspection,
-            getThemeEditorColorFamily(hoverInspection.role)?.label ??
-              getThemeRoleLabel(hoverInspection.role),
-          );
+          showThemeInspectorHover(hoverInspection, themeEditorRoleLabel(hoverInspection.role));
         }
       });
     };
@@ -1031,7 +1031,7 @@ export function ThemeEditorPanel({
       {families.map((family) => (
         <ThemeColorField
           key={family.id}
-          label={family.label}
+          label={messages(family.label)}
           onChange={updateColor}
           onEditCancel={cancelColorEdit}
           onEditStart={startColorEdit}
@@ -1051,7 +1051,7 @@ export function ThemeEditorPanel({
       const families = group.families.filter(
         (family) =>
           !query ||
-          [family.label, ...family.roles.map((role) => getThemeRoleLabel(role))]
+          [messages(family.label), ...family.roles.map((role) => getThemeRoleLabel(role))]
             .join(" ")
             .toLowerCase()
             .includes(query),
@@ -1062,7 +1062,7 @@ export function ThemeEditorPanel({
       <div className="space-y-5">
         {groups.map((group) => (
           <section className="space-y-2" key={group.id}>
-            <h4 className="text-sm font-medium text-foreground">{group.title}</h4>
+            <h4 className="text-sm font-medium text-foreground">{messages(group.title)}</h4>
             {renderRoleFields(group.families, "grid gap-1")}
           </section>
         ))}
@@ -1214,7 +1214,12 @@ export function ThemeEditorPanel({
               {isInspecting
                 ? gt("Select an element · Esc to cancel")
                 : selectedRole
-                  ? `${isAdvanced ? (getThemeEditorColorFamily(selectedRole)?.label ?? getThemeRoleLabel(selectedRole)) : getThemeRoleLabel(selectedRole)} · ${usageCount ?? 0} ${usageCount === 1 ? "use" : "uses"}`
+                  ? gt("{label} · {count, plural, one {{count} use} other {{count} uses}}", {
+                      label: isAdvanced
+                        ? themeEditorRoleLabel(selectedRole, messages)
+                        : getThemeRoleLabel(selectedRole),
+                      count: usageCount ?? 0,
+                    })
                   : gt("Select a color below")}
             </p>
           )}

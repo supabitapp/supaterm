@@ -20,7 +20,7 @@ import {
   releaseCheckError,
   releaseCheckValue,
 } from "./environmentUpdateCheck";
-import { useGT } from "gt-react-native";
+import { useGT, useMessages } from "gt-react-native";
 
 export function OutdatedServerUpdateSection({
   environmentId,
@@ -30,6 +30,7 @@ export function OutdatedServerUpdateSection({
   readonly label: string;
 }) {
   const gt = useGT();
+  const messages = useMessages();
   const describe = useAtomCommand(describeOutdatedServer, { reportFailure: false });
   const update = useAtomCommand(updateOutdatedServer, { reportFailure: false });
   const state = useAtomValue(serverEnvironment.updateStateAtom(environmentId));
@@ -102,7 +103,7 @@ export function OutdatedServerUpdateSection({
         </Text>
         {error || state.status === "failed" ? (
           <Text selectable accessibilityRole="alert" className="text-sm text-danger-foreground">
-            {error ?? (state.status === "failed" ? state.message : null)}
+            {error ?? (state.status === "failed" ? messages(state.message) : null)}
           </Text>
         ) : null}
       </View>

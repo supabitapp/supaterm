@@ -17,14 +17,15 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { Button } from "./ui/button";
-import { T, msg } from "gt-react";
+import { T, msg, useMessages } from "gt-react";
+import type { MessageResolver } from "../i18n/messages";
 
 type ConfirmationCopy = {
   readonly title: string;
   readonly description: string | null;
 };
 
-function resolveConfirmDialogCopy(message: string): ConfirmationCopy {
+function resolveConfirmDialogCopy(message: string, resolve: MessageResolver): ConfirmationCopy {
   const normalizedMessage = message.trim();
   const lines = normalizedMessage.split("\n");
   const questionLineIndex = lines.findIndex((line) => line.trim().endsWith("?"));
@@ -47,19 +48,20 @@ function resolveConfirmDialogCopy(message: string): ConfirmationCopy {
   }
 
   return {
-    title: msg("Confirm action"),
-    description: normalizedMessage || msg("This action requires your confirmation."),
+    title: resolve(msg("Confirm action")),
+    description: normalizedMessage || resolve(msg("This action requires your confirmation.")),
   };
 }
 
 export function ConfirmDialogHost() {
+  const m = useMessages();
   const state = useSyncExternalStore(
     subscribeConfirmDialogHost,
     readConfirmDialogState,
     readConfirmDialogState,
   );
 
-  const copy = resolveConfirmDialogCopy(state.status === "idle" ? "" : state.message);
+  const copy = resolveConfirmDialogCopy(state.status === "idle" ? "" : state.message, m);
   const confirmVariant = state.status === "idle" ? "default" : state.variant;
   const focusConfirm = state.status !== "idle" && state.initialFocus === "confirm";
   const onCancel = () => respondToConfirmDialog(false);

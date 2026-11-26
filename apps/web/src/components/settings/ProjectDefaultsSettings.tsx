@@ -49,6 +49,7 @@ function isWorktreeSubmodules(value: string | null): value is WorktreeSubmodules
 }
 
 export function ProjectDefaultsSettings({ category }: { category: ProjectSettingsCategory }) {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const messages = useMessages();
   const gt = useGT();
@@ -67,12 +68,15 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       ? providersByEnvironment.get(representative.environmentId)
       : undefined) ?? EMPTY_SERVER_PROVIDERS;
   const entries = providerInstanceEntriesFor(providers, settings, target?.projectId ?? null);
-  const presentation = resolveDefaultModelSettingsPresentation({
-    entries,
-    providers,
-    settings,
-    projectId: target?.projectId ?? null,
-  });
+  const presentation = resolveDefaultModelSettingsPresentation(
+    {
+      entries,
+      providers,
+      settings,
+      projectId: target?.projectId ?? null,
+    },
+    m,
+  );
   const selection = presentation.selection;
   const modelOptions = getCustomModelOptionsByInstance(
     settings,

@@ -27,11 +27,12 @@ export function getConnectionAwareBrandHeaderOptions(opts: {
   readonly trailingItemCount?: number;
   readonly onOpenEnvironments: () => void;
   readonly fallbackTitleStyle?: NativeStackNavigationOptions["headerTitleStyle"];
+  readonly resolve?: MessageResolver;
 }): NativeStackNavigationOptions {
   const maxWidth = Math.max(0, opts.headerWidth - 64 - 44 * (opts.trailingItemCount ?? 1));
 
   return {
-    ...getCompactBrandHeaderOptions(opts.fallbackTitleStyle),
+    ...getCompactBrandHeaderOptions(opts.fallbackTitleStyle, opts.resolve),
     headerTitle: () => (
       <WorkspaceConnectionTitle
         brand={<CompactBrandTitle />}

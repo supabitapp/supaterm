@@ -1,3 +1,4 @@
+import { errorDisplayMessage } from "@supaterm/client-runtime/errors";
 import {
   foldSearchQuery,
   PALETTE_SECONDARY_LIMIT,
@@ -47,13 +48,15 @@ export function buildLinkedThreadActionItems(
     icon: ReactNode;
     runThread: (thread: Pick<SidebarThreadSummary, "environmentId" | "id">) => Promise<void>;
   },
+  resolve: MessageResolver = m,
 ): CommandPaletteActionItem[] {
   return input.threads.map((thread) => ({
     kind: "action",
     value: `thread:${input.environmentId}:${thread.id}`,
     threadRef: { environmentId: input.environmentId, threadId: thread.id },
-    title: thread.title || msg("Untitled thread"),
-    description: thread.archivedAt === null ? msg("Linked thread") : msg("Archived thread"),
+    title: thread.title || resolve(msg("Untitled thread")),
+    description:
+      thread.archivedAt === null ? resolve(msg("Linked thread")) : resolve(msg("Archived thread")),
     searchTerms: [input.query, thread.title],
     icon: input.icon,
     run: () => input.runThread({ environmentId: input.environmentId, id: thread.id }),
@@ -553,31 +556,37 @@ function scorePaletteItem(
  * Equal match classes put commands before threads, so "new" runs "New thread".
  * Server message matches stay in a final group so late results cannot move earlier rows.
  */
-export function filterCommandPaletteGroups(input: {
-  activeGroups: ReadonlyArray<CommandPaletteGroup>;
-  query: string;
-  isInSubmenu: boolean;
-  /** Submenu options join the root search, and a submenu with no match falls back to it. */
-  allOptions?: {
-    readonly rootGroups: ReadonlyArray<CommandPaletteGroup>;
-    readonly nestedItems: ReadonlyArray<CommandPaletteActionItem>;
-  };
-  projectSearchItems: ReadonlyArray<CommandPaletteActionItem>;
-  settingsSearchItems?: ReadonlyArray<CommandPaletteActionItem>;
-  threadSearchItems: ReadonlyArray<CommandPaletteActionItem>;
-  /** Threads whose messages match, best first; threads already listed are skipped. */
-  threadMessageItems?: ReadonlyArray<CommandPaletteActionItem>;
-  now?: number;
-}): CommandPaletteGroup[] {
+export function filterCommandPaletteGroups(
+  input: {
+    activeGroups: ReadonlyArray<CommandPaletteGroup>;
+    query: string;
+    isInSubmenu: boolean;
+    /** Submenu options join the root search, and a submenu with no match falls back to it. */
+    allOptions?: {
+      readonly rootGroups: ReadonlyArray<CommandPaletteGroup>;
+      readonly nestedItems: ReadonlyArray<CommandPaletteActionItem>;
+    };
+    projectSearchItems: ReadonlyArray<CommandPaletteActionItem>;
+    settingsSearchItems?: ReadonlyArray<CommandPaletteActionItem>;
+    threadSearchItems: ReadonlyArray<CommandPaletteActionItem>;
+    /** Threads whose messages match, best first; threads already listed are skipped. */
+    threadMessageItems?: ReadonlyArray<CommandPaletteActionItem>;
+    now?: number;
+  },
+  resolve: MessageResolver = m,
+): CommandPaletteGroup[] {
   if (input.allOptions && input.isInSubmenu) {
     const { allOptions, ...submenuInput } = input;
-    const scoped = filterCommandPaletteGroups(submenuInput);
+    const scoped = filterCommandPaletteGroups(submenuInput, resolve);
     if (scoped.length > 0 || input.query.trim().length === 0) return scoped;
-    return filterCommandPaletteGroups({
-      ...input,
-      activeGroups: allOptions.rootGroups,
-      isInSubmenu: false,
-    });
+    return filterCommandPaletteGroups(
+      {
+        ...input,
+        activeGroups: allOptions.rootGroups,
+        isInSubmenu: false,
+      },
+      resolve,
+    );
   }
 
   const isActionsFilter = input.query.startsWith(">");
@@ -606,28 +615,28 @@ export function filterCommandPaletteGroups(input: {
     if (input.allOptions && input.allOptions.nestedItems.length > 0) {
       searchableGroups.push({
         value: "nested-search",
-        label: msg("Suggestions"),
+        label: resolve(msg("Suggestions")),
         items: input.allOptions.nestedItems,
       });
     }
     if (input.threadSearchItems.length > 0) {
       searchableGroups.push({
         value: "threads-search",
-        label: msg("Threads"),
+        label: resolve(msg("Threads")),
         items: input.threadSearchItems,
       });
     }
     if (input.projectSearchItems.length > 0) {
       searchableGroups.push({
         value: "projects-search",
-        label: msg("Projects"),
+        label: resolve(msg("Projects")),
         items: input.projectSearchItems,
       });
     }
     if (input.settingsSearchItems && input.settingsSearchItems.length > 0) {
       searchableGroups.push({
         value: "settings-search",
-        label: msg("Settings"),
+        label: resolve(msg("Settings")),
         items: input.settingsSearchItems,
       });
     }
@@ -669,7 +678,10 @@ export function filterCommandPaletteGroups(input: {
   const messageItems = (input.threadMessageItems ?? []).filter((item) => !listed.has(item.value));
   return messageItems.length === 0
     ? groups
-    : [...groups, { value: "threads-messages", label: msg("In messages"), items: messageItems }];
+    : [
+        ...groups,
+        { value: "threads-messages", label: resolve(msg("In messages")), items: messageItems },
+      ];
 }
 
 /** Every option inside a submenu as one row, e.g. "New thread in supaterm" or "Change theme: Dracula". */
@@ -701,15 +713,18 @@ export function buildNestedSearchItems(
   });
 }
 
-export function buildBrowseGroups(input: {
-  browseEntries: ReadonlyArray<FilesystemBrowseEntry>;
-  browseQuery: string;
-  canBrowseUp: boolean;
-  upIcon: ReactNode;
-  directoryIcon: ReactNode;
-  browseUp: () => void | Promise<void>;
-  browseTo: (name: string) => void | Promise<void>;
-}): CommandPaletteGroup[] {
+export function buildBrowseGroups(
+  input: {
+    browseEntries: ReadonlyArray<FilesystemBrowseEntry>;
+    browseQuery: string;
+    canBrowseUp: boolean;
+    upIcon: ReactNode;
+    directoryIcon: ReactNode;
+    browseUp: () => void | Promise<void>;
+    browseTo: (name: string) => void | Promise<void>;
+  },
+  resolve: MessageResolver = m,
+): CommandPaletteGroup[] {
   const items: CommandPaletteActionItem[] = [];
 
   if (input.canBrowseUp) {
@@ -740,7 +755,7 @@ export function buildBrowseGroups(input: {
     });
   }
 
-  return [{ value: "directories", label: msg("Directories"), items }];
+  return [{ value: "directories", label: resolve(msg("Directories")), items }];
 }
 
 export function filterPinnedBrowseEntries(input: {
@@ -777,18 +792,21 @@ export function getCommandPaletteMode(input: {
   return input.isBrowsing ? "root-browse" : "root";
 }
 
-export function buildRootGroups(input: {
-  actionItems: ReadonlyArray<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
-  recentThreadItems: ReadonlyArray<CommandPaletteActionItem>;
-}): CommandPaletteGroup[] {
+export function buildRootGroups(
+  input: {
+    actionItems: ReadonlyArray<CommandPaletteActionItem | CommandPaletteSubmenuItem>;
+    recentThreadItems: ReadonlyArray<CommandPaletteActionItem>;
+  },
+  resolve: MessageResolver = m,
+): CommandPaletteGroup[] {
   const groups: CommandPaletteGroup[] = [];
   if (input.actionItems.length > 0) {
-    groups.push({ value: "actions", label: msg("Actions"), items: input.actionItems });
+    groups.push({ value: "actions", label: resolve(msg("Actions")), items: input.actionItems });
   }
   if (input.recentThreadItems.length > 0) {
     groups.push({
       value: "recent-threads",
-      label: msg("Recent Threads"),
+      label: resolve(msg("Recent Threads")),
       items: input.recentThreadItems,
     });
   }
@@ -859,7 +877,7 @@ export function remoteProjectInputPlaceholder(
   }
   return resolve(
     msg("Enter {source} repository ({hint})", {
-      source: addProjectRemoteSourceLabel(flow.source),
+      source: addProjectRemoteSourceLabel(flow.source, resolve),
       hint: addProjectRemoteSourcePathHint(flow.source),
     }),
   );
@@ -883,11 +901,11 @@ export function buildPaletteRemoteSourceReadiness(
   };
 }
 
-export function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return msg("An error occurred.");
+export function errorMessage(error: unknown, resolve: MessageResolver = m): string {
+  return (
+    (error instanceof Error ? errorDisplayMessage(error, resolve) : null) ??
+    resolve(msg("An error occurred."))
+  );
 }
 
 const OVERLAY_MODE_BY_COMMAND = {

@@ -73,7 +73,7 @@ export interface PrStatusIndicator {
 }
 
 export interface TerminalStatusIndicator {
-  label: "Terminal process running";
+  label: string;
   colorClass: string;
   pulse: boolean;
 }
@@ -140,6 +140,7 @@ export function useThreadDisplayedPullRequest(
     status: prStatusIndicator(
       pr,
       linkedStatus?.sourceControlProvider ?? branchSourceControlProvider,
+      m,
     ),
     number: currentLink?.number ?? pr?.number,
     url: currentLink?.url ?? pr?.url,
@@ -577,10 +578,11 @@ function ThreadPullRequestMiniListItem({
 export function prStatusIndicator(
   pr: ThreadPr,
   provider: VcsStatusResult["sourceControlProvider"] | null | undefined,
+  resolve: MessageResolver = m,
 ): PrStatusIndicator | null {
   if (!pr) return null;
   const { shortLabel } = sourceControlClients.get(provider?.kind).changeRequest;
-  const state = resolvePullRequestState({ state: pr.state, isDraft: pr.isDraft === true });
+  const state = resolvePullRequestState({ state: pr.state, isDraft: pr.isDraft === true }, resolve);
 
   const tooltipLead = `${shortLabel} #${pr.number} - ${state.label}`;
   return {
@@ -658,12 +660,13 @@ export function resolveDisplayedThreadPrProvider(input: {
 
 export function terminalStatusFromRunningIds(
   runningTerminalIds: ReadonlyArray<string>,
+  resolve: MessageResolver = m,
 ): TerminalStatusIndicator | null {
   if (runningTerminalIds.length === 0) {
     return null;
   }
   return {
-    label: msg("Terminal process running"),
+    label: resolve(msg("Terminal process running")),
     colorClass: "text-teal-600 dark:text-teal-300/90",
     pulse: true,
   };
@@ -688,9 +691,10 @@ export function ThreadTerminalStatusButton({
   terminalIds: readonly string[];
   onThreadActivate: (threadRef: ScopedThreadRef) => void;
 }) {
+  const messages = useMessages();
   const terminalId = terminalIds[0];
   if (terminalId === undefined) return null;
-  const status = terminalStatusFromRunningIds(terminalIds);
+  const status = terminalStatusFromRunningIds(terminalIds, messages);
   const label =
     terminalIds.length === 1
       ? "1 terminal process running. Open terminal"
@@ -735,6 +739,8 @@ function ThreadStatusLabel({
   status: ThreadStatusPill;
   compact?: boolean;
 }) {
+  const m = useMessages();
+  const label = m(status.label);
   if (compact) {
     return (
       <Tooltip>
@@ -742,7 +748,7 @@ function ThreadStatusLabel({
           render={
             <span
               role="img"
-              aria-label={status.label}
+              aria-label={label}
               className={`inline-flex size-3.5 shrink-0 items-center justify-center ${status.colorClass}`}
             />
           }
@@ -753,7 +759,7 @@ function ThreadStatusLabel({
             }`}
           />
         </TooltipTrigger>
-        <TooltipPopup side="top">{status.label}</TooltipPopup>
+        <TooltipPopup side="top">{label}</TooltipPopup>
       </Tooltip>
     );
   }
@@ -764,7 +770,7 @@ function ThreadStatusLabel({
         render={
           <span
             role="img"
-            aria-label={status.label}
+            aria-label={label}
             className={`inline-flex items-center gap-1 text-3xs ${status.colorClass}`}
           />
         }
@@ -774,9 +780,9 @@ function ThreadStatusLabel({
             status.pulse ? "motion-safe:animate-status-pulse" : ""
           }`}
         />
-        <span className="hidden md:inline">{status.label}</span>
+        <span className="hidden md:inline">{label}</span>
       </TooltipTrigger>
-      <TooltipPopup side="top">{status.label}</TooltipPopup>
+      <TooltipPopup side="top">{label}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -826,6 +832,7 @@ export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummar
   const prStatus = prStatusIndicator(
     pr,
     linkedPullRequest?.sourceControlProvider ?? resolveDisplayedThreadPrProvider(displayedPrInput),
+    m,
   );
   const threadStatus = resolveThreadStatusPill({
     environmentConnected,
@@ -886,7 +893,7 @@ export function ThreadRowTrailingStatus({ thread }: { thread: SidebarThreadSumma
     ? (remoteEnvLabel ?? gt("Remote", { $context: "machine location" }))
     : null;
   const remoteMachine = resolveEnvironmentMachineKind(environment?.serverConfig ?? null);
-  const terminalStatus = terminalStatusFromRunningIds(runningTerminalIds);
+  const terminalStatus = terminalStatusFromRunningIds(runningTerminalIds, m);
 
   if (!terminalStatus && !isRemoteThread) {
     return null;
@@ -985,7 +992,7 @@ export function ThreadSearchPullRequestNumber({
       badge,
       number: pr?.number ?? stored?.number,
       url: pr?.url ?? stored?.url,
-      status: prStatusIndicator(pr, linked?.sourceControlProvider),
+      status: prStatusIndicator(pr, linked?.sourceControlProvider, m),
     },
     messages,
   );

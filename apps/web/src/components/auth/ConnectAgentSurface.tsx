@@ -26,6 +26,7 @@ import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
+import { m } from "~/i18n/messages";
 
 export const accessConfig: Record<
   AuthMcpClientAccess,
@@ -72,11 +73,11 @@ function runApproval<A>(
       Effect.catch((error) =>
         Effect.succeed<Answer<A>>({
           kind: "error",
-          message: isApprovalError(error) ? error.message : UNREACHABLE,
+          message: isApprovalError(error) ? error.message : m(UNREACHABLE),
         }),
       ),
     ),
-  ).catch((): Answer<A> => ({ kind: "error", message: UNREACHABLE }));
+  ).catch((): Answer<A> => ({ kind: "error", message: m(UNREACHABLE) }));
 }
 
 const decodeAuthorizationRequest = Schema.decodeSync(AuthMcpAuthorizationRequest);

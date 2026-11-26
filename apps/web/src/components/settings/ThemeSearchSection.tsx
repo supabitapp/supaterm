@@ -30,7 +30,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group"
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Spinner } from "../ui/spinner";
 import { isImeComposing } from "~/lib/imeComposition";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 import { m } from "../../i18n/messages";
 
 const DOWNLOAD_FORMAT = new Intl.NumberFormat(undefined, {
@@ -237,6 +237,7 @@ export function ThemeSearchSection({
   signal: AbortSignal;
   onInstalled: (themes: ReadonlyArray<ThemeDefinition>, context: { updated: boolean }) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<OpenVsxThemeSort>("downloadCount");
@@ -367,13 +368,13 @@ export function ThemeSearchSection({
               >
                 <SelectTrigger size="sm" className="w-40" aria-label={gt("Sort themes")}>
                   <SelectValue>
-                    {SORT_OPTIONS.find((option) => option.value === sortBy)?.label}
+                    {messages(SORT_OPTIONS.find((option) => option.value === sortBy)?.label ?? "")}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup align="end" alignItemWithTrigger={false}>
                   {SORT_OPTIONS.map((option) => (
                     <SelectItem key={option.value} hideIndicator value={option.value}>
-                      {option.label}
+                      {messages(option.label)}
                     </SelectItem>
                   ))}
                 </SelectPopup>

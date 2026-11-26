@@ -30,7 +30,7 @@ import { readEnvironmentScope, useEnvironmentScope } from "./session";
 import { sourceControlEnvironment } from "./sourceControl";
 import { useAtomCommand } from "./use-atom-command";
 import { vcsActionManager, vcsEnvironment } from "./vcs";
-import { msg } from "gt-react";
+import { msg, useMessages } from "gt-react";
 import { m } from "../i18n/messages";
 
 export type SourceControlActionKind =
@@ -122,7 +122,7 @@ function useAction<
           scope,
           {
             operation,
-            label,
+            label: m(label),
           },
           execute,
         );
@@ -382,6 +382,7 @@ export function readCachedPullRequestResolution(
 }
 
 export function usePullRequestResolutionState(target: PullRequestResolutionTarget) {
+  const resolve = useMessages();
   const query = useEnvironmentQuery(
     target.environmentId !== null && target.cwd !== null && target.reference !== null
       ? gitEnvironment.pullRequestResolution({
@@ -392,6 +393,7 @@ export function usePullRequestResolutionState(target: PullRequestResolutionTarge
           },
         })
       : null,
+    resolve,
   );
   const cached = readCachedPullRequestResolution(target);
 

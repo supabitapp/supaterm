@@ -46,7 +46,7 @@ import { leaveSettingsPage } from "./settings-navigation";
 import { workspaceHasColumns } from "../layout/workspace/workspace-selection-store";
 import { DEFAULT_SETTINGS_PAGE } from "../layout/workspace/workspace-tab-navigation";
 import { readUnloadedThreadCount } from "../../state/olderDoneShelf";
-import { T, useGT } from "gt-react-native";
+import { T, useGT, useMessages } from "gt-react-native";
 
 export function SettingsProjectOverviewRouteScreen() {
   const gt = useGT();
@@ -142,6 +142,7 @@ function ProjectOverviewContent(props: {
   readonly projectKey: string | null;
   readonly onProjectRemoved: (projectKey: string | null) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { isRemoving, setIsRemoving, startRemoval, finishRemoval } = props;
   const representative = props.members[0]!;
@@ -413,7 +414,7 @@ function ProjectOverviewContent(props: {
               </Text>
               {environment?.displayUrl ? (
                 <Text className="text-sm leading-normal text-foreground-muted">
-                  {connectionAddressLabel(environment.displayUrl)}
+                  {connectionAddressLabel(environment.displayUrl, messages)}
                 </Text>
               ) : null}
               <Text className="text-sm leading-normal text-foreground-muted" selectable>

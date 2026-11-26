@@ -135,7 +135,7 @@ import { isSameRepository, resolveEnvironmentProjectMatch } from "./new-task-pro
 import { resolveDefaultWorktreeBaseBranch } from "../../lib/worktree-base-branch";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
 import { m } from "../../i18n/messages";
-import { msg, useGT } from "gt-react-native";
+import { msg, useGT, useMessages } from "gt-react-native";
 
 type WorkspaceMode = "local" | "worktree";
 
@@ -331,17 +331,21 @@ function useNewTaskFlowValue(
   instance: { readonly owner: boolean; readonly served: boolean; readonly active: boolean },
 ): NewTaskFlowContextValue {
   const gt = useGT();
+  const messages = useMessages();
   const projects = useProjects();
   const threads = useThreadShells();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const groupingSettings = useMobileProjectGroupingSettings();
 
   const projectScopes = sortHomeProjectScopes({
-    scopes: buildHomeProjectScopes({
-      projects,
-      environmentId: null,
-      projectGroupingMode: groupingSettings.sidebarProjectGroupingMode,
-    }),
+    scopes: buildHomeProjectScopes(
+      {
+        projects,
+        environmentId: null,
+        projectGroupingMode: groupingSettings.sidebarProjectGroupingMode,
+      },
+      messages,
+    ),
     threads,
     pendingTasks: [],
     projectSortOrder: "updated_at",
@@ -591,10 +595,10 @@ function useNewTaskFlowValue(
   // value keeps tracking the server setting when the config loads late.
   const draftStartFromOrigin = selectedProjectDraft.workspaceSelection?.startFromOrigin;
   const draftRepositories = workspaceSelection.repositories;
-  const worktreeRepositorySelection = resolveWorktreeRepositorySelection({
-    choices: worktreeRepositoryChoices,
-    chosen: draftRepositories,
-  });
+  const worktreeRepositorySelection = resolveWorktreeRepositorySelection(
+    { choices: worktreeRepositoryChoices, chosen: draftRepositories },
+    messages,
+  );
   const startFromOrigin =
     isGitRepo && (draftStartFromOrigin ?? projectSettings.settings.newWorktreesStartFromOrigin);
   const defaultRuntimeMode = editingPendingTask
@@ -935,10 +939,13 @@ function useNewTaskFlowValue(
   };
 
   const worktreeCreation = (chosen: ReadonlyArray<string> | undefined) => {
-    const repositories = resolveWorktreeRepositorySelection({
-      choices: worktreeRepositoryChoices,
-      chosen,
-    }).strategyRepositories;
+    const repositories = resolveWorktreeRepositorySelection(
+      {
+        choices: worktreeRepositoryChoices,
+        chosen,
+      },
+      messages,
+    ).strategyRepositories;
     return {
       ...(repositories === undefined
         ? {}

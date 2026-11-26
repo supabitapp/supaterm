@@ -124,6 +124,7 @@ export function useComposerMenuItems({
   readonly showSkillsInSlashMenu: boolean;
   readonly workspaceSkillsScanning: boolean;
 }) {
+  const messages = useMessages();
   const resolveMessage = useMessages();
   const gt = useGT();
   // Thread mentions rank by recency as of when the composer mounted.
@@ -154,11 +155,14 @@ export function useComposerMenuItems({
   const environmentIdentities = useEnvironmentIdentities();
   const environmentMachines = useEnvironmentMachines();
   const offersMachines = useAtomValue(supportsPeerLinksAtom(environmentId));
-  const workspaceEntries = useComposerPathSearch({
-    environmentId,
-    cwd: isPathTrigger ? gitCwd : null,
-    query: isPathTrigger ? pathTriggerQuery : null,
-  });
+  const workspaceEntries = useComposerPathSearch(
+    {
+      environmentId,
+      cwd: isPathTrigger ? gitCwd : null,
+      query: isPathTrigger ? pathTriggerQuery : null,
+    },
+    messages,
+  );
 
   const pullRequestListTargets =
     composerTriggerKind !== "pull-request" ||

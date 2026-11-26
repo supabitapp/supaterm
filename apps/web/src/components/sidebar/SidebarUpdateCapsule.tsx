@@ -82,6 +82,7 @@ export function SidebarUpdateCapsule({
   readonly icon: ReactNode;
   readonly onRestart?: () => Promise<void>;
 }) {
+  const m = useMessages();
   const messages = useMessages();
   const gt = useGT();
   const machines = useUpdateRunMachineViews(run, current);
@@ -206,7 +207,7 @@ export function SidebarUpdateCapsule({
                     status === "failed" ? "text-destructive" : "text-muted-foreground",
                   )}
                 >
-                  {RUN_STATUS_LABELS[status]}
+                  {m(RUN_STATUS_LABELS[status])}
                   {status !== "done" && status !== "failed" && status !== "waiting"
                     ? ` ${formatUpdateElapsed(now - machine.startedAt, messages)}`
                     : ""}

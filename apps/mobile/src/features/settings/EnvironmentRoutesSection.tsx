@@ -8,7 +8,7 @@ import {
   connectionRouteAddress,
   connectionRouteId,
   connectionRouteKind,
-  connectionRouteLabel,
+  connectionRouteLabelText,
   connectionRoutes,
   isLearned,
   pendingRouteOrder,
@@ -132,7 +132,7 @@ export function EnvironmentRoutesSection({
   };
   const confirmRemove = (route: ConnectionRoute) =>
     Dialog.alert(
-      gt("Remove {route}?", { route: connectionRouteLabel(route) }),
+      gt("Remove {route}?", { route: connectionRouteLabelText(route, messages) }),
       connectionRouteAddress(route) ?? undefined,
       [
         { text: gt("Cancel"), style: "cancel" },
@@ -284,7 +284,7 @@ function RouteRow(props: {
   const messages = useMessages();
   const gt = useGT();
   const { route, lifted, offset } = props;
-  const label = connectionRouteLabel(route);
+  const label = connectionRouteLabelText(route, messages);
   const address = connectionRouteAddress(route);
   // A route a connect skips has no speed worth measuring.
   const measured = useAtomValue(

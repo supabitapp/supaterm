@@ -31,7 +31,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "./ui/menu";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 /** A checklist this long gets a filter. */
 const FILTER_ABOVE_CHOICES = 8;
@@ -53,6 +53,7 @@ export const WorktreeRepositoriesControl = memo(function WorktreeRepositoriesCon
   /** A plain project folder has no branch picker of its own, so the base branch is named here. */
   offersBaseBranch: boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const baseBranch = useWorktreeBaseBranch(props.project);
   const composerFloatingLayerProps = useComposerMenuProps();
@@ -68,7 +69,7 @@ export const WorktreeRepositoriesControl = memo(function WorktreeRepositoriesCon
 
   if (choices === null || choices.length === 0) return null;
 
-  const selection = resolveWorktreeRepositorySelection({ choices, chosen: effective });
+  const selection = resolveWorktreeRepositorySelection({ choices, chosen: effective }, messages);
   const selected = new Set(selection.selected);
   const choose = (paths: ReadonlyArray<string>) => {
     setDraftThreadContext(props.draftTarget, { worktreeRepositories: paths });

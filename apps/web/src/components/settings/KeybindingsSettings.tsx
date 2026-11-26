@@ -602,16 +602,17 @@ function WhenExpressionBuilder({
   onChange: (value: KeybindingWhenNode | undefined) => void;
   onValidityChange?: (valid: boolean) => void;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const expression = whenAstToExpression(value);
   const [expressionDraft, setExpressionDraft] = useState(expression);
-  const parseResult = parseWhenExpressionDraft(expressionDraft);
+  const parseResult = parseWhenExpressionDraft(expressionDraft, m);
   const parseError = parseResult.ok ? null : parseResult.message;
   const unknownIdentifiers = parseResult.ok ? unknownWhenVariables(parseResult.value) : [];
 
   const updateExpressionDraft = (nextExpression: string) => {
     setExpressionDraft(nextExpression);
-    const nextResult = parseWhenExpressionDraft(nextExpression);
+    const nextResult = parseWhenExpressionDraft(nextExpression, m);
     onValidityChange?.(nextResult.ok);
     if (nextResult.ok) {
       onChange(nextResult.value);
@@ -1413,9 +1414,10 @@ interface KeybindingsGroupsProps extends KeybindingRowActions {
 }
 
 function KeybindingsGroups(props: KeybindingsGroupsProps) {
+  const m = useMessages();
   const { groups, anchorIds, savingCommand, ...rowActions } = props;
   return groups.map((group) => (
-    <SettingsSection key={group.id} id={`keybindings-${group.id}`} title={group.title}>
+    <SettingsSection key={group.id} id={`keybindings-${group.id}`} title={m(group.title)}>
       {group.rows.map((row) => (
         <KeybindingSettingsRow
           key={row.id}
@@ -1471,6 +1473,7 @@ function useKeybindingCatalog() {
 }
 
 export function KeybindingsSettingsPanel() {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const { environment: primaryEnvironment, connectedEnvironments } = useSettingsScope();
@@ -1507,7 +1510,7 @@ export function KeybindingsSettingsPanel() {
   }
   const whenVariables = buildWhenVariableOptions();
   const { commandOptions, allRows } = useKeybindingCatalog();
-  const rows = filterKeybindingRows(allRows, query);
+  const rows = filterKeybindingRows(allRows, query, m);
   const groups = groupKeybindingRows(rows);
   const anchorIds = keybindingAnchorIds(rows);
 

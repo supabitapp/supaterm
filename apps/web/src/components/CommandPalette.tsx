@@ -300,6 +300,7 @@ import { threadRecentUse } from "@supaterm/shared/paletteSearch";
 import { isImeComposing } from "~/lib/imeComposition";
 import { decodeMsg, T, useGT, useMessages, msg, Var } from "gt-react";
 import type { MessageResolver } from "~/i18n/messages";
+import { m } from "../i18n/messages";
 
 const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
 const ADD_PROJECT_ENTRY_GROUP = "add-project";
@@ -554,14 +555,17 @@ function OpenCommandPaletteDialog(props: {
   const activeThreadReferenceCopyTarget =
     referenceThreadRef === null || (pathname === "/pull-requests" && !openPanelPullRequestUrl)
       ? null
-      : resolveThreadReferenceCopyTarget({
-          threadRef: referenceThreadRef,
-          title: activeThread?.title ?? "",
-          openPanelPullRequestUrl,
-          pullRequests: activeThread?.pullRequests,
-          linkedPullRequestUrl:
-            activeThread?.linkedPullRequest?.url ?? activeThread?.branchPullRequest?.url ?? null,
-        });
+      : resolveThreadReferenceCopyTarget(
+          {
+            threadRef: referenceThreadRef,
+            title: activeThread?.title ?? "",
+            openPanelPullRequestUrl,
+            pullRequests: activeThread?.pullRequests,
+            linkedPullRequestUrl:
+              activeThread?.linkedPullRequest?.url ?? activeThread?.branchPullRequest?.url ?? null,
+          },
+          messages,
+        );
   const copyActiveThreadReference = async () => {
     if (activeThreadReferenceCopyTarget === null) return;
     await copyThreadReference(activeThreadReferenceCopyTarget);
@@ -657,7 +661,7 @@ function OpenCommandPaletteDialog(props: {
           isPrimary,
           machine: resolveEnvironmentMachineKind(environment.serverConfig),
           isConnected: canCreateProjectInEnvironment(environment.connection.phase),
-          status: connectionStatusText(environment.connection),
+          status: connectionStatusText(environment.connection, messages),
         };
       });
 
@@ -778,7 +782,7 @@ function OpenCommandPaletteDialog(props: {
     environmentId && currentProjectEnvironmentId === environmentId ? currentProjectCwd : null;
   const relativePathNeedsActiveProject =
     isExplicitRelativeProjectPath(query.trim()) && currentProjectCwdForBrowse === null;
-  const browseAccess = useFilesystemReadAccess(browseEnvironmentId);
+  const browseAccess = useFilesystemReadAccess(browseEnvironmentId, messages);
   const hasBrowseTarget =
     isBrowsing &&
     browsePath.directoryPath.length > 0 &&
@@ -1134,7 +1138,7 @@ function OpenCommandPaletteDialog(props: {
     ];
 
     for (const source of orderedSources) {
-      const label = addProjectRemoteSourceLabel(source);
+      const label = addProjectRemoteSourceLabel(source, messages);
       const title = source === "url" ? "Git URL" : `${label} repository`;
       const description =
         source === "url"
@@ -1964,7 +1968,7 @@ function OpenCommandPaletteDialog(props: {
     });
   }
 
-  const rootGroups = buildRootGroups({ actionItems, recentThreadItems });
+  const rootGroups = buildRootGroups({ actionItems, recentThreadItems }, messages);
   // Every setting goes to the palette's own matcher, so settings get the same
   // word starts and typo tolerance as threads.
   const settingsSearchItems: CommandPaletteActionItem[] = settingsForThisPlatform(
@@ -2040,17 +2044,20 @@ function OpenCommandPaletteDialog(props: {
     settingsSearchItems,
     threadSearchItems:
       isLinkedThreadSearch && linkedThreadSearch?.linkedThreads
-        ? buildLinkedThreadActionItems({
-            ...linkedThreadSearch.linkedThreads,
-            query: linkedThreadSearch.query,
-            icon: <MessageSquareIcon className={ITEM_ICON_CLASS} />,
-            runThread: async (thread) => {
-              await navigate({
-                to: "/$environmentId/$threadId",
-                params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
-              });
+        ? buildLinkedThreadActionItems(
+            {
+              ...linkedThreadSearch.linkedThreads,
+              query: linkedThreadSearch.query,
+              icon: <MessageSquareIcon className={ITEM_ICON_CLASS} />,
+              runThread: async (thread) => {
+                await navigate({
+                  to: "/$environmentId/$threadId",
+                  params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
+                });
+              },
             },
-          })
+            messages,
+          )
         : allThreadItems,
     threadMessageItems: isLinkedThreadSearch ? [] : threadMessageItems,
     now: searchNow,
@@ -2350,7 +2357,7 @@ function OpenCommandPaletteDialog(props: {
             stackedThreadToast({
               type: "error",
               title: gt("Repository lookup failed"),
-              description: errorMessage(squashAtomCommandFailure(lookupResult)),
+              description: errorMessage(squashAtomCommandFailure(lookupResult), m),
             }),
           );
         }
@@ -2444,7 +2451,7 @@ function OpenCommandPaletteDialog(props: {
           stackedThreadToast({
             type: "error",
             title: gt("Clone failed"),
-            description: errorMessage(squashAtomCommandFailure(startResult)),
+            description: errorMessage(squashAtomCommandFailure(startResult), m),
           }),
         );
       }
@@ -2511,15 +2518,18 @@ function OpenCommandPaletteDialog(props: {
 
   const canBrowseUp = !relativePathNeedsActiveProject && browsePath.canBrowseUp;
 
-  const browseGroups = buildBrowseGroups({
-    browseEntries: visibleBrowseEntries,
-    browseQuery: query,
-    canBrowseUp,
-    upIcon: <CornerLeftUpIcon className={ITEM_ICON_CLASS} />,
-    directoryIcon: <FolderIcon className={ITEM_ICON_CLASS} />,
-    browseUp,
-    browseTo,
-  });
+  const browseGroups = buildBrowseGroups(
+    {
+      browseEntries: visibleBrowseEntries,
+      browseQuery: query,
+      canBrowseUp,
+      upIcon: <CornerLeftUpIcon className={ITEM_ICON_CLASS} />,
+      directoryIcon: <FolderIcon className={ITEM_ICON_CLASS} />,
+      browseUp,
+      browseTo,
+    },
+    messages,
+  );
   const cloneDestinationBrowseGroups = browseGroups.map((group) =>
     group.value === "directories" ? { ...group, label: gt("Select where to clone") } : group,
   );

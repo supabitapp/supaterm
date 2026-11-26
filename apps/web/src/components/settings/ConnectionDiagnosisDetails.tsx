@@ -19,7 +19,7 @@ import { useNowSecond } from "../../hooks/useNowSecond";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages } from "gt-react";
 
 /**
  * What failed on the way to an environment, or null while it is connected, off,
@@ -27,6 +27,7 @@ import { T, useGT } from "gt-react";
  * the headline do not re-render on every attempt.
  */
 export function useConnectionDiagnosis(environment: EnvironmentPresentation) {
+  const messages = useMessages();
   const environmentId = environment.environmentId;
   const state = AsyncResult.getOrElse(
     useAtomValue(environmentCatalog.stateAtom(environmentId)),
@@ -38,13 +39,16 @@ export function useConnectionDiagnosis(environment: EnvironmentPresentation) {
   const phase = environment.connection.phase;
   const diagnosis =
     environment.entry.enabled && phase !== "connected" && phase !== "unsupported"
-      ? presentConnectionDiagnosis({
-          hostLabel: environment.label,
-          state,
-          via: relayOnly ? "relay" : "direct",
-          clientVersion: APP_VERSION,
-          serverVersion: environment.serverConfig?.environment.serverVersion,
-        })
+      ? presentConnectionDiagnosis(
+          {
+            hostLabel: environment.label,
+            state,
+            via: relayOnly ? "relay" : "direct",
+            clientVersion: APP_VERSION,
+            serverVersion: environment.serverConfig?.environment.serverVersion,
+          },
+          messages,
+        )
       : null;
   return { diagnosis, state, relayOnly };
 }

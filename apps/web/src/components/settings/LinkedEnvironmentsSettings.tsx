@@ -302,6 +302,7 @@ function LinkEnvironmentAction({
   /** The machine the link starts from, when the section lists more than one. */
   readonly environmentLabel: string | null;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [open, setOpen] = useState(false);
   const machines = useLinkableMachines(environmentId, open);
@@ -354,7 +355,10 @@ function LinkEnvironmentAction({
       handleOpenChange(false);
     } else if (result._tag === "MintFailed" && targetId !== null) {
       setMintFailed((failed) => new Set(failed).add(targetId));
-      failureToast("Could not link the environment", linkRequestFailureMessage(result.failure));
+      failureToast(
+        "Could not link the environment",
+        linkRequestFailureMessage(result.failure, messages),
+      );
     } else if (result._tag !== "Interrupted") {
       failureToast("Could not link the environment", result.failure);
     }

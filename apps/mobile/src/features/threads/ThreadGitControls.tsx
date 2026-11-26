@@ -99,6 +99,7 @@ export type ThreadGitControlsProps = ThreadGitMenuProps & {
 };
 
 function useThreadGitControlModel(props: ThreadGitMenuProps) {
+  const messages = useMessages();
   const gt = useGT();
   const navigation = useNavigation();
   const openPullRequest = useOpenPullRequest();
@@ -125,7 +126,7 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
         hint: gt("This workspace is not a git repository."),
       };
     }
-    const action = resolveQuickAction(gitStatus, busy, isDefaultRef, hasPrimaryRemote);
+    const action = resolveQuickAction(gitStatus, busy, isDefaultRef, hasPrimaryRemote, messages);
     return !canWriteSourceControl && (action.kind === "run_pull" || action.kind === "run_action")
       ? {
           ...action,

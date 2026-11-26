@@ -90,8 +90,11 @@ export type AddProjectCloneFlow =
 const ADD_PROJECT_REMOTE_PROVIDER_SOURCES: ReadonlyArray<SourceControlProviderKind> =
   sourceControlClients.definitions.map((definition) => definition.kind);
 
-export function addProjectRemoteSourceLabel(source: AddProjectRemoteSource): string {
-  return source === "url" ? msg("Git URL") : sourceControlClients.get(source).pickerLabel;
+export function addProjectRemoteSourceLabel(
+  source: AddProjectRemoteSource,
+  resolve: MFunctionType = mFallback,
+): string {
+  return source === "url" ? resolve(msg("Git URL")) : sourceControlClients.get(source).pickerLabel;
 }
 
 export function addProjectRemoteSourcePathHint(source: AddProjectRemoteSource): string {
@@ -177,10 +180,9 @@ export function sortAddProjectProviderSources(
 }
 
 const READY: AddProjectRemoteSourceReadinessEntry = { ready: true, hint: null };
-const UNAVAILABLE: AddProjectRemoteSourceReadinessEntry = {
-  ready: false,
-  hint: msg("Provider status unavailable. Open Source Control settings and rescan."),
-};
+const UNAVAILABLE_HINT = msg(
+  "Provider status unavailable. Open Source Control settings and rescan.",
+);
 
 export function buildAddProjectRemoteSourceReadiness(
   discovery: SourceControlDiscoveryResult | null,
@@ -192,7 +194,7 @@ export function buildAddProjectRemoteSourceReadiness(
   return (source) => {
     if (source === "url") return READY;
     const provider = providerByKind.get(source);
-    if (!provider) return UNAVAILABLE;
+    if (!provider) return { ready: false, hint: resolve(UNAVAILABLE_HINT) };
     if (provider.status !== "available") return { ready: false, hint: provider.installHint };
     if (provider.auth.status === "unauthenticated") {
       return {
@@ -355,30 +357,33 @@ export function getCloneDestinationForPickedFolder(input: {
   });
 }
 
-export function resolveAddProjectPath(input: {
-  readonly rawPath: string;
-  readonly currentProjectCwd?: string | null;
-  readonly platform: string;
-}): { readonly ok: true; readonly path: string } | { readonly ok: false; readonly error: string } {
+export function resolveAddProjectPath(
+  input: {
+    readonly rawPath: string;
+    readonly currentProjectCwd?: string | null;
+    readonly platform: string;
+  },
+  resolve: MFunctionType = mFallback,
+): { readonly ok: true; readonly path: string } | { readonly ok: false; readonly error: string } {
   const rawPath = input.rawPath.trim();
   if (rawPath.length === 0) {
-    return { ok: false, error: msg("Enter a project path.") };
+    return { ok: false, error: resolve(msg("Enter a project path.")) };
   }
   if (isUnsupportedWindowsProjectPath(rawPath, input.platform)) {
     return {
       ok: false,
-      error: msg("Windows-style paths are only supported on Windows environments."),
+      error: resolve(msg("Windows-style paths are only supported on Windows environments.")),
     };
   }
   if (isExplicitRelativeProjectPath(rawPath) && !input.currentProjectCwd) {
     return {
       ok: false,
-      error: msg("Relative paths require an active project in this environment."),
+      error: resolve(msg("Relative paths require an active project in this environment.")),
     };
   }
   const path = resolveProjectPathForDispatch(rawPath, input.currentProjectCwd);
   return path.length === 0
-    ? { ok: false, error: msg("Enter a project path.") }
+    ? { ok: false, error: resolve(msg("Enter a project path.")) }
     : { ok: true, path };
 }
 

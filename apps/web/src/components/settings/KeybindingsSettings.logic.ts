@@ -133,6 +133,7 @@ function wrapWhenExpression(node: KeybindingWhenNode): string {
 
 export function parseWhenExpressionDraft(
   expression: string,
+  resolve: MessageResolver = m,
 ): { ok: true; value: KeybindingWhenNode | undefined } | { ok: false; message: string } {
   const trimmed = expression.trim();
   if (trimmed.length === 0) return { ok: true, value: undefined };
@@ -141,7 +142,7 @@ export function parseWhenExpressionDraft(
   if (!ast) {
     return {
       ok: false,
-      message: msg("Use variables with !, &&, ||, and parentheses."),
+      message: resolve(msg("Use variables with !, &&, ||, and parentheses.")),
     };
   }
 
@@ -219,6 +220,7 @@ export function keybindingConflictLabels(
   rows: ReadonlyArray<KeybindingRow>,
   input: { readonly rowId: string; readonly key: string; readonly when: string },
   platform = navigator.platform,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<string> {
   if (input.key.trim().length === 0) return [];
   const shortcut = parseKeybindingShortcut(input.key);
@@ -232,7 +234,7 @@ export function keybindingConflictLabels(
       shortcutConflictKey(candidate.binding.shortcut, platform) === conflictKey &&
       conflictsWithWhen(candidate.when, input.when)
     ) {
-      conflicts.push(commandLabel(candidate.command));
+      conflicts.push(commandLabel(candidate.command, resolve));
     }
   }
   return [...new Set(conflicts)].toSorted();
@@ -292,6 +294,7 @@ export function buildKeybindingRows(
   keybindings: ResolvedKeybindingsConfig,
   platform = navigator.platform,
   sendShortcut: ClientSettings["sendShortcut"] = "enter",
+  resolve: MessageResolver = m,
 ): ReadonlyArray<KeybindingRow> {
   // Multiline sending can use either shortcut; settings have no active composer prompt.
   const modifierModes =
@@ -347,6 +350,7 @@ export function buildKeybindingRows(
         when: row.when,
       },
       platform,
+      resolve,
     );
     return conflicts.length > 0
       ? Object.assign({}, row, { conflicts: [...new Set(conflicts)].toSorted() })
@@ -365,13 +369,14 @@ export function buildKeybindingRows(
 export function filterKeybindingRows(
   rows: ReadonlyArray<KeybindingRow>,
   query: string,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<KeybindingRow> {
   const normalizedQuery = query.trim().toLowerCase();
   if (normalizedQuery.length === 0) return rows;
   return rows.filter((row) => {
     return (
       row.command.toLowerCase().includes(normalizedQuery) ||
-      commandLabel(row.command).toLowerCase().includes(normalizedQuery) ||
+      commandLabel(row.command, resolve).toLowerCase().includes(normalizedQuery) ||
       row.key.toLowerCase().includes(normalizedQuery) ||
       row.when.toLowerCase().includes(normalizedQuery) ||
       row.source.toLowerCase().includes(normalizedQuery)

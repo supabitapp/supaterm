@@ -324,6 +324,7 @@ import { readEnvironmentScope, readPreparedConnection } from "../../state/sessio
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 import { isQueuedFileAttachment, isQueuedImageAttachment } from "./queuedMessageEdit";
 import { useGT, msg, useMessages } from "gt-react";
+import { m as resolveMessage } from "../../i18n/messages";
 
 /** Reads and disarms a paste-as-text deadline: the shortcut applies to one paste only. */
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
@@ -3609,8 +3610,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       if (activePendingProgress) {
         toastManager.add({
           type: "info",
-          title: msg("Terminal output can't be added to a question answer."),
-          description: msg("Answer or dismiss the question first, then add it to chat."),
+          title: resolveMessage(msg("Terminal output can't be added to a question answer.")),
+          description: resolveMessage(
+            msg("Answer or dismiss the question first, then add it to chat."),
+          ),
         });
         return;
       }

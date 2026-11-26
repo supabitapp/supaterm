@@ -29,7 +29,9 @@ export type SettingsFormDefinition = Pick<ProviderClientDefinition, "settingsSch
   readonly driverKind?: ProviderClientDefinition["driverKind"];
 };
 import { SettingsRow } from "./settingsLayout";
-import { T, msg, useGT } from "gt-react";
+import { T, msg, useGT, useMessages } from "gt-react";
+import { m } from "../../i18n/messages";
+import { type MessageResolver } from "../../i18n/messages";
 
 export interface ProviderSettingsFieldModel {
   readonly key: string;
@@ -102,6 +104,7 @@ function fieldAcceptsString(
 export function deriveProviderSettingsFields(
   definition: SettingsFormDefinition,
   value?: unknown,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<ProviderSettingsFieldModel> {
   const isLocalAcp =
     definition.driverKind === "acpRegistry" &&
@@ -134,15 +137,15 @@ export function deriveProviderSettingsFields(
           control: formAnnotation.control ?? "text",
           label:
             isLocalAcp && key === "commandPath"
-              ? msg("Executable")
+              ? resolve(msg("Executable"))
               : (annotatedTitle ?? titleizeFieldKey(key)),
           ...(isLocalAcp && key === "commandPath"
-            ? { description: msg("Executable name or path on this environment.") }
+            ? { description: resolve(msg("Executable name or path on this environment.")) }
             : annotatedDescription !== undefined
               ? { description: annotatedDescription }
               : {}),
           ...(isLocalAcp && key === "commandPath"
-            ? { placeholder: msg("e.g. dsh") }
+            ? { placeholder: resolve(msg("e.g. dsh")) }
             : formAnnotation.placeholder !== undefined
               ? { placeholder: formAnnotation.placeholder }
               : {}),
@@ -716,7 +719,8 @@ export function ProviderSettingsForm({
   onChange,
   environmentId,
 }: ProviderSettingsFormProps) {
-  const fields = deriveProviderSettingsFields(definition, value);
+  const resolve = useMessages();
+  const fields = deriveProviderSettingsFields(definition, value, resolve);
   const isLocalAcp =
     definition.driverKind === "acpRegistry" &&
     readProviderConfigString(value, "source") === "local";

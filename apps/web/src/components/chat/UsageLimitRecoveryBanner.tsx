@@ -21,7 +21,7 @@ import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 import { copyAdminRequest } from "./ThreadErrorBanner";
 import { T, msg, useGT } from "gt-react";
-import { m } from "~/i18n/messages";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 type RecoveryProps = {
   runId: RunId;
@@ -73,15 +73,19 @@ function limitRecoveryScheduleState(
 
 export function useUsageLimitRecoveryBannerItem(
   props: RecoveryProps | null,
+  resolve: MessageResolver = m,
 ): ComposerBannerStackItem | null {
   const displayAt = props === null ? null : limitRecoveryScheduleState(props).displayAt;
   const resetPassed = useDeadlinePassed(props === null ? null : parseEpochMs(props.resetAt));
   const displayPassed = useDeadlinePassed(parseEpochMs(displayAt));
   if (props === null) return null;
-  return usageLimitRecoveryBannerItem({ ...props, resetPassed, displayPassed });
+  return usageLimitRecoveryBannerItem({ ...props, resetPassed, displayPassed }, resolve);
 }
 
-export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
+export function usageLimitRecoveryBannerItem(
+  props: RecoveryProps,
+  resolve: MessageResolver = m,
+): ComposerBannerStackItem {
   const { runId, errorCode, resetAt, timestampFormat } = props;
   const { canSchedule, resumes, displayAt } = limitRecoveryScheduleState(props);
   const resetAtMs = parseEpochMs(resetAt);
@@ -104,7 +108,7 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
       variant: "warning",
       group: "environment",
       icon: <GaugeIcon />,
-      title: msg("Usage limit reached"),
+      title: resolve(msg("Usage limit reached")),
       description: resetDescription,
       actions: recoveryActions,
     };
@@ -115,9 +119,11 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
     variant: "warning",
     group: "environment",
     icon: <OpenAI aria-hidden="true" />,
-    title: msg("ChatGPT usage limit reached"),
+    title: resolve(msg("ChatGPT usage limit reached")),
     description: workspaceLimit
-      ? msg("You've reached your workspace's limit for using your ChatGPT plan in other apps.")
+      ? resolve(
+          msg("You've reached your workspace's limit for using your ChatGPT plan in other apps."),
+        )
       : resetDescription,
     actions: (
       <>

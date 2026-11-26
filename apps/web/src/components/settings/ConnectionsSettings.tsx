@@ -254,6 +254,7 @@ function ConnectionsSettingsContent({
   readonly accessEnvironmentId: EnvironmentId | null;
   readonly accessEnvironmentPicker?: ReactNode;
 }) {
+  const m = useMessages();
   const searchableSetting = useSearchableSetting();
   const gt = useGT();
   const resolve = useMessages();
@@ -414,6 +415,7 @@ function ConnectionsSettingsContent({
           input: null,
         })
       : null,
+    m,
   );
   const revokePairingLink = useAtomCommand(authEnvironment.revokePairingLink, {
     reportFailure: false,
@@ -424,9 +426,11 @@ function ConnectionsSettingsContent({
   });
   const desktopNetworkAccess = useEnvironmentQuery(
     showsAccess && canManageLocalBackend && desktopBridge ? desktopNetworkAccessStateAtom : null,
+    m,
   );
   const desktopWsl = useEnvironmentQuery(
     showsAccess && canManageLocalBackend && desktopBridge ? desktopWslAccessStateAtom : null,
+    m,
   );
   const desktopWslState = desktopWsl.data;
   const desktopWslError = desktopWslMutationError ?? desktopWsl.error;

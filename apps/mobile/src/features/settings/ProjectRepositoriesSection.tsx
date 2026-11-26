@@ -27,7 +27,7 @@ import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "./components/SettingsSection";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 
 const FOLDER_STATE_LABELS: Record<WorkspaceFolderState, string> = {
   git: msg("Git repository"),
@@ -41,6 +41,7 @@ export function ProjectRepositoriesSection(props: {
   readonly title: string;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const { member } = props;
   const tracked = member.trackedFolders ?? [];
   const canEdit = useEnvironmentScope(member.environmentId, AuthOrchestrationOperateScope);
@@ -143,7 +144,7 @@ export function ProjectRepositoriesSection(props: {
           icon="folder"
           label={folder.name}
           description={folder.path}
-          {...(folder.state === undefined ? {} : { detail: FOLDER_STATE_LABELS[folder.state] })}
+          {...(folder.state === undefined ? {} : { detail: m(FOLDER_STATE_LABELS[folder.state]) })}
           accessory={
             // A repository inside the project folder is there for as long as it is on disk.
             folder.discovered === true ? undefined : (

@@ -28,7 +28,8 @@ import {
   shownPatchIndices,
 } from "../pull-requests/pullRequestFileFilters";
 import { useHideTestFilesPreference } from "../pull-requests/usePullRequestFileFilter";
-import { msg, useMessages } from "gt-react-native";
+import { msg, useLocale, useMessages } from "gt-react-native";
+import type { MessageResolver } from "../../i18n/messages";
 
 const EMPTY_INLINE_REVIEW_COMMENTS = Object.freeze([]);
 const NO_REVIEW_FILES: ReadonlyArray<ReviewRenderableFile> = Object.freeze([]);
@@ -38,16 +39,24 @@ type ParsedFilePatch = AsyncResult.AsyncResult<
 >;
 const normalizedFiles = new WeakMap<
   ParsedFilePatch,
-  { stat: ReviewDiffFileStat; diffHash: string; file: ReviewRenderableFile }
+  {
+    stat: ReviewDiffFileStat;
+    diffHash: string;
+    locale: string;
+    file: ReviewRenderableFile;
+  }
 >();
 
 function getCachedReviewFile(
   stat: ReviewDiffFileStat,
   diffHash: string,
   patch: ParsedFilePatch | null | undefined,
+  resolve: MessageResolver,
+  locale: string,
 ): ReviewRenderableFile {
   const cached = patch && normalizedFiles.get(patch);
-  if (cached && cached.stat === stat && cached.diffHash === diffHash) return cached.file;
+  if (cached && cached.stat === stat && cached.diffHash === diffHash && cached.locale === locale)
+    return cached.file;
   const parsed = patch?._tag === "Success" ? patch.value.parsed : null;
   const sourceFiles = patch?._tag === "Success" ? patch.value.source.files : undefined;
   const loaded =
@@ -77,18 +86,22 @@ function getCachedReviewFile(
     deletions: stat.deletions,
     ...(patch?._tag === "Success"
       ? patch.value.source.truncated
-        ? { notice: msg("File preview exceeds the size limit. Counts include all changes.") }
+        ? {
+            notice: resolve(
+              msg("File preview exceeds the size limit. Counts include all changes."),
+            ),
+          }
         : loaded
           ? {}
-          : { notice: msg("Could not display file preview.") }
+          : { notice: resolve(msg("Could not display file preview.")) }
       : {
           notice:
             patch?._tag === "Failure"
-              ? msg("Could not load diff. Select the file to retry.")
-              : msg("Loading diff…"),
+              ? resolve(msg("Could not load diff. Select the file to retry."))
+              : resolve(msg("Loading diff…")),
         }),
   };
-  if (patch) normalizedFiles.set(patch, { stat, diffHash, file });
+  if (patch) normalizedFiles.set(patch, { stat, diffHash, locale, file });
   return file;
 }
 
@@ -142,6 +155,7 @@ export function useReviewDiffData(input: {
   readonly repositoryFilter: { readonly folder: string; readonly folders: string } | null;
 }) {
   const messages = useMessages();
+  const locale = useLocale();
   const { draftMessage, draftContext, selectedSection, threadKey } = input;
   const selectedSectionId = selectedSection?.id ?? null;
   const source = selectedSection?.source;
@@ -250,9 +264,9 @@ export function useReviewDiffData(input: {
     [lazySource, lazyFiles, scope, patches, queries, registry, seedIndices, hideTestFiles],
   );
   const parsedDiff = useMemo<ReviewParsedDiff>(() => {
-    if (!lazySource?.files) return applyReviewDiffMetadata(previewDiff, selectedSection);
+    if (!lazySource?.files) return applyReviewDiffMetadata(previewDiff, selectedSection, messages);
     const files = lazySource.files.map((stat, index) =>
-      getCachedReviewFile(stat, lazySource.diffHash, patches[index]),
+      getCachedReviewFile(stat, lazySource.diffHash, patches[index], messages, locale),
     );
     return {
       kind: "files",
@@ -262,7 +276,7 @@ export function useReviewDiffData(input: {
       deletions: files.reduce((total, file) => total + file.deletions, 0),
       notice: null,
     };
-  }, [lazySource, previewDiff, selectedSection, patches]);
+  }, [lazySource, previewDiff, selectedSection, patches, messages, locale]);
   const headerDiffSummary = useMemo(
     () => formatHeaderDiffSummary(parsedDiff, selectedSection?.files),
     [parsedDiff, selectedSection?.files],

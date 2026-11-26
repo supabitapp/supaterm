@@ -469,7 +469,7 @@ function prepareFileRows(file: ReviewRenderableFile): PreparedNativeReviewFileRo
   });
 
   if (sourceRows !== file.rows) {
-    rows.push(createNoticeRow(file.id, "truncated", TRUNCATED_FILE_NOTICE));
+    rows.push(createNoticeRow(file.id, "truncated", m(TRUNCATED_FILE_NOTICE)));
   }
   rows.push(...noticeRowsForFile(file));
   if (file.noEOFCRAdditions || file.noEOFCRDeletions) {

@@ -79,6 +79,7 @@ const UPDATE_ON_THAT_MACHINE = msg("update Supaterm on that machine");
 export function collectServerUpdateTargets(
   machines: ReadonlyArray<UpdateEverythingMachine>,
   targetVersion: string,
+  resolve: MessageResolver = m,
 ): { readonly targets: ServerUpdateTarget[]; readonly skipped: SkippedMachine[] } {
   const targets: ServerUpdateTarget[] = [];
   const skipped: SkippedMachine[] = [];
@@ -93,7 +94,7 @@ export function collectServerUpdateTargets(
     }
     const skip = (reason: string) =>
       skipped.push({ environmentId: machine.environmentId, label: machine.label, reason });
-    const unavailable = unavailableReason(machine);
+    const unavailable = unavailableReason(machine, resolve);
     if (config === null || unavailable !== null) {
       skip(unavailable ?? "not connected");
       continue;
@@ -105,7 +106,7 @@ export function collectServerUpdateTargets(
       continue;
     }
     if (selfUpdate === "desktop-managed" && !desktopAppUpdate) {
-      skip(UPDATE_ON_THAT_MACHINE);
+      skip(resolve(UPDATE_ON_THAT_MACHINE));
       continue;
     }
     const serverVersion = config.environment.serverVersion;
@@ -231,6 +232,7 @@ export function localSwitchBlockReason(
 export function collectChannelSwitchTargets(
   machines: ReadonlyArray<UpdateEverythingMachine>,
   release: ChannelSwitchRelease,
+  resolve: MessageResolver = m,
 ): { readonly targets: ServerUpdateTarget[]; readonly skipped: SkippedMachine[] } {
   const targets: ServerUpdateTarget[] = [];
   const skipped: SkippedMachine[] = [];
@@ -261,22 +263,22 @@ export function collectChannelSwitchTargets(
       sameTrack &&
       resolveVersionMismatch(serverVersion, release.version) === null
     ) {
-      const move = trackSwitchMove(config, true);
+      const move = trackSwitchMove(config, true, resolve);
       if (
         !("skip" in move) &&
         move.selfUpdate === "desktop-managed" &&
-        unavailableReason(machine) === null
+        unavailableReason(machine, resolve) === null
       ) {
         targets.push({ ...target(move.selfUpdate, serverVersion), trackOnly: true });
       }
       continue;
     }
-    const unavailable = unavailableReason(machine);
+    const unavailable = unavailableReason(machine, resolve);
     if (config === null || serverVersion === undefined || unavailable !== null) {
       skip(unavailable ?? "not connected");
       continue;
     }
-    const move = trackSwitchMove(config, sameTrack);
+    const move = trackSwitchMove(config, sameTrack, resolve);
     if ("skip" in move) {
       skip(move.skip);
       continue;
@@ -285,6 +287,7 @@ export function collectChannelSwitchTargets(
       serverVersion,
       release,
       config.environment.databaseMigration,
+      resolve,
     );
     if (blocked !== null) {
       skip(blocked);
@@ -315,7 +318,7 @@ export function awaitsTrackSwitch(
     !machine.hostedByThisApp &&
     config !== null &&
     !isOnTrack(config.environment.serverVersion, channel) &&
-    !("skip" in trackSwitchMove(config, false))
+    !("skip" in trackSwitchMove(config, false, m))
   );
 }
 
@@ -327,21 +330,24 @@ function isOnTrack(version: string, channel: DesktopUpdateChannel): boolean {
 function trackSwitchMove(
   config: NonNullable<UpdateEverythingMachine["serverConfig"]>,
   sameTrack: boolean,
+  resolve: MessageResolver,
 ): { readonly selfUpdate: ServerSelfUpdateCapability } | { readonly skip: string } {
   if (cliReleaseChannelOf(config.environment.serverVersion) === "preview") {
-    return { skip: "runs a preview build" };
+    return { skip: resolve(msg("runs a preview build")) };
   }
   const selfUpdate = resolveServerSelfUpdateCapability(config);
-  if (selfUpdate === null) return { skip: "needs a manual update" };
+  if (selfUpdate === null) return { skip: resolve(msg("needs a manual update")) };
   if (selfUpdate !== "desktop-managed") return { selfUpdate };
   if (config.environment.capabilities.desktopAppChannelSwitch !== true) {
     return {
-      skip: sameTrack ? UPDATE_ON_THAT_MACHINE : "change the update track on that machine",
+      skip: resolve(
+        sameTrack ? UPDATE_ON_THAT_MACHINE : msg("change the update track on that machine"),
+      ),
     };
   }
   // Squirrel.Mac renames the bundle for the new track and then cannot relaunch it.
   if (!sameTrack && config.environment.platform.os === "darwin") {
-    return { skip: "switch the Mac app on that Mac" };
+    return { skip: resolve(msg("switch the Mac app on that Mac")) };
   }
   return { selfUpdate };
 }

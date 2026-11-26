@@ -42,7 +42,7 @@ import {
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 
 const NO_TRACKED_FOLDERS: ReadonlyArray<ProjectTrackedFolder> = [];
 const BROWSE_SUGGESTION_LIMIT = 100;
@@ -75,6 +75,7 @@ export function ProjectRepositoriesSettings({
 }
 
 function CheckoutRepositories({ member }: { member: SidebarProjectGroupMember }) {
+  const m = useMessages();
   const gt = useGT();
   const environmentId = member.environmentId;
   const { environments } = useEnvironments();
@@ -173,7 +174,7 @@ function CheckoutRepositories({ member }: { member: SidebarProjectGroupMember })
                 <span className="min-w-0 truncate">{folder.name}</span>
                 {folder.state ? (
                   <Badge size="sm" variant={folder.state === "missing" ? "warning" : "outline"}>
-                    {FOLDER_STATE_LABELS[folder.state]}
+                    {m(FOLDER_STATE_LABELS[folder.state])}
                   </Badge>
                 ) : null}
               </span>

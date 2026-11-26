@@ -1,4 +1,5 @@
-import { msg } from "gt-i18n";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
 export interface ThirdPartyLicenseEntry {
   readonly bundles: ReadonlyArray<string>;
   readonly kind: "custom" | "package";
@@ -108,10 +109,15 @@ const BUNDLE_LABELS: Readonly<Record<string, string>> = {
   web: msg("Web"),
 };
 
-export function formatLicenseBundles(bundles: ReadonlyArray<string>): string {
+export function formatLicenseBundles(
+  bundles: ReadonlyArray<string>,
+  resolve: MFunctionType = mFallback,
+): string {
   return bundles
     .map((bundle) =>
-      Object.prototype.hasOwnProperty.call(BUNDLE_LABELS, bundle) ? BUNDLE_LABELS[bundle] : bundle,
+      Object.prototype.hasOwnProperty.call(BUNDLE_LABELS, bundle)
+        ? resolve(BUNDLE_LABELS[bundle]!)
+        : bundle,
     )
     .join(", ");
 }

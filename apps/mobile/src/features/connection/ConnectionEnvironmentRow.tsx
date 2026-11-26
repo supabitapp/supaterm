@@ -74,7 +74,7 @@ export function ConnectionEnvironmentRow(props: {
   );
   const connectionAddress =
     (SHOWCASE_ENABLED ? null : liveConnectionAddress) ??
-    connectionAddressLabel(props.environment.displayUrl);
+    connectionAddressLabel(props.environment.displayUrl, m);
   const unsupported = props.environment.connectionState === "unsupported";
   const presentation = useAtomValue(
     environmentPresentations.presentationAtom(props.environment.environmentId),
@@ -90,7 +90,7 @@ export function ConnectionEnvironmentRow(props: {
   const hasConnectionFailure = enabled && props.environment.connectionError !== null;
   const freeze =
     enabled && !SHOWCASE_ENABLED
-      ? hostFreezeNotice(props.environment.environmentLabel, serverConfig?.lastEventLoopStall)
+      ? hostFreezeNotice(props.environment.environmentLabel, serverConfig?.lastEventLoopStall, m)
       : null;
   const isRetrying =
     enabled &&

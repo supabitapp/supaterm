@@ -56,6 +56,7 @@ export function barColor(driver: ServerProvider["driver"]): string {
 }
 
 export function PaceIcon({ pace }: { readonly pace: LimitPace }) {
+  const m = useMessages();
   const Icon = PACE[pace].icon;
   return (
     <Tooltip>
@@ -63,14 +64,14 @@ export function PaceIcon({ pace }: { readonly pace: LimitPace }) {
         render={
           <span
             role="img"
-            aria-label={PACE[pace].label}
+            aria-label={m(PACE[pace].label)}
             className="inline-flex text-muted-foreground"
           />
         }
       >
         <Icon className="size-3.5" aria-hidden />
       </TooltipTrigger>
-      <TooltipPopup side="top">{PACE[pace].label}</TooltipPopup>
+      <TooltipPopup side="top">{m(PACE[pace].label)}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -275,7 +276,7 @@ export function useResetCredit(environmentId: EnvironmentId) {
     const result = await consume({ environmentId, input: choice.input });
     setBusy(false);
     if (result._tag === "Success") {
-      setStatus(result.value.warning ?? OUTCOME_TEXT[result.value.outcome]);
+      setStatus(result.value.warning ?? m(OUTCOME_TEXT[result.value.outcome]));
       return;
     }
     setStatus(

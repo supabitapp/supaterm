@@ -1123,10 +1123,13 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         title: gt("Rename", { $context: "verb, thread action" }),
         image: "square.and.pencil",
       },
-      ...buildThreadTitleRegenerationMenuItems({
-        supported: props.titleRegenerationSupported,
-        isRegenerating: isRegeneratingTitle,
-      }),
+      ...buildThreadTitleRegenerationMenuItems(
+        {
+          supported: props.titleRegenerationSupported,
+          isRegenerating: isRegeneratingTitle,
+        },
+        m,
+      ),
       ...(thread.latestRun?.completedAt != null && threadCanArchive(thread.runtime)
         ? [{ id: "mark-unread", title: gt("Mark unread"), image: "envelope.badge" }]
         : []),
@@ -1148,6 +1151,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       thread.runtime,
       isRegeneratingTitle,
       gt,
+      m,
     ],
   );
   const menuActions = useMemo<MenuAction[]>(() => {
@@ -1283,6 +1287,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         const target = threadChipCopyTarget(
           { environmentId: thread.environmentId, threadId: thread.id },
           thread.title,
+          m,
         );
         void copyThreadReference(target).then((didCopy) => {
           if (!didCopy) Dialog.alert(target.failureTitle, gt("Try copying this thread again."));
@@ -1330,6 +1335,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       snoozePresets,
       props.snoozePresets,
       gt,
+      m,
     ],
   );
   const primaryAction = useMemo(() => {

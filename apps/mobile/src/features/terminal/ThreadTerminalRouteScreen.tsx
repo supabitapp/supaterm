@@ -766,7 +766,7 @@ function ThreadTerminal(props: {
   const handleCloseTerminal = () => {
     Dialog.confirm({
       title: gt('Close terminal "{label}"?', {
-        label: resolveTerminalSessionLabel(terminalId, terminal.summary),
+        label: resolveTerminalSessionLabel(terminalId, terminal.summary, messages),
       }),
       message: gt("This stops the running process and clears its history."),
       confirmText: gt("Confirm"),

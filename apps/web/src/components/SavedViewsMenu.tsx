@@ -181,7 +181,7 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
             </Tooltip>
           ))}
           {views.length > 0 ? <MenuSeparator /> : null}
-          <MenuItem onClick={() => setEditor({ name: kind.suggestedName(preferences) })}>
+          <MenuItem onClick={() => setEditor({ name: messages(kind.suggestedName(preferences)) })}>
             <PlusIcon aria-hidden />
             <T>Save current view…</T>
           </MenuItem>
@@ -256,7 +256,7 @@ export function SavedViewsMenu<Preferences extends Stored, Stored, Encoded>({
                   autoFocus
                   value={editor?.name ?? ""}
                   maxLength={SAVED_VIEW_NAME_MAX_LENGTH}
-                  placeholder={kind.placeholder}
+                  placeholder={messages(kind.placeholder)}
                   aria-invalid={Boolean(editor?.name && nameError)}
                   aria-describedby={nameError && editor?.name ? errorId : undefined}
                   onChange={(event) =>

@@ -12,6 +12,7 @@ import { useProjectHasThreads } from "../../state/project-has-threads";
 import { projectEnvironment } from "../../state/projects";
 import { useEnvironmentQuery } from "../../state/query";
 import { environmentSession } from "../../state/session";
+import { m } from "../../i18n/messages";
 
 /**
  * A project's new-task defaults: server settings merged with its supaterm.json. The
@@ -28,12 +29,15 @@ export function useNewTaskProjectDefaults(project: EnvironmentProject | null) {
     hasWorkspace ? environmentSession.sessionStateAtom(project.environmentId) : null,
   );
   const fileEnvironment = useEnvironmentPresentation(project?.environmentId ?? null);
-  const fileAccess = resolveFilesystemReadAccess({
-    isCatalogReady: fileEnvironment.isReady,
-    connection: fileEnvironment.presentation?.connection ?? null,
-    session: fileAccessSession.data,
-    sessionError: fileAccessSession.error,
-  });
+  const fileAccess = resolveFilesystemReadAccess(
+    {
+      isCatalogReady: fileEnvironment.isReady,
+      connection: fileEnvironment.presentation?.connection ?? null,
+      session: fileAccessSession.data,
+      sessionError: fileAccessSession.error,
+    },
+    m,
+  );
   const fileAccessPending = hasWorkspace && fileAccess.isPending;
   const supatermProjectFileQuery = useEnvironmentQuery(
     fileAccess.canReadFiles && hasWorkspace

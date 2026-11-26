@@ -468,6 +468,7 @@ function ThreadDetailBody(
     >;
   },
 ) {
+  const messages = useMessages();
   const resolveMessage = useMessages();
   const gt = useGT();
   const selectedThreadDetailRef: ScopedThreadRef | null = props.draftMode
@@ -986,7 +987,7 @@ function ThreadDetailBody(
       };
     }
     if (props.selectedThread.goal !== null) {
-      const goal = presentProviderGoal(props.selectedThread.goal, false);
+      const goal = presentProviderGoal(props.selectedThread.goal, false, messages);
       const goalDriver = props.serverConfig?.providers.find(
         (provider) => provider.instanceId === props.selectedThread.modelSelection.instanceId,
       )?.driver;
@@ -1077,8 +1078,10 @@ function ThreadDetailBody(
   const composerSlotHidden =
     activeUserInputRequestId !== null || props.creationState?.kind === "failed";
   const pendingMessageEditBlocked =
-    queuedRunEditBlockedReason({ openQuestionCount: activeUserInputRequestId === null ? 0 : 1 }) !==
-    null;
+    queuedRunEditBlockedReason(
+      { openQuestionCount: activeUserInputRequestId === null ? 0 : 1 },
+      messages,
+    ) !== null;
   const [usageLimitsPanel, setUsageLimitsPanel] = useState<{
     readonly key: string;
     readonly threadKey: string;

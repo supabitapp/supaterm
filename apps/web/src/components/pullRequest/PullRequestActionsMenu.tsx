@@ -95,6 +95,7 @@ export function PullRequestMergeMenuItems({
   perform: PerformPullRequestAction;
 }) {
   const gt = useGT();
+  const resolve = useMessages();
   const confirm = useInlineConfirm<"merge" | "enable-auto-merge">();
   const hasActions =
     actions.showsDraftToggle ||
@@ -156,7 +157,7 @@ export function PullRequestMergeMenuItems({
               <MenuRadioItem key={method} value={method} disabled={actionPending} closeOnClick>
                 <span className="flex min-w-0 items-center gap-2">
                   <PullRequestGlyph.merged className="size-3.5" />
-                  <span>{PULL_REQUEST_MERGE_METHOD_LABELS[method]}</span>
+                  <span>{resolve(PULL_REQUEST_MERGE_METHOD_LABELS[method])}</span>
                 </span>
               </MenuRadioItem>
             ))}

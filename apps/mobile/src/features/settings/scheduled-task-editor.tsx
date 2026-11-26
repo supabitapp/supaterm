@@ -45,7 +45,7 @@ export function useScheduledTaskDestinationLabel(
 ): string {
   const m = useMessages();
   const thread = useScheduledTaskThread(environmentId, threadId);
-  if (environmentId === null || threadId === null) return NEW_THREAD_DESTINATION_LABEL;
+  if (environmentId === null || threadId === null) return m(NEW_THREAD_DESTINATION_LABEL);
   return thread?.title.trim() || m(msg("Thread {id}", { id: threadId }));
 }
 

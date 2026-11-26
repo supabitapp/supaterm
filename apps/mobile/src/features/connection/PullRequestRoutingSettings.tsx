@@ -85,7 +85,7 @@ export function PullRequestRoutingSettings() {
                   </Text>
                   {displayUrl ? (
                     <Text className="text-xs text-foreground-muted" numberOfLines={1}>
-                      {connectionAddressLabel(displayUrl)}
+                      {connectionAddressLabel(displayUrl, m)}
                     </Text>
                   ) : null}
                 </View>

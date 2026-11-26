@@ -413,7 +413,7 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
         }
         const attachment = context.attachment;
         const isVideo = isVideoAttachment(attachment);
-        const label = userMessageFileLabel(attachment);
+        const label = userMessageFileLabel(attachment, context.m);
         const disabled =
           attachment.downloadable === false && (!isVideo || attachment.previewUrl === undefined);
         const size =

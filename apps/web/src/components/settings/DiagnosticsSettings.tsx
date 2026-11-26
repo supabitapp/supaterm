@@ -767,6 +767,7 @@ export function DiagnosticsSettingsPanel() {
 }
 
 function DiagnosticsSettingsBody() {
+  const m = useMessages();
   const gt = useGT();
   const { environment } = useSettingsScope();
   const environmentId = environment?.environmentId ?? null;
@@ -776,12 +777,16 @@ function DiagnosticsSettingsBody() {
   const canOpenHostEditor = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const session = useEnvironmentQuery(
     environmentId === null ? null : environmentSession.sessionStateAtom(environmentId),
+    m,
   );
-  const diagnosticsAccess = resolveUsageAccess({
-    connectionPhase: environment?.connection.phase ?? "available",
-    session: session.data,
-    hasSessionError: session.error !== null,
-  });
+  const diagnosticsAccess = resolveUsageAccess(
+    {
+      connectionPhase: environment?.connection.phase ?? "available",
+      session: session.data,
+      hasSessionError: session.error !== null,
+    },
+    m,
+  );
   const canReadDiagnostics = diagnosticsAccess.canReadDiagnostics;
   const signalServerProcess = useAtomCommand(serverEnvironment.signalProcess, {
     reportFailure: false,
@@ -795,6 +800,7 @@ function DiagnosticsSettingsBody() {
     environmentId === null || !canReadDiagnostics
       ? null
       : serverEnvironment.traceDiagnostics({ environmentId, input: {} }),
+    m,
   );
   const {
     data: processData,
@@ -805,6 +811,7 @@ function DiagnosticsSettingsBody() {
     environmentId === null || !canReadDiagnostics
       ? null
       : serverEnvironment.processDiagnostics({ environmentId, input: {} }),
+    m,
   );
   const {
     data: resourceData,
@@ -821,6 +828,7 @@ function DiagnosticsSettingsBody() {
             bucketMs: selectedResourceWindow.bucketMs,
           },
         }),
+    m,
   );
   const [isOpeningLogsDirectory, setIsOpeningLogsDirectory] = useState(false);
   const [openLogsDirectoryError, setOpenLogsDirectoryError] = useState<string | null>(null);

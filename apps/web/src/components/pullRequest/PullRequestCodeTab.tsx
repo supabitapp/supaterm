@@ -153,7 +153,7 @@ import {
   usePullRequestReviewStore,
   type PendingReviewComment,
 } from "./pullRequestReviewStore";
-import { msg, T, useGT, Var } from "gt-react";
+import { msg, T, useGT, Var, useMessages } from "gt-react";
 import { changeRequestTermKind } from "./changeRequestTerm";
 import { m } from "~/i18n/messages";
 
@@ -448,6 +448,7 @@ function PullRequestCodeTab({
   onRevealSettled?: ((revealUrl: string) => void) | undefined;
   revealRequest?: { readonly path: string; readonly nonce: number } | null;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const fixFindingLabel = requestedFixFindingLabel ?? gt("Fix in a thread");
   const resolvedTheme = useRenderedAppearance();
@@ -530,6 +531,7 @@ function PullRequestCodeTab({
         ...(commit === null ? {} : { commit }),
       },
     }),
+    messages,
   );
   // Pages accumulate into slices as each answer arrives, so the slice list is adjusted while
   // rendering the answer rather than one commit later.

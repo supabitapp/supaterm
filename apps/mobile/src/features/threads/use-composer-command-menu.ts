@@ -68,6 +68,8 @@ import {
 import type { ComposerCommandItem } from "./ComposerCommandPopover";
 import { matchesCommandMenuSkillQuery } from "./composerCommandMenuSkillSearch";
 import { useGT, msg, useMessages } from "gt-react-native";
+import { m } from "../../i18n/messages";
+import { type MessageResolver } from "../../i18n/messages";
 
 const idleWorkspaceSnapshotRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(undefined).pipe(
   Atom.withLabel("mobile:provider-workspace-snapshot-refresh:idle"),
@@ -98,16 +100,19 @@ export function resolveComposerMenuSelection(input: {
   return { start: Math.min(input.local.start, length), end: Math.min(input.local.end, length) };
 }
 
-export function buildComposerSlashCommandItems(input: {
-  readonly query: string;
-  readonly hasThread: boolean;
-  readonly hasCompactableConversation?: boolean;
-  readonly offersUsageLimits?: boolean;
-  readonly offersSideChat?: boolean;
-  /** Supaterm's `/clear` replaces the provider's, which would clear a session Supaterm still treats as live. */
-  readonly offersFreshSession?: boolean;
-  readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
-}): ComposerCommandItem[] {
+export function buildComposerSlashCommandItems(
+  input: {
+    readonly query: string;
+    readonly hasThread: boolean;
+    readonly hasCompactableConversation?: boolean;
+    readonly offersUsageLimits?: boolean;
+    readonly offersSideChat?: boolean;
+    /** Supaterm's `/clear` replaces the provider's, which would clear a session Supaterm still treats as live. */
+    readonly offersFreshSession?: boolean;
+    readonly selectedProviderStatus: Pick<ServerProvider, "driver" | "slashCommands"> | null;
+  },
+  resolve: MessageResolver = m,
+): ComposerCommandItem[] {
   const query = input.query.toLowerCase();
   const builtIn = [
     {
@@ -115,7 +120,7 @@ export function buildComposerSlashCommandItems(input: {
       type: "slash-command",
       command: "model",
       label: "/model",
-      description: msg("Switch model"),
+      description: resolve(msg("Switch model")),
     },
     ...(input.offersSideChat
       ? [
@@ -124,14 +129,14 @@ export function buildComposerSlashCommandItems(input: {
             type: "slash-command" as const,
             command: "side",
             label: "/side",
-            description: msg("Ask a side question in a new side chat"),
+            description: resolve(msg("Ask a side question in a new side chat")),
           },
           {
             id: "cmd:btw",
             type: "slash-command" as const,
             command: "btw",
             label: "/btw",
-            description: msg("Same as /side"),
+            description: resolve(msg("Same as /side")),
           },
         ]
       : []),
@@ -144,7 +149,7 @@ export function buildComposerSlashCommandItems(input: {
       type: "slash-command",
       command: "clear",
       label: "/clear",
-      description: msg("Start a fresh session"),
+      description: resolve(msg("Start a fresh session")),
     });
   }
   for (const command of input.selectedProviderStatus?.slashCommands ?? []) {

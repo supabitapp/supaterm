@@ -53,6 +53,7 @@ import { installCommandPaletteCommands } from "./shortcuts/commandPaletteCommand
 import { registerOpenFavoriteEditorCommand } from "./components/chat/OpenInPickerShortcut";
 import { environmentThreadShells, threadEnvironment } from "./state/threads";
 import { resolveActiveThreadRouteRef, resolveThreadRouteTarget } from "./threadRoutes";
+import { m } from "./i18n/messages";
 
 /** Writes appearance settings onto the document, touching only the groups that changed. */
 function startClientAppearance(): void {
@@ -151,7 +152,7 @@ function startDocumentTitle(router: AppRouter): void {
       threadTitle: thread?.title ?? null,
       ...(getClientSettings().screenReaderWindowTitle && {
         screenReader: {
-          threadStatus: thread === null ? null : resolveWindowTitleThreadStatus(thread),
+          threadStatus: thread === null ? null : resolveWindowTitleThreadStatus(thread, m),
         },
       }),
       desktop: isElectron,

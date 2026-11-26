@@ -1243,7 +1243,7 @@ function ThreadSettingsChoiceContent(props: {
       ? {
           rows: session.runtimeModeChoices.map((choice) => ({
             id: choice.mode,
-            label: choice.label,
+            label: m(choice.label),
             description: choice.description,
             selected: choice.mode === session.runtimeMode,
             onPress: () => {

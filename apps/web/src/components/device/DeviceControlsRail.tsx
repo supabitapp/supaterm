@@ -35,7 +35,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import type { DeviceStreamHandle, DeviceViewControls } from "./DeviceStreamView";
 import type { DeviceControls } from "./useDeviceControls";
-import { T, msg, useGT } from "gt-react";
+import { T, msg, useGT, useMessages } from "gt-react";
 
 export function DeviceControlsRail(props: {
   platform: DevicePlatform;
@@ -51,6 +51,7 @@ export function DeviceControlsRail(props: {
   onClose: () => void;
   onPowerOff: () => void;
 }) {
+  const m = useMessages();
   const gt = useGT();
   const { view, handle, controls } = props;
   const confirm = useInlineConfirm<"power-off">();
@@ -186,7 +187,7 @@ export function DeviceControlsRail(props: {
                   ).map(([value, label]) => (
                     <MenuRadioItem key={value} value={value}>
                       <span className="flex items-center gap-2">
-                        <span className="flex-1">{label}</span>
+                        <span className="flex-1">{m(label)}</span>
                         <MenuRadioItemIndicator />
                       </span>
                     </MenuRadioItem>

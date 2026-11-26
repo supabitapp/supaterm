@@ -350,6 +350,7 @@ function RightPanelEmptyState(props: {
   deviceAvailable: boolean;
   deviceRunning: boolean;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const [highlight, setHighlight] = useState(-1);
 
@@ -523,7 +524,7 @@ function RightPanelEmptyState(props: {
                       action.label === "Browser" && props.browserProfiles.length > 1 && "pr-7",
                     )}
                   >
-                    {action.label}
+                    {messages(action.label)}
                   </span>
                   <Kbd>{action.shortcut}</Kbd>
                 </button>
@@ -565,7 +566,7 @@ function RightPanelEmptyState(props: {
                     className="flex h-8 w-full cursor-default items-center gap-2.5 rounded-(--control-radius) px-2.5 text-left text-sm opacity-50"
                   >
                     {actionIcon(action, "size-4")}
-                    <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                    <span className="min-w-0 flex-1 truncate">{messages(action.label)}</span>
                     <Kbd>{action.shortcut}</Kbd>
                   </div>
                 }
@@ -1498,7 +1499,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                             }}
                           >
                             <Icon />
-                            {action.label}
+                            {messages(action.label)}
                             <MenuShortcut>{action.shortcut}</MenuShortcut>
                           </MenuSubTrigger>
                           <MenuSubPopup className="max-w-56">
@@ -1530,7 +1531,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                         ) : (
                           <Icon />
                         )}
-                        {action.label}
+                        {messages(action.label)}
                       </SurfaceMenuItem>
                     );
                   })}

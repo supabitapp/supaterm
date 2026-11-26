@@ -89,6 +89,7 @@ function PendingLinkRequest(props: {
   readonly environmentId: EnvironmentId;
   readonly item: LinkRequestItem;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { item } = props;
   const [open, setOpen] = useState(false);
@@ -113,7 +114,7 @@ function PendingLinkRequest(props: {
       setDeclining(false),
     );
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      setError(linkRequestFailureMessage(squashAtomCommandFailure(result)));
+      setError(linkRequestFailureMessage(squashAtomCommandFailure(result), messages));
     }
   };
 
@@ -172,6 +173,7 @@ function LinkRequestDialog(props: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
+  const messages = useMessages();
   const gt = useGT();
   const { item } = props;
   const formId = useId();
@@ -253,7 +255,7 @@ function LinkRequestDialog(props: {
       const minted = await mintPairingCodeOn(targetId, access);
       if (Result.isFailure(minted)) {
         setMintFailed((failed) => new Set(failed).add(targetId));
-        setError(linkRequestFailureMessage(minted.failure));
+        setError(linkRequestFailureMessage(minted.failure, messages));
         return null;
       }
       code = minted.success;
@@ -281,7 +283,7 @@ function LinkRequestDialog(props: {
       // The card switches to its answered row once the item updates.
       close();
     } else if (!isAtomCommandInterrupted(result)) {
-      setError(linkRequestFailureMessage(squashAtomCommandFailure(result)));
+      setError(linkRequestFailureMessage(squashAtomCommandFailure(result), messages));
     }
   };
 

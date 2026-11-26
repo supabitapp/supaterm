@@ -177,7 +177,7 @@ export function PullRequestStateGlyph({
           className={cn("size-4 shrink-0", presentation.toneClassName, className)}
         />
       </TooltipTrigger>
-      <TooltipPopup>{presentation.label}</TooltipPopup>
+      <TooltipPopup>{m(presentation.label)}</TooltipPopup>
     </Tooltip>
   );
 }

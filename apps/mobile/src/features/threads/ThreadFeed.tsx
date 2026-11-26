@@ -359,6 +359,7 @@ import {
 } from "./threadFeedEndFollow";
 import { useMessageTimeFormatter } from "./useMessageTimeFormatter";
 import { T, useMessages, useGT, msg, useLocale } from "gt-react-native";
+import { threadErrorText } from "@supaterm/client-runtime/state/threads";
 import { m } from "../../i18n/messages";
 
 const WIDE_MARKDOWN_BLOCK_OPTIONS = {
@@ -4375,6 +4376,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
 
 function ThreadFeedLoadEarlierControl(props: ThreadFeedHistoryControls) {
   const gt = useGT();
+  const messages = useMessages();
   const theme = useUniwindTheme();
   const mutedColor = theme["--color-icon-subtle"];
   if (!props.loading && props.error === null) {
@@ -4401,7 +4403,7 @@ function ThreadFeedLoadEarlierControl(props: ThreadFeedHistoryControls) {
       ) : null}
       {props.error !== null ? (
         <Text className="text-center text-xs" style={{ color: mutedColor }}>
-          {props.error}
+          {threadErrorText(props.error, messages)}
         </Text>
       ) : null}
     </View>

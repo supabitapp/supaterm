@@ -38,9 +38,10 @@ export function getComposerPromptLengthValidationMessage(
 
 export function getComposerSubmissionValidationMessage(
   options: ComposerSubmissionInput,
+  resolve: MessageResolver = m,
 ): string | null {
   return options.submissionTarget === "provider-turn"
-    ? getComposerPromptLengthValidationMessage(options.providerInput ?? options.prompt)
+    ? getComposerPromptLengthValidationMessage(options.providerInput ?? options.prompt, resolve)
     : null;
 }
 

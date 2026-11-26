@@ -22,6 +22,7 @@ import * as Order from "effect/Order";
 
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
+import { m, type MessageResolver } from "../../i18n/messages";
 
 export type HomeProjectSortOrder = Exclude<SidebarProjectSortOrder, "manual">;
 
@@ -46,22 +47,28 @@ function getProjectSortTimestamp(
         Number.NEGATIVE_INFINITY);
 }
 
-export function buildHomeProjectScopes(input: {
-  readonly projects: ReadonlyArray<EnvironmentProject>;
-  readonly environmentId: EnvironmentId | null;
-  readonly projectGroupingMode: SidebarProjectGroupingMode;
-}): ReadonlyArray<HomeProjectScope> {
+export function buildHomeProjectScopes(
+  input: {
+    readonly projects: ReadonlyArray<EnvironmentProject>;
+    readonly environmentId: EnvironmentId | null;
+    readonly projectGroupingMode: SidebarProjectGroupingMode;
+  },
+  resolve: MessageResolver = m,
+): ReadonlyArray<HomeProjectScope> {
   const projects = input.projects.filter(
     (project) => input.environmentId === null || project.environmentId === input.environmentId,
   );
-  return buildProjectGroups({
-    projects,
-    groupScratchProjects: true,
-    settings: {
-      sidebarProjectGroupingMode: input.projectGroupingMode,
-      sidebarProjectGroupingOverrides: {},
+  return buildProjectGroups(
+    {
+      projects,
+      groupScratchProjects: true,
+      settings: {
+        sidebarProjectGroupingMode: input.projectGroupingMode,
+        sidebarProjectGroupingOverrides: {},
+      },
     },
-  }).map((group) => {
+    resolve,
+  ).map((group) => {
     return {
       key: group.key,
       title: group.label,
