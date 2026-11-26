@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react-native";
 import { SheetHeader } from "../../../components/ui/SheetHeader";
 import { useNavigation } from "@react-navigation/native";
 import { useState } from "react";
@@ -12,7 +13,6 @@ import { LoadingStrip } from "../../../components/ui/LoadingStrip";
 import { SymbolView } from "../../../components/ui/AppSymbol";
 import { isLegalDocumentUrl, LEGAL_URL } from "../lib/legal-document-url";
 import { webViewDecelerationRate } from "../../../lib/webViewDecelerationRate";
-import { T, useGT } from "gt-react-native";
 
 interface SettingsLegalDocumentRouteScreenProps {
   readonly documentName: string;
@@ -62,7 +62,7 @@ export function SettingsLegalDocumentRouteScreen({
           />
           <View className="items-center gap-2">
             <Text className="text-center font-supaterm-bold text-lg text-foreground">
-              Couldn&apos;t load the {documentName.toLowerCase()}
+              {gt("Couldn't load the {document}", { document: documentName.toLowerCase() })}
             </Text>
             <Text selectable className="text-center text-sm leading-normal text-foreground-muted">
               {loadError}

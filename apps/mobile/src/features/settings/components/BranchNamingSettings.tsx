@@ -12,7 +12,7 @@ import { AppText as Text, AppTextInput } from "../../../components/ui/AppText";
 import { ListChoiceRow as SettingsChoiceRow } from "../../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingTextDrafts } from "./useSettingTextDrafts";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 
 const MODES = {
   static: {
@@ -20,12 +20,16 @@ const MODES = {
     description: msg("Add your prefix to the generated branch name."),
   },
   repository: {
-    label: "Repository name prefix",
-    description: "Prefix generated branches with the repository name. A fork uses its own name.",
+    label: msg("Repository name prefix"),
+    description: msg(
+      "Prefix generated branches with the repository name. A fork uses its own name.",
+    ),
   },
   semantic: {
     label: msg("Semantic prefix"),
-    description: "Let the model choose feat/, fix/, refactor/, or another prefix.",
+    description: msg("Let the model choose {examples}, or another prefix.", {
+      examples: "feat/, fix/, refactor/",
+    }),
   },
   custom: {
     label: msg("Custom instructions"),
@@ -42,6 +46,7 @@ export function BranchNamingSettings(props: {
   onChange: (patch: ServerSettingsPatch) => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const { edit, save } = useSettingTextDrafts(
     { branchNamePrefix: props.prefix, branchNameInstructions: props.instructions },
     props.onChange,
@@ -54,14 +59,18 @@ export function BranchNamingSettings(props: {
     <SettingsSection
       title={gt("Worktree branch naming")}
       trailing={
-        choice === null ? <Text className="text-xs text-foreground-muted">Mixed</Text> : null
+        choice === null ? (
+          <Text className="text-xs text-foreground-muted">
+            <T>Mixed</T>
+          </Text>
+        ) : null
       }
     >
       {BRANCH_NAMING_CHOICES.map((mode, index) => (
         <SettingsChoiceRow
           key={mode}
-          label={MODES[mode].label}
-          description={MODES[mode].description}
+          label={m(MODES[mode].label)}
+          description={m(MODES[mode].description)}
           selected={choice === mode}
           separated={index > 0}
           disabled={props.disabled}
@@ -71,14 +80,18 @@ export function BranchNamingSettings(props: {
       {choice === "static" ? (
         <View className="gap-2 px-4 py-3">
           <Text className="text-sm text-foreground-muted">
-            Use supaterm or supaterm/ for supaterm/add-search. Leave empty for no prefix.
+            {gt("Use {short} or {slash} for {example}. Leave empty for no prefix.", {
+              short: "supaterm",
+              slash: "supaterm/",
+              example: "supaterm/add-search",
+            })}
           </Text>
           <AppTextInput
             key={props.prefix}
             accessibilityLabel={gt("Branch prefix")}
             onChangeText={(text) => edit("branchNamePrefix", text)}
             defaultValue={props.prefix ?? ""}
-            placeholder={props.prefix === null ? "Mixed" : gt("No prefix")}
+            placeholder={props.prefix === null ? gt("Mixed") : gt("No prefix")}
             editable={!props.disabled}
             autoCapitalize="none"
             autoCorrect={false}
@@ -100,7 +113,9 @@ export function BranchNamingSettings(props: {
             placeholder={
               props.instructions === null
                 ? gt("Mixed. Enter instructions for all selected targets.")
-                : "Use julius/ followed by the issue ID and a short description."
+                : gt("Use {prefix} followed by the issue ID and a short description.", {
+                    prefix: "julius/",
+                  })
             }
             editable={!props.disabled}
             multiline
