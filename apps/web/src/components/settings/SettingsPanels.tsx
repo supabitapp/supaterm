@@ -298,10 +298,15 @@ function AboutVersionSection() {
           description={
             unswitchedMachines > 0 ? (
               <>
-                {unswitchedMachines === 1
-                  ? "1 machine still runs"
-                  : `${unswitchedMachines} machines still run`}{" "}
-                {channelSwitchLabel(selectedUpdateChannel === "nightly" ? "latest" : "nightly")}.{" "}
+                {gt(
+                  "{count, plural, one {{count} machine still runs {track}.} other {{count} machines still run {track}.}}",
+                  {
+                    count: unswitchedMachines,
+                    track: channelSwitchLabel(
+                      selectedUpdateChannel === "nightly" ? "latest" : "nightly",
+                    ),
+                  },
+                )}{" "}
                 {/* The dialog moves what it can and says why it skips the rest. */}
                 <Button
                   size="xs"
@@ -713,7 +718,7 @@ export function GeneralSettingsPanel() {
         <NotificationSettings />
         <SettingsRow
           {...searchableSetting("in-app-notifications")}
-          description="Show toasts for other threads while Supaterm is focused."
+          description={gt("Show toasts for other threads while Supaterm is focused.")}
           control={
             <Switch
               checked={settings.inAppNotificationsEnabled}
@@ -730,7 +735,7 @@ export function GeneralSettingsPanel() {
           resetAction={
             settings.sidebarThreadGrouping !== DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping ? (
               <SettingResetButton
-                label="thread grouping"
+                label={gt("thread grouping", { $context: "setting name in a reset button label" })}
                 onClick={() =>
                   updateSettings({
                     sidebarThreadGrouping: DEFAULT_UNIFIED_SETTINGS.sidebarThreadGrouping,
@@ -747,7 +752,11 @@ export function GeneralSettingsPanel() {
                 if (option) updateSettings({ sidebarThreadGrouping: option.value });
               }}
             >
-              <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Thread grouping">
+              <SelectTrigger
+                size="sm"
+                className="w-full sm:w-44"
+                aria-label={gt("Thread grouping")}
+              >
                 <SelectValue>
                   {
                     THREAD_GROUPING_OPTIONS.find(
@@ -768,12 +777,12 @@ export function GeneralSettingsPanel() {
         />
         <SettingsRow
           {...searchableSetting("project-grouping")}
-          description="Combine matching repositories across environments."
+          description={<T>Combine matching repositories across environments.</T>}
           resetAction={
             settings.sidebarProjectGroupingMode !==
             DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode ? (
               <SettingResetButton
-                label="project grouping"
+                label={gt("project grouping", { $context: "setting name in a reset button label" })}
                 onClick={() =>
                   updateSettings({
                     sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
@@ -807,7 +816,7 @@ export function GeneralSettingsPanel() {
             settings.sidebarProjectSortOrder !==
             DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder ? (
               <SettingResetButton
-                label="project order"
+                label={gt("project order", { $context: "setting name in a reset button label" })}
                 onClick={() =>
                   updateSettings({
                     sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
@@ -848,7 +857,9 @@ export function GeneralSettingsPanel() {
           resetAction={
             settings.confirmThreadUnpin !== DEFAULT_UNIFIED_SETTINGS.confirmThreadUnpin ? (
               <SettingResetButton
-                label="unpin confirmation"
+                label={gt("unpin confirmation", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     confirmThreadUnpin: DEFAULT_UNIFIED_SETTINGS.confirmThreadUnpin,
@@ -872,7 +883,9 @@ export function GeneralSettingsPanel() {
           resetAction={
             settings.confirmThreadArchive !== DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive ? (
               <SettingResetButton
-                label="archive confirmation"
+                label={gt("archive confirmation", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     confirmThreadArchive: DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive,
@@ -896,7 +909,9 @@ export function GeneralSettingsPanel() {
           resetAction={
             settings.confirmThreadDelete !== DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete ? (
               <SettingResetButton
-                label="delete confirmation"
+                label={gt("delete confirmation", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
@@ -917,11 +932,13 @@ export function GeneralSettingsPanel() {
         />
         <SettingsRow
           {...searchableSetting("terminal-close-confirmation")}
-          description="Ask before closing terminals and stopping their running processes."
+          description={<T>Ask before closing terminals and stopping their running processes.</T>}
           resetAction={
             settings.confirmTerminalClose !== DEFAULT_UNIFIED_SETTINGS.confirmTerminalClose ? (
               <SettingResetButton
-                label="terminal close confirmation"
+                label={gt("terminal close confirmation", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     confirmTerminalClose: DEFAULT_UNIFIED_SETTINGS.confirmTerminalClose,
@@ -992,7 +1009,7 @@ export function GeneralSettingsPanel() {
           resetAction={
             settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat ? (
               <SettingResetButton
-                label="time format"
+                label={gt("time format", { $context: "setting name in a reset button label" })}
                 onClick={() =>
                   updateSettings({
                     timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
@@ -1064,7 +1081,9 @@ export function ChatSettingsPanel() {
             settings.composerRichTextEnabled !==
             DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled ? (
               <SettingResetButton
-                label="rich text composer"
+                label={gt("rich text composer", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
@@ -1088,7 +1107,7 @@ export function ChatSettingsPanel() {
           resetAction={
             settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut ? (
               <SettingResetButton
-                label="send shortcut"
+                label={gt("send shortcut", { $context: "setting name in a reset button label" })}
                 onClick={() =>
                   updateSettings({ sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut })
                 }
@@ -1130,11 +1149,13 @@ export function ChatSettingsPanel() {
         />
         <SettingsRow
           {...searchableSetting("skills-in-slash-menu")}
-          description="Skills always appear when you type $."
+          description={gt("Skills always appear when you type $.")}
           resetAction={
             settings.showSkillsInSlashMenu !== DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu ? (
               <SettingResetButton
-                label="skills in slash menu"
+                label={gt("skills in slash menu", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
@@ -1158,11 +1179,15 @@ export function ChatSettingsPanel() {
       <SettingsSection id="follow-ups" title={gt("Follow-ups")}>
         <SettingsRow
           {...searchableSetting("follow-up-behavior")}
-          description={`While the agent runs. ${followUpOverrideShortcut[settings.sendShortcut]} does the opposite once.`}
+          description={gt("While the agent runs. {shortcut} does the opposite once.", {
+            shortcut: followUpOverrideShortcut[settings.sendShortcut],
+          })}
           resetAction={
             settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior ? (
               <SettingResetButton
-                label="follow-up behavior"
+                label={gt("follow-up behavior", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
@@ -1190,8 +1215,12 @@ export function ChatSettingsPanel() {
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
-                <SelectItem value="queue">Queue</SelectItem>
-                <SelectItem value="steer">Steer</SelectItem>
+                <SelectItem value="queue">
+                  <T>Queue</T>
+                </SelectItem>
+                <SelectItem value="steer">
+                  <T>Steer</T>
+                </SelectItem>
               </SelectPopup>
             </Select>
           }
@@ -1232,7 +1261,7 @@ function ToolCallVisibilityRow() {
       resetAction={
         settings.toolCallVisibility !== DEFAULT_UNIFIED_SETTINGS.toolCallVisibility ? (
           <SettingResetButton
-            label="tool calls in chat"
+            label={gt("tool calls in chat", { $context: "setting name in a reset button label" })}
             onClick={() =>
               updateSettings({ toolCallVisibility: DEFAULT_UNIFIED_SETTINGS.toolCallVisibility })
             }
@@ -1284,7 +1313,9 @@ function ScreenReaderAnnouncementsRow() {
         settings.screenReaderAnnouncements !==
         DEFAULT_UNIFIED_SETTINGS.screenReaderAnnouncements ? (
           <SettingResetButton
-            label="screen reader announcements"
+            label={gt("screen reader announcements", {
+              $context: "setting name in a reset button label",
+            })}
             onClick={() =>
               updateSettings({
                 screenReaderAnnouncements: DEFAULT_UNIFIED_SETTINGS.screenReaderAnnouncements,
@@ -1337,7 +1368,9 @@ function ScreenReaderWindowTitleRow() {
       resetAction={
         settings.screenReaderWindowTitle !== DEFAULT_UNIFIED_SETTINGS.screenReaderWindowTitle ? (
           <SettingResetButton
-            label="screen reader window title"
+            label={gt("screen reader window title", {
+              $context: "setting name in a reset button label",
+            })}
             onClick={() =>
               updateSettings({
                 screenReaderWindowTitle: DEFAULT_UNIFIED_SETTINGS.screenReaderWindowTitle,
@@ -1368,7 +1401,7 @@ function DiffColorsSettingsRow() {
       resetAction={
         settings.diffColorScheme !== DEFAULT_UNIFIED_SETTINGS.diffColorScheme ? (
           <SettingResetButton
-            label="diff colors"
+            label={gt("diff colors", { $context: "setting name in a reset button label" })}
             onClick={() =>
               updateSettings({ diffColorScheme: DEFAULT_UNIFIED_SETTINGS.diffColorScheme })
             }
@@ -1397,12 +1430,18 @@ function DiffColorsSettingsRow() {
                 <span className="size-2 rounded-full bg-diff-addition" />
               </span>
               <SelectValue>
-                {settings.diffColorScheme === "blue-orange" ? "Blue & orange" : "Red & green"}
+                {settings.diffColorScheme === "blue-orange"
+                  ? gt("Blue & orange")
+                  : gt("Red & green")}
               </SelectValue>
             </SelectTrigger>
             <SelectPopup align="end" alignItemWithTrigger={false}>
-              <SelectItem value="red-green">Red & green (default)</SelectItem>
-              <SelectItem value="blue-orange">Blue & orange</SelectItem>
+              <SelectItem value="red-green">
+                <T>Red & green (default)</T>
+              </SelectItem>
+              <SelectItem value="blue-orange">
+                <T>Blue & orange</T>
+              </SelectItem>
             </SelectPopup>
           </Select>
         </div>
@@ -1424,7 +1463,9 @@ export function DiffsSettingsPanel() {
           resetAction={
             settings.diffIgnoreWhitespace !== DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace ? (
               <SettingResetButton
-                label="diff whitespace changes"
+                label={gt("diff whitespace changes", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     diffIgnoreWhitespace: DEFAULT_UNIFIED_SETTINGS.diffIgnoreWhitespace,
@@ -1448,7 +1489,9 @@ export function DiffsSettingsPanel() {
           resetAction={
             settings.diffFilesCollapsed !== DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed ? (
               <SettingResetButton
-                label="collapse diff files"
+                label={gt("collapse diff files", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     diffFilesCollapsed: DEFAULT_UNIFIED_SETTINGS.diffFilesCollapsed,
@@ -1463,7 +1506,7 @@ export function DiffsSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ diffFilesCollapsed: Boolean(checked) })
               }
-              aria-label="Collapse diff files"
+              aria-label={gt("Collapse diff files")}
             />
           }
         />
@@ -1473,11 +1516,13 @@ export function DiffsSettingsPanel() {
       <SettingsSection id="pull-requests" title={gt("Pull requests")}>
         <SettingsRow
           {...searchableSetting("proactive-panels")}
-          description="Open the linked pull request, or Changes once edits reach 3 files or 50 lines."
+          description={gt(
+            "Open the linked pull request, or Changes once edits reach 3 files or 50 lines.",
+          )}
           resetAction={
             settings.proactivePanelsEnabled !== DEFAULT_UNIFIED_SETTINGS.proactivePanelsEnabled ? (
               <SettingResetButton
-                label="proactive panels"
+                label={gt("proactive panels", { $context: "setting name in a reset button label" })}
                 onClick={() =>
                   updateSettings({
                     proactivePanelsEnabled: DEFAULT_UNIFIED_SETTINGS.proactivePanelsEnabled,
@@ -1569,7 +1614,9 @@ export function ThreadsSettingsPanel() {
             settings.addProjectBaseDirectory !==
             DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory ? (
               <SettingResetButton
-                label="add project base directory"
+                label={gt("add project base directory", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     addProjectBaseDirectory: DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory,
@@ -1599,7 +1646,9 @@ export function ThreadsSettingsPanel() {
           resetAction={
             settings.ghqCloneLayout !== DEFAULT_UNIFIED_SETTINGS.ghqCloneLayout ? (
               <SettingResetButton
-                label="clone into host folders"
+                label={gt("clone into host folders", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({ ghqCloneLayout: DEFAULT_UNIFIED_SETTINGS.ghqCloneLayout })
                 }
@@ -1629,7 +1678,7 @@ export function ThreadsSettingsPanel() {
         <SettingsRow
           serverScoped
           {...searchableSetting("auto-resume-limited-threads")}
-          description="Continue limited threads when their usage resets."
+          description={gt("Continue limited threads when their usage resets.")}
           settingKeys={["autoResumeLimitedThreads"]}
           control={
             <ScopedSwitch
@@ -1645,7 +1694,7 @@ export function ThreadsSettingsPanel() {
         <SettingsRow
           serverScoped
           {...searchableSetting("snooze-limited-threads")}
-          description="Hide limited threads until their usage resets."
+          description={gt("Hide limited threads until their usage resets.")}
           settingKeys={["snoozeLimitedThreads"]}
           control={
             <ScopedSwitch
@@ -1661,7 +1710,7 @@ export function ThreadsSettingsPanel() {
       </SettingsSection>
 
       {hasServerTargets ? (
-        <SettingsSection id="auto-mark-done" title="Auto-mark as Done">
+        <SettingsSection id="auto-mark-done" title={gt("Auto-mark as Done")}>
           <SettingsRow
             serverScoped
             settingKeys={["sidebarAutoMarkDoneOnMerge"]}
@@ -1670,7 +1719,9 @@ export function ThreadsSettingsPanel() {
               settings.sidebarAutoMarkDoneOnMerge !==
               DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneOnMerge ? (
                 <SettingResetButton
-                  label="automatically mark as Done on merge"
+                  label={gt("automatically mark as Done on merge", {
+                    $context: "setting name in a reset button label",
+                  })}
                   onClick={() =>
                     updateSettings({
                       sidebarAutoMarkDoneOnMerge:
@@ -1687,7 +1738,7 @@ export function ThreadsSettingsPanel() {
                 onCheckedChange={(checked) =>
                   updateSettings({ sidebarAutoMarkDoneOnMerge: Boolean(checked) })
                 }
-                aria-label="Automatically mark merged threads as Done"
+                aria-label={gt("Automatically mark merged threads as Done")}
               />
             }
           />
@@ -1696,12 +1747,14 @@ export function ThreadsSettingsPanel() {
             serverScoped
             settingKeys={["sidebarAutoMarkDoneAfterDays"]}
             {...searchableSetting("auto-mark-done-inactive-threads")}
-            description="Mark threads with no recent activity as Done."
+            description={gt("Mark threads with no recent activity as Done.")}
             resetAction={
               settings.sidebarAutoMarkDoneAfterDays !==
               DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays ? (
                 <SettingResetButton
-                  label="automatically mark as Done"
+                  label={gt("automatically mark as Done", {
+                    $context: "setting name in a reset button label",
+                  })}
                   onClick={() =>
                     updateSettings({
                       sidebarAutoMarkDoneAfterDays:
@@ -1715,7 +1768,7 @@ export function ThreadsSettingsPanel() {
               <>
                 {settings.sidebarAutoMarkDoneAfterDays !== null ? (
                   <DaysField
-                    label="Automatically mark inactive threads as Done"
+                    label={gt("Automatically mark inactive threads as Done")}
                     value={settings.sidebarAutoMarkDoneAfterDays}
                     onCommit={(days, options) =>
                       updateSettings({ sidebarAutoMarkDoneAfterDays: days }, options)
@@ -1730,7 +1783,7 @@ export function ThreadsSettingsPanel() {
                       sidebarAutoMarkDoneAfterDays: checked ? AUTO_MARK_DONE_DEFAULT_DAYS : null,
                     })
                   }
-                  aria-label="Automatically mark inactive threads as Done"
+                  aria-label={gt("Automatically mark inactive threads as Done")}
                 />
               </>
             }
@@ -1739,13 +1792,17 @@ export function ThreadsSettingsPanel() {
             <SettingsRow
               serverScoped
               settingKeys={["sidebarAutoMarkDoneKeepPullRequests"]}
-              title="Keep threads with an open PR"
-              description="Inactivity does not mark threads with an open pull request as Done."
+              title={gt("Keep threads with an open PR")}
+              description={gt(
+                "Inactivity does not mark threads with an open pull request as Done.",
+              )}
               resetAction={
                 settings.sidebarAutoMarkDoneKeepPullRequests !==
                 DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneKeepPullRequests ? (
                   <SettingResetButton
-                    label="keep threads with an open PR"
+                    label={gt("keep threads with an open PR", {
+                      $context: "setting name in a reset button label",
+                    })}
                     onClick={() =>
                       updateSettings({
                         sidebarAutoMarkDoneKeepPullRequests:
@@ -1762,7 +1819,7 @@ export function ThreadsSettingsPanel() {
                   onCheckedChange={(checked) =>
                     updateSettings({ sidebarAutoMarkDoneKeepPullRequests: Boolean(checked) })
                   }
-                  aria-label="Keep threads with an open PR"
+                  aria-label={gt("Keep threads with an open PR")}
                 />
               }
             />
@@ -1775,11 +1832,13 @@ export function ThreadsSettingsPanel() {
           serverScoped
           settingKeys={["textGenerationModelSelection"]}
           {...searchableSetting("text-generation-model")}
-          description="Writes thread titles and other generated text."
+          description={gt("Writes thread titles and other generated text.")}
           resetAction={
             hasServerTargets && isTextGenerationModelDirty ? (
               <SettingResetButton
-                label="text generation model"
+                label={gt("text generation model", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     textGenerationModelSelection:
@@ -1878,12 +1937,16 @@ export function ThreadsSettingsPanel() {
           serverScoped
           settingKeys={["nextPromptSuggestionsEnabled"]}
           {...searchableSetting("next-prompt-suggestions")}
-          description="After Claude or Codex replies, suggests what you might send next. Press Tab to use it. Threads on other providers get no suggestions."
+          description={gt(
+            "After Claude or Codex replies, suggests what you might send next. Press Tab to use it. Threads on other providers get no suggestions.",
+          )}
           resetAction={
             settings.nextPromptSuggestionsEnabled !==
             DEFAULT_UNIFIED_SETTINGS.nextPromptSuggestionsEnabled ? (
               <SettingResetButton
-                label="Next prompt suggestions"
+                label={gt("Next prompt suggestions", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     nextPromptSuggestionsEnabled:
@@ -1900,7 +1963,7 @@ export function ThreadsSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ nextPromptSuggestionsEnabled: Boolean(checked) })
               }
-              aria-label="Next prompt suggestions"
+              aria-label={gt("Next prompt suggestions")}
             />
           }
         />
@@ -1912,7 +1975,9 @@ export function ThreadsSettingsPanel() {
           resetAction={
             settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode ? (
               <SettingResetButton
-                label="response streaming"
+                label={gt("response streaming", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
@@ -1978,7 +2043,9 @@ export function MaintenanceSettingsPanel() {
             settings.enableProviderUpdateChecks !==
             DEFAULT_UNIFIED_SETTINGS.enableProviderUpdateChecks ? (
               <SettingResetButton
-                label="provider update checks"
+                label={gt("provider update checks", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     enableProviderUpdateChecks: DEFAULT_UNIFIED_SETTINGS.enableProviderUpdateChecks,
@@ -2002,7 +2069,7 @@ export function MaintenanceSettingsPanel() {
           {...searchableSetting("continue-threads-after-server-update")}
           serverScoped
           settingKeys={["continueThreadsAfterServerUpdate"]}
-          description="Resume interrupted threads after an update, crash, or restart."
+          description={gt("Resume interrupted threads after an update, crash, or restart.")}
           status={
             !hasServerTargets
               ? gt("All selected connected environments must support restart continuation.")
@@ -2013,7 +2080,9 @@ export function MaintenanceSettingsPanel() {
             settings.continueThreadsAfterServerUpdate !==
               DEFAULT_UNIFIED_SETTINGS.continueThreadsAfterServerUpdate ? (
               <SettingResetButton
-                label="continue threads after restarts"
+                label={gt("continue threads after restarts", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     continueThreadsAfterServerUpdate:
@@ -2050,7 +2119,9 @@ export function MaintenanceSettingsPanel() {
             settings.keepAwakeWhileAgentsWork !==
             DEFAULT_UNIFIED_SETTINGS.keepAwakeWhileAgentsWork ? (
               <SettingResetButton
-                label="keep awake while agents work"
+                label={gt("keep awake while agents work", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({
                     keepAwakeWhileAgentsWork: DEFAULT_UNIFIED_SETTINGS.keepAwakeWhileAgentsWork,
@@ -2072,16 +2143,20 @@ export function MaintenanceSettingsPanel() {
         />
       </SettingsSection>
 
-      <SettingsSection id="history" title="History">
+      <SettingsSection id="history" title={gt("History")}>
         <SettingsRow
           serverScoped
           settingKeys={["pruneEventHistory"]}
           {...searchableSetting("prune-event-history")}
-          description="Keeps every conversation. Backs up the database once, then removes internal history older than a day so the database stops growing. Older Supaterm versions can't use the database afterwards."
+          description={gt(
+            "Keeps every conversation. Backs up the database once, then removes internal history older than a day so the database stops growing. Older Supaterm versions can't use the database afterwards.",
+          )}
           resetAction={
             settings.pruneEventHistory !== DEFAULT_UNIFIED_SETTINGS.pruneEventHistory ? (
               <SettingResetButton
-                label="delete history older than a day"
+                label={gt("delete history older than a day", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() =>
                   updateSettings({ pruneEventHistory: DEFAULT_UNIFIED_SETTINGS.pruneEventHistory })
                 }
@@ -2093,7 +2168,7 @@ export function MaintenanceSettingsPanel() {
               settingKeys={["pruneEventHistory"]}
               checked={settings.pruneEventHistory}
               onCheckedChange={(checked) => updateSettings({ pruneEventHistory: Boolean(checked) })}
-              aria-label="Delete history older than a day"
+              aria-label={gt("Delete history older than a day")}
             />
           }
         />
@@ -2104,7 +2179,7 @@ export function MaintenanceSettingsPanel() {
       <SettingsSection id="diagnostics-section" title={gt("Diagnostics")}>
         <SettingsRow
           {...searchableSetting("diagnostics")}
-          description="Inspect processes, resource use, and logs."
+          description={gt("Inspect processes, resource use, and logs.")}
           control={
             <Button
               render={
@@ -2138,7 +2213,7 @@ export function AboutSettingsPanel() {
         {primaryEnvironmentId === null ? null : (
           <SettingsRow
             {...searchableSetting("welcome-page")}
-            description="See your agents and import projects."
+            description={gt("See your agents and import projects.")}
             control={
               <Button size="sm" variant="outline" render={<Link to="/welcome" />}>
                 <T context="verb, opens a page">Open</T>

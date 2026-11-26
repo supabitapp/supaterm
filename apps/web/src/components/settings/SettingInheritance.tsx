@@ -75,9 +75,9 @@ function formatValue(key: keyof ServerSettings, value: unknown): string {
                 : msg("Not set");
   }
   if (key === "branchNamePrefixFromRepository") {
-    return value ? "Repository name prefix" : "Static prefix";
+    return value ? msg("Repository name prefix") : msg("Static prefix");
   }
-  if (typeof value === "boolean") return value ? "On" : "Off";
+  if (typeof value === "boolean") return value ? msg("On") : msg("Off");
   if (typeof value === "number") {
     return key === "sidebarAutoMarkDoneAfterDays"
       ? `${value} ${value === 1 ? "day" : "days"}`
@@ -104,13 +104,13 @@ function formatValue(key: keyof ServerSettings, value: unknown): string {
     }
     if ("model" in value && typeof value.model === "string") return value.model;
     if ("mode" in value && typeof value.mode === "string") {
-      if (key === "worktreeCleanup") return value.mode === "off" ? "Off" : "Custom";
+      if (key === "worktreeCleanup") return value.mode === "off" ? msg("Off") : msg("Custom");
       return key === "sourceControlWritingStyle"
         ? (WRITING_STYLE_LABELS[value.mode] ?? value.mode)
         : value.mode;
     }
   }
-  return "Custom";
+  return msg("Custom");
 }
 
 /** Matches resolveProjectSettings order. */
@@ -155,7 +155,7 @@ export function settingInheritanceLayers(
     : DEFAULT_SERVER_SETTINGS[key];
   layers.push({
     key: "built-in",
-    label: "Default",
+    label: msg("Default"),
     value: formatValue(key, builtIn),
     effective: source === "environment" && !environmentSet,
     set: true,
@@ -428,7 +428,7 @@ export function SettingInheritance({
                       )}
                       {onClearOverrides ? (
                         <InlineButton onClick={() => onClearOverrides(overriding)}>
-                          Reset {overriding.length === 1 ? "it" : "all"}
+                          {overriding.length === 1 ? gt("Reset it") : gt("Reset all")}
                         </InlineButton>
                       ) : null}
                     </div>

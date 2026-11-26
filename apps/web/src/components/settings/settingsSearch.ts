@@ -396,7 +396,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "auto-mark-done-merged-threads",
-    title: "Automatically mark merged threads as Done",
+    title: msg("Automatically mark merged threads as Done"),
     to: "/settings/threads",
     searchTerms: ["auto-mark-done", "pull request merge closed automatically sidebar"],
     requiresThreadAutoMarkDone: true,
@@ -404,7 +404,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "auto-mark-done-inactive-threads",
-    title: "Automatically mark inactive threads as Done",
+    title: msg("Automatically mark inactive threads as Done"),
     to: "/settings/threads",
     searchTerms: ["auto-mark-done", "sidebar inactivity days no activity automatically"],
     requiresThreadAutoMarkDone: true,
@@ -412,7 +412,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "auto-mark-done-keep-pull-requests",
-    title: "Keep threads with an open PR",
+    title: msg("Keep threads with an open PR"),
     to: "/settings/threads",
     targetId: "auto-mark-done-inactive-threads",
     searchTerms: ["auto-mark-done", "pull request review inactivity sidebar"],
@@ -421,7 +421,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "days-before-auto-mark-done",
-    title: "Days of inactivity before marking Done",
+    title: msg("Days of inactivity before marking Done"),
     to: "/settings/threads",
     targetId: "auto-mark-done-inactive-threads",
     searchTerms: ["auto-mark-done", "thread timeout activity sidebar"],
@@ -493,7 +493,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "default-diff-file-state",
-    title: "Collapse diff files",
+    title: msg("Collapse diff files"),
     to: "/settings/diffs",
     searchTerms: ["default diff file state collapsed expanded expand pull request pr code tab"],
   },
@@ -505,7 +505,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "thread-grouping",
-    title: "Thread grouping",
+    title: msg("Thread grouping"),
     to: "/settings/general",
     searchTerms: ["sidebar default status project inbox"],
   },
@@ -591,14 +591,14 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "voice-transcription",
-    title: "Voice transcription",
+    title: msg("Voice transcription"),
     to: "/settings/voice",
     scope: "environment-defaults",
     searchTerms: ["voice dictation microphone speech transcribe provider account login"],
   },
   {
     id: "voice-language",
-    title: "Voice language",
+    title: msg("Voice language"),
     to: "/settings/voice",
     searchTerms: ["voice dictation microphone speech transcribe language locale spoken"],
   },
@@ -610,14 +610,14 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "voice-avoid-bluetooth",
-    title: "Use the Mac's microphone instead of Bluetooth",
+    title: msg("Use the Mac's microphone instead of Bluetooth"),
     to: "/settings/voice",
     macOnly: true,
     searchTerms: ["voice dictation microphone bluetooth airpods headset built-in call quality"],
   },
   {
     id: "voice-hold-to-talk",
-    title: "Hold to talk",
+    title: msg("Hold to talk"),
     to: "/settings/voice",
     searchTerms: [
       "voice dictation microphone speech push to talk option alt spacebar hold keyboard shortcut",
@@ -632,7 +632,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "next-prompt-suggestions",
-    title: "Next prompt suggestions",
+    title: msg("Next prompt suggestions"),
     to: "/settings/threads",
     scope: "environment-defaults",
     searchTerms: [
@@ -657,7 +657,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "prune-event-history",
-    title: "Delete history older than a day",
+    title: msg("Delete history older than a day"),
     to: "/settings/maintenance",
     scope: "environment-defaults",
     searchTerms: ["prune event log database size shrink growth storage backup"],
@@ -818,7 +818,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "usage-limits",
-    title: "Usage limits",
+    title: msg("Usage limits"),
     to: "/settings/appearance",
     searchTerms: ["composer context strip quota rate limits session weekly remaining"],
   },
@@ -889,7 +889,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "orchestration-skills",
-    title: "Orchestration skills",
+    title: msg("Orchestration skills"),
     to: "/settings/threads",
     searchTerms: [
       "supaterm commitee committee advisor install uninstall native skills agents delegation",
@@ -904,27 +904,27 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "device-hosts",
-    title: "Device hosts",
+    title: msg("Device hosts"),
     to: "/settings/devices",
     searchTerms: ["ssh remote simulator emulator ios android mac mini identity key connection"],
   },
   {
     id: "agent-device-access",
-    title: "Agent device access",
+    title: msg("Agent device access"),
     to: "/settings/devices",
     targetId: "devices",
     searchTerms: [msg("allow simulator emulator ios android drive tools sessions")],
   },
   {
     id: "device-hub",
-    title: "Device hub",
+    title: msg("Device hub"),
     to: "/settings/devices",
     targetId: "devices",
     searchTerms: ["simulator emulator ios android install start"],
   },
   {
     id: "device-platform-support",
-    title: "Simulator support",
+    title: msg("Simulator support"),
     to: "/settings/devices",
     targetId: "devices",
     searchTerms: ["xcode android studio sdk avd runtime"],
@@ -966,7 +966,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "browser-recording-input",
-    title: "Browser recording overlays",
+    title: msg("Browser recording overlays"),
     to: "/settings/browser",
     searchTerms: [
       "browser preview key presses keyboard shortcuts keystrokes mouse presses clicks buttons drag overlay capture",
@@ -994,7 +994,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "browser-agent-open-target",
-    title: "Show agent browsers and devices in",
+    title: msg("Show agent browsers and devices in"),
     to: "/settings/browser",
     searchTerms: [
       "agent opens browser device simulator emulator sidebar right panel floating preview picture in picture pip background show hide",
@@ -1154,7 +1154,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "public-relay",
-    title: "Encrypted Relay",
+    title: msg("Encrypted Relay"),
     to: "/settings/access",
     targetId: "connections-environment",
     searchTerms: ["remote end-to-end encrypted tunnel pairing companion"],

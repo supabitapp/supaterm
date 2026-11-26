@@ -157,7 +157,7 @@ export function FontFamilyPicker({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: `"${value}" isn't monospace`,
+          title: gt('"{font}" isn\'t monospace', { font: value }),
           description: gt(
             "Code and terminal need a fixed-width font, so the current font was kept.",
           ),
