@@ -2573,11 +2573,15 @@ describe("CursorAdapterV2", () => {
         }).pipe(
           Effect.provideService(CursorAgentSdk.CursorAgentSdkRunner, {
             assertComplete: Effect.void,
-            open: () =>
-              Effect.succeed({
+            open: () => {
+              // Like the real runner, a session drops the stop handles of its shells when it closes.
+              let closed = false;
+              return Effect.succeed({
                 agentId: "native-cursor-background",
                 listMessages: Effect.succeed([]),
-                close: Effect.void,
+                close: Effect.sync(() => {
+                  closed = true;
+                }),
                 send: (input) =>
                   Effect.gen(function* () {
                     report = input.onBackgroundShell!;
@@ -2587,7 +2591,9 @@ describe("CursorAdapterV2", () => {
                       yield* report({
                         ...shell(id),
                         type: "started",
-                        stop: () => stopped.push(id),
+                        stop: () => {
+                          if (!closed) stopped.push(id);
+                        },
                       });
                     }
                     return {
@@ -2613,7 +2619,8 @@ describe("CursorAdapterV2", () => {
                       cancel: Effect.void,
                     };
                   }),
-              }),
+              });
+            },
           }),
           Effect.provideService(ProviderContinuationRequests.ProviderContinuationRequests, {
             offer: (request) => Effect.sync(() => wakes.push(request)),
