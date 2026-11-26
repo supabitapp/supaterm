@@ -94,6 +94,7 @@ import {
 } from "@supaterm/client-runtime/state/composer-dispatch";
 import { Atom } from "effect/reactivity";
 import { AsyncResult } from "effect/reactivity";
+import { errorI18nMessage, resolveMarkedText } from "@supaterm/client-runtime/errors";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { prepareTurnAttachments } from "../lib/attachmentUpload";
 import {
@@ -539,9 +540,13 @@ export function useThreadComposerState() {
     if (result._tag !== "Success") {
       // The run left the queue during the save; its exit already told the composer what happened.
       if (!finishSave(false)) return;
+      const refusal =
+        result._tag === "Failure" ? errorI18nMessage(squashAtomCommandFailure(result)) : undefined;
       Dialog.alert(
         m(msg("Could not save the queued message")),
-        m(msg("It may have already started. Your edit is still in the composer.")),
+        refusal === undefined
+          ? m(msg("It may have already started. Your edit is still in the composer."))
+          : resolveMarkedText(refusal, m),
       );
       return;
     }

@@ -1454,7 +1454,8 @@ export default function FilePreviewPanel({
     !renderBrowserFile &&
     !isDocument &&
     !renderMermaid &&
-    file.data?.truncated === true;
+    file.data?.truncated === true &&
+    (!draft || serverConfig?.environment.capabilities.draftFileDownloads === true);
   const copyLargeText = useRef<(() => Promise<string>) | null>(null);
   const { copyToClipboard, isCopied } = useCopyToClipboard({
     target: previewPath ?? "file",

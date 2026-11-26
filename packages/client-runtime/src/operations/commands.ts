@@ -33,6 +33,7 @@ import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Equal from "effect/Equal";
 import * as Exit from "effect/Exit";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
@@ -46,6 +47,8 @@ import {
   request,
 } from "../rpc/client.ts";
 import { deriveThreadQueueWorkflowState } from "../state/threadWorkflows.ts";
+import { translatableMessage } from "../errors/translatable.ts";
+import { msg } from "gt-i18n";
 import { repositoryCheckpointScopeIds } from "../state/threadRepositories.ts";
 
 interface CommandMetadata {
@@ -1185,9 +1188,37 @@ export const retryWorkspacePreparation = Effect.fn("EnvironmentCommands.retryWor
   },
 );
 
+// Older servers save a queued edit's text but keep the run's model, so they get only an unchanged one.
+const requireQueuedEditModelApplied = Effect.fn(
+  "EnvironmentCommands.requireQueuedEditModelApplied",
+)(function* (input: EditQueuedRunInput) {
+  if (input.modelSelection === undefined) return;
+  const config = yield* getInitialServerConfig();
+  if (config.environment.capabilities.queuedRunModelEdit === true) return;
+  const projection = yield* getProjection(input.threadId);
+  const run = projection.runs.find((candidate) => candidate.id === input.runId);
+  const message = projection.messages.find((candidate) => candidate.id === run?.userMessageId);
+  const current =
+    message?.followsThreadSelection === true
+      ? projection.thread.modelSelection
+      : run?.modelSelection;
+  if (Equal.equals(current, input.modelSelection)) return;
+  const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
+  return yield* new EnvironmentRpcUnavailableError({
+    environmentId: supervisor.target.environmentId,
+    ...translatableMessage(
+      msg(
+        "Update Supaterm on {environment} to change a queued message's model. Your edit is still in the composer.",
+        { environment: supervisor.target.label },
+      ),
+    ),
+  });
+});
+
 export const editQueuedRun = Effect.fn("EnvironmentCommands.editQueuedRun")(function* (
   input: EditQueuedRunInput,
 ) {
+  yield* requireQueuedEditModelApplied(input);
   const attachments =
     input.edit === undefined
       ? undefined

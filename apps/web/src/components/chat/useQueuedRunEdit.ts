@@ -21,6 +21,8 @@ import {
   type ThreadId,
 } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import { errorI18nMessage, resolveMarkedText } from "@supaterm/client-runtime/errors";
+import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import {
   restoreAttachmentOnlyBootstrapPrompt,
   stripAttachmentOnlyBootstrapPrompt,
@@ -202,7 +204,11 @@ async function submitQueuedRunEdit(input: {
         },
       },
     });
-    return result._tag === "Failure" ? m(msg("Could not save the edited queued message.")) : null;
+    if (result._tag !== "Failure") return null;
+    const refusal = errorI18nMessage(squashAtomCommandFailure(result));
+    return refusal === undefined
+      ? m(msg("Could not save the edited queued message."))
+      : resolveMarkedText(refusal, m);
   } catch (error) {
     return error instanceof Error
       ? error.message

@@ -61,6 +61,8 @@ import {
   ORCHESTRATION_PROTOCOL_QUERY_PARAM,
   ORCHESTRATION_PROTOCOL_VERSION,
   CLIENT_CAPABILITIES_QUERY_PARAM,
+  GIT_REF_NAMES_CAPABILITY,
+  refsForTrimmingClients,
   SETTINGS_SECRET_REFERENCES_CAPABILITY,
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetShellSnapshotError,
@@ -827,9 +829,12 @@ function hasCompatibleOrchestrationProtocol(url: URL): boolean {
   );
 }
 
-function readSettingsClient(url: URL) {
+function readClientCapabilities(url: URL) {
   const capabilities = url.searchParams.get(CLIENT_CAPABILITIES_QUERY_PARAM)?.split(",") ?? [];
-  return { secretReferences: capabilities.includes(SETTINGS_SECRET_REFERENCES_CAPABILITY) };
+  return {
+    secretReferences: capabilities.includes(SETTINGS_SECRET_REFERENCES_CAPABILITY),
+    gitRefNames: capabilities.includes(GIT_REF_NAMES_CAPABILITY),
+  };
 }
 
 function shouldUseBoundedThreadSnapshot(input: {
@@ -1376,7 +1381,7 @@ export const layerWsRpc = (
   currentSession: EnvironmentAuth.AuthenticatedSession,
   serverBrowser: ServerBrowser.ServerBrowser["Service"],
   reportProfiles: ServerBrowser.ProfileReporter,
-  settingsClient: { readonly secretReferences: boolean },
+  client: { readonly secretReferences: boolean; readonly gitRefNames: boolean },
 ) =>
   Layer.effectContext(
     Effect.gen(function* () {
@@ -1774,7 +1779,7 @@ export const layerWsRpc = (
           : commandProviders;
         const settings = ServerSettings.redactServerSettingsForClient(
           yield* serverSettings.getSettings,
-          settingsClient,
+          client,
         );
         const environment = yield* serverEnvironment.getDescriptor;
         const auth = yield* serverAuth.getDescriptor();
@@ -2664,7 +2669,7 @@ export const layerWsRpc = (
                   nextPatch,
                   authorize,
                 );
-            return ServerSettings.redactServerSettingsForClient(settings, settingsClient);
+            return ServerSettings.redactServerSettingsForClient(settings, client);
           }),
         [WS_METHODS.serverDiscoverSourceControl]: () => sourceControlDiscovery.discover,
         [WS_METHODS.serverCheckSecretSource]: (input) => secretCheck.check(input.source),
@@ -3163,7 +3168,10 @@ export const layerWsRpc = (
             Effect.andThen(gitWorkflow.preparePullRequestThread(input)),
             Effect.tap(() => refreshGitStatus(input.cwd)),
           ),
-        [WS_METHODS.vcsListRefs]: (input) => gitWorkflow.listRefs(input),
+        [WS_METHODS.vcsListRefs]: (input) =>
+          client.gitRefNames
+            ? gitWorkflow.listRefs(input)
+            : gitWorkflow.listRefs(input).pipe(Effect.map(refsForTrimmingClients)),
         [WS_METHODS.vcsCreateWorktree]: (input) =>
           taskFolders
             .createWorktree(input, { projectCommands })
@@ -3397,7 +3405,7 @@ export const layerWsRpc = (
                   : Stream.empty;
               const settingsUpdates = settingsChanges.pipe(
                 Stream.map((settings) =>
-                  ServerSettings.redactServerSettingsForClient(settings, settingsClient),
+                  ServerSettings.redactServerSettingsForClient(settings, client),
                 ),
                 Stream.map((settings) => ({
                   version: 1 as const,
@@ -3605,7 +3613,12 @@ export const layer = Layer.unwrap(
           return httpEffect;
         }).pipe(
           Effect.provide(
-            layerWsRpc(session, serverBrowser, reportProfiles, readSettingsClient(url.value)).pipe(
+            layerWsRpc(
+              session,
+              serverBrowser,
+              reportProfiles,
+              readClientCapabilities(url.value),
+            ).pipe(
               Layer.provideMerge(RpcSerialization.layerJson),
               // Request fibers run in the handlers' context, so this reporter sees
               // their defects, not the rest of the server's.

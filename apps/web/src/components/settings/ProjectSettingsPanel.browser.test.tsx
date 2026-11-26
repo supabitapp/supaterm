@@ -350,6 +350,21 @@ describe("project organization", () => {
   });
 });
 
+describe("project repositories", () => {
+  it("offers Add folder only on a checkout whose server tracks folders", async () => {
+    setup();
+    // An older server omits trackedFolders and drops trackFolders from a project update.
+    state.projects = state.projects.map((project) =>
+      project.environmentId === remoteId ? { ...project, trackedFolders: [] } : project,
+    );
+    await using screen = await mountPanel();
+    await expect.element(screen.getByRole("button", { name: "Add folder" })).toBeVisible();
+    const section = screen.container.querySelector("#project-repositories");
+    expect(section?.textContent).toContain("/work/remote");
+    expect(section?.textContent).not.toContain("/work/primary");
+  });
+});
+
 describe("project settings permissions", () => {
   it("disables shared edits when any member lacks project access", async () => {
     setup();

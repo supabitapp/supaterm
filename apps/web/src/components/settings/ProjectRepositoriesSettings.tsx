@@ -60,7 +60,10 @@ export function ProjectRepositoriesSettings({
   members: ReadonlyArray<SidebarProjectGroupMember>;
 }) {
   const gt = useGT();
-  const checkouts = members.filter((member) => !member.isScratch);
+  // Older servers omit trackedFolders and drop the folders a project update adds.
+  const checkouts = members.filter(
+    (member) => !member.isScratch && member.trackedFolders !== undefined,
+  );
   if (checkouts.length === 0) return null;
   return (
     <SettingsSection id="project-repositories" title={gt("Repositories")}>

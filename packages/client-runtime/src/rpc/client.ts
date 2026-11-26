@@ -20,12 +20,14 @@ import { RpcClientError } from "effect/rpc";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
 import type { RpcSession } from "../rpc/session.ts";
+import { MarkedText } from "../errors/translatable.ts";
 
 export class EnvironmentRpcUnavailableError extends Schema.TaggedError<EnvironmentRpcUnavailableError>()(
   "EnvironmentRpcUnavailableError",
   {
     environmentId: Schema.String,
     message: Schema.String,
+    i18nMessage: Schema.optional(MarkedText),
   },
 ) {}
 

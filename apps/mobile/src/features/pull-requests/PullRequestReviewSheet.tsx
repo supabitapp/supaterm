@@ -3,6 +3,7 @@ import { useAtomRefresh } from "@effect/atom-react";
 import { StackActions, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { changeRequestTermKind } from "../../lib/changeRequestTerm";
+import { thrownErrorMessage } from "@supaterm/client-runtime/errors";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { PullRequestReviewVerdict } from "@supaterm/contracts";
 import { useRef, useState } from "react";
@@ -27,6 +28,7 @@ import { msg, T, useGT, useMessages } from "gt-react-native";
 
 function useActionSubmission(params: PullRequestParams) {
   const gt = useGT();
+  const resolve = useMessages();
   const navigation = useNavigation();
   const refreshDetail = useAtomRefresh(composerPullRequests.detail(pullRequestTarget(params)));
   const refreshActivity = useAtomRefresh(composerPullRequests.activity(pullRequestTarget(params)));
@@ -51,9 +53,8 @@ function useActionSubmission(params: PullRequestParams) {
       playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(result);
       setError(
-        cause instanceof Error
-          ? cause.message
-          : gt("The provider could not complete this action. Try again."),
+        thrownErrorMessage(cause, resolve) ??
+          gt("The provider could not complete this action. Try again."),
       );
     }
   };

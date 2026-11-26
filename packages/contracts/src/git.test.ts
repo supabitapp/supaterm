@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
 
+import { TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
   GitCommandError,
   GitPreparePullRequestThreadResult,
   GitRunStackedActionInput,
+  refsForTrimmingClients,
   VcsCreateWorktreeInput,
+  VcsListRefsResult,
   VcsRef,
 } from "./git.ts";
 import { WorktreeMcpHandoffInput } from "./worktreeMcp.ts";
@@ -31,6 +34,17 @@ const decodePullRequestDiffFileContentsInput = Schema.decodeUnknownSync(
 const encodePullRequestDiffFileContentsInput = Schema.encodeUnknownSync(
   PullRequestDiffFileContentsInput,
 );
+
+// The ref list as clients from before GitRefName decode it.
+const decodeTrimmingClientRefs = Schema.decodeUnknownResult(
+  Schema.toCodecJson(
+    Schema.Struct({
+      ...VcsListRefsResult.fields,
+      refs: Schema.Array(Schema.Struct({ ...VcsRef.fields, name: TrimmedNonEmptyString })),
+    }),
+  ),
+);
+const encodeRefList = Schema.encodeSync(Schema.toCodecJson(VcsListRefsResult));
 
 describe("GitCommandError", () => {
   it("decodes an unknown failure reason as absent", () => {
@@ -131,6 +145,27 @@ describe("Git ref names", () => {
       expect(decodeWorktreeHandoffInput(handoff)).toEqual(handoff);
     },
   );
+
+  it("lists to a client that trims names only the refs it can name exactly", () => {
+    const ref = (name: string) => ({ name, current: false, isDefault: false, worktreePath: null });
+    const result: VcsListRefsResult = {
+      refs: [ref("topic"), ref("topic\u00a0"), ref("\u00a0"), ref("origin/topic")],
+      isRepo: true,
+      hasPrimaryRemote: false,
+      nextCursor: null,
+      totalCount: 4,
+    };
+    const read = (value: VcsListRefsResult) => decodeTrimmingClientRefs(encodeRefList(value));
+
+    expect(read(result)._tag).toBe("Failure");
+    const shaped = read(refsForTrimmingClients(result));
+    expect(shaped._tag === "Success" && shaped.success.refs.map((entry) => entry.name)).toEqual([
+      "topic",
+      "origin/topic",
+    ]);
+    const plain = { ...result, refs: [ref("topic"), ref("origin/topic")] };
+    expect(refsForTrimmingClients(plain)).toBe(plain);
+  });
 
   it("still trims ASCII whitespace and rejects a blank name", () => {
     expect(

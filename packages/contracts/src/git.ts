@@ -290,6 +290,19 @@ export const VcsListRefsResult = Schema.Struct({
 });
 export type VcsListRefsResult = typeof VcsListRefsResult.Type;
 
+/**
+ * The refs a client without `GIT_REF_NAMES_CAPABILITY` can act on. It trims Unicode whitespace
+ * off a name's edges, so it would check out another ref or reject the whole list.
+ */
+export function refsForTrimmingClients(result: VcsListRefsResult): VcsListRefsResult {
+  const survivesTrim = (name: string | undefined) => name === undefined || name.trim() === name;
+  const refs = result.refs.filter(
+    (ref) =>
+      survivesTrim(ref.name) && survivesTrim(ref.remoteName) && survivesTrim(ref.upstreamRef),
+  );
+  return refs.length === result.refs.length ? result : { ...result, refs };
+}
+
 export const VcsCreateWorktreeResult = Schema.Struct({
   worktree: VcsWorktree,
 });
