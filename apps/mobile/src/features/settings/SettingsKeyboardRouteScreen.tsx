@@ -14,7 +14,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
-import { T, useGT, msg } from "gt-react-native";
+import { T, useGT, msg, useMessages } from "gt-react-native";
 
 const SEND_MODIFIER = Platform.OS === "android" ? "Ctrl" : "Command";
 
@@ -26,17 +26,24 @@ const ENTER_BEHAVIOR_OPTIONS: ReadonlyArray<{
   {
     behavior: "send",
     label: msg("Send message"),
-    description: "Return sends the message. Shift-Return inserts a new line.",
+    description: msg("{returnKey} sends the message. {shiftReturn} inserts a new line.", {
+      returnKey: "Return",
+      shiftReturn: "Shift-Return",
+    }),
   },
   {
     behavior: "newline",
     label: msg("Insert new line"),
-    description: `Return inserts a new line. ${SEND_MODIFIER}-Return sends the message.`,
+    description: msg("{returnKey} inserts a new line. {sendKeys} sends the message.", {
+      returnKey: "Return",
+      sendKeys: `${SEND_MODIFIER}-Return`,
+    }),
   },
 ];
 
 export function SettingsKeyboardRouteScreen() {
   const gt = useGT();
+  const m = useMessages();
   const insets = useSafeAreaInsets();
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
   const savePreferences = useAtomCommand(saveMobilePreferences);
@@ -58,8 +65,8 @@ export function SettingsKeyboardRouteScreen() {
           {ENTER_BEHAVIOR_OPTIONS.map((option, index) => (
             <SettingsChoiceRow
               key={option.behavior}
-              label={option.label}
-              description={option.description}
+              label={m(option.label)}
+              description={m(option.description)}
               selected={selectedBehavior === option.behavior}
               separated={index > 0}
               disabled={!preferencesReady}

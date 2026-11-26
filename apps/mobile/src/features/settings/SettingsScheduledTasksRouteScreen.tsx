@@ -80,7 +80,8 @@ import {
   formatNextScheduledTaskRun,
   formatScheduledTaskInterval,
 } from "./scheduledTaskPresentation";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useLocale, useMessages, Var } from "gt-react-native";
+import type { MessageResolver } from "../../i18n/messages";
 
 type ScheduledTaskRoutes = {
   SettingsScheduledTaskNew: undefined;
@@ -90,15 +91,14 @@ type ScheduledTaskRoutes = {
   SettingsScheduledTaskThread: undefined;
 };
 
-const DAYS = [
-  { index: 1, label: "Mon" },
-  { index: 2, label: "Tue" },
-  { index: 3, label: "Wed" },
-  { index: 4, label: "Thu" },
-  { index: 5, label: "Fri" },
-  { index: 6, label: "Sat" },
-  { index: 0, label: "Sun" },
-] as const;
+const DAYS = [1, 2, 3, 4, 5, 6, 0].map((index) => ({ index }));
+
+// 2024-01-07 was a Sunday, so day index 0 to 6 maps onto Sunday to Saturday.
+function weekdayLabel(index: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" }).format(
+    Date.UTC(2024, 0, 7 + index),
+  );
+}
 
 const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
   new_thread: msg("New thread each run"),
@@ -106,15 +106,28 @@ const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
   fresh_session: msg("One thread, fresh session"),
 };
 
-function describeSchedule(task: ScheduledTask, timeZone?: string): string {
+function describeSchedule(
+  task: ScheduledTask,
+  timeZone: string | undefined,
+  resolve: MessageResolver,
+  locale: string,
+): string {
   if (task.schedule.type === "once") {
     const runAt = new Date(task.schedule.runAt);
-    return `Once, ${formatRunAtDate(runAt)} at ${formatRunAtTime(runAt)}`;
+    return resolve(
+      msg("Once, {date} at {time}", { date: formatRunAtDate(runAt), time: formatRunAtTime(runAt) }),
+    );
   }
-  if (task.schedule.type === "interval") return formatScheduledTaskInterval(task.schedule.everyMs);
-  const days = task.schedule.weekdays?.length ? repeatLabel(task.schedule.weekdays) : "Every day";
+  if (task.schedule.type === "interval")
+    return formatScheduledTaskInterval(task.schedule.everyMs, resolve);
+  const days = task.schedule.weekdays?.length
+    ? repeatLabel(task.schedule.weekdays, resolve, locale)
+    : resolve(msg("Every day"));
   const zone = scheduleTimeZoneLabel(timeZone, task.nextRunAt);
-  return `${days} at ${formatTime(task.schedule.timeOfDay)}${zone === undefined ? "" : ` ${zone}`}`;
+  const time = formatTime(task.schedule.timeOfDay);
+  return zone === undefined
+    ? resolve(msg("{days} at {time}", { days, time }))
+    : resolve(msg("{days} at {time} {zone}", { days, time, zone }));
 }
 
 function formatTime(value: string): string {
@@ -145,12 +158,23 @@ function timePickerValue(value: string): Date {
   return time;
 }
 
-function repeatLabel(weekdays: ReadonlyArray<number>): string {
+function isWeekdays(weekdays: ReadonlyArray<number>): boolean {
   const days = new Set(weekdays);
-  if (days.size === 7) return "Every day";
-  if (days.size === 5 && [1, 2, 3, 4, 5].every((day) => days.has(day))) return "Weekdays";
+  return days.size === 5 && [1, 2, 3, 4, 5].every((day) => days.has(day));
+}
+
+function repeatLabel(
+  weekdays: ReadonlyArray<number>,
+  resolve: MessageResolver,
+  locale: string,
+): string {
+  const days = new Set(weekdays);
+  if (days.size === 7) return resolve(msg("Every day"));
+  if (isWeekdays(weekdays)) return resolve(msg("Weekdays"));
   return (
-    DAYS.flatMap((day) => (days.has(day.index) ? [day.label] : [])).join(", ") || msg("Choose days")
+    DAYS.filter((day) => days.has(day.index))
+      .map((day) => weekdayLabel(day.index, locale))
+      .join(", ") || resolve(msg("Choose days"))
   );
 }
 
@@ -588,6 +612,8 @@ function TaskForm({
   readonly onChangeEnvironment: (target: SettingsTarget) => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
+  const locale = useLocale();
   const { readEditor } = useScheduledTaskEditor();
   const navigation = useNavigation<NativeStackNavigationProp<ScheduledTaskRoutes>>();
   const tasks = useEnvironmentQuery(
@@ -690,7 +716,10 @@ function TaskForm({
     if (draft.schedule.mode === "once" && !offersOnce) {
       Dialog.alert(
         gt("Once is not available here"),
-        "This environment runs an older Supaterm. Update it to schedule a one-time task, or pick another schedule.",
+        gt(
+          "This environment runs an older {product}. Update it to schedule a one-time task, or pick another schedule.",
+          { product: "Supaterm" },
+        ),
       );
       return;
     }
@@ -970,7 +999,7 @@ function TaskForm({
                       },
                     ]
                   : []),
-                { value: "interval", label: "Every interval" },
+                { value: "interval", label: gt("Every interval") },
               ]}
               selected={draft.schedule.mode}
               onSelect={(mode) => {
@@ -994,9 +1023,14 @@ function TaskForm({
             <>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Time, ${formatTime(draft.schedule.timeOfDay)}${
-                  runAtZone ? ` ${runAtZone}` : ""
-                }`}
+                accessibilityLabel={
+                  runAtZone
+                    ? gt("Time, {time} {zone}", {
+                        time: formatTime(draft.schedule.timeOfDay),
+                        zone: runAtZone,
+                      })
+                    : gt("Time, {time}", { time: formatTime(draft.schedule.timeOfDay) })
+                }
                 onPress={() => setTimePickerOpen((open) => !open)}
                 className="min-h-14 flex-row items-center gap-3 border-t border-border-subtle px-4 py-3 active:opacity-70"
               >
@@ -1035,7 +1069,7 @@ function TaskForm({
               ) : null}
               <SelectRow
                 label={gt("Repeat", { $context: "noun, which days a task repeats on" })}
-                value={repeatLabel(draft.schedule.weekdays)}
+                value={repeatLabel(draft.schedule.weekdays, m, locale)}
                 borderTop
                 actions={[
                   {
@@ -1045,12 +1079,12 @@ function TaskForm({
                   },
                   {
                     id: "weekdays",
-                    title: "Weekdays",
-                    state: repeatLabel(draft.schedule.weekdays) === "Weekdays" ? "on" : undefined,
+                    title: gt("Weekdays"),
+                    state: isWeekdays(draft.schedule.weekdays) ? "on" : undefined,
                   },
                   ...DAYS.map((day) => ({
                     id: String(day.index),
-                    title: day.label,
+                    title: weekdayLabel(day.index, locale),
                     attributes: { keepsMenuPresented: true },
                     state: draft.schedule.weekdays.includes(day.index)
                       ? ("on" as const)
@@ -1197,6 +1231,8 @@ function EnvironmentTasks({
   readonly onEdit: (task: ScheduledTask) => void;
 }) {
   const gt = useGT();
+  const m = useMessages();
+  const locale = useLocale();
   const environmentId = environment.environmentId;
   const tasks = useEnvironmentQuery(
     serverEnvironment.scheduledTasksLive({ environmentId, input: {} }),
@@ -1283,16 +1319,22 @@ function EnvironmentTasks({
                     {task.title}
                   </Text>
                   <Text className="text-sm text-foreground-muted" numberOfLines={2}>
-                    {describeSchedule(task, tasks.data?.timeZone)}
                     {!task.enabled
-                      ? " · Paused"
+                      ? gt("{schedule} · Paused", {
+                          schedule: describeSchedule(task, tasks.data?.timeZone, m, locale),
+                        })
                       : task.nextRunAt
-                        ? ` · ${formatNextScheduledTaskRun(task.nextRunAt, now)}`
-                        : ""}
+                        ? gt("{schedule} · {nextRun}", {
+                            schedule: describeSchedule(task, tasks.data?.timeZone, m, locale),
+                            nextRun: formatNextScheduledTaskRun(task.nextRunAt, now, m),
+                          })
+                        : describeSchedule(task, tasks.data?.timeZone, m, locale)}
                   </Text>
                   {task.lastRunError ? (
                     <Text className="text-sm text-danger-foreground" numberOfLines={2}>
-                      Last run failed: {task.lastRunError}
+                      <T>
+                        Last run failed: <Var>{task.lastRunError}</Var>
+                      </T>
                     </Text>
                   ) : null}
                 </Pressable>

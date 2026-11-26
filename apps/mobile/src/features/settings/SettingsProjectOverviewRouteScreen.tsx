@@ -330,7 +330,9 @@ function ProjectOverviewContent(props: {
             {displayName}
           </Text>
           <Text className="text-sm text-foreground-muted">
-            {props.members.length === 1 ? "1 checkout" : `${props.members.length} checkouts`}
+            {gt("{count, plural, one {{count} checkout} other {{count} checkouts}}", {
+              count: props.members.length,
+            })}
           </Text>
         </View>
       </View>
@@ -462,7 +464,10 @@ function ProjectOverviewContent(props: {
                   "Deletes the selected machine's checkout entries and their threads. Other machines and files on disk are not touched.",
                 )
               : props.members.length > 1
-                ? `Deletes all ${props.members.length} checkout entries and their threads on every machine. Files on disk are not touched.`
+                ? gt(
+                    "{count, plural, other {Deletes all {count} checkout entries and their threads on every machine. Files on disk are not touched.}}",
+                    { count: props.members.length },
+                  )
                 : gt("Deletes the project entry and its threads. Files on disk are not touched.")
           }
           tone="danger"

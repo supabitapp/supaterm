@@ -135,7 +135,7 @@ export function SettingsClientStorageRouteScreen() {
           <SettingsSection title={gt("Actions")}>
             <SettingsActionRow
               icon="trash"
-              label={confirm.armed === "all" ? "Confirm clearing all caches" : clearAllLabel}
+              label={confirm.armed === "all" ? gt("Confirm clearing all caches") : clearAllLabel}
               tone="danger"
               disabled={isClearing || !summary || summary.recordCount === 0}
               loading={isClearing}
@@ -177,7 +177,9 @@ function CacheEnvironmentRow(props: {
         label={props.environmentLabel}
         description={
           armed
-            ? `Confirm clearing cache for ${props.environmentLabel}`
+            ? gt("Confirm clearing cache for {environment}", {
+                environment: props.environmentLabel,
+              })
             : gt("Clear {size} of cached data", {
                 size: formatBytes(props.environment.payloadBytes),
               })

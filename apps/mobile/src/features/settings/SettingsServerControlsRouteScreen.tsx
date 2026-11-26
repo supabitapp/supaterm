@@ -41,7 +41,7 @@ import {
   type ScopedMobileSettingsTarget,
 } from "./settings-scoped-server";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
-import { msg, T, useGT } from "gt-react-native";
+import { msg, T, useGT, useMessages } from "gt-react-native";
 
 type SettingsPage = "threads" | "source-control" | "worktrees" | "maintenance";
 
@@ -80,16 +80,24 @@ const SUBMODULE_CHOICES: ReadonlyArray<{
 }> = [
   {
     mode: null,
-    label: "Inherit",
+    label: msg("Inherit", { $context: "use the inherited value" }),
     description: msg("Use the repository's supaterm.json, or initialize recursively."),
   },
-  { mode: "recursive", label: "Recursive", description: msg("Initialize nested submodules too.") },
+  {
+    mode: "recursive",
+    label: msg("Recursive", { $context: "initialize submodules recursively" }),
+    description: msg("Initialize nested submodules too."),
+  },
   {
     mode: "top-level",
     label: msg("Top level only"),
     description: msg("Skip submodules declared inside other submodules."),
   },
-  { mode: "none", label: "Skip", description: msg("Leave submodules empty for a setup script.") },
+  {
+    mode: "none",
+    label: msg("Skip", { $context: "do not initialize submodules" }),
+    description: msg("Leave submodules empty for a setup script."),
+  },
 ];
 
 const WORKSPACE_CHOICES: ReadonlyArray<{
@@ -99,7 +107,7 @@ const WORKSPACE_CHOICES: ReadonlyArray<{
 }> = [
   {
     mode: null,
-    label: "Inherit",
+    label: msg("Inherit", { $context: "use the inherited value" }),
     description: msg("Use the repository's supaterm.json, or the current checkout."),
   },
   {
@@ -149,6 +157,7 @@ export function SettingsEnvironmentMaintenanceRouteScreen() {
 
 function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
   const gt = useGT();
+  const m = useMessages();
   const environmentMenu = useSettingsEnvironmentMenu();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -286,8 +295,8 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                   ).map((choice, index) => (
                     <SettingsChoiceRow
                       key={choice.mode ?? "inherit"}
-                      label={choice.label}
-                      description={choice.description}
+                      label={m(choice.label)}
+                      description={m(choice.description)}
                       selected={
                         !isMixed("defaultThreadEnvMode") &&
                         uniform("defaultThreadEnvMode") === choice.mode
@@ -309,8 +318,8 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                   {RUNTIME_MODE_CHOICES.map((choice, index) => (
                     <SettingsChoiceRow
                       key={choice.mode}
-                      label={choice.label}
-                      description={choice.description}
+                      label={m(choice.label)}
+                      description={m(choice.description)}
                       selected={uniform("defaultRuntimeMode") === choice.mode}
                       separated={index > 0}
                       disabled={disabledFor("defaultRuntimeMode")}
@@ -335,8 +344,8 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                   {STREAMING_CHOICES.map((choice, index) => (
                     <SettingsChoiceRow
                       key={choice.mode}
-                      label={choice.label}
-                      description={choice.description}
+                      label={m(choice.label)}
+                      description={m(choice.description)}
                       selected={uniform("responseStreamingMode") === choice.mode}
                       separated={index > 0}
                       disabled={disabledFor("responseStreamingMode")}
@@ -344,14 +353,16 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                     />
                   ))}
                 </SettingsSection>
-                <SettingsSection title="Composer">
+                <SettingsSection title={gt("Composer")}>
                   <SettingsSwitchRow
                     icon="text.bubble"
-                    label="Next prompt suggestions"
+                    label={gt("Next prompt suggestions")}
                     subtitle={
                       projectSelected
                         ? gt("Environment-wide setting. Select All projects to change it.")
-                        : "After Claude or Codex replies, suggest what you might send next. Threads on other providers get no suggestions."
+                        : gt(
+                            "After Claude or Codex replies, suggest what you might send next. Threads on other providers get no suggestions.",
+                          )
                     }
                     value={uniform("nextPromptSuggestionsEnabled")}
                     disabled={disabledFor("nextPromptSuggestionsEnabled")}
@@ -415,7 +426,10 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                   <SettingsSwitchRow
                     icon="folder"
                     label={gt("Clone into host folders")}
-                    subtitle="Clones go to github.com/owner/repo under the Add project folder, like ghq."
+                    subtitle={gt("Clones go to {path} under the Add project folder, like {tool}.", {
+                      path: "github.com/owner/repo",
+                      tool: "ghq",
+                    })}
                     value={uniform("ghqCloneLayout")}
                     disabled={disabledFor("ghqCloneLayout")}
                     onValueChange={(value) => write({ ghqCloneLayout: value })}
@@ -444,11 +458,13 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                   ) ? (
                     <SettingsSwitchRow
                       icon={{ ios: "bolt.circle", android: "bolt" }}
-                      label="Fast worktree checkout"
+                      label={gt("Fast worktree checkout")}
                       subtitle={
                         projectSelected
                           ? gt("Environment-wide setting. Select All projects to change it.")
-                          : "On a Mac, clone new worktrees from a checkout cached in the Supaterm home folder instead of writing every file. Uses Git’s normal checkout when it can’t. Turning it off deletes the cache."
+                          : gt(
+                              "On a Mac, clone new worktrees from a checkout cached in the Supaterm home folder instead of writing every file. Uses Git’s normal checkout when it can’t. Turning it off deletes the cache.",
+                            )
                       }
                       value={uniform("fastWorktreeCheckout")}
                       disabled={disabledFor("fastWorktreeCheckout")}
@@ -469,8 +485,8 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                   ).map((choice, index) => (
                     <SettingsChoiceRow
                       key={choice.mode ?? "inherit"}
-                      label={choice.label}
-                      description={choice.description}
+                      label={m(choice.label)}
+                      description={m(choice.description)}
                       selected={
                         !isMixed("worktreeSubmodules") &&
                         uniform("worktreeSubmodules") === choice.mode
@@ -555,14 +571,19 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                     />
                   </View>
                 </SettingsSection>
-                <SettingsSection title="History">
+                <SettingsSection
+                  title={gt("History", { $context: "settings section, stored event history" })}
+                >
                   <SettingsSwitchRow
                     icon="trash"
-                    label="Delete history older than a day"
+                    label={gt("Delete history older than a day")}
                     subtitle={
                       projectSelected
                         ? gt("Environment-wide setting. Select All projects to change it.")
-                        : "Keeps every conversation. Backs up the database once, then removes internal history older than a day. Older Supaterm versions can't use the database afterwards."
+                        : gt(
+                            "Keeps every conversation. Backs up the database once, then removes internal history older than a day. Older {product} versions can't use the database afterwards.",
+                            { product: "Supaterm" },
+                          )
                     }
                     value={uniform("pruneEventHistory")}
                     disabled={disabledFor("pruneEventHistory")}

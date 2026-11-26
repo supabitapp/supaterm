@@ -180,6 +180,7 @@ const triagePermittedEnvironmentsAtom = Atom.family((environmentIdsJson: string)
 );
 
 function FeedbackSettingsAction() {
+  const gt = useGT();
   const projects = useProjects();
   const { environments } = useEnvironments();
   const { startTriage, isPending } = useStartTriage();
@@ -205,7 +206,7 @@ function FeedbackSettingsAction() {
   const row = (
     <SettingsActionRow
       icon="text.bubble"
-      label="Send feedback"
+      label={gt("Send feedback")}
       loading={isPending}
       disabled={eligibleTargets.length === 0 || isPending}
       pointerEvents={eligibleTargets.length > 1 ? "none" : "auto"}
@@ -219,8 +220,8 @@ function FeedbackSettingsAction() {
     <Menu
       accessible
       accessibilityRole="button"
-      accessibilityLabel="Send feedback"
-      title="Choose an environment"
+      accessibilityLabel={gt("Send feedback")}
+      title={gt("Choose an environment")}
       actions={eligibleTargets.map((target) => ({
         id: target.environmentId,
         title: target.label,

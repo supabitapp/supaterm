@@ -6,6 +6,7 @@ import {
   issueTrackerSummary,
 } from "@supaterm/client-runtime/state/issue-trackers";
 import { AuthSettingsWriteScope, type EnvironmentId } from "@supaterm/contracts";
+import { T, useGT } from "gt-react-native";
 import type { ReactNode } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -59,7 +60,7 @@ function DetailPage(props: { readonly title: string; readonly children: ReactNod
 
 const Unavailable = () => (
   <Text className="px-2 text-base text-foreground-muted">
-    Connect this environment to change its settings.
+    <T>Connect this environment to change its settings.</T>
   </Text>
 );
 
@@ -70,6 +71,7 @@ export function SettingsIssueTrackerRouteScreen({
   readonly tracker: string;
   readonly accountId?: string;
 }>) {
+  const gt = useGT();
   const { environmentId } = route.params;
   const { environment, canWrite } = useDetailEnvironment(environmentId);
   const query = useEnvironmentQuery(
@@ -88,7 +90,7 @@ export function SettingsIssueTrackerRouteScreen({
       (query.data?.accounts ?? []).some((account) => account.tracker === tracker.tracker)) &&
     environment?.serverConfig.environment.capabilities.issueTrackerAccounts === true;
   return (
-    <DetailPage title={tracker?.displayName ?? "Issue tracker"}>
+    <DetailPage title={tracker?.displayName ?? gt("Issue tracker")}>
       {!environment || !tracker ? (
         <Unavailable />
       ) : (
@@ -105,8 +107,11 @@ export function SettingsIssueTrackerRouteScreen({
           </SettingsSection>
           {usable && hasIssueTrackerTeams(tracker, issueTrackerBindings(query.data)) ? (
             <SettingsSection
-              title="Projects"
-              footer={`Pick one or more ${tracker.displayName} ${tracker.scopeNoun}s for each project. Their issues list beside the repository's own, and agents file new issues in the first one unless asked for another.`}
+              title={gt("Projects")}
+              footer={gt(
+                "Pick one or more {tracker} {scopes} for each project. Their issues list beside the repository's own, and agents file new issues in the first one unless asked for another.",
+                { tracker: tracker.displayName, scopes: `${tracker.scopeNoun}s` },
+              )}
             >
               <IssueTrackerProjectRows
                 environmentId={environmentId}
@@ -120,8 +125,10 @@ export function SettingsIssueTrackerRouteScreen({
           ) : null}
           {canAddAccount ? (
             <SettingsSection
-              title="Another account"
-              footer={`Connect a second ${tracker.displayName} workspace or user.`}
+              title={gt("Another account")}
+              footer={gt("Connect a second {tracker} workspace or user.", {
+                tracker: tracker.displayName,
+              })}
             >
               <IssueTrackerCredentialForm
                 environmentId={environmentId}
