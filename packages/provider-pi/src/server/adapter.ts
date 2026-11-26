@@ -3,6 +3,7 @@ import * as NodeUtil from "node:util";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
 import { readToolOutputImage } from "@supaterm/shared/toolOutput";
+import { buildWorkspaceInstructions } from "@supaterm/provider-core/server/runtimeInstructions";
 import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
 import * as Predicate from "effect/Predicate";
 import {
@@ -561,6 +562,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             extensionPath,
             sessionPath,
             runtimeMode: input.runtimePolicy.runtimeMode,
+            workspaceInstructions: buildWorkspaceInstructions(input.runtimePolicy),
           });
           const scopedLaunch = yield* agentScope.wrap({
             command: options.settings.binaryPath || "pi",

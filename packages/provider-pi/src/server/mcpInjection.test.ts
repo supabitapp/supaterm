@@ -6,6 +6,7 @@ import {
   SUPATERM_MCP_URL_ENV,
   SUPATERM_PI_RUNTIME_MODE_ENV,
   SUPATERM_PI_MCP_EXTENSION_PATH_ENV,
+  SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV,
 } from "./mcpExtensionSource.ts";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -45,6 +46,7 @@ describe("pi Supaterm MCP injection", () => {
       mcpSession,
       extensionPath: "/tmp/cache/pi-supaterm-mcp-extension.ts",
       runtimeMode: "approval-required",
+      workspaceInstructions: "<workspace_folders>\n- api: /work/api\n</workspace_folders>",
     });
     assert.deepEqual(launch.args, [
       "--mode",
@@ -70,6 +72,10 @@ describe("pi Supaterm MCP injection", () => {
     assert.equal(launch.env[SUPATERM_MCP_BEARER_ENV], "secret-pi-token");
     assert.equal(launch.env[SUPATERM_PI_RUNTIME_MODE_ENV], "approval-required");
     assert.equal(
+      launch.env[SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV],
+      "<workspace_folders>\n- api: /work/api\n</workspace_folders>",
+    );
+    assert.equal(
       launch.env[SUPATERM_PI_MCP_EXTENSION_PATH_ENV],
       "/tmp/cache/pi-supaterm-mcp-extension.ts",
     );
@@ -80,6 +86,7 @@ describe("pi Supaterm MCP injection", () => {
         [SUPATERM_MCP_URL_ENV]: "http://127.0.0.1:9999/stale",
         [SUPATERM_MCP_BEARER_ENV]: "stale-token",
         [SUPATERM_PI_MCP_EXTENSION_PATH_ENV]: "/stale/extension.ts",
+        [SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV]: "<workspace_folders>stale</workspace_folders>",
       },
       mcpSession: undefined,
       extensionPath: "/tmp/cache/pi-supaterm-mcp-extension.ts",
@@ -94,6 +101,7 @@ describe("pi Supaterm MCP injection", () => {
     assert.isUndefined(permissionOnly.env[SUPATERM_MCP_URL_ENV]);
     assert.isUndefined(permissionOnly.env[SUPATERM_MCP_BEARER_ENV]);
     assert.equal(permissionOnly.env[SUPATERM_PI_RUNTIME_MODE_ENV], "auto-accept-edits");
+    assert.isUndefined(permissionOnly.env[SUPATERM_PI_WORKSPACE_INSTRUCTIONS_ENV]);
     assert.equal(
       permissionOnly.env[SUPATERM_PI_MCP_EXTENSION_PATH_ENV],
       "/tmp/cache/pi-supaterm-mcp-extension.ts",
