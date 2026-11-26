@@ -89,6 +89,10 @@ vi.mock("react", async (importOriginal) => {
     useRef: reactHooks.useRef,
   };
 });
+vi.mock("gt-react", async (importOriginal) => {
+  const gt = await importOriginal<typeof import("gt-react")>();
+  return { ...gt, useMessages: () => gt.mFallback };
+});
 
 vi.mock("~/state/projects", () => ({
   projectEnvironment: projectMocks,

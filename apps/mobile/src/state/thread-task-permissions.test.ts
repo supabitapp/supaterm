@@ -81,6 +81,15 @@ vi.mock("react", () => ({
     vi.fn(),
   ],
 }));
+vi.mock("gt-react-native", async (importOriginal) => {
+  const gt = await importOriginal<typeof import("gt-react-native")>();
+  return {
+    ...gt,
+    useGT: () => gt.mFallback,
+    useLocale: () => "en",
+    useMessages: () => gt.mFallback,
+  };
+});
 vi.mock("expo-crypto", () => ({ randomUUID: () => "uuid" }));
 vi.mock("../lib/attachmentUpload", () => ({ prepareTurnAttachments: vi.fn() }));
 vi.mock("../lib/uuid", () => ({ uuidv4: () => "uuid" }));

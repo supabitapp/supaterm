@@ -423,9 +423,9 @@ it.each([
     const bytes = await zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE" });
     const { prepareOffice } = await import("./officeArchive");
     if (row > 250000) {
-      await expect(prepareOffice(bytes, "xlsx")).rejects.toThrow(
-        "This workbook exceeds the preview limit",
-      );
+      await expect(prepareOffice(bytes, "xlsx")).rejects.toMatchObject({
+        code: "workbook-too-many-rows",
+      });
       return;
     }
     const prepared = await prepareOffice(bytes, "xlsx");

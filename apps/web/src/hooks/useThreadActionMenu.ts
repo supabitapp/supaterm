@@ -48,7 +48,7 @@ import { useCopyToClipboard } from "./useCopyToClipboard";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { useClientSettings } from "./useSettings";
 import { canTurnThreadIntoProject, useThreadActions } from "./useThreadActions";
-import { msg, useMessages } from "gt-react";
+import { msg } from "gt-react";
 import { m } from "../i18n/messages";
 
 function failureToast(title: string, error: unknown) {
@@ -71,7 +71,6 @@ export function useThreadActionMenu(input: {
   readonly onStartRename: (threadRef: ScopedThreadRef) => void;
   readonly onFind?: ((threadRef: ScopedThreadRef) => void) | undefined;
 }) {
-  const messages = useMessages();
   const { threadRef, onStartRename, onFind } = input;
   const router = useRouter();
   const projects = useProjects();
@@ -348,7 +347,7 @@ export function useThreadActionMenu(input: {
             scopeThreadRef(thread.environmentId, thread.id),
           ),
         },
-        messages,
+        m,
       ),
       run: (action: ThreadActionMenuId) => runAction(thread, action, snoozePresets),
     };

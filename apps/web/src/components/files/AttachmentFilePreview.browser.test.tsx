@@ -202,7 +202,8 @@ describe("bounded binary previews", () => {
       ]);
       expect(await request({ type: "entry", path: "replaced.txt" })).toEqual({
         type: "error",
-        message: "This archive entry is unavailable.",
+        code: "archive-entry-unavailable",
+        message: "archive-entry-unavailable",
       });
     } finally {
       worker.terminate();
@@ -566,6 +567,7 @@ describe("bounded binary previews", () => {
   });
 });
 import { OFFICE_PREVIEW_MAX_COLUMNS, type OfficeWorkerResult } from "./officePreviewProtocol";
+import { previewFailureText } from "./previewFailureMessages";
 import { WORD_LIMITS } from "./officeArchive";
 
 describe("large text preview recovery", () => {
@@ -1484,10 +1486,7 @@ it.each([
         scenario === "renamed XML" ||
         scenario === "oversized section"
       ) {
-        expect(result).toMatchObject({
-          type: "error",
-          message: expect.stringContaining("Preview limited"),
-        });
+        expect(failureText(result)).toContain("Preview limited");
       } else {
         expect(result.type).toBe("docx");
         if (result.type !== "docx") throw new Error("Expected a Word prefix");
@@ -1566,10 +1565,7 @@ it.each([
       );
       worker.postMessage({ type: "open", kind: "docx", bytes }, [bytes]);
     });
-    expect(result).toMatchObject({
-      type: "error",
-      message: expect.stringContaining("Preview limited"),
-    });
+    expect(failureText(result)).toContain("Preview limited");
   } finally {
     worker.terminate();
   }
@@ -1963,10 +1959,7 @@ it.each(["repeated binary", "XML relationship alias", "duplicate relationship ID
         );
         worker.postMessage({ type: "open", kind: "docx", bytes }, [bytes]);
       });
-      expect(result).toMatchObject({
-        type: "error",
-        message: expect.stringContaining("expanded markup"),
-      });
+      expect(failureText(result)).toContain("expanded markup");
     } finally {
       worker.terminate();
     }
@@ -2005,10 +1998,7 @@ it.each(["XFD200", "XFD300", "XFD1048576", "AX500", "AZ9999999"])(
         worker.postMessage({ type: "open", kind: "xlsx", bytes }, [bytes]);
       });
       if (ref === "AZ9999999" || ref === "XFD1048576") {
-        expect(result).toMatchObject({
-          type: "error",
-          message: expect.stringContaining(ref === "AZ9999999" ? "invalid" : "preview limit"),
-        });
+        expect(failureText(result)).toContain(ref === "AZ9999999" ? "invalid" : "preview limit");
       } else {
         expect(result.type).toBe("xlsx");
         if (result.type !== "xlsx") throw new Error("Expected workbook values");
@@ -2081,7 +2071,7 @@ it.each(['<u val="double"/>', '<u val="double"></u>'])(
     archive.file("xl/styles.xml", "<styleSheet><numFmts/><numFmts/></styleSheet>");
     await expect(
       prepareOffice(await archive.generateAsync({ type: "arraybuffer" }), "xlsx"),
-    ).rejects.toThrow("duplicate stylesheet blocks");
+    ).rejects.toMatchObject({ code: "workbook-duplicate-styles" });
   },
 );
 
@@ -2284,3 +2274,6 @@ it("keeps an unchanged workspace HTML page loaded across commands and renews its
   await screen.rerender(preview("fourth"));
   expect(shownSrc(screen)).toMatch(/^data:text\/html,edited/);
 });
+
+const failureText = (result: OfficeWorkerResult) =>
+  result.type === "error" ? previewFailureText(result) : null;
