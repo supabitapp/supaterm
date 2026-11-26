@@ -288,7 +288,7 @@ export const make = Effect.gen(function* () {
       const unknown = firstUnreadable === undefined ? firstUnknown : undefined;
       const failed =
         firstUnreadable ??
-        unknown ??
+        firstUnknown ??
         (firstInvalid === undefined
           ? undefined
           : {
