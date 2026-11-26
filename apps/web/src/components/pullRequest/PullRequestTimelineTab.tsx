@@ -73,7 +73,7 @@ import {
   pullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
 import { LegendList, type LegendListRef } from "@legendapp/list/react";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
 
 interface ReactionSurface {
@@ -511,7 +511,7 @@ function ReviewThreadEvent({
         {thread.isResolved ? (
           <span className="inline-flex shrink-0 items-center gap-1 font-medium text-success-foreground">
             <CircleCheckIcon aria-hidden className="size-3" />
-            Resolved
+            <T context="review thread state">Resolved</T>
           </span>
         ) : null}
         {dismissed ? (
@@ -663,6 +663,20 @@ function LifecycleEvent({ event, term }: { event: PullRequestTimelineEvent; term
   );
 }
 
+function staleReviewOutcomeLabel(
+  outcome: PullRequestReviewOutcome,
+  gt: ReturnType<typeof useGT>,
+): string {
+  switch (outcome) {
+    case "approved":
+      return gt("Approved, before the latest commits");
+    case "changes-requested":
+      return gt("Changes requested, before the latest commits");
+    case "dismissed":
+      return gt("Review dismissed, before the latest commits");
+  }
+}
+
 function ReviewVerdictEvent({
   event,
   outcome,
@@ -678,6 +692,8 @@ function ReviewVerdictEvent({
   onOpen: (url: string) => void;
   reactions: ReactionSurface;
 }) {
+  const gt = useGT();
+  const resolve = useMessages();
   const canReact = reactions.canReact(event);
   return (
     <div className="group relative mb-5 pl-12 [contain-intrinsic-block-size:48px] [content-visibility:auto]">
@@ -703,10 +719,16 @@ function ReviewVerdictEvent({
                   />
                 }
               >
-                {pullRequestReviewOutcomeLabel(outcome)}
-                {stale ? <span className="sr-only">, before the latest commits</span> : null}
+                {stale ? (
+                  <>
+                    <span aria-hidden>{pullRequestReviewOutcomeLabel(outcome, resolve)}</span>
+                    <span className="sr-only">{staleReviewOutcomeLabel(outcome, gt)}</span>
+                  </>
+                ) : (
+                  pullRequestReviewOutcomeLabel(outcome, resolve)
+                )}
               </TooltipTrigger>
-              <TooltipPopup>{pullRequestReviewOutcomeStaleLabel(outcome)}</TooltipPopup>
+              <TooltipPopup>{pullRequestReviewOutcomeStaleLabel(outcome, resolve)}</TooltipPopup>
             </Tooltip>
           </h2>
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -778,7 +800,8 @@ export function PullRequestTimelineTab({
   onAddToChat?: (subject: PullRequestChatSubject) => void;
   onRefresh: () => void;
 }) {
-  const events = buildPullRequestTimeline(detail);
+  const resolve = useMessages();
+  const events = buildPullRequestTimeline(detail, resolve);
   const location = parsePullRequestAnchor(revealUrl);
   const revealAnchor = location?.kind === "timeline" ? location.anchor : null;
   // The linked item stays marked and open after it is shown, until another link replaces it.

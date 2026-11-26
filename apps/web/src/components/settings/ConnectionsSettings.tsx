@@ -136,7 +136,7 @@ import {
 import { ITEM_ROW_CLASSNAME } from "./itemRows";
 import { EmptyRemoteEnvironments, SavedBackendListRow } from "./SavedEnvironmentRows";
 import { AddEnvironmentDialog } from "./AddEnvironmentDialog";
-import { T, useGT } from "gt-react";
+import { T, useGT, useMessages, Var } from "gt-react";
 
 const DEFAULT_TAILSCALE_SERVE_PORT = 443;
 const EMPTY_ADVERTISED_ENDPOINTS: ReadonlyArray<AdvertisedEndpoint> = [];
@@ -149,10 +149,11 @@ const BACKEND_VALUE_WSL_OFF = "backend:wsl-off";
 
 // Subscribes on its own so desktop download progress does not re-render the page.
 function LocalVersionStatusLabel() {
+  const resolve = useMessages();
   const updateState = useDesktopUpdateState();
   return (
     <span className="text-xs text-muted-foreground">
-      {resolveLocalVersionStatusLabel(updateState)}
+      {resolveLocalVersionStatusLabel(updateState, resolve)}
     </span>
   );
 }
@@ -254,6 +255,7 @@ function ConnectionsSettingsContent({
   readonly accessEnvironmentPicker?: ReactNode;
 }) {
   const gt = useGT();
+  const resolve = useMessages();
   const desktopBridge = window.desktopBridge;
   const { environments } = useEnvironments();
   const primaryEnvironment = usePrimaryEnvironment();
@@ -652,12 +654,15 @@ function ConnectionsSettingsContent({
       toastManager.add({
         type: "success",
         title:
-          result.value === 1 ? gt("Revoked 1 other client") : `Revoked ${result.value} clients`,
+          result.value === 1
+            ? gt("Revoked 1 other client")
+            : gt("{count, plural, other {Revoked {count} clients}}", { count: result.value }),
         description: gt("Other paired clients will need a new pairing link before reconnecting."),
       });
     } else if (!isAtomCommandInterrupted(result)) {
       const error = squashAtomCommandFailure(result);
-      const message = error instanceof Error ? error.message : "Failed to revoke other clients.";
+      const message =
+        error instanceof Error ? error.message : gt("Failed to revoke other clients.");
       setDesktopAccessManagementMutationError(message);
       toastManager.add(
         stackedThreadToast({
@@ -683,7 +688,7 @@ function ConnectionsSettingsContent({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: `Could not switch backend ${enabled ? "on" : "off"}`,
+          title: enabled ? gt("Could not switch backend on") : gt("Could not switch backend off"),
           description: message,
         }),
       );
@@ -1012,7 +1017,9 @@ function ConnectionsSettingsContent({
               <span className="block text-destructive">{desktopWslError}</span>
             ) : desktopWslState.preflightError ? (
               <span className="block text-destructive">
-                WSL backend couldn't start: {desktopWslState.preflightError}
+                <T>
+                  WSL backend couldn't start: <Var>{desktopWslState.preflightError}</Var>
+                </T>
               </span>
             ) : null
           }
@@ -1073,11 +1080,14 @@ function ConnectionsSettingsContent({
 
   const renderTailscaleRow = () => {
     const serveEnabled = desktopServerExposureState?.tailscaleServeEnabled === true;
-    const row = resolveTailscaleHttpsRow({
-      endpoint: tailscaleHttpsEndpoint,
-      serveEnabled,
-      error: desktopServerExposureState?.tailscaleError ?? null,
-    });
+    const row = resolveTailscaleHttpsRow(
+      {
+        endpoint: tailscaleHttpsEndpoint,
+        serveEnabled,
+        error: desktopServerExposureState?.tailscaleError ?? null,
+      },
+      resolve,
+    );
     return (
       <SettingsRow
         title={searchableSetting("tailscale-https").title}
@@ -1239,7 +1249,7 @@ function ConnectionsSettingsContent({
                   <MenuPopup align="end">
                     <MenuItem onClick={() => setRenamePrimaryOpen(true)}>
                       <PencilIcon />
-                      Rename…
+                      <T>Rename…</T>
                     </MenuItem>
                     <EnvironmentIconMenu
                       environmentId={accessEnvironmentId}
@@ -1277,7 +1287,7 @@ function ConnectionsSettingsContent({
             {accessEnvironment ? (
               <details className="group px-3 sm:px-4">
                 <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-                  Permissions
+                  <T>Permissions</T>
                   <ChevronRightIcon
                     aria-hidden
                     className="size-3 text-muted-foreground transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none"
@@ -1429,7 +1439,7 @@ function ConnectionsSettingsContent({
                 </AlertDialogTitle>
                 <AlertDialogDescription>
                   {pendingDesktopServerExposureMode === "network-accessible" ? (
-                    <>
+                    <T>
                       Let your other devices connect to Supaterm over the network.
                       <br />
                       Pair devices to give them access.
@@ -1437,9 +1447,11 @@ function ConnectionsSettingsContent({
                       ⚠️ Do not enable if you ever connect to public networks or public Wi-Fi.
                       <br />
                       Supaterm will restart.
-                    </>
+                    </T>
                   ) : (
-                    "Devices connected over your local network will disconnect. Existing tunnels, such as Tailscale HTTPS, keep working. Supaterm will restart."
+                    gt(
+                      "Devices connected over your local network will disconnect. Existing tunnels, such as Tailscale HTTPS, keep working. Supaterm will restart.",
+                    )
                   )}
                 </AlertDialogDescription>
               </AlertDialogHeader>

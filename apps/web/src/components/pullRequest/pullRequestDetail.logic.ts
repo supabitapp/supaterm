@@ -8,7 +8,6 @@ import { stripInlineContextReferences } from "~/lib/composerContextReferences";
 import type { Nodes as MdastNodes } from "mdast";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import {
-  capitalizeTerm,
   sourceControlClients,
   type ChangeRequestTerminology,
 } from "@supaterm/client-runtime/source-control-clients";
@@ -52,7 +51,8 @@ import {
 
 import { inferReviewCommentFenceLanguage, type ReviewCommentContext } from "~/reviewCommentContext";
 import { msg } from "gt-react";
-import { m } from "~/i18n/messages";
+import { m, type MessageResolver } from "~/i18n/messages";
+import { changeRequestTermKind } from "./changeRequestTerm";
 
 export const PULL_REQUEST_MERGE_METHOD_LABELS: Record<PullRequestMergeMethod, string> = {
   merge: msg("Merge"),
@@ -849,14 +849,20 @@ export function buildPullRequestTimeline(
     "provider" | "createdAt" | "author" | "commits" | "comments" | "mergedAt" | "closedAt"
   > &
     Partial<Pick<PullRequestDetailView, "reviewThreads" | "overviewThreads">>,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<PullRequestTimelineEvent> {
-  const term = sourceControlClients.get(detail.provider).changeRequest.singular;
+  const term = changeRequestTermKind(sourceControlClients.get(detail.provider).changeRequest);
   return [
     {
       id: "created",
       at: detail.createdAt,
       kind: "opened" as const,
-      title: `opened this ${term}`,
+      title: resolve(
+        msg(
+          "opened this {term, select, mr {merge request} cr {change request} other {pull request}}",
+          { term },
+        ),
+      ),
       body: null,
       markdown: false,
       url: null,
@@ -872,7 +878,7 @@ export function buildPullRequestTimeline(
       id: commit.oid,
       at: commit.committedDate,
       kind: "commit" as const,
-      title: `Commit ${commit.oid.slice(0, 7)}`,
+      title: resolve(msg("Commit {sha}", { sha: commit.oid.slice(0, 7) })),
       body: commit.messageHeadline || null,
       markdown: false,
       url: null,
@@ -911,7 +917,12 @@ export function buildPullRequestTimeline(
             id: "merged",
             at: detail.mergedAt,
             kind: "merged" as const,
-            title: `${capitalizeTerm(term)} merged`,
+            title: resolve(
+              msg(
+                "{term, select, mr {Merge request} cr {Change request} other {Pull request}} merged",
+                { term },
+              ),
+            ),
             body: null,
             markdown: false,
             url: null,
@@ -931,7 +942,12 @@ export function buildPullRequestTimeline(
             id: "closed",
             at: detail.closedAt,
             kind: "closed" as const,
-            title: `${capitalizeTerm(term)} closed`,
+            title: resolve(
+              msg(
+                "{term, select, mr {Merge request} cr {Change request} other {Pull request}} closed",
+                { term },
+              ),
+            ),
             body: null,
             markdown: false,
             url: null,
@@ -998,6 +1014,7 @@ function reviewThreadContext(
   return {
     id: `pull-request-finding:${thread.id}`,
     sectionId: `pull-request:${pullRequestNumber}`,
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- context title sent to the agent
     sectionTitle: `PR #${pullRequestNumber} review`,
     filePath: thread.path,
     startIndex: lineIndex,
@@ -1013,8 +1030,10 @@ function reviewThreadContext(
 // A task added to an existing thread's composer has no checkout prepared for it.
 function checkoutInstruction(inThisThread: boolean | undefined): string {
   return inThisThread
-    ? "Work on its branch, switching to it or checking it out first if this workspace is not on it"
-    : "Work in the prepared checkout";
+    ? // oxlint-disable-next-line supaterm/no-untranslated-copy -- agent prompt
+      "Work on its branch, switching to it or checking it out first if this workspace is not on it"
+    : // oxlint-disable-next-line supaterm/no-untranslated-copy -- agent prompt
+      "Work in the prepared checkout";
 }
 
 // The attached pull request chip names the title, URL and branches.
@@ -1275,6 +1294,7 @@ export function buildSubagentResolveConflictsPrompt(input: {
   readonly url: string;
   readonly baseBranch: string;
 }): string {
+  // oxlint-disable-next-line supaterm/no-untranslated-copy -- agent prompt
   return `Spawn a subagent to resolve the merge conflicts between ${input.url} and \`${boundedField(input.baseBranch)}\``;
 }
 
@@ -1295,6 +1315,7 @@ function pullRequestContextComment(
     // Use URLs because repositories can share pull request numbers.
     id: `pull-request-context:${input.url}`,
     sectionId: `pull-request:${input.number}`,
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- context title sent to the agent
     sectionTitle: `PR #${input.number}`,
     filePath: `PR #${input.number}`,
     startIndex: 0,
@@ -1374,6 +1395,7 @@ export function buildPullRequestCommentContext(
   return {
     id: `pr-comment:${pullRequest.url}:comment:${comment.id}`,
     sectionId: `pull-request:${pullRequestNumber}`,
+    // oxlint-disable-next-line supaterm/no-untranslated-copy -- context title sent to the agent
     sectionTitle: `PR #${pullRequestNumber} conversation`,
     // The chip wears `filePath rangeLabel`: the file a remark names, or who wrote one that names none.
     filePath: comment.path ?? `@${author}`,
@@ -1549,6 +1571,7 @@ export function buildAskAboutGuideStopHandoff(input: {
       {
         id: `pull-request-guide-stop:${input.url}:${stop.index}`,
         sectionId: `pull-request:${input.number}`,
+        // oxlint-disable-next-line supaterm/no-untranslated-copy -- context title sent to the agent
         sectionTitle: `PR #${input.number} review guide`,
         filePath: `Guide stop ${stop.index + 1}`,
         startIndex: 0,

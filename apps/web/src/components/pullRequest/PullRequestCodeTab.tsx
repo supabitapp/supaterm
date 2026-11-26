@@ -12,10 +12,7 @@ import {
   pullRequestLinkCommit,
   resolvePullRequestAnchorRange,
 } from "@supaterm/shared/pullRequestAnchor";
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type {
   CodeViewItem,
   DiffLineAnnotation,
@@ -156,7 +153,8 @@ import {
   usePullRequestReviewStore,
   type PendingReviewComment,
 } from "./pullRequestReviewStore";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
 import { m } from "~/i18n/messages";
 
 interface ReviewAnnotationGroup {
@@ -354,14 +352,16 @@ function FileViewedToggle({
         {stale ? (
           <Tooltip>
             <TooltipTrigger render={<span className="text-warning-foreground" />}>
-              Changed
+              <T context="file changed since viewed">Changed</T>
             </TooltipTrigger>
             <TooltipPopup side="bottom">
               <T>This file has been pushed to since you marked it viewed.</T>
             </TooltipPopup>
           </Tooltip>
         ) : (
-          <span className="@max-xs:hidden">Viewed</span>
+          <span className="@max-xs:hidden">
+            <T context="file marked as viewed">Viewed</T>
+          </span>
         )}
       </label>
     </span>
@@ -417,7 +417,7 @@ function PullRequestCodeTab({
   selectedCommitOid,
   onSelectedCommitChange,
   pendingFinding,
-  fixFindingLabel = "Fix in a thread",
+  fixFindingLabel: requestedFixFindingLabel,
   onFixFinding,
   onAddToChat,
   onAddToAgentSelection,
@@ -449,6 +449,7 @@ function PullRequestCodeTab({
   revealRequest?: { readonly path: string; readonly nonce: number } | null;
 }) {
   const gt = useGT();
+  const fixFindingLabel = requestedFixFindingLabel ?? gt("Fix in a thread");
   const resolvedTheme = useRenderedAppearance();
   // Initialize the shared tokenizer and workers while the diff request is still pending.
   const workerPoolReady = useDiffWorkerPoolReady(useDiffWorkerPool());
@@ -1125,6 +1126,7 @@ function PullRequestCodeTab({
         : buildDiffReviewComment({
             id: `pull-request-selection:${diffReviewSelectionId(anchor.fileKey, anchor.range)}`,
             sectionId: `pull-request:${detail.number}`,
+            // oxlint-disable-next-line supaterm/no-untranslated-copy -- context title sent to the agent
             sectionTitle: `PR #${detail.number} review`,
             filePath: anchor.path,
             fileDiff: file,
@@ -1464,7 +1466,10 @@ function PullRequestCodeTab({
                   onClick={() => setVisibleCommitCount((count) => count + COMMIT_PAGE_SIZE)}
                 >
                   <span className="text-muted-foreground">
-                    Show more ({orderedCommits.length - visibleCommitCount} left)
+                    {gt(
+                      "{count, plural, one {Show more ({count} left)} other {Show more ({count} left)}}",
+                      { count: orderedCommits.length - visibleCommitCount },
+                    )}
                   </span>
                 </DropdownMenuItem>
               ) : null}
@@ -1517,8 +1522,10 @@ function PullRequestCodeTab({
                     />
                   </TooltipTrigger>
                   <TooltipPopup side="bottom">
-                    The boxes below are whatever was last read, and empty if nothing has been read
-                    yet. {filesViewed.error}
+                    <T>
+                      The boxes below are whatever was last read, and empty if nothing has been read
+                      yet. <Var>{filesViewed.error}</Var>
+                    </T>
                   </TooltipPopup>
                 </Tooltip>
               ) : null}
@@ -1833,8 +1840,15 @@ function PullRequestCodeTab({
     </div>
   );
 
-  const term = sourceControlClients.get(detail.provider).changeRequest.singular;
-  const diffLoading = <DiffPanelLoadingState label={`Loading ${term} diff...`} />;
+  const term = changeRequestTermKind(sourceControlClients.get(detail.provider).changeRequest);
+  const diffLoading = (
+    <DiffPanelLoadingState
+      label={gt(
+        "Loading {term, select, mr {merge request} cr {change request} other {pull request}} diff...",
+        { term },
+      )}
+    />
+  );
   if (diffQuery.isPending && loadedSlices.length === 0) {
     return withToolbar(diffLoading);
   }
@@ -1858,7 +1872,10 @@ function PullRequestCodeTab({
     return withToolbar(
       <p className="px-4 py-5 text-sm text-muted-foreground">
         {commit === null
-          ? `This ${term} has no file changes.`
+          ? gt(
+              "This {term, select, mr {merge request} cr {change request} other {pull request}} has no file changes.",
+              { term },
+            )
           : gt("This commit has no file changes.")}
       </p>,
     );
@@ -1898,9 +1915,9 @@ function PullRequestCodeTab({
                   {orphanThreads.length}
                 </span>
                 <span className="sr-only">
-                  {orphanThreads.length === 1
-                    ? "1 conversation"
-                    : `${orphanThreads.length} conversations`}
+                  {gt("{count, plural, one {{count} conversation} other {{count} conversations}}", {
+                    count: orphanThreads.length,
+                  })}
                 </span>
               </CollapsibleTrigger>
             </h2>
@@ -1920,7 +1937,11 @@ function PullRequestCodeTab({
                       {threads.map((thread) => (
                         <div key={thread.id}>
                           {thread.line === null ? null : (
-                            <p className="px-3 text-xs text-muted-foreground">Line {thread.line}</p>
+                            <p className="px-3 text-xs text-muted-foreground">
+                              <T>
+                                Line <Var>{thread.line}</Var>
+                              </T>
+                            </p>
                           )}
                           {renderThreadCard(thread)}
                         </div>
@@ -1996,7 +2017,13 @@ function PullRequestCodeTab({
         }
         explorer={
           <DiffFileTree
-            ariaLabel={`${capitalizeTerm(term)} #${detail.number} files`}
+            ariaLabel={gt(
+              "{term, select, mr {Merge request} cr {Change request} other {Pull request}} #{number} files",
+              {
+                term,
+                number: detail.number,
+              },
+            )}
             entries={fileTreeEntries}
             onSelectFile={revealFile}
             footer={
@@ -2011,7 +2038,7 @@ function PullRequestCodeTab({
                     onClick={diffQuery.error !== null ? () => diffQuery.refresh() : loadNextSlice}
                   >
                     {diffQuery.error !== null
-                      ? "Retry"
+                      ? gt("Retry")
                       : diffQuery.isPending
                         ? gt("Loading more files...")
                         : gt("Load more files")}

@@ -1,7 +1,4 @@
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import type { EnvironmentId, PullRequestDetailView, PullRequestRef } from "@supaterm/contracts";
 import { MessageSquareIcon, TrashIcon, XIcon } from "@supaterm/icons";
 import { useRef, useState } from "react";
@@ -19,6 +16,7 @@ import {
 } from "./pullRequestReviewStore";
 import { pullRequestCompletionScope } from "./PullRequestMarkdownTextarea";
 import { useGT, T } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
 
 export function PullRequestComposer({
   environmentId,
@@ -46,7 +44,7 @@ export function PullRequestComposer({
   openReviewRequest?: number | undefined;
 }) {
   const gt = useGT();
-  const term = sourceControlClients.get(detail.provider).changeRequest.singular;
+  const term = changeRequestTermKind(sourceControlClients.get(detail.provider).changeRequest);
   const [open, setOpen] = useState(false);
   const [reviewPending, setReviewPending] = useState(false);
   const [requestedMode, setRequestedMode] = useState<"comment" | "review">("comment");
@@ -87,10 +85,19 @@ export function PullRequestComposer({
         render={<Button size="icon" variant="glass" />}
         aria-label={
           pendingComments.length > 0
-            ? `Review ${term}, ${pendingComments.length} ${pendingComments.length === 1 ? "comment" : "comments"} pending`
+            ? gt(
+                "{count, plural, one {Review {term, select, mr {merge request} cr {change request} other {pull request}}, {count} comment pending} other {Review {term, select, mr {merge request} cr {change request} other {pull request}}, {count} comments pending}}",
+                { count: pendingComments.length, term },
+              )
             : reviewStarted || !canComment
-              ? `Review ${term}`
-              : `Comment on ${term}`
+              ? gt(
+                  "Review {term, select, mr {merge request} cr {change request} other {pull request}}",
+                  { term },
+                )
+              : gt(
+                  "Comment on {term, select, mr {merge request} cr {change request} other {pull request}}",
+                  { term },
+                )
         }
       >
         <MessageSquareIcon className="size-4" />
@@ -110,7 +117,10 @@ export function PullRequestComposer({
         sideOffset={8}
         width="lg"
         initialFocus={mode === "review" ? reviewRef : commentRef}
-        aria-label={`${capitalizeTerm(term)} composer`}
+        aria-label={gt(
+          "{term, select, mr {Merge request} cr {Change request} other {Pull request}} composer",
+          { term },
+        )}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           {canComment && verdicts.length > 0 ? (
@@ -134,7 +144,15 @@ export function PullRequestComposer({
             </ToggleGroup>
           ) : (
             <PopoverTitle>
-              {mode === "review" ? `Review ${term}` : `Comment on ${term}`}
+              {mode === "review"
+                ? gt(
+                    "Review {term, select, mr {merge request} cr {change request} other {pull request}}",
+                    { term },
+                  )
+                : gt(
+                    "Comment on {term, select, mr {merge request} cr {change request} other {pull request}}",
+                    { term },
+                  )}
             </PopoverTitle>
           )}
           <div className="flex items-center gap-1">
@@ -145,9 +163,12 @@ export function PullRequestComposer({
                 disabled={reviewPending}
                 icon={<TrashIcon className="size-3.5" />}
                 label={gt("Discard pending line comments")}
-                confirmLabel="Confirm discard"
+                confirmLabel={gt("Confirm discard")}
                 tooltip={gt("Discard pending line comments")}
-                confirmTooltip={`Click again to discard ${pendingComments.length} pending line ${pendingComments.length === 1 ? "comment" : "comments"}`}
+                confirmTooltip={gt(
+                  "{count, plural, one {Click again to discard {count} pending line comment} other {Click again to discard {count} pending line comments}}",
+                  { count: pendingComments.length },
+                )}
                 onConfirm={() => clearComments(reviewKey)}
               />
             ) : null}

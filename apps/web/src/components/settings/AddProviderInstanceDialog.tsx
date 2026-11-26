@@ -58,7 +58,8 @@ import { resolveOfficialAcpRegistryIconUrl } from "./AcpRegistryIcon";
 import { AddManagedCodexAccountDialog } from "./CodexSetupSection";
 import { ProviderEnvironmentSection } from "./ProviderInstanceCard";
 import { useSecretSources } from "./SecretSourceInput";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages, Var } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 const INSTANCE_ID_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
@@ -74,13 +75,19 @@ const EMPTY_CONFIG_DRAFT: Record<string, unknown> = {};
  * Validate an instance id against the same slug rules the server applies in
  * `ProviderInstanceId` (see `packages/contracts/src/providerInstance.ts`).
  */
-function validateInstanceId(id: string, existing: ReadonlySet<string>): string | null {
-  if (id.length === 0) return msg("Instance ID is required.");
-  if (id.length > 64) return msg("Instance ID must be 64 characters or fewer.");
+function validateInstanceId(
+  id: string,
+  existing: ReadonlySet<string>,
+  resolve: MessageResolver,
+): string | null {
+  if (id.length === 0) return resolve(msg("Instance ID is required."));
+  if (id.length > 64) return resolve(msg("Instance ID must be 64 characters or fewer."));
   if (!INSTANCE_ID_PATTERN.test(id)) {
-    return msg("Instance ID must start with a letter and use only letters, digits, '-', or '_'.");
+    return resolve(
+      msg("Instance ID must start with a letter and use only letters, digits, '-', or '_'."),
+    );
   }
-  if (existing.has(id)) return `An instance named '${id}' already exists.`;
+  if (existing.has(id)) return resolve(msg("An instance named ''{id}'' already exists.", { id }));
   return null;
 }
 
@@ -156,6 +163,7 @@ export function AddProviderInstanceDialog({
   showMoreProviders: initialShowMoreProviders = false,
 }: AddProviderInstanceDialogProps) {
   const gt = useGT();
+  const m = useMessages();
   const settings = useEnvironmentSettings(environmentId);
   const secretSources = useSecretSources(environmentId);
   const persistProviderInstance = usePersistEnvironmentProviderInstanceMutation(environmentId);
@@ -213,7 +221,7 @@ export function AddProviderInstanceDialog({
       existingIds,
     );
   const driverSettingsFields = deriveProviderSettingsFields(driverOption);
-  const instanceIdError = validateInstanceId(instanceId, existingIds);
+  const instanceIdError = validateInstanceId(instanceId, existingIds, m);
   const showInstanceIdError = hasAttemptedSubmit && instanceIdError !== null;
   const identityStep = 1;
   const previewLabel = label.trim() || `${driverOption.label} Workspace`;
@@ -403,7 +411,10 @@ export function AddProviderInstanceDialog({
     toastManager.add({
       type: "success",
       title: gt("Provider instance added"),
-      description: `${driverOption.label} instance '${instanceId}' was added.`,
+      description: gt("{provider} instance ''{instanceId}'' was added.", {
+        provider: driverOption.label,
+        instanceId,
+      }),
     });
     onOpenChange(false);
   };
@@ -423,7 +434,11 @@ export function AddProviderInstanceDialog({
       <WizardPopup size="wide">
         <WizardHeader
           title={gt("Add provider")}
-          description={<>Add an account or configure a provider on {environmentLabel}.</>}
+          description={
+            <T>
+              Add an account or configure a provider on <Var>{environmentLabel}</Var>.
+            </T>
+          }
         >
           {isAcpRegistry ? (
             <AddProviderInstanceWizardSteps

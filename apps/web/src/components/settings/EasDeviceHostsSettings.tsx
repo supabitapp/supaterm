@@ -40,14 +40,28 @@ import {
 import { SecretSourceInput, useSecretSources } from "./SecretSourceInput";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { SettingsRow } from "./settingsLayout";
+import { T, useGT, useMessages, Var } from "gt-react";
 
 const FROM_THREAD_PROJECT = "thread-project";
 
-const CREDENTIAL_SOURCES: Record<DeviceEasAccount["credentialSource"], string> = {
-  settings: "the access token saved here",
-  env: "EXPO_TOKEN on the server",
-  "eas-login": "the server's eas login",
-};
+function signedInDescription(account: DeviceEasAccount, gt: ReturnType<typeof useGT>): string {
+  switch (account.credentialSource) {
+    case "settings":
+      return gt("Signed in as {account} with the access token saved here.", {
+        account: account.signedInAs,
+      });
+    case "env":
+      return gt("Signed in as {account} with {variable} on the server.", {
+        account: account.signedInAs,
+        variable: "EXPO_TOKEN",
+      });
+    case "eas-login":
+      return gt("Signed in as {account} with the server's {command}.", {
+        account: account.signedInAs,
+        command: "eas login",
+      });
+  }
+}
 
 const failureMessage = (cause: Cause.Cause<unknown>) => {
   const error = Cause.squash(cause);
@@ -56,6 +70,8 @@ const failureMessage = (cause: Cause.Cause<unknown>) => {
 
 /** Expo hosts belong to one environment: its server holds the Expo credential and runs the sessions. */
 export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | null }) {
+  const gt = useGT();
+  const resolve = useMessages();
   const { scope, connectedEnvironments } = useSettingsScope();
   const canConfigure = useEnvironmentScope(props.environmentId, AuthSettingsWriteScope);
   const projectScope = scope.kind === "project" || scope.kind === "checkout";
@@ -83,7 +99,7 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
     else
       toastManager.add({
         type: "error",
-        title: remove ? "Expo host not removed" : "Expo host not saved",
+        title: remove ? gt("Expo host not removed") : gt("Expo host not saved"),
         description: failureMessage(result.cause),
       });
   };
@@ -91,10 +107,12 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
   return (
     <SettingsRow
       id="eas-device-hosts"
-      title="Expo Simulators"
+      title={gt("Expo Simulators")}
       serverScoped
       settingKeys={["easDeviceHosts"]}
-      description="Run iOS Simulators in Expo's cloud from this environment. Sessions bill the Expo account until they stop, so each host caps how many run and how long. Editing or removing a host stops its sessions."
+      description={gt(
+        "Run iOS Simulators in Expo's cloud from this environment. Sessions bill the Expo account until they stop, so each host caps how many run and how long. Editing or removing a host stops its sessions.",
+      )}
       control={
         <Button
           size="sm"
@@ -102,13 +120,15 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
           disabled={disabled || editing !== null}
           onClick={() => setEditing({ host: newEasDeviceHost(randomUUID()), isNew: true })}
         >
-          <PlusIcon className="size-3.5" /> Add Expo host
+          <PlusIcon className="size-3.5" /> <T>Add Expo host</T>
         </Button>
       }
     >
       <div className="pt-3 pb-2">
         {hosts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No Expo hosts.</p>
+          <p className="text-sm text-muted-foreground">
+            <T>No Expo hosts.</T>
+          </p>
         ) : (
           <ul className="divide-y divide-border/40">
             {hosts.map((host) => (
@@ -117,7 +137,9 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
                   <p className="flex items-center gap-1.5 truncate font-medium">
                     <CloudIcon className="size-3.5 shrink-0" /> {host.label}
                   </p>
-                  <p className="truncate text-xs text-muted-foreground">{easSessionLimits(host)}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {easSessionLimits(host, resolve)}
+                  </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <Button
@@ -126,7 +148,7 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
                     disabled={disabled}
                     onClick={() => setEditing({ host, isNew: false })}
                   >
-                    Edit
+                    <T context="verb, button">Edit</T>
                   </Button>
                   <Button
                     size="sm"
@@ -134,7 +156,7 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
                     disabled={disabled}
                     onClick={() => void save(host, true)}
                   >
-                    Remove
+                    <T>Remove</T>
                   </Button>
                 </div>
               </li>
@@ -171,6 +193,7 @@ function EasDeviceHostEditor(props: {
   onSave: (host: EasDeviceHostConfig) => void;
   onClose: () => void;
 }) {
+  const gt = useGT();
   const check = useAtomCommand(deviceEnvironment.easAccount, { reportFailure: false });
   const [draft, setDraft] = useState(props.host);
   const tokenId = useId();
@@ -212,10 +235,10 @@ function EasDeviceHostEditor(props: {
   const problem = valid
     ? null
     : !tokenValid
-      ? "Enter a valid secret reference."
+      ? gt("Enter a valid secret reference.")
       : draft.maxSessionMinutes > 0 && draft.idleMinutes >= draft.maxSessionMinutes
-        ? "Idle minutes must be smaller than session minutes."
-        : "Give the host a label and limits within the ranges shown.";
+        ? gt("Idle minutes must be smaller than session minutes.")
+        : gt("Give the host a label and limits within the ranges shown.");
   const apps = account.status === "signed-in" ? account.account.apps : [];
 
   // A check answers for the credential it was asked about: a later check or a
@@ -289,15 +312,19 @@ function EasDeviceHostEditor(props: {
           }}
         >
           <DialogHeader>
-            <DialogTitle>{props.isNew ? "Add Expo host" : "Edit Expo host"}</DialogTitle>
+            <DialogTitle>{props.isNew ? gt("Add Expo host") : gt("Edit Expo host")}</DialogTitle>
             <DialogDescription>
-              The environment's server signs in to Expo and starts the sessions. Without a token
-              here it uses EXPO_TOKEN, then its eas login.
+              <T>
+                The environment's server signs in to Expo and starts the sessions. Without a token
+                here it uses <Var>{"EXPO_TOKEN"}</Var>, then its <Var>{"eas login"}</Var>.
+              </T>
             </DialogDescription>
           </DialogHeader>
           <DialogPanel>
             <label className="block space-y-1.5 text-sm">
-              <span>Name</span>
+              <span>
+                <T>Name</T>
+              </span>
               <Input
                 autoFocus
                 required
@@ -311,13 +338,13 @@ function EasDeviceHostEditor(props: {
             </label>
             <div className="space-y-1.5 text-sm">
               <label htmlFor={tokenId} className="block">
-                Expo access token
+                <T>Expo access token</T>
               </label>
               <div className="flex items-center gap-2">
                 <SecretSourceInput
                   key={tokenInputKey}
                   id={tokenId}
-                  aria-label="Expo access token"
+                  aria-label={gt("Expo access token")}
                   className="min-w-0 flex-1"
                   configured={token.kind === "saved" && typeof props.host.accessToken === "string"}
                   value={
@@ -338,7 +365,7 @@ function EasDeviceHostEditor(props: {
                     resetAccount();
                   }}
                   disabled={props.busy}
-                  placeholder="Optional"
+                  placeholder={gt("Optional")}
                   onChange={(event) => {
                     const value = event.target.value;
                     // Emptying the field is not clearing the saved token; the
@@ -358,7 +385,7 @@ function EasDeviceHostEditor(props: {
                     type="button"
                     size="icon-sm"
                     variant="ghost-destructive"
-                    aria-label="Clear access token"
+                    aria-label={gt("Clear access token")}
                     onClick={() => {
                       setToken({ kind: "cleared" });
                       setTokenValid(true);
@@ -374,12 +401,12 @@ function EasDeviceHostEditor(props: {
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 px-3 py-2.5">
               <p role="status" className="min-w-0 text-xs text-muted-foreground">
                 {account.status === "signed-in"
-                  ? `Signed in as ${account.account.signedInAs} with ${CREDENTIAL_SOURCES[account.account.credentialSource]}.`
+                  ? signedInDescription(account.account, gt)
                   : account.status === "failed"
                     ? account.error
                     : account.status === "checking"
-                      ? "Checking the Expo account…"
-                      : "Check the Expo account before choosing a project."}
+                      ? gt("Checking the Expo account…")
+                      : gt("Check the Expo account before choosing a project.")}
               </p>
               <Button
                 type="button"
@@ -388,11 +415,13 @@ function EasDeviceHostEditor(props: {
                 disabled={props.busy || account.status === "checking"}
                 onClick={() => void checkAccount()}
               >
-                {account.status === "checking" ? <Spinner size="xs" /> : null} Check account
+                {account.status === "checking" ? <Spinner size="xs" /> : null} <T>Check account</T>
               </Button>
             </div>
             <div className="space-y-1.5 text-sm">
-              <span>Expo project</span>
+              <span>
+                <T>Expo project</T>
+              </span>
               <Select
                 value={draft.appId ?? FROM_THREAD_PROJECT}
                 disabled={props.busy}
@@ -404,17 +433,19 @@ function EasDeviceHostEditor(props: {
                   });
                 }}
               >
-                <SelectTrigger size="sm" aria-label="Expo project">
+                <SelectTrigger size="sm" aria-label={gt("Expo project")}>
                   <SelectValue>
                     {(value: string) =>
                       value === FROM_THREAD_PROJECT
-                        ? "From the thread's project"
+                        ? gt("From the thread's project")
                         : (apps.find((app) => app.id === value)?.fullName ?? value)
                     }
                   </SelectValue>
                 </SelectTrigger>
                 <SelectPopup>
-                  <SelectItem value={FROM_THREAD_PROJECT}>From the thread's project</SelectItem>
+                  <SelectItem value={FROM_THREAD_PROJECT}>
+                    {gt("From the thread's project")}
+                  </SelectItem>
                   {draft.appId && !apps.some((app) => app.id === draft.appId) ? (
                     <SelectItem value={draft.appId}>{draft.appId}</SelectItem>
                   ) : null}
@@ -426,20 +457,26 @@ function EasDeviceHostEditor(props: {
                 </SelectPopup>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Sessions bill the project's Expo account. "From the thread's project" reads
-                extra.eas.projectId from the project's app config.
+                {gt(
+                  "Sessions bill the project's Expo account. \"{option}\" reads {field} from the project's app config.",
+                  { option: gt("From the thread's project"), field: "extra.eas.projectId" },
+                )}
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
-              {limit("maxConcurrentSessions", "Sessions at once", 20)}
-              {limit("maxSessionMinutes", "Session minutes", 115)}
-              {limit("idleMinutes", "Idle minutes", 60)}
+              {limit("maxConcurrentSessions", gt("Sessions at once"), 20)}
+              {limit("maxSessionMinutes", gt("Session minutes"), 115)}
+              {limit("idleMinutes", gt("Idle minutes"), 60)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Expo Simulators needs a paid Expo account. A session runs for up to 115 minutes and
-              stops early when it is idle for the idle minutes, so idle minutes must be less than
-              session minutes.
-              {props.isNew ? null : " Saving restarts this host and stops its running sessions."}
+              <T>
+                Expo Simulators needs a paid Expo account. A session runs for up to 115 minutes and
+                stops early when it is idle for the idle minutes, so idle minutes must be less than
+                session minutes.
+              </T>
+              {props.isNew
+                ? null
+                : ` ${gt("Saving restarts this host and stops its running sessions.")}`}
             </p>
             {problem === null ? null : (
               <p className="text-xs text-destructive" role="alert">
@@ -449,10 +486,10 @@ function EasDeviceHostEditor(props: {
           </DialogPanel>
           <DialogFooter>
             <Button type="button" variant="ghost" disabled={props.busy} onClick={props.onClose}>
-              Cancel
+              <T>Cancel</T>
             </Button>
             <Button type="submit" disabled={props.busy || !valid}>
-              {props.busy ? <Spinner size="xs" /> : null} Save host
+              {props.busy ? <Spinner size="xs" /> : null} <T>Save host</T>
             </Button>
           </DialogFooter>
         </form>

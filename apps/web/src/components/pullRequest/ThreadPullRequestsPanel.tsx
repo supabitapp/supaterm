@@ -61,7 +61,8 @@ import {
 import { PullRequestGlyph } from "./pullRequestIcons";
 import { pullRequestQuickActions } from "./pullRequestList.logic";
 import { PullRequestSpeedActions, PullRequestSpeedModeContext } from "./PullRequestSpeedActions";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
 
 const SOURCE_LABELS: Record<ThreadPullRequestLink["source"], string> = {
   manual: msg("Linked by you"),
@@ -271,7 +272,13 @@ function LinkRowImpl({
                           host: sourceControlClients.hostLabelForChangeRequestUrl(link.url),
                           size: stack.size,
                         })
-                      : `${stack.size} ${linkHost.changeRequest.plural} chained by base branch.`}
+                      : gt(
+                          "{size} {terms, select, mr {merge requests} cr {change requests} other {pull requests}} chained by base branch.",
+                          {
+                            size: stack.size,
+                            terms: changeRequestTermKind(linkHost.changeRequest),
+                          },
+                        )}
                   </TooltipPopup>
                 </Tooltip>
               ) : null}
@@ -335,7 +342,7 @@ function LinkRowImpl({
               <Button
                 variant="ghost"
                 size="icon-micro"
-                aria-label={`Actions for #${link.number}`}
+                aria-label={gt("Actions for #{number}", { number: link.number })}
                 className="relative"
               >
                 <EllipsisIcon className="size-3.5" />
@@ -354,7 +361,7 @@ function LinkRowImpl({
             </MenuItem>
             <MenuItem onClick={(event) => openPrLink(event, link.url, threadRef)}>
               <ArrowUpRightIcon className="size-3.5" />
-              Open
+              <T context="verb, open a link">Open</T>
             </MenuItem>
             {onSetWatching !== null && open && (watching || canStartWatch) ? (
               <MenuItem onClick={() => onSetWatching(link, !watching)}>
@@ -572,17 +579,27 @@ function EnabledThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
         />
         <footer className="flex items-center justify-between border-t border-border/60 px-2 py-1.5 text-2xs text-muted-foreground">
           <span>
-            {linkCount > 0 ? `${openCount} open · ${linkCount} linked` : null}
+            {linkCount > 0
+              ? gt(
+                  "{openCount, plural, one {{openCount} open} other {{openCount} open}} · {linkCount, plural, one {{linkCount} linked} other {{linkCount} linked}}",
+                  { openCount, linkCount },
+                )
+              : null}
             {lastSynced ? (
               <>
-                {" · synced "}
-                <RelativeTime timestamp={lastSynced} />
+                {" · "}
+                <T context="followed by a relative time such as 5m ago or just now">
+                  synced{" "}
+                  <Var>
+                    <RelativeTime timestamp={lastSynced} />
+                  </Var>
+                </T>
               </>
             ) : null}
           </span>
           <Button size="xs" variant="ghost" onClick={openLinkDialog}>
             <PlusIcon className="size-3.5" />
-            Link pull request
+            <T context="verb, button">Link pull request</T>
           </Button>
         </footer>
       </div>

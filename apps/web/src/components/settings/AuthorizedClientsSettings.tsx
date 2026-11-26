@@ -439,8 +439,8 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
             label={gt("Revoke")}
             disabled={!canRevoke}
             pending={revokingPairingLinkId === pairingLink.id}
-            tooltip="Revoke this pairing link"
-            armedTooltip="Click again to revoke this link. It can no longer be used to pair."
+            tooltip={gt("Revoke this pairing link")}
+            armedTooltip={gt("Click again to revoke this link. It can no longer be used to pair.")}
             onRevoke={() => onRevoke(pairingLink.id)}
           />
         </div>
@@ -614,8 +614,11 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
               label={gt("Revoke")}
               disabled={!canRevoke}
               pending={revokingClientSessionId === clientSession.sessionId}
-              tooltip="Revoke this client's access"
-              armedTooltip={`Click again to revoke ${primaryLabel}. It will need a new pairing link to reconnect.`}
+              tooltip={gt("Revoke this client's access")}
+              armedTooltip={gt(
+                "Click again to revoke {client}. It will need a new pairing link to reconnect.",
+                { client: primaryLabel },
+              )}
               onRevoke={() => onRevokeSession(clientSession.sessionId)}
             />
           ) : null}
@@ -660,10 +663,12 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
         disabled={!canRevokeOtherClients(clientSessions)}
         tooltip={
           hasOtherClients
-            ? "Revoke access for every client except this one"
-            : "No other clients to revoke"
+            ? gt("Revoke access for every client except this one")
+            : gt("No other clients to revoke")
         }
-        armedTooltip="Click again to revoke every other client. Each will need a new pairing link to reconnect."
+        armedTooltip={gt(
+          "Click again to revoke every other client. Each will need a new pairing link to reconnect.",
+        )}
         onRevoke={onRevokeOtherClients}
       />
       <CreatePairingLinkDialog

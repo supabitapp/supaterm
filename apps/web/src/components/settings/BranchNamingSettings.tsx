@@ -65,7 +65,7 @@ export function BranchNamingSettings() {
         resetAction={
           choice !== DEFAULT_CHOICE || modeMixed ? (
             <SettingResetButton
-              label="branch naming"
+              label={gt("branch naming", { $context: "setting name in a reset button label" })}
               onClick={() => updateSettings(branchNamingChoicePatch(DEFAULT_CHOICE))}
             />
           ) : null
@@ -99,12 +99,15 @@ export function BranchNamingSettings() {
           serverScoped
           settingKeys={["branchNamePrefix"]}
           title={gt("Branch prefix")}
-          description="supaterm/ gives supaterm/add-search. Leave empty for no prefix."
+          description={gt("{prefix} gives {example}. Leave empty for no prefix.", {
+            prefix: "supaterm/",
+            example: "supaterm/add-search",
+          })}
           resetAction={
             prefixMixed ||
             settings.branchNamePrefix !== DEFAULT_SERVER_SETTINGS.branchNamePrefix ? (
               <SettingResetButton
-                label="branch prefix"
+                label={gt("branch prefix", { $context: "setting name in a reset button label" })}
                 onClick={() =>
                   updateSettings({ branchNamePrefix: DEFAULT_SERVER_SETTINGS.branchNamePrefix })
                 }
@@ -141,11 +144,13 @@ export function BranchNamingSettings() {
           serverScoped
           settingKeys={["branchNameInstructions"]}
           title={gt("Branch naming instructions")}
-          description="Appended to the naming prompt. The model returns the full branch name."
+          description={gt("Appended to the naming prompt. The model returns the full branch name.")}
           resetAction={
             instructionsMixed || settings.branchNameInstructions !== "" ? (
               <SettingResetButton
-                label="branch naming instructions"
+                label={gt("branch naming instructions", {
+                  $context: "setting name in a reset button label",
+                })}
                 onClick={() => updateSettings({ branchNameInstructions: "" })}
               />
             ) : null

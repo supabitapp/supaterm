@@ -6,7 +6,7 @@ import { openCommandPalette } from "../../commandPaletteBus";
 import { Button } from "../ui/button";
 import { PullRequestListGhost } from "./PullRequestGhosts";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 function BranchMark({ joined }: { joined: boolean }) {
   return (
@@ -109,7 +109,11 @@ export function PullRequestListEmptyState({
       <Empty>
         <BranchMark joined={false} />
         <EmptyHeader>
-          <EmptyTitle>Nothing matches “{shownQuery}”</EmptyTitle>
+          <EmptyTitle>
+            <T>
+              Nothing matches “<Var>{shownQuery}</Var>”
+            </T>
+          </EmptyTitle>
           <EmptyDescription>
             <T>
               The hosts were searched for it. Try fewer words, or search by number, author or

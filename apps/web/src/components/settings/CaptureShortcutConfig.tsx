@@ -19,7 +19,7 @@ import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import { shortcutToKeybindingInput } from "./KeybindingsSettings.logic";
 import { useSnapShotShortcutRecorder } from "./useSnapShotShortcutRecorder";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const DEFAULT_SHORTCUT = parseKeybindingShortcut("Ctrl+Shift+2")!;
 
@@ -278,7 +278,11 @@ export function CaptureShortcutConfig({
               </p>
             ) : null}
             {preview && preview.resolvedPath !== preview.path ? (
-              <p className="break-all">Linked to {preview.resolvedPath}. The link will be kept.</p>
+              <p className="break-all">
+                <T>
+                  Linked to <Var>{preview.resolvedPath}</Var>. The link will be kept.
+                </T>
+              </p>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -310,20 +314,31 @@ export function CaptureShortcutConfig({
             ) : null}
           </div>
           <p>
-            Use your desktop's shortcut settings file.{" "}
+            <T>Use your desktop's shortcut settings file.</T>{" "}
             {niri
-              ? "A custom --config or NIRI_CONFIG can change its location."
-              : "On Omarchy, use your own bindings file, not its defaults."}
+              ? gt("A custom {flag} or {variable} can change its location.", {
+                  flag: "--config",
+                  variable: "NIRI_CONFIG",
+                })
+              : gt("On Omarchy, use your own bindings file, not its defaults.")}
           </p>
-          {result?.backupPath ? <p className="break-all">Backup: {result.backupPath}</p> : null}
+          {result?.backupPath ? (
+            <p className="break-all">
+              <T>
+                Backup: <Var>{result.backupPath}</Var>
+              </T>
+            </p>
+          ) : null}
           <p className="font-medium text-foreground">
             <T>Manual setup</T>
           </p>
           <p>
             {niri
-              ? "Paste this inside binds { … } in your Niri config, then save."
-              : "Add this binding to your Hyprland config, then save."}{" "}
-            Change the keys if needed.
+              ? gt("Paste this inside {block} in your Niri config, then save.", {
+                  block: "binds { … }",
+                })
+              : gt("Add this binding to your Hyprland config, then save.")}{" "}
+            <T>Change the keys if needed.</T>
           </p>
           <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-muted/50 p-3">
             {state.shortcutBinding}
@@ -339,8 +354,10 @@ export function CaptureShortcutConfig({
             {isCopied ? gt("Copied") : gt("Copy shortcut")}
           </Button>
           <p>
-            Turn capture off in Supaterm to stop it. Remove the shortcut from {desktop} to free up
-            the keys.
+            <T>
+              Turn capture off in Supaterm to stop it. Remove the shortcut from <Var>{desktop}</Var>{" "}
+              to free up the keys.
+            </T>
           </p>
           {state.shortcutActionRegistered === false ? (
             <p role="status">{state.shortcutMessage}</p>

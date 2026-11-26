@@ -10,7 +10,7 @@ import { MiddleTruncate } from "../ui/middle-truncate";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { PullRequestGlyph } from "./pullRequestIcons";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 interface BaseFreshness {
   readonly behindBy: number | null;
@@ -34,13 +34,18 @@ function PullRequestBaseFreshnessWarning({
   readonly className?: string;
   readonly children?: ReactNode;
 }) {
-  const behind =
+  const gt = useGT();
+  const summary =
     freshness.behindBy === null
-      ? ""
-      : ` by ${freshness.behindBy.toLocaleString()} ${
-          freshness.behindBy === 1 ? "commit" : "commits"
-        }`;
-  const summary = `This branch is out-of-date with ${baseBranch}${behind}.`;
+      ? gt("This branch is out-of-date with {baseBranch}.", { baseBranch })
+      : gt(
+          "{count, plural, one {This branch is out-of-date with {baseBranch} by {formatted} commit.} other {This branch is out-of-date with {baseBranch} by {formatted} commits.}}",
+          {
+            count: freshness.behindBy,
+            formatted: freshness.behindBy.toLocaleString(),
+            baseBranch,
+          },
+        );
   const confirm = useInlineConfirm<"rebase">();
   return (
     <Popover>
@@ -83,8 +88,8 @@ function PullRequestBaseFreshnessWarning({
                   </InlineConfirmIcon>
                   <InlineConfirmLabel
                     armed={confirm.armed === "rebase"}
-                    idle="Update with rebase"
-                    confirm="Confirm rebase"
+                    idle={gt("Update with rebase")}
+                    confirm={gt("Confirm rebase")}
                   />
                 </Button>
               ) : (
@@ -96,7 +101,7 @@ function PullRequestBaseFreshnessWarning({
                   onClick={() => onUpdate(method)}
                 >
                   <PullRequestGlyph.merged aria-hidden className="size-3.5" />
-                  Update branch
+                  <T>Update branch</T>
                 </Button>
               ),
             )}
@@ -104,8 +109,10 @@ function PullRequestBaseFreshnessWarning({
         ) : null}
         {confirm.armed === "rebase" ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            Click again to rebase onto {baseBranch}. This rewrites the branch's commits, and checks
-            may restart.
+            <T>
+              Click again to rebase onto <Var>{baseBranch}</Var>. This rewrites the branch's
+              commits, and checks may restart.
+            </T>
           </p>
         ) : null}
       </PopoverPopup>

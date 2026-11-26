@@ -1,5 +1,4 @@
 import { useAtomCommand } from "~/state/use-atom-command";
-import { capitalizeTerm } from "@supaterm/client-runtime/source-control-clients";
 import type { EnvironmentId, PullRequestRef, PullRequestReviewVerdict } from "@supaterm/contracts";
 import { CheckIcon, CircleXIcon, MessageSquareIcon } from "@supaterm/icons";
 import { useState, type ReactNode, type RefObject } from "react";
@@ -21,31 +20,38 @@ import {
   PullRequestMarkdownTextarea,
   type PullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
-import { msg, useGT } from "gt-react";
+import { msg, useGT, useMessages } from "gt-react";
 import { m } from "~/i18n/messages";
+import type { ChangeRequestTermKind } from "./changeRequestTerm";
 
 const VERDICTS: ReadonlyArray<{
   readonly value: PullRequestReviewVerdict;
   readonly label: string;
-  readonly sent: (term: string) => string;
+  readonly sent: (term: ChangeRequestTermKind) => string;
   readonly icon: ReactNode;
 }> = [
   {
     value: "comment",
-    label: "Comment",
+    label: msg("Comment", { $context: "review verdict" }),
     sent: () => m(msg("Review submitted")),
     icon: <MessageSquareIcon className="size-3" />,
   },
   {
     value: "approve",
-    label: "Approve",
-    sent: (term) => `${capitalizeTerm(term)} approved`,
+    label: msg("Approve", { $context: "review verdict" }),
+    sent: (term) =>
+      m(
+        msg(
+          "{term, select, mr {Merge request} cr {Change request} other {Pull request}} approved",
+          { term },
+        ),
+      ),
     icon: <CheckIcon className="size-3" />,
   },
   {
     value: "request-changes",
     label: msg("Request changes"),
-    sent: () => "Changes requested",
+    sent: () => m(msg("Changes requested")),
     icon: <CircleXIcon className="size-3" />,
   },
 ];
@@ -69,8 +75,7 @@ export function PullRequestReviewForm({
   /** The head on screen, which the review is pinned to. */
   headSha: string | undefined;
   completionScope: PullRequestCompletionScope | null;
-  /** The host's word for a change request, as in "pull request". */
-  term: string;
+  term: ChangeRequestTermKind;
   verdicts: ReadonlyArray<PullRequestReviewVerdict>;
   requestChangesSummaryRequired: boolean;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -80,6 +85,7 @@ export function PullRequestReviewForm({
   onRefused: () => void;
 }) {
   const gt = useGT();
+  const resolve = useMessages();
   const [requestedVerdict, setRequestedVerdict] = useState<PullRequestReviewVerdict>("comment");
   const [voiceBusy, setVoiceBusy] = useState(false);
   const comments = usePendingReviewComments(reference);
@@ -181,7 +187,7 @@ export function PullRequestReviewForm({
             >
               <span className="flex items-center gap-1.5">
                 {selectedVerdict?.icon}
-                {selectedVerdict?.label}
+                {selectedVerdict ? resolve(selectedVerdict.label) : null}
               </span>
             </SelectTrigger>
             <SelectPopup side="top" alignItemWithTrigger={false}>
@@ -189,7 +195,7 @@ export function PullRequestReviewForm({
                 <SelectItem key={verdict.value} value={verdict.value}>
                   <span className="flex items-center gap-1.5">
                     {verdict.icon}
-                    {verdict.label}
+                    {resolve(verdict.label)}
                   </span>
                 </SelectItem>
               ))}

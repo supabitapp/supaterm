@@ -196,7 +196,7 @@ export function ReviewThreadCard({
   completionScope,
   pending,
   fixPending,
-  fixLabel = "Fix in a thread",
+  fixLabel,
   onFix,
   onAddToChat,
   onReply,
@@ -338,7 +338,7 @@ export function ReviewThreadCard({
             onClick={onFix}
           >
             <HammerIcon className="size-3" />
-            {fixPending ? gt("Preparing...") : fixLabel}
+            {fixPending ? gt("Preparing...") : (fixLabel ?? gt("Fix in a thread"))}
           </Button>
         ) : null}
         {onAddToChat && comments.some((comment) => visibleBody(comment.body) !== null) ? (
@@ -437,7 +437,7 @@ export function ReviewThreadCard({
                   size="sm"
                   completionScope={completionScope}
                   value={reply}
-                  placeholder="Reply"
+                  placeholder={gt("Reply", { $context: "noun, placeholder" })}
                   aria-label={gt("Reply to this conversation")}
                   onValueChange={setReply}
                   onKeyDown={(event) =>
@@ -458,13 +458,13 @@ export function ReviewThreadCard({
                     disabled={pending || reply.trim().length === 0}
                     onClick={() => void send()}
                   >
-                    Reply
+                    <T context="verb, button">Reply</T>
                   </Button>
                 </div>
               </div>
             ) : (
               <Button size="xs" variant="ghost" className="mt-2" onClick={() => setReplying(true)}>
-                Reply
+                <T context="verb, button">Reply</T>
               </Button>
             )
           ) : null}

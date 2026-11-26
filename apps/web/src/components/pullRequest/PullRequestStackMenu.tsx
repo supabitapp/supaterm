@@ -20,7 +20,8 @@ import { PullRequestStackLayers } from "./PullRequestStackLayers";
 import { PullRequestStackHeader } from "./PullRequestStackHeader";
 import { PullRequestGlyph } from "./pullRequestIcons";
 import { mergeHeadPin, readableFailure } from "./pullRequestDetail.logic";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
 import { m } from "~/i18n/messages";
 
 export function PullRequestStackMenu({
@@ -163,7 +164,12 @@ export function PullRequestStackMenu({
           action === "merge"
             ? m(msg("{host} merged the stack or added it to its merge queue.", { host: hostLabel }))
             : action === "enable-auto-merge"
-              ? `${hostLabel} merges the stack through #${reference.number} once its requirements are met.`
+              ? m(
+                  msg("{host} merges the stack through #{number} once its requirements are met.", {
+                    host: hostLabel,
+                    number: reference.number,
+                  }),
+                )
               : undefined,
       });
     }
@@ -192,7 +198,7 @@ export function PullRequestStackMenu({
   const buttonAction = leadsWithAutoMerge ? "enable-auto-merge" : "merge";
   const buttonKey = leadsWithAutoMerge ? "auto-merge" : "merge";
   const buttonArmed = confirm.armed === buttonKey;
-  const mergeCountLabel = `${mergeLayers.length} ${mergeLayers.length === 1 ? terminology.singular : terminology.plural}`;
+  const term = changeRequestTermKind(terminology);
   return (
     <>
       <Menu open={open} onOpenChange={setOpen}>
@@ -219,7 +225,10 @@ export function PullRequestStackMenu({
             }
           />
           <TooltipPopup>
-            View stack #{stack.number}, layer {position} of {stack.layers.length}
+            <T>
+              View stack #<Var>{stack.number}</Var>, layer <Var>{position}</Var> of{" "}
+              <Var>{stack.layers.length}</Var>
+            </T>
             {notice ? ` · ${notice}` : null}
           </TooltipPopup>
         </Tooltip>
@@ -278,21 +287,35 @@ export function PullRequestStackMenu({
                   disabled={rebaseDisabled}
                 >
                   <RefreshCwIcon aria-hidden />
-                  {confirm.armed === "menu-rebase" ? "Confirm rebase" : "Rebase stack"}
+                  {confirm.armed === "menu-rebase" ? gt("Confirm rebase") : gt("Rebase stack")}
                 </MenuItem>
               ) : null}
               {confirm.armed === "menu-merge" ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  Merges {mergeCountLabel} into {stack.base} using {mergeMethod}.
+                  {gt(
+                    "Merges {count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}} into {base} using {method}.",
+                    { count: mergeLayers.length, term, base: stack.base, method: mergeMethod },
+                  )}
                 </p>
               ) : confirm.armed === "menu-auto-merge" ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  Merges {mergeCountLabel} into {stack.base} using {mergeMethod} once each meets the
-                  requirements on {hostLabel}. This may happen immediately.
+                  {gt(
+                    "Merges {count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}} into {base} using {method} once each meets the requirements on {host}. This may happen immediately.",
+                    {
+                      count: mergeLayers.length,
+                      term,
+                      base: stack.base,
+                      method: mergeMethod,
+                      host: hostLabel,
+                    },
+                  )}
                 </p>
               ) : confirm.armed === "menu-rebase" ? (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  Rewrites each branch onto {stack.base}, bottom to top. Checks may restart.
+                  <T>
+                    Rewrites each branch onto <Var>{stack.base}</Var>, bottom to top. Checks may
+                    restart.
+                  </T>
                 </p>
               ) : null}
               {mergeHasClosed || mergeLayers.some((layer) => layer.isDraft) ? (
@@ -312,13 +335,25 @@ export function PullRequestStackMenu({
             stale
               ? staleReason
               : leadsWithAutoMerge
-                ? `Auto-merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel}) once its requirements are met`
-                : `Merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`
+                ? gt(
+                    "Auto-merge stack through #{number} into {base} ({count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}}) once its requirements are met",
+                    { number: reference.number, count: mergeLayers.length, term, base: stack.base },
+                  )
+                : gt(
+                    "Merge stack through #{number} into {base} ({count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}})",
+                    { number: reference.number, count: mergeLayers.length, term, base: stack.base },
+                  )
           }
           armedTip={
             leadsWithAutoMerge
-              ? `Click again to auto-merge ${mergeCountLabel} into ${stack.base} using ${mergeMethod}. This may happen immediately.`
-              : `Click again to merge ${mergeCountLabel} into ${stack.base} using ${mergeMethod}`
+              ? gt(
+                  "Click again to auto-merge {count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}} into {base} using {method}. This may happen immediately.",
+                  { count: mergeLayers.length, term, base: stack.base, method: mergeMethod },
+                )
+              : gt(
+                  "Click again to merge {count, plural, one {{count} {term, select, mr {merge request} cr {change request} other {pull request}}} other {{count} {term, select, mr {merge requests} cr {change requests} other {pull requests}}}} into {base} using {method}",
+                  { count: mergeLayers.length, term, base: stack.base, method: mergeMethod },
+                )
           }
         >
           <Button
@@ -338,8 +373,14 @@ export function PullRequestStackMenu({
             </InlineConfirmIcon>
             <InlineConfirmLabel
               armed={buttonArmed}
-              idle={pending ? "Working…" : leadsWithAutoMerge ? "Auto-merge stack" : "Merge stack"}
-              confirm={leadsWithAutoMerge ? "Confirm auto-merge" : "Confirm merge"}
+              idle={
+                pending
+                  ? gt("Working…")
+                  : leadsWithAutoMerge
+                    ? gt("Auto-merge stack")
+                    : gt("Merge stack")
+              }
+              confirm={leadsWithAutoMerge ? gt("Confirm auto-merge") : gt("Confirm merge")}
             />
           </Button>
         </InlineConfirmTooltip>

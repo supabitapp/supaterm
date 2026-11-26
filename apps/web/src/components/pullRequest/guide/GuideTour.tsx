@@ -20,7 +20,7 @@ import {
 } from "./guideRunStore";
 import { stepTourPosition, stopFilePaths } from "@supaterm/client-runtime/review-guide-tour";
 import { useGuideDiffFiles } from "./useGuideDiffFiles";
-import { T } from "gt-react";
+import { T, Var } from "gt-react";
 
 export function GuideTour({
   environmentId,
@@ -125,7 +125,9 @@ export function GuideTour({
           {banner}
           {diff.error !== null ? (
             <p className="text-xs text-muted-foreground">
-              The diff could not be loaded, so excerpts are missing: {diff.error}
+              <T>
+                The diff could not be loaded, so excerpts are missing: <Var>{diff.error}</Var>
+              </T>
             </p>
           ) : null}
           {stop === null ? (

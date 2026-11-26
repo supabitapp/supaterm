@@ -65,7 +65,7 @@ import {
   threadJumpIndexFromCommand,
 } from "../../keybindings";
 import { isImeComposing } from "~/lib/imeComposition";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const EMPTY_DISCOVERED_SSH_HOSTS: ReadonlyArray<DesktopDiscoveredSshHost> = [];
 // known_hosts can list one host on several ports. Its own bracketed form keeps an IPv6
@@ -267,7 +267,9 @@ export function AddEnvironmentDialog({
             title: gt("Backend added"),
             description:
               linkHosts.length > 0
-                ? "The environment is saved and will reconnect on app startup. To let agents on your other machines work there, pick a level in its Permissions."
+                ? gt(
+                    "The environment is saved and will reconnect on app startup. To let agents on your other machines work there, pick a level in its Permissions.",
+                  )
                 : gt("The environment is saved and will reconnect on app startup."),
           },
     );
@@ -528,7 +530,9 @@ export function AddEnvironmentDialog({
                   </AutocompleteList>
                 ) : (
                   <AutocompleteEmpty className="break-all">
-                    No hosts match "{savedBackendSshHost.trim()}".
+                    <T>
+                      No hosts match "<Var>{savedBackendSshHost.trim()}</Var>".
+                    </T>
                   </AutocompleteEmpty>
                 )}
               </AutocompletePopup>
@@ -618,9 +622,12 @@ export function AddEnvironmentDialog({
           </DialogTitle>
           <DialogDescription>
             {routeTarget
-              ? "Pair this machine again over another address. It joins the existing routes."
+              ? gt("Pair this machine again over another address. It joins the existing routes.")
               : prefill
-                ? `Create a pairing code on ${prefill.label}, in its Settings → Sharing & access or with \`supaterm auth pairing create\`, and enter it here.`
+                ? gt(
+                    "Create a pairing code on {environment}, in its Settings → Sharing & access or with `supaterm auth pairing create`, and enter it here.",
+                    { environment: prefill.label },
+                  )
                 : gt("Pair another environment to this client.")}
           </DialogDescription>
         </DialogHeader>

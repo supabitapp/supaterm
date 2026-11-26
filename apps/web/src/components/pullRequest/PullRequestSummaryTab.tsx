@@ -2,10 +2,7 @@ import { pullRequestCommentPreview } from "./pullRequestMarkdown.logic";
 import { parsePullRequestAnchor } from "@supaterm/shared/pullRequestAnchor";
 import { holdLinkedNodeInView } from "./holdLinkedNodeInView";
 import { useAtomValue } from "@effect/atom-react";
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@supaterm/client-runtime/source-control-clients";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { useAtomCommand } from "~/state/use-atom-command";
 import {
   type EnvironmentId,
@@ -107,7 +104,8 @@ import {
   stepPullRequestEdit,
   type PullRequestEditorView,
 } from "./PullRequestSummaryTab.logic";
-import { msg, T, useGT } from "gt-react";
+import { msg, T, useGT, Var } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
 import { m } from "~/i18n/messages";
 
 function reviewerKey(login: string): string {
@@ -121,6 +119,7 @@ function CommentIdentity({
   comment: PullRequestComment;
   detail: PullRequestDetailView;
 }) {
+  const gt = useGT();
   const timestampFormat = useClientSettings((settings) => settings.timestampFormat);
   const actor = comment.author;
   const profileUrl = actor
@@ -150,7 +149,7 @@ function CommentIdentity({
         </TooltipTrigger>
         <TooltipPopup>
           {formatFullTimestamp(comment.createdAt, timestampFormat)}
-          {comment.url ? " · Open comment on host" : ""}
+          {comment.url ? ` · ${gt("Open comment on host")}` : ""}
         </TooltipPopup>
       </Tooltip>
     </h2>
@@ -471,8 +470,8 @@ export function PullRequestSummaryTab({
   checksStale = false,
   activityError,
   pendingFinding,
-  fixFindingLabel = "Fix in a thread",
-  fixCheckLabel = "Fix",
+  fixFindingLabel: requestedFixFindingLabel,
+  fixCheckLabel: requestedFixCheckLabel,
   onFixFinding,
   onAddToChat,
   onRefresh,
@@ -499,6 +498,9 @@ export function PullRequestSummaryTab({
   onRefreshChecks?: () => void;
 }) {
   const gt = useGT();
+  const fixFindingLabel = requestedFixFindingLabel ?? gt("Fix in a thread");
+  const fixCheckLabel =
+    requestedFixCheckLabel ?? gt("Fix", { $context: "verb, fix a review finding" });
   const terminology = sourceControlClients.get(detail.provider).changeRequest;
   const [shown, setShown] = useState({ url: detail.url, count: COMMENT_PAGE });
   const shownConversations = shown.url === detail.url ? shown.count : COMMENT_PAGE;
@@ -536,8 +538,13 @@ export function PullRequestSummaryTab({
         className="w-full"
         onClick={() => setShown({ url: detail.url, count: shownConversations + COMMENT_PAGE })}
       >
-        Show {Math.min(hiddenConversationCount, COMMENT_PAGE)} older conversation
-        {hiddenConversationCount === 1 ? "" : "s"} ({hiddenConversationCount} hidden)
+        {gt(
+          "{count, plural, one {Show {shown} older conversation ({count} hidden)} other {Show {shown} older conversations ({count} hidden)}}",
+          {
+            count: hiddenConversationCount,
+            shown: Math.min(hiddenConversationCount, COMMENT_PAGE),
+          },
+        )}
       </Button>
     ) : null;
   // Verdicts outside the visible comment window still count.
@@ -864,7 +871,9 @@ export function PullRequestSummaryTab({
           <PullRequestMetaRow icon={<UsersIcon className="size-3.5" />} label={gt("Reviewers")}>
             <span className="flex min-w-0 flex-wrap items-center gap-1.5">
               {reviewerEntries.length === 0 ? (
-                <span className="text-muted-foreground">None</span>
+                <span className="text-muted-foreground">
+                  <T context="no reviewers">None</T>
+                </span>
               ) : (
                 <span className="flex items-center -space-x-1">
                   {reviewerEntries.map((entry) => {
@@ -939,7 +948,9 @@ export function PullRequestSummaryTab({
             <PullRequestMetaRow icon={<TagIcon className="size-3.5" />} label={gt("Labels")}>
               <span className="flex min-w-0 flex-wrap items-center gap-1">
                 {detail.labels.length === 0 ? (
-                  <span className="text-muted-foreground">None</span>
+                  <span className="text-muted-foreground">
+                    <T context="no labels">None</T>
+                  </span>
                 ) : (
                   detail.labels.map((label) => (
                     <PullRequestLabelChip
@@ -979,8 +990,14 @@ export function PullRequestSummaryTab({
               environmentId={environmentId}
               completionScope={completionScope}
               threadRef={threadRef}
-              label={`${capitalizeTerm(terminology.singular)} description`}
-              placeholder={`Describe this ${terminology.singular}`}
+              label={gt(
+                "{term, select, mr {Merge request} cr {Change request} other {Pull request}} description",
+                { term: changeRequestTermKind(terminology) },
+              )}
+              placeholder={gt(
+                "Describe this {term, select, mr {merge request} cr {change request} other {pull request}}",
+                { term: changeRequestTermKind(terminology) },
+              )}
               saving={descriptionSaving}
               onSave={(body) => void saveBody(body)}
               onCancel={() => setBodyScope(null)}
@@ -1145,8 +1162,10 @@ export function PullRequestSummaryTab({
           <>
             {detail.commentsTruncated ? (
               <p className="mb-2 rounded-md border border-warning/30 bg-warning-surface px-2 py-1.5 text-xs">
-                This conversation is only partially loaded. {commentCount} comment
-                {commentCount === 1 ? " is" : "s are"} loaded; open it on the host to read the rest.
+                {gt(
+                  "{count, plural, one {This conversation is only partially loaded. {count} comment is loaded; open it on the host to read the rest.} other {This conversation is only partially loaded. {count} comments are loaded; open it on the host to read the rest.}}",
+                  { count: commentCount },
+                )}
               </p>
             ) : null}
             {items.length === 0 ? (
@@ -1157,7 +1176,12 @@ export function PullRequestSummaryTab({
               <p className="py-2 text-xs text-muted-foreground">
                 {filteredOutCount === 1
                   ? gt("The only comment is hidden by the filter.")
-                  : `All ${filteredOutCount} comments are hidden by the filter.`}
+                  : gt(
+                      "{count, plural, one {All {count} comments are hidden by the filter.} other {All {count} comments are hidden by the filter.}}",
+                      {
+                        count: filteredOutCount,
+                      },
+                    )}
               </p>
             ) : (
               <div className="space-y-3">
@@ -1171,7 +1195,9 @@ export function PullRequestSummaryTab({
                     className="w-full"
                     onClick={() => setShown({ url: detail.url, count: COMMENT_PAGE })}
                   >
-                    Show only {COMMENT_PAGE} recent conversations
+                    <T>
+                      Show only <Var>{COMMENT_PAGE}</Var> recent conversations
+                    </T>
                   </Button>
                 ) : null}
               </div>

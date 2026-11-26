@@ -27,7 +27,8 @@ import type { resolvePullRequestPrimaryControl } from "./pullRequestDetail.logic
 import { PullRequestGlyph } from "./pullRequestIcons";
 import type { resolvePullRequestState } from "./pullRequestPresentation";
 import type { PickableEnvironment } from "./pullRequestProjectAssignment.logic";
-import { T, useGT } from "gt-react";
+import { Branch, T, useGT } from "gt-react";
+import { changeRequestTermKind } from "./changeRequestTerm";
 
 export type PerformPullRequestAction = (
   action: PullRequestAction,
@@ -121,7 +122,18 @@ export function PullRequestCheckoutMenu({
             />
           }
         />
-        <TooltipPopup>Check out this {term}</TooltipPopup>
+        <TooltipPopup>
+          <T>
+            Check out this{" "}
+            <Branch
+              branch={changeRequestTermKind({ singular: term })}
+              mr="merge request"
+              cr="change request"
+            >
+              pull request
+            </Branch>
+          </T>
+        </TooltipPopup>
       </Tooltip>
       <MenuPopup align="end" side="bottom">
         <MenuItem disabled={!canPrepareWorktree} onClick={() => onCheckout("worktree")}>
@@ -234,7 +246,10 @@ export function PullRequestPrimaryAction({
   const disableAutoMergeLabel =
     pendingAction === "disable-auto-merge" ? "Disabling..." : "Disable auto-merge";
   // The off switch doubles as the indicator, as on the host.
-  const armedAutoMergeStatus = `${armedAutoMergeLabel} is enabled: the host will merge this on its own once its requirements are met`;
+  const armedAutoMergeStatus = gt(
+    "{label} is enabled: the host will merge this on its own once its requirements are met",
+    { label: armedAutoMergeLabel },
+  );
   return (
     <>
       {/* Said where the Merge button is, because it is the answer to why nobody has
@@ -262,10 +277,12 @@ export function PullRequestPrimaryAction({
                   size="control"
                   variant="info"
                   role="img"
-                  aria-label={`${armedAutoMergeLabel} enabled`}
+                  aria-label={gt("{label} enabled", { label: armedAutoMergeLabel })}
                 >
                   <PullRequestGlyph.merged aria-hidden className="size-3.5" />
-                  <span className="@max-[30rem]/pr-header:hidden">Auto-merge enabled</span>
+                  <span className="@max-[30rem]/pr-header:hidden">
+                    <T>Auto-merge enabled</T>
+                  </span>
                 </Badge>
               )
             }
@@ -274,8 +291,8 @@ export function PullRequestPrimaryAction({
             {!canDisableAutoMerge
               ? armedAutoMergeStatus
               : pendingAction === "disable-auto-merge"
-                ? "Disabling..."
-                : `${armedAutoMergeStatus}. Click to disable it.`}
+                ? gt("Disabling...")
+                : gt("{status}. Click to disable it.", { status: armedAutoMergeStatus })}
           </TooltipPopup>
         </Tooltip>
       ) : null}
@@ -331,7 +348,7 @@ export function PullRequestPrimaryAction({
               pendingAction === "enable-auto-merge"
                 ? gt("Enabling...")
                 : confirm.armed === "enable-auto-merge"
-                  ? "Confirm auto-merge"
+                  ? gt("Confirm auto-merge")
                   : pendingAutoMergeLabel
             }
           >
@@ -341,8 +358,10 @@ export function PullRequestPrimaryAction({
             <span className="@max-[30rem]/pr-header:hidden">
               <InlineConfirmLabel
                 armed={confirm.armed === "enable-auto-merge"}
-                idle={pendingAction === "enable-auto-merge" ? "Enabling..." : pendingAutoMergeLabel}
-                confirm="Confirm auto-merge"
+                idle={
+                  pendingAction === "enable-auto-merge" ? gt("Enabling...") : pendingAutoMergeLabel
+                }
+                confirm={gt("Confirm auto-merge")}
               />
             </span>
           </Button>
@@ -370,7 +389,7 @@ export function PullRequestPrimaryAction({
               pendingAction === "merge"
                 ? gt("Merging...")
                 : confirm.armed === "merge"
-                  ? "Confirm merge"
+                  ? gt("Confirm merge")
                   : selectedMergeMethodLabel
             }
           >
@@ -380,8 +399,8 @@ export function PullRequestPrimaryAction({
             <span className="@max-[30rem]/pr-header:hidden">
               <InlineConfirmLabel
                 armed={confirm.armed === "merge"}
-                idle={pendingAction === "merge" ? "Merging..." : selectedMergeMethodLabel}
-                confirm="Confirm merge"
+                idle={pendingAction === "merge" ? gt("Merging...") : selectedMergeMethodLabel}
+                confirm={gt("Confirm merge")}
               />
             </span>
           </Button>
@@ -430,8 +449,8 @@ export function PullRequestApproveWorkflowsButton({
           pendingAction === "approve-workflows"
             ? gt("Approving...")
             : armed
-              ? "Confirm approval"
-              : "Approve workflows to run"
+              ? gt("Confirm approval")
+              : gt("Approve workflows to run")
         }
       >
         <InlineConfirmIcon armed={armed}>
@@ -439,8 +458,12 @@ export function PullRequestApproveWorkflowsButton({
         </InlineConfirmIcon>
         <InlineConfirmLabel
           armed={armed}
-          idle={pendingAction === "approve-workflows" ? "Approving..." : "Approve workflows to run"}
-          confirm="Confirm approval"
+          idle={
+            pendingAction === "approve-workflows"
+              ? gt("Approving...")
+              : gt("Approve workflows to run")
+          }
+          confirm={gt("Confirm approval")}
         />
       </Button>
     </InlineConfirmTooltip>

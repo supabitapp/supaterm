@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { RefreshIcon } from "../ui/refresh-icon";
 import { describePullRequestDiffError } from "./pullRequestDiffError";
-import { T } from "gt-react";
+import { T, useMessages, Var } from "gt-react";
 
 export function PullRequestDiffUnavailableState({
   error,
@@ -20,11 +20,13 @@ export function PullRequestDiffUnavailableState({
   url: string;
   onRetry: () => void;
 }) {
+  const m = useMessages();
   const { providerName, terminology } = getSourceControlPresentationForKind(provider);
   const { title, description } = describePullRequestDiffError(
     error,
     providerName,
     terminology.singular,
+    m,
   );
 
   return (
@@ -47,7 +49,9 @@ export function PullRequestDiffUnavailableState({
           render={<a href={url} target="_blank" rel="noopener noreferrer" />}
         >
           <ExternalLinkIcon aria-hidden />
-          Open on {providerName}
+          <T>
+            Open on <Var>{providerName}</Var>
+          </T>
         </Button>
       </div>
       <details className="w-full max-w-lg text-xs text-muted-foreground">

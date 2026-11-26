@@ -19,7 +19,9 @@ import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import { MenuItem } from "../ui/menu";
 import { toastManager } from "../ui/toast";
 import { PullRequestGlyph } from "./pullRequestIcons";
-import { useGT } from "gt-react";
+import { Branch, msg, T, useGT } from "gt-react";
+import { m } from "~/i18n/messages";
+import { changeRequestTermKind } from "./changeRequestTerm";
 
 interface PullRequestThreadLinksProps {
   environmentId: EnvironmentId;
@@ -47,8 +49,9 @@ function EnabledPullRequestThreadLinks({
   const gt = useGT();
   const parsedUrl = sourceControlClients.parseChangeRequestUrl(url);
   const parsed = parsedUrl?.link ?? null;
-  const term = (parsedUrl?.definition ?? sourceControlClients.get(undefined)).changeRequest
-    .singular;
+  const term = changeRequestTermKind(
+    (parsedUrl?.definition ?? sourceControlClients.get(undefined)).changeRequest,
+  );
   const thread = useThreadShell(threadRef?.environmentId === environmentId ? threadRef : null);
   const currentThreadRef = thread === null ? null : threadRef;
   const linking = usePullRequestLinking(environmentId);
@@ -82,7 +85,19 @@ function EnabledPullRequestThreadLinks({
       const error = squashAtomCommandFailure(result);
       toastManager.add({
         type: "error",
-        title: remove ? `Could not unlink the ${term}` : `Could not link the ${term}`,
+        title: remove
+          ? m(
+              msg(
+                "Could not unlink the {term, select, mr {merge request} cr {change request} other {pull request}}",
+                { term },
+              ),
+            )
+          : m(
+              msg(
+                "Could not link the {term, select, mr {merge request} cr {change request} other {pull request}}",
+                { term },
+              ),
+            ),
         description: error instanceof Error ? error.message : String(error),
       });
       return;
@@ -126,7 +141,9 @@ function EnabledPullRequestThreadLinks({
               </Button>
             }
           />
-          <TooltipPopup>{linkedThreadsLabel}. Search in the command palette.</TooltipPopup>
+          <TooltipPopup>
+            {gt("{label}. Search in the command palette.", { label: linkedThreadsLabel })}
+          </TooltipPopup>
         </Tooltip>
       ) : null}
       {display === "menu-item" ? (
@@ -155,7 +172,15 @@ function EnabledPullRequestThreadLinks({
       {display === "picker" ? (
         <Dialog open onOpenChange={onPickerOpenChange}>
           <DialogPopup className="max-w-md" showCloseButton={false}>
-            <DialogTitle className="sr-only">Link {term} to a thread</DialogTitle>
+            <DialogTitle className="sr-only">
+              <T>
+                Link{" "}
+                <Branch branch={term} mr="merge request" cr="change request">
+                  pull request
+                </Branch>{" "}
+                to a thread
+              </T>
+            </DialogTitle>
             <ThreadLinkPicker
               environmentId={environmentId}
               pending={pending}

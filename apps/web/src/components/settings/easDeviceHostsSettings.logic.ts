@@ -5,6 +5,8 @@ import {
 import * as Schema from "effect/Schema";
 import { msg } from "gt-react";
 
+import { m, type MessageResolver } from "~/i18n/messages";
+
 export const parseEasDeviceHostDraft = Schema.decodeUnknownOption(EasDeviceHostConfig);
 
 export const newEasDeviceHost = (id: string): EasDeviceHostConfigType => ({
@@ -29,8 +31,15 @@ export function updateEasDeviceHosts(
     : [...hosts, host];
 }
 
-export function easSessionLimits(host: EasDeviceHostConfigType) {
-  const sessions =
-    host.maxConcurrentSessions === 1 ? "1 session" : `${host.maxConcurrentSessions} sessions`;
-  return `Up to ${sessions} at once, each stopped after ${host.maxSessionMinutes} min or ${host.idleMinutes} idle min`;
+export function easSessionLimits(host: EasDeviceHostConfigType, resolve: MessageResolver = m) {
+  return resolve(
+    msg(
+      "Up to {sessions, plural, one {{sessions} session} other {{sessions} sessions}} at once, each stopped after {maxMinutes} min or {idleMinutes} idle min",
+      {
+        sessions: host.maxConcurrentSessions,
+        maxMinutes: host.maxSessionMinutes,
+        idleMinutes: host.idleMinutes,
+      },
+    ),
+  );
 }

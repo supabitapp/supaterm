@@ -47,7 +47,8 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { formatBytes } from "../../lib/formatBytes";
 import { TelemetryExportSettings } from "./TelemetryExportSettings";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages, Var } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
 
@@ -241,10 +242,14 @@ function formatProcessName(command: string): string {
   return segments.at(-1) ?? normalized;
 }
 
-function formatProcessType(process: ServerProcessDiagnosticsEntry): string {
-  if (process.depth > 0) return msg("Subprocess");
-  if (/\b(codex|claude|opencode|cursor)\b/i.test(process.command)) return "Agent";
-  return "Process";
+function formatProcessType(
+  process: ServerProcessDiagnosticsEntry,
+  resolve: MessageResolver,
+): string {
+  if (process.depth > 0) return resolve(msg("Subprocess"));
+  if (/\b(codex|claude|opencode|cursor)\b/i.test(process.command))
+    return resolve(msg("Agent", { $context: "process type" }));
+  return resolve(msg("Process", { $context: "process type" }));
 }
 
 function ProcessNameCell({
@@ -327,6 +332,7 @@ function ProcessDiagnosticsTable({
   emptyLabel?: string;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const [collapsedPids, setCollapsedPids] = useState<ReadonlySet<number>>(() => new Set());
   const visibleProcesses = visibleProcessTree(processes, collapsedPids);
 
@@ -423,7 +429,7 @@ function ProcessDiagnosticsTable({
                   {process.pid}
                 </td>
                 <td className="truncate px-3 py-2 align-middle text-muted-foreground">
-                  {formatProcessType(process)}
+                  {formatProcessType(process, m)}
                 </td>
                 <td className="p-2 align-middle sm:pr-4">
                   <ProcessSignalActions
@@ -530,7 +536,10 @@ function ProcessResourceHistoryChart({
                 }
               />
               <TooltipPopup side="top">
-                Avg {bucket.avgCpuPercent.toFixed(1)}%, peak {bucket.maxCpuPercent.toFixed(1)}%
+                {gt("Avg {average}%, peak {peak}%", {
+                  average: bucket.avgCpuPercent.toFixed(1),
+                  peak: bucket.maxCpuPercent.toFixed(1),
+                })}
               </TooltipPopup>
             </Tooltip>
           );
@@ -686,6 +695,7 @@ function ProcessResourceHistoryTable({
 }
 
 function DiagnosticsLastChecked({ checkedAt }: { checkedAt: DateTime.Utc | null }) {
+  const gt = useGT();
   const relative = useRelativeTimeState(checkedAt ? DateTime.formatIso(checkedAt) : null);
 
   if (relative.status === "missing") {
@@ -707,11 +717,15 @@ function DiagnosticsLastChecked({ checkedAt }: { checkedAt: DateTime.Utc | null 
   return (
     <span className="text-2xs text-muted-foreground/60">
       {relative.suffix ? (
-        <>
-          Checked <span className="font-mono tabular-nums">{relative.value}</span> {relative.suffix}
-        </>
+        <T context="the time is an elapsed time such as 5m">
+          Checked{" "}
+          <span className="font-mono tabular-nums">
+            <Var>{relative.value}</Var>
+          </span>{" "}
+          ago
+        </T>
       ) : (
-        <>Checked {relative.value}</>
+        gt("Checked {time}", { time: relative.value })
       )}
     </span>
   );
@@ -1018,7 +1032,7 @@ function DiagnosticsSettingsBody() {
       >
         <StatsGrid>
           <StatBlock
-            label="CPU Time"
+            label={gt("CPU Time")}
             value={resourceData ? formatCpuTime(resourceData.totalCpuSecondsApprox) : "..."}
             tooltip={gt(
               "Approximate active CPU time for the Supaterm server root process and its descendants during the selected window. It grows only while sampled processes use CPU and older samples leave as the window moves.",

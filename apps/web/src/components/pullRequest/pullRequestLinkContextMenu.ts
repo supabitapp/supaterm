@@ -9,13 +9,23 @@ import { readLocalApi } from "~/localApi";
 
 import { toastManager } from "../ui/toast";
 import { msg } from "gt-react";
-import { m } from "~/i18n/messages";
+import { m, type MessageResolver } from "~/i18n/messages";
 
 export type PullRequestLinkContextMenuAction = "copy-link" | "open-external" | "show-linked";
 
-export const openOnHostLabel = (host: SourceControlDefinition, number?: number): string => {
-  const verb = number === undefined ? "Open" : `Open #${number}`;
-  return host === UNKNOWN_SOURCE_CONTROL_CLIENT ? `${verb} on host` : `${verb} on ${host.label}`;
+export const openOnHostLabel = (
+  host: SourceControlDefinition,
+  number?: number,
+  resolve: MessageResolver = m,
+): string => {
+  if (host === UNKNOWN_SOURCE_CONTROL_CLIENT) {
+    return number === undefined
+      ? resolve(msg("Open on host"))
+      : resolve(msg("Open #{number} on host", { number }));
+  }
+  return number === undefined
+    ? resolve(msg("Open on {host}", { host: host.label }))
+    : resolve(msg("Open #{number} on {host}", { number, host: host.label }));
 };
 
 function pullRequestLinkContextMenuItems({
@@ -30,13 +40,18 @@ function pullRequestLinkContextMenuItems({
   const items: ContextMenuItem<PullRequestLinkContextMenuAction>[] = [
     {
       id: "copy-link",
-      label: number === undefined ? m(msg("Copy link")) : `Copy link to #${number}`,
+      label:
+        number === undefined ? m(msg("Copy link")) : m(msg("Copy link to #{number}", { number })),
       icon: "copy",
     },
     { id: "open-external", label: openOnHostLabel(host, number) },
   ];
   if (showLinked) {
-    items.push({ id: "show-linked", label: "Show linked pull requests", separatorBefore: true });
+    items.push({
+      id: "show-linked",
+      label: m(msg("Show linked pull requests")),
+      separatorBefore: true,
+    });
   }
   return items;
 }

@@ -57,7 +57,8 @@ import {
 } from "./pullRequestList.logic";
 import { PullRequestActorAvatar } from "./pullRequestPresentation";
 import { PullRequestGlyph } from "./pullRequestIcons";
-import { T, useGT, msg } from "gt-react";
+import { T, useGT, msg, useMessages } from "gt-react";
+import { resolveFilterOptions } from "./pullRequestListOptions";
 
 export interface PullRequestFilterOption<Value extends string> {
   readonly value: Value;
@@ -159,23 +160,39 @@ export const pullRequestProjectKey = (project: {
 }) => JSON.stringify([project.environmentId, project.id]);
 
 const DRAFT_OPTIONS = [
-  { value: UNFILTERED_VALUE, label: "All", Icon: LayersIcon },
+  {
+    value: UNFILTERED_VALUE,
+    label: msg("All", { $context: "pull request filter" }),
+    Icon: LayersIcon,
+  },
   { value: "only", label: msg("Drafts only"), Icon: PullRequestGlyph.draft },
   { value: "hide", label: msg("Hide drafts"), Icon: EyeOffIcon },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<string>>;
 
 const REVIEW_OPTIONS = [
-  { value: UNFILTERED_VALUE, label: "All", Icon: LayersIcon },
-  { value: "approved", label: "Approved", Icon: CircleCheckIcon },
+  {
+    value: UNFILTERED_VALUE,
+    label: msg("All", { $context: "pull request filter" }),
+    Icon: LayersIcon,
+  },
+  {
+    value: "approved",
+    label: msg("Approved", { $context: "review decision" }),
+    Icon: CircleCheckIcon,
+  },
   { value: "changes-requested", label: msg("Changes requested"), Icon: CircleXIcon },
   { value: "review-required", label: msg("Review required"), Icon: CircleDashedIcon },
   { value: "none", label: msg("No reviews"), Icon: CircleSlashIcon },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<string>>;
 
 const CHECKS_OPTIONS = [
-  { value: UNFILTERED_VALUE, label: "All", Icon: LayersIcon },
-  { value: "passing", label: "Passing", Icon: CircleCheckIcon },
-  { value: "failing", label: "Failing", Icon: CircleXIcon },
+  {
+    value: UNFILTERED_VALUE,
+    label: msg("All", { $context: "pull request filter" }),
+    Icon: LayersIcon,
+  },
+  { value: "passing", label: msg("Passing", { $context: "checks filter" }), Icon: CircleCheckIcon },
+  { value: "failing", label: msg("Failing", { $context: "checks filter" }), Icon: CircleXIcon },
 ] as const satisfies ReadonlyArray<PullRequestFilterOption<string>>;
 
 function PullRequestFilterRadioGroup<Value extends string>({
@@ -549,6 +566,7 @@ export function PullRequestFiltersMenu({
   onProject: (projectId: ProjectId | undefined, environmentId: EnvironmentId | undefined) => void;
 }) {
   const gt = useGT();
+  const resolve = useMessages();
   const selectedLabels = (filters.labels ?? []).flatMap((group) => group);
   const filterCount = [
     state !== "open",
@@ -640,19 +658,19 @@ export function PullRequestFiltersMenu({
         <PullRequestFilterRadioSubmenu
           label={gt("Draft", { $context: "pull request filter" })}
           value={filters.draft ?? UNFILTERED_VALUE}
-          options={DRAFT_OPTIONS}
+          options={resolveFilterOptions(DRAFT_OPTIONS, resolve)}
           onChange={(draft) => updateFilter("draft", draft)}
         />
         <PullRequestFilterRadioSubmenu
           label={gt("Review", { $context: "pull request filter" })}
           value={filters.review ?? UNFILTERED_VALUE}
-          options={REVIEW_OPTIONS}
+          options={resolveFilterOptions(REVIEW_OPTIONS, resolve)}
           onChange={(review) => updateFilter("review", review)}
         />
         <PullRequestFilterRadioSubmenu
           label={gt("Checks", { $context: "pull request filter" })}
           value={filters.checks ?? UNFILTERED_VALUE}
-          options={CHECKS_OPTIONS}
+          options={resolveFilterOptions(CHECKS_OPTIONS, resolve)}
           onChange={(checks) => updateFilter("checks", checks)}
         />
         {hostOptions.length > 2 ? (

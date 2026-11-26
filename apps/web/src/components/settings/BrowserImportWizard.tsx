@@ -37,7 +37,8 @@ import {
   type WizardTargetSelection,
   type WizardStep,
 } from "./browserImportWizard.logic";
-import { T, useMessages, useGT } from "gt-react";
+import { msg, T, useMessages, useGT, Var } from "gt-react";
+import type { MessageResolver } from "~/i18n/messages";
 
 export type { WizardTarget } from "./browserImportWizard.logic";
 
@@ -194,9 +195,16 @@ function QuitStep({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Quit {source.name} to import</DialogTitle>
+        <DialogTitle>
+          <T>
+            Quit <Var>{source.name}</Var> to import
+          </T>
+        </DialogTitle>
         <DialogDescription>
-          {source.name} is open, so its cookies can&rsquo;t be read yet. Quit it, then continue.
+          <T>
+            <Var>{source.name}</Var> is open, so its cookies can&rsquo;t be read yet. Quit it, then
+            continue.
+          </T>
         </DialogDescription>
       </DialogHeader>
       <DialogFooter>
@@ -211,14 +219,15 @@ function QuitStep({
   );
 }
 
-function cookieCountLabel(count: number | undefined): string | undefined {
+function cookieCountLabel(count: number | undefined, resolve: MessageResolver): string | undefined {
   if (count === undefined) return undefined;
-  if (count === 0) return "no cookies";
-  return `${count.toLocaleString()} ${count === 1 ? "cookie" : "cookies"}`;
-}
-
-function cookieResultCount(count: number): string {
-  return `${count.toLocaleString()} ${count === 1 ? "cookie" : "cookies"}`;
+  if (count === 0) return resolve(msg("no cookies"));
+  return resolve(
+    msg("{count, plural, one {{formatted} cookie} other {{formatted} cookies}}", {
+      count,
+      formatted: count.toLocaleString(),
+    }),
+  );
 }
 
 type ConfigureStepProps = {
@@ -268,11 +277,17 @@ function FullDiskAccessStep({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Let Supaterm read {source.name}&rsquo;s cookies</DialogTitle>
+        <DialogTitle>
+          <T>
+            Let Supaterm read <Var>{source.name}</Var>&rsquo;s cookies
+          </T>
+        </DialogTitle>
         <DialogDescription>
-          To import cookies from {source.name}, Supaterm needs Full Disk Access. Turn it on in
-          System Settings, then come back to finish the import. You can revoke it again once the
-          import is done.
+          <T>
+            To import cookies from <Var>{source.name}</Var>, Supaterm needs Full Disk Access. Turn
+            it on in System Settings, then come back to finish the import. You can revoke it again
+            once the import is done.
+          </T>
         </DialogDescription>
       </DialogHeader>
       <DialogPanel>
@@ -288,7 +303,9 @@ function FullDiskAccessStep({
                 />
               ),
               title: gt("Full Disk Access"),
-              description: `Read ${source.name}'s cookies for this import.`,
+              description: gt("Read {browser}''s cookies for this import.", {
+                browser: source.name,
+              }),
               granted: permission.status.fullDiskAccess,
               onAllow: () => void allow(),
             },
@@ -340,6 +357,7 @@ function ConfigureStep({
   onImport,
 }: ConfigureStepProps) {
   const gt = useGT();
+  const m = useMessages();
   const targetMissing =
     target.kind === "existing" &&
     !targetProfiles.some((profile) => profile.id === target.profileId);
@@ -354,9 +372,15 @@ function ConfigureStep({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Import from {source.name}</DialogTitle>
+        <DialogTitle>
+          <T>
+            Import from <Var>{source.name}</Var>
+          </T>
+        </DialogTitle>
         <DialogDescription>
-          Choose which cookies to import for {destinationEnvironmentName}.
+          <T>
+            Choose which cookies to import for <Var>{destinationEnvironmentName}</Var>.
+          </T>
         </DialogDescription>
       </DialogHeader>
       <DialogPanel>
@@ -370,7 +394,7 @@ function ConfigureStep({
                 key={profile.directory}
                 selected={sourceProfileDirectory === profile.directory}
                 title={profile.name}
-                subtitle={cookieCountLabel(profile.cookieCount)}
+                subtitle={cookieCountLabel(profile.cookieCount, m)}
                 onSelect={() => onSourceProfileChange(profile.directory)}
               />
             ))}
@@ -500,7 +524,11 @@ function CheckingStep({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Checking {sourceName}</DialogTitle>
+        <DialogTitle>
+          <T>
+            Checking <Var>{sourceName}</Var>
+          </T>
+        </DialogTitle>
         <DialogDescription>
           {check === "fullDiskAccess"
             ? gt("Checking Full Disk Access.")
@@ -540,14 +568,33 @@ function DoneStep({
       <DialogHeader>
         <DialogTitle>
           {imported > 0
-            ? `Imported ${cookieResultCount(imported)}`
+            ? gt(
+                "{count, plural, one {Imported {formatted} cookie} other {Imported {formatted} cookies}}",
+                { count: imported, formatted: imported.toLocaleString() },
+              )
             : skipped > 0
-              ? `Skipped ${cookieResultCount(skipped)}`
+              ? gt(
+                  "{count, plural, one {Skipped {formatted} cookie} other {Skipped {formatted} cookies}}",
+                  { count: skipped, formatted: skipped.toLocaleString() },
+                )
               : gt("No cookies found")}
         </DialogTitle>
         <DialogDescription>
           {imported > 0
-            ? `Added to ${targetName} for ${destinationEnvironmentName}.${skipped > 0 ? ` ${cookieResultCount(skipped)} skipped.` : ""}`
+            ? skipped > 0
+              ? gt(
+                  "{count, plural, one {Added to {target} for {environment}. {formatted} cookie skipped.} other {Added to {target} for {environment}. {formatted} cookies skipped.}}",
+                  {
+                    count: skipped,
+                    formatted: skipped.toLocaleString(),
+                    target: targetName,
+                    environment: destinationEnvironmentName,
+                  },
+                )
+              : gt("Added to {target} for {environment}.", {
+                  target: targetName,
+                  environment: destinationEnvironmentName,
+                })
             : skipped > 0
               ? gt("No cookies were imported for {environment}.", {
                   environment: destinationEnvironmentName,
@@ -589,7 +636,11 @@ function BlockedStep({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Couldn&rsquo;t import from {source.name}</DialogTitle>
+        <DialogTitle>
+          <T>
+            Couldn&rsquo;t import from <Var>{source.name}</Var>
+          </T>
+        </DialogTitle>
         <DialogDescription>{browserImportFailureMessage(reason, messages)}</DialogDescription>
       </DialogHeader>
       <DialogFooter>

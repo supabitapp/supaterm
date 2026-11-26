@@ -10,7 +10,7 @@ import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { SettingsRow } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
-import { msg, T } from "gt-react";
+import { msg, T, useGT } from "gt-react";
 import { m } from "../../i18n/messages";
 
 const FAILURE_TITLES = {
@@ -50,6 +50,7 @@ export function useDesktopCliCommand() {
 }
 
 export function CliCommandSettingsRow() {
+  const gt = useGT();
   const { state, busy, run } = useDesktopCliCommand();
 
   if (!state?.supported) return null;
@@ -81,7 +82,7 @@ export function CliCommandSettingsRow() {
             disabled={busy || (!installed && Boolean(state.shadowedBy))}
             onClick={() => run(installed ? "uninstall" : "install")}
           >
-            {installed ? "Remove" : "Install"}
+            {installed ? gt("Remove") : gt("Install")}
           </Button>
         </div>
       }
