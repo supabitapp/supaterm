@@ -30,7 +30,7 @@ import {
 } from "../ui/dialog";
 import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
-import { useGT, T } from "gt-react";
+import { useGT, T, useMessages } from "gt-react";
 
 const APPROVAL_CODE_LABEL = "App sign-in";
 
@@ -100,7 +100,7 @@ export function UseInAnotherAppDialog({
         render={
           <Button size="xs" variant="outline">
             <PlugIcon aria-hidden />
-            Use in another app (MCP)
+            <T>Use in another app (MCP)</T>
           </Button>
         }
       />
@@ -108,8 +108,10 @@ export function UseInAnotherAppDialog({
         <DialogHeader>
           <DialogTitle>{gt("Use Supaterm in another app (MCP)")}</DialogTitle>
           <DialogDescription>
-            Add the URL to the app, then enter the code on the sign-in page it opens. The code
-            approves one sign-in at the level you pick.
+            <T>
+              Add the URL to the app, then enter the code on the sign-in page it opens. The code
+              approves one sign-in at the level you pick.
+            </T>
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
@@ -171,6 +173,8 @@ function LinkedLine({
   readonly environment: EnvironmentPresentation;
   readonly access: AuthMcpClientAccess;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const offered = supportsPeerLinks(environment.serverConfig);
   const links = useEnvironmentQuery(
     offered
@@ -185,9 +189,13 @@ function LinkedLine({
       link.label;
     // A forwarded call keeps the lower of the app's level and the link's own.
     const level = levelRank(link.access) < levelRank(access) ? link.access : access;
-    return `${name} · ${link.status === "expired" ? "Expired" : accessConfig[level].label}`;
+    return `${name} · ${link.status === "expired" ? gt("Expired") : m(accessConfig[level].label)}`;
   });
-  return <p className="text-xs text-muted-foreground">Linked: {named.join(", ")}</p>;
+  return (
+    <p className="text-xs text-muted-foreground">
+      {gt("Linked: {environments}", { environments: named.join(", ") })}
+    </p>
+  );
 }
 
 function ApprovalCode({
@@ -198,6 +206,7 @@ function ApprovalCode({
   readonly access: AuthMcpClientAccess;
 }) {
   const gt = useGT();
+  const m = useMessages();
   const now = useNowSecond();
   const left = Math.max(0, Math.floor((code.expiresAt - now) / 1000));
   if (left === 0)
@@ -210,8 +219,11 @@ function ApprovalCode({
     <div className="space-y-1.5">
       <CopyRow label={gt("Code", { $context: "approval code" })} value={code.credential} />
       <p className="text-xs text-muted-foreground">
-        Approves {accessConfig[access].label} · one use · expires {Math.floor(left / 60)}:
-        {String(left % 60).padStart(2, "0")}
+        {gt("Approves {level} · one use · expires {minutes}:{seconds}", {
+          level: m(accessConfig[access].label),
+          minutes: Math.floor(left / 60),
+          seconds: String(left % 60).padStart(2, "0"),
+        })}
       </p>
     </div>
   );
