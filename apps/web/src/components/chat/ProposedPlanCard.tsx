@@ -38,7 +38,7 @@ import { projectEnvironment } from "~/state/projects";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 export const ProposedPlanCard = memo(function ProposedPlanCard({
   planMarkdown,
@@ -289,7 +289,19 @@ function SavePlanToWorkspaceForm({
           <T>Save plan to workspace</T>
         </DialogTitle>
         <DialogDescription>
-          Enter a path relative to <code>{workspaceRoot ?? "the workspace"}</code>.
+          {workspaceRoot !== undefined ? (
+            <T>
+              Enter a path relative to{" "}
+              <code>
+                <Var>{workspaceRoot}</Var>
+              </code>
+              .
+            </T>
+          ) : (
+            <T>
+              Enter a path relative to <code>the workspace</code>.
+            </T>
+          )}
         </DialogDescription>
       </DialogHeader>
       <DialogPanel>

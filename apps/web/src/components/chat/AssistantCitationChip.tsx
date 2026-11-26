@@ -35,7 +35,7 @@ import { observeAssistantCitationCommentSource } from "./AssistantCitationSource
 import { composerFloatingLayerProps } from "./composerEventScope";
 import { observeResize } from "~/lib/observeResize";
 import { textDirection } from "~/textDirection";
-import { useGT } from "gt-react";
+import { T, useGT } from "gt-react";
 
 function useCitationSourceLinkProps(citation: AssistantCitation) {
   const navigate = useNavigate();
@@ -201,7 +201,7 @@ export function AssistantCitationChip({
             {...annotationLinkProps}
             data-citation-excerpt=""
             className="flex min-w-0 max-w-full self-start border-s-2 border-muted-foreground/40 ps-2 text-xs/5 text-muted-foreground no-underline transition-colors duration-150 hover:border-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-            aria-label={`Go to quoted assistant text: ${excerpt}`}
+            aria-label={gt("Go to quoted assistant text: {excerpt}", { excerpt })}
           >
             <span className="truncate" dir={textDirection(excerpt)}>
               {excerpt}
@@ -218,7 +218,7 @@ export function AssistantCitationChip({
         kind="citation"
         icon={<QuoteIcon />}
         label={label}
-        accessibleLabel={`Quoted assistant text: ${label}`}
+        accessibleLabel={gt("Quoted assistant text: {label}", { label })}
         copyMarkdown={serializeAssistantCitation(citation)}
       >
         <div className="flex max-h-[calc(var(--available-height)_-_1rem_-_2px)] flex-col items-start gap-3 p-1 text-sm">
@@ -227,7 +227,7 @@ export function AssistantCitationChip({
             render={<Button variant="outline" size="sm" render={<Link {...sourceLinkProps} />} />}
           >
             <ArrowUpRightIcon aria-hidden="true" />
-            Go to source
+            <T>Go to source</T>
           </PopoverClose>
         </div>
       </ContextChipPopover>

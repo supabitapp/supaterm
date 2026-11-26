@@ -1,10 +1,12 @@
+import { useGT } from "gt-react";
 import { Skeleton } from "../ui/skeleton";
 
 export function ThreadTimelineLoading({ bottomInset = 0 }: { bottomInset?: number }) {
+  const gt = useGT();
   return (
     <div
       role="status"
-      aria-label="Loading conversation"
+      aria-label={gt("Loading conversation")}
       aria-busy="true"
       data-timeline-loading="true"
       className="pointer-events-none flex h-full min-h-0 flex-col justify-end overflow-hidden bg-background px-3 pt-6 sm:px-12"

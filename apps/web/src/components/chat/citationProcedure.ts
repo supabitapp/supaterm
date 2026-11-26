@@ -9,6 +9,9 @@ import { toastManager } from "../ui/toast";
 import type { AssistantCitationRequest } from "./AssistantCitationSource";
 import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
 import { msg } from "gt-react";
+import { m } from "../../i18n/messages";
+
+const HISTORY_LOAD_ERROR = "Could not load history.";
 
 /** Whether the cited response is in the loaded history, after paging toward it. */
 export type CitedHistory =
@@ -218,15 +221,15 @@ const citedHistoryAtom = Atom.family(
           );
           return result._tag === "Success"
             ? result.value
-            : { _tag: "error", message: "Could not load history." };
+            : { _tag: "error", message: HISTORY_LOAD_ERROR };
         },
       }).then((outcome) => {
         if (outcome._tag === "aborted") return;
         if (outcome._tag === "failed") {
           toastManager.add({
             type: "warning",
-            title: outcome.title,
-            description: outcome.description,
+            title: m(outcome.title),
+            description: m(outcome.description),
           });
         }
         get.setSelf({ _tag: outcome._tag });

@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import { memo, useEffect, useState } from "react";
 import { userInputCountdown } from "@supaterm/client-runtime/user-input-countdown";
 import { cn } from "~/lib/utils";
@@ -48,6 +49,7 @@ export const QuestionAutoDismissAnnouncer = memo(function QuestionAutoDismissAnn
 }: {
   deadline: string;
 }) {
+  const gt = useGT();
   const countdown = useUserInputCountdown(deadline);
   if (countdown === null) return null;
   return (
@@ -56,7 +58,9 @@ export const QuestionAutoDismissAnnouncer = memo(function QuestionAutoDismissAnn
         {countdown.text}
       </span>
       <span role="status">
-        {countdown.state === "counting" ? "" : "This question will close without an answer soon."}
+        {countdown.state === "counting"
+          ? ""
+          : gt("This question will close without an answer soon.")}
       </span>
     </div>
   );

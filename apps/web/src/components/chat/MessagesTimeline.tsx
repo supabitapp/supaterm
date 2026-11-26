@@ -170,7 +170,7 @@ import { TimelineSystemDivider } from "./TimelineSystemDivider";
 import { forwardWheelToTimeline } from "./timelineMinimapWheel";
 import { ThreadActivityAnnouncer } from "./ThreadActivityAnnouncer";
 import { useClientSettings } from "../../hooks/useSettings";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 const NOOP_USE_ARTIFACT_TEMPLATE = () => {};
 const EMPTY_PENDING_APPROVALS: ReadonlyArray<PendingApproval> = [];
@@ -1785,6 +1785,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
 });
 
 function TimelineHistoryControl(props: MessagesTimelineHistoryControls) {
+  const gt = useGT();
   if (!props.loading && props.error === null) {
     return null;
   }
@@ -1793,18 +1794,20 @@ function TimelineHistoryControl(props: MessagesTimelineHistoryControls) {
       <div className="chat-content-lane flex flex-col gap-1.5 pb-2">
         {props.loading ? (
           <p role="status" className="py-1.5 text-center text-xs text-muted-foreground/60">
-            Loading earlier activity…
+            <T>Loading earlier activity…</T>
           </p>
         ) : null}
         {!props.loading && props.hasMoreHistory ? (
           <button
             type="button"
-            aria-label="Retry loading earlier activity"
+            aria-label={gt("Retry loading earlier activity")}
             onClick={() => props.onLoadEarlier()}
             className="flex w-full cursor-pointer items-center gap-3 py-1.5 text-muted-foreground text-xs hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
           >
             <span aria-hidden="true" className="h-px flex-1 bg-border/70" />
-            <span className="shrink-0">Retry loading earlier activity</span>
+            <span className="shrink-0">
+              <T>Retry loading earlier activity</T>
+            </span>
             <span aria-hidden="true" className="h-px flex-1 bg-border/70" />
           </button>
         ) : null}
@@ -2011,16 +2014,24 @@ function ContextCompactionTimelineRow({
       )}
       {row.tokenCounts ? (
         <>
-          {row.title ?? "Context compacted"} {row.tokenCounts.before}
-          <ArrowRightIcon aria-hidden="true" className="size-3" />
-          {row.tokenCounts.after} tokens
+          {row.title ? (
+            <T>
+              <Var>{row.title}</Var> <Var>{row.tokenCounts.before}</Var>
+              <ArrowRightIcon aria-hidden="true" className="size-3" />
+              <Var>{row.tokenCounts.after}</Var> tokens
+            </T>
+          ) : (
+            <T>
+              Context compacted <Var>{row.tokenCounts.before}</Var>
+              <ArrowRightIcon aria-hidden="true" className="size-3" />
+              <Var>{row.tokenCounts.after}</Var> tokens
+            </T>
+          )}
         </>
       ) : (
         label
       )}
-      {row.failure ? (
-        <span className="min-w-0 truncate opacity-80">&middot; {row.failure}</span>
-      ) : null}
+      {row.failure ? <span className="min-w-0 truncate opacity-80">· {row.failure}</span> : null}
     </span>
   );
   return (

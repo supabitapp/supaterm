@@ -4,7 +4,7 @@ import { use, useState } from "react";
 
 import { mountDiagram } from "../../diagrams/mountDiagram";
 import { serializeCodeBlockToMarkdown } from "../../markdown-clipboard";
-import { useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 let mathLoad: Promise<MathResolver | null> | null = null;
 
@@ -246,7 +246,11 @@ function DiagramError({ message, source }: { message: string; source: string }) 
   return (
     <div>
       <div className="flex items-center justify-between gap-2">
-        <p className="m-0 text-xs text-destructive">Unable to render diagram: {message}</p>
+        <p className="m-0 text-xs text-destructive">
+          <T>
+            Unable to render diagram: <Var>{message}</Var>
+          </T>
+        </p>
       </div>
       <pre
         data-thread-find-ignore

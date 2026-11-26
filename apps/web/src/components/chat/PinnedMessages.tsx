@@ -1,3 +1,4 @@
+import { T, useGT } from "gt-react";
 import type { ThreadPinnedMessage } from "@supaterm/contracts";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
 import { PinIcon, PinOffIcon } from "@supaterm/icons";
@@ -68,6 +69,7 @@ export function PinnedMessagesMenu({
   onJump: (pin: ThreadPinnedMessage) => void;
   onUnpin: ((pin: ThreadPinnedMessage) => void) | undefined;
 }) {
+  const gt = useGT();
   const [open, setOpen] = useState(false);
   if (pins.length === 0) return null;
   return (
@@ -91,7 +93,9 @@ export function PinnedMessagesMenu({
           <PinIcon className="size-3.5" />
           <span className="tabular-nums">{pins.length}</span>
         </TooltipTrigger>
-        <TooltipPopup side="bottom">Pinned messages</TooltipPopup>
+        <TooltipPopup side="bottom">
+          <T>Pinned messages</T>
+        </TooltipPopup>
       </Tooltip>
       <PopoverPopup align="end" side="bottom" width="md" padding="compact">
         <ul className="-mx-1 flex flex-col">
@@ -111,10 +115,10 @@ export function PinnedMessagesMenu({
                   <span aria-hidden className="mt-[9px] h-0.5 w-3 shrink-0 rounded-full bg-info" />
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="line-clamp-2 text-sm break-words">
-                      {pin.preview === "" ? "Message with attachments" : pin.preview}
+                      {pin.preview === "" ? gt("Message with attachments") : pin.preview}
                     </span>
                     <span className="text-muted-foreground text-xs tabular-nums">
-                      {pin.role === "user" ? `You · ${sentAt}` : sentAt}
+                      {pin.role === "user" ? gt("You · {time}", { time: sentAt }) : sentAt}
                     </span>
                   </span>
                 </button>
@@ -127,14 +131,16 @@ export function PinnedMessagesMenu({
                             type="button"
                             size="icon-xs"
                             variant="ghost-muted"
-                            aria-label="Unpin message"
+                            aria-label={gt("Unpin message")}
                             onClick={() => onUnpin(pin)}
                           />
                         }
                       >
                         <PinOffIcon className="size-3.5" />
                       </TooltipTrigger>
-                      <TooltipPopup side="left">Unpin message</TooltipPopup>
+                      <TooltipPopup side="left">
+                        <T>Unpin message</T>
+                      </TooltipPopup>
                     </Tooltip>
                   </span>
                 ) : null}

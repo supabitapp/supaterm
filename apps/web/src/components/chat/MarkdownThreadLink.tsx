@@ -131,7 +131,9 @@ export function MarkdownThreadLink(props: {
             </ContextChip>
           }
         />
-        <TooltipPopup side="top">Read the thread on {linkedLabel}</TooltipPopup>
+        <TooltipPopup side="top">
+          {gt("Read the thread on {label}", { label: linkedLabel })}
+        </TooltipPopup>
       </Tooltip>
     );
   }

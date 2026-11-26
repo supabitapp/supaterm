@@ -207,11 +207,15 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
   };
 
   const handleCopy = (resolveValue: () => Promise<string>, title: string) => {
+    const failureTitle =
+      title === "Relative path"
+        ? gt("Failed to copy relative path")
+        : gt("Failed to copy full path");
     if (typeof window === "undefined" || !navigator.clipboard?.writeText) {
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: `Failed to copy ${title.toLowerCase()}`,
+          title: failureTitle,
           description: gt("Clipboard API unavailable."),
         }),
       );
@@ -236,7 +240,7 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
       toastManager.add(
         stackedThreadToast({
           type: "error",
-          title: `Failed to copy ${title.toLowerCase()}`,
+          title: failureTitle,
           description: error instanceof Error ? error.message : gt("An error occurred."),
         }),
       );

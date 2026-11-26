@@ -6,7 +6,7 @@ import { textDirection } from "~/textDirection";
 import { Button } from "../ui/button";
 import { TextFieldVoiceInput } from "./TextFieldVoiceInput";
 import { isImeComposing } from "~/lib/imeComposition";
-import { useGT, T } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 export function AssistantCitationCommentEditor({
   citation,
@@ -88,8 +88,10 @@ export function AssistantCitationCommentEditor({
       />
       {commentTooLong ? (
         <p role="status" className="pt-1 text-xs text-destructive">
-          Comments can contain up to {ASSISTANT_CITATION_MAX_COMMENT_LENGTH.toLocaleString()}{" "}
-          characters.
+          <T>
+            Comments can contain up to{" "}
+            <Var>{ASSISTANT_CITATION_MAX_COMMENT_LENGTH.toLocaleString()}</Var> characters.
+          </T>
         </p>
       ) : null}
       <div className="mt-2 flex items-center justify-end gap-2">

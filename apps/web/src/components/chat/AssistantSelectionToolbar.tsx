@@ -380,7 +380,9 @@ export function AssistantSelectionToolbar({
       variant="glass"
       disabled={tooLong}
       inert={presence.exiting}
-      aria-label={tooLong ? "Selection is too long to annotate" : "Add annotation in composer"}
+      aria-label={
+        tooLong ? gt("Selection is too long to annotate") : gt("Add annotation in composer")
+      }
       data-selection-action=""
       // The expanded view of a render is a media dialog, which sits above the timeline's layer.
       className={cn("fixed max-w-[calc(100vw-1rem)] origin-top-left", expanded ? "z-[70]" : "z-50")}
@@ -396,7 +398,7 @@ export function AssistantSelectionToolbar({
       }}
     >
       <QuoteIcon aria-hidden="true" className="size-3.5" />
-      {tooLong ? gt("Shorten selection") : "Add annotation"}
+      {tooLong ? gt("Shorten selection") : gt("Add annotation")}
     </Button>,
     document.body,
   );

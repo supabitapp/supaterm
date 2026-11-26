@@ -10,7 +10,7 @@ import { useEnvironmentScope } from "../../state/session";
 import { childThreadApprovalsAtom, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
-import { T, useGT } from "gt-react";
+import { T, useGT, Var } from "gt-react";
 
 function ChildApproval({ entry }: { entry: ChildThreadApproval }) {
   const gt = useGT();
@@ -24,7 +24,11 @@ function ChildApproval({ entry }: { entry: ChildThreadApproval }) {
       aria-label={gt("Approval from {title}", { title: entry.title })}
       className="rounded-lg border border-border bg-background p-3 text-xs"
     >
-      <p className="mb-2 font-medium">Approval needed from {entry.title}</p>
+      <p className="mb-2 font-medium">
+        <T>
+          Approval needed from <Var>{entry.title}</Var>
+        </T>
+      </p>
       <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words font-mono">
         {approval.detail || approval.requestKind}
       </pre>
