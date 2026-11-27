@@ -8,7 +8,7 @@ import * as Schema from "effect/Schema";
 
 import { APP_DIR, SCENARIO_HOME } from "../e2e.config.ts";
 import { run } from "./shell.ts";
-import { runPromise, test, WEB } from "./supaterm.ts";
+import { runPromise, TERMINAL_COPY, TERMINAL_SELECT_ALL, test, WEB } from "./supaterm.ts";
 
 const decodeRuntime = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ pid: Schema.Int })),
@@ -75,8 +75,8 @@ test(
         return null;
       });
       await terminal.focus();
-      await browser.keyboard.press("Control+Shift+A");
-      await browser.keyboard.press("Control+Shift+C");
+      await browser.keyboard.press(TERMINAL_SELECT_ALL);
+      await browser.keyboard.press(TERMINAL_COPY);
       return browser.evaluate(() => document.body.dataset.terminalCopy ?? "");
     };
 

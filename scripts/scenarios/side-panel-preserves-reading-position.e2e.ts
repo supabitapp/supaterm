@@ -108,7 +108,7 @@ test(
           range.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 48;
         return range.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
       }, length);
-      await browser.keyboard.press("Control+Alt+B");
+      await browser.keyboard.press("ControlOrMeta+Alt+B");
       shortcutShifts.push(Math.abs((await position(true, false)) - shortcutBefore));
       await app.screenshot(length === 0 ? "draft-caret-shortcut" : "draft-selection-shortcut");
     }

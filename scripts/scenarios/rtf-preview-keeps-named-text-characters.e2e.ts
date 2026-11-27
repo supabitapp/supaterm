@@ -23,7 +23,7 @@ test(
     await supaterm.open(thread);
     await expect(screen.getByText("fixture turn complete", { exact: false })).toBeVisible();
 
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill("contacts.rtf");
     await screen.getByRole("option", "contacts.rtf", { exact: false }).tap();
 

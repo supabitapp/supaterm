@@ -69,7 +69,7 @@ test(
       return null;
     });
 
-    await browser.keyboard.press("Control+k");
+    await browser.keyboard.press("ControlOrMeta+k");
     const palette = screen.getByRole("dialog", "Command palette");
     await palette.getByRole("combobox").fill("> Add project");
     await palette.getByText("Add project", { exact: true }).tap();

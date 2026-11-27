@@ -9,7 +9,7 @@ import * as Schema from "effect/Schema";
 
 import { APP_DIR, NATIVE_APPS } from "../e2e.config.ts";
 import { run, ScenarioError } from "./shell.ts";
-import { ANDROID_ABI } from "./start-app.ts";
+import { androidAbi } from "./start-app.ts";
 import { makeState, runPromise, type SupatermState } from "./supaterm.ts";
 
 export const APP_ID = "com.supaterm.mobile.dev";
@@ -32,10 +32,16 @@ const decodePrepared = Schema.decodeUnknownEffect(
 /** The dev client built for this checkout's native code, from the shared cache. */
 const devClientPath = Effect.fn("scenario.devClientPath")(function* (platform: MobilePlatform) {
   const path = yield* Path.Path;
-  const abi = platform === "android" ? ["--abi", ANDROID_ABI] : [];
+  const abi = yield* androidAbi;
   const prepared = yield* run(
     yield* HostProcess.ExecutablePath,
-    ["scripts/mobile-native-client.ts", "ensure", platform, "--prepare", ...abi],
+    [
+      "scripts/mobile-native-client.ts",
+      "ensure",
+      platform,
+      "--prepare",
+      ...(platform === "android" ? ["--abi", abi] : []),
+    ],
     { cwd: APP_DIR },
   );
   const { fingerprint } = yield* decodePrepared(prepared.stdout.trim().split("\n").at(-1) ?? "");
@@ -45,7 +51,7 @@ const devClientPath = Effect.fn("scenario.devClientPath")(function* (platform: M
   );
   return platform === "ios"
     ? path.join(artifacts, "ios/development", fingerprint, "SupatermDev.app")
-    : path.join(artifacts, `android/development-${ANDROID_ABI}`, fingerprint, "app-debug.apk");
+    : path.join(artifacts, `android/development-${abi}`, fingerprint, "app-debug.apk");
 });
 
 // Each run starts the app with no data, since the server it was paired with is gone, and then

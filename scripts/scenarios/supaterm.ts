@@ -342,5 +342,14 @@ export const test = base.extend<{ supaterm: Supaterm }>({
   },
 });
 
-/** Test option for a web scenario: the iOS target skips it. */
+/** The terminal's select-all and copy keys, which differ between macOS and Linux browsers. */
+const macBrowser = Effect.runSync(
+  Effect.gen(function* () {
+    return (yield* HostProcess.Platform) === "darwin";
+  }),
+);
+export const TERMINAL_SELECT_ALL = macBrowser ? "Meta+a" : "Control+Shift+A";
+export const TERMINAL_COPY = macBrowser ? "Meta+c" : "Control+Shift+C";
+
+/** Test option for a web scenario: the native targets skip it. */
 export const WEB = { platforms: ["web"] } as const;

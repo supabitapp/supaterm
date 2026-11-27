@@ -38,7 +38,7 @@ test(
     await supaterm.open(thread);
     await screen.getByText("fixture turn complete", { exact: false }).waitFor();
 
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill("results.ipynb");
     await screen.getByRole("option", "results.ipynb", { exact: false }).tap();
     await browser.locator(lastOutput).waitFor({ state: "attached", timeout: 120_000 });

@@ -13,7 +13,7 @@ test(
     await expect(thread).toBeVisible({ timeout: 120_000 });
     await thread.tap();
     await expect(screen.getByText("first fixture turn complete", { exact: false })).toBeVisible();
-    await browser.keyboard.press("Control+f");
+    await browser.keyboard.press("ControlOrMeta+f");
     const find = screen.getByRole("searchbox", "Find in thread");
     await expect(find).toBeVisible();
     // A DOM fixture reaches the real highlight effect without a giant replay recording.

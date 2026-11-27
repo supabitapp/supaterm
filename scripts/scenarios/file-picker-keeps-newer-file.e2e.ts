@@ -78,7 +78,7 @@ test(
       return null;
     });
 
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill(PICKED);
     await screen.getByRole("option", PICKED, { exact: false }).tap();
     await activeTab.getByText(PICKED, { exact: true }).waitFor();

@@ -19,7 +19,7 @@ test(
       .getByText("notes.ts · L42–64", { exact: true })
       .waitFor();
 
-    await browser.keyboard.press("Control+f");
+    await browser.keyboard.press("ControlOrMeta+f");
     await screen.getByRole("searchbox", "Find in thread").fill("L42–64");
     try {
       await expect

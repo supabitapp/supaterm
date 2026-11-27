@@ -43,7 +43,9 @@ const REAL_PROVIDERS = [
 export const SCENARIO_LINEAR_PORT = 13_997;
 
 /** The Android dev client built for an emulator, which runs the host's architecture. */
-export const ANDROID_ABI = process.arch === "arm64" ? "arm64-v8a" : "x86_64";
+export const androidAbi = Effect.gen(function* () {
+  return (yield* HostProcess.Architecture) === "arm64" ? "arm64-v8a" : "x86_64";
+});
 
 /** Captures must not depend on, or show, the machine that made them. */
 export const SCENARIO_MACHINE_ENV = {
@@ -216,7 +218,7 @@ const startApp = Effect.fn("startApp")(function* (input: {
       "ensure",
       input.surface,
       "--prepare",
-      ...(input.surface === "android" ? ["--abi", ANDROID_ABI] : []),
+      ...(input.surface === "android" ? ["--abi", yield* androidAbi] : []),
     ],
     { cwd: checkout, echo: true },
   );

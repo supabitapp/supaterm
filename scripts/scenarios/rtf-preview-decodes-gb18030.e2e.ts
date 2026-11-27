@@ -14,7 +14,7 @@ test(
     await supaterm.open(thread);
     await screen.getByText("fixture turn complete", { exact: false }).waitFor();
 
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill("notes.rtf");
     await screen.getByRole("option", "notes.rtf", { exact: false }).tap();
 

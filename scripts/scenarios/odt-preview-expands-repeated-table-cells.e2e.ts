@@ -29,7 +29,7 @@ test(
     await supaterm.open(thread);
     await expect(screen.getByText("fixture turn complete", { exact: false })).toBeVisible();
 
-    await browser.keyboard.press("Control+p");
+    await browser.keyboard.press("ControlOrMeta+p");
     await screen.getByPlaceholder("Search files…").fill("decisions.odt");
     await screen.getByRole("option", "decisions.odt", { exact: false }).tap();
 

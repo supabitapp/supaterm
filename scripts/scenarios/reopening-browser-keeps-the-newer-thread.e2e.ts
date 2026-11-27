@@ -83,7 +83,7 @@ test(
       return null;
     });
 
-    await browser.keyboard.press("Control+Shift+t");
+    await browser.keyboard.press("ControlOrMeta+Shift+t");
     await browser.evaluate(async () => {
       await window.reopenGate.requested;
       return null;

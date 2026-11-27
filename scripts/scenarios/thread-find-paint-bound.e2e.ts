@@ -46,7 +46,7 @@ test(
     });
 
     // The CLI's message folds to one line; find unfolds it to reach the first match.
-    await browser.keyboard.press("Control+f");
+    await browser.keyboard.press("ControlOrMeta+f");
     const find = screen.getByRole("searchbox", "Find in thread");
     await expect(find).toBeVisible();
     await find.fill("the");

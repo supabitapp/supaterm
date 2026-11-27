@@ -1,6 +1,6 @@
 import { expect } from "e2e";
 
-import { test, WEB } from "./supaterm.ts";
+import { TERMINAL_SELECT_ALL, test, WEB } from "./supaterm.ts";
 
 test(
   "A thread started with only a terminal excerpt gets a title in the app's language",
@@ -19,7 +19,7 @@ test(
     await input.waitFor();
     await input.focus();
     await browser.keyboard.type("printf 'first\\nsecond\\n'\n");
-    await browser.keyboard.press("Control+Shift+A");
+    await browser.keyboard.press(TERMINAL_SELECT_ALL);
     await browser.locator("canvas.cursor-text").secondaryTap();
     await screen.getByText("チャットに追加", { exact: true }).tap();
 

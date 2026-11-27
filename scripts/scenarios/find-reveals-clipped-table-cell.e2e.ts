@@ -27,7 +27,7 @@ test(
       timeout: 120_000,
     });
 
-    await browser.keyboard.press("Control+f");
+    await browser.keyboard.press("ControlOrMeta+f");
     const find = screen.getByRole("searchbox", "Find in thread");
     await find.fill(MATCH);
 
