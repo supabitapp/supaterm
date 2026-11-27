@@ -37,7 +37,8 @@ test(
     await dialog.getByRole("button", "Keep both").tap();
     await expect(dialog).toBeHidden();
 
-    await screen.getByRole("button", "Use Nyx (1) theme").tap();
+    await screen.getByRole("combobox", "Light theme", { exact: true }).tap();
+    await screen.getByRole("option", "Nyx (1)", { exact: true }).tap();
     await app.screenshot("keep-both-copy-selected");
     await expect
       .poll(() =>
