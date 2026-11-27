@@ -31,7 +31,8 @@ test(
     );
     try {
       await supaterm.open("/settings/appearance");
-      await screen.getByRole("button", "Use Original Palette theme", { exact: true }).waitFor();
+      await screen.getByRole("combobox", "Dark theme", { exact: true }).tap();
+      await screen.getByRole("option", "Original Palette", { exact: true }).waitFor();
       await runPromise(
         Effect.gen(function* () {
           const fs = yield* FileSystem.FileSystem;
@@ -40,9 +41,7 @@ test(
         }),
       );
       // Wait for the rename event to be reflected before editing the replacement directory.
-      const restoredTheme = screen.getByRole("button", "Use Restored Palette theme", {
-        exact: true,
-      });
+      const restoredTheme = screen.getByRole("option", "Restored Palette", { exact: true });
       await restoredTheme.waitFor();
       await restoredTheme.scrollIntoView();
 
@@ -53,7 +52,7 @@ test(
       );
       try {
         await expect(
-          screen.getByRole("button", "Use Edited Restored Palette theme", { exact: true }),
+          screen.getByRole("option", "Edited Restored Palette", { exact: true }),
         ).toBeVisible();
       } finally {
         await app.screenshot("appearance-after-editing-restored-theme");
