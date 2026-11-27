@@ -45,7 +45,9 @@ test(
       await supaterm.open(waiting);
       // The approval renders last and moves the queue; hover once it is in place.
       await screen.getByRole("button", "Approve", { exact: true }).waitFor({ timeout: 30_000 });
-      await screen.getByRole("button", "Send now").hover();
+      // Focus opens the tooltip as hover does, without depending on how the browser emulates a
+      // pointer, which differs between macOS and Linux runners.
+      await screen.getByRole("button", "Send now").focus();
       await expect(
         screen.getByText("Move this command to the front of the queue", { exact: false }),
       ).toBeVisible();
