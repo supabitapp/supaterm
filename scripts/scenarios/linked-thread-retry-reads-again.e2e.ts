@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { SCENARIO_HOME } from "../e2e.config.ts";
+import { linkedThreadTab, restoreLinkedThreadTab } from "./linked-thread-tab.ts";
 import { SECOND_HOME, startSecondServer } from "./second-server.ts";
 import { environmentId, makeState, rpcClient, runPromise, test, WEB } from "./supaterm.ts";
 
@@ -15,7 +16,11 @@ test(
   "Try again immediately reads a linked thread once it is reachable",
   WEB,
   async ({ supaterm, app, browser, screen }) => {
-    await supaterm.project("primary");
+    const parent = await supaterm.thread({
+      project: await supaterm.project("primary"),
+      title: "Current work",
+      messages: ["first"],
+    });
     const origin = app.baseUrl ?? "";
     const server = startSecondServer(origin);
     try {
@@ -93,7 +98,18 @@ test(
         };
       });
 
-      await supaterm.open(`/linked/${via}/${linked}/${thread.threadId}`);
+      await browser.addInitScript(
+        restoreLinkedThreadTab,
+        linkedThreadTab({
+          via,
+          linked,
+          parentId: parent.threadId,
+          childId: thread.threadId,
+          title: "Design notes",
+        }),
+      );
+
+      await supaterm.open(parent);
       await screen.getByRole("button", "Try again", { exact: true }).tap();
       await app.screenshot("after-trying-again");
       // The automatic retry waits 15 seconds. This checks the user's explicit retry.
