@@ -76,6 +76,14 @@ describe("splitMarkdown", () => {
       "# literal",
       "</div>",
       "",
+      '<p class="lead">text',
+      "# literal",
+      "</p>",
+      "",
+      '<span class="box">',
+      "# literal",
+      "</span>",
+      "",
       "<details>",
       "<summary>Answer</summary>",
       "",
@@ -129,9 +137,75 @@ describe("splitMarkdown", () => {
     ]);
   });
 
-  it("treats an autolink line as a paragraph, so a following fence still opens", () => {
-    const text = ["<https://example.com>", "```md", "", "# literal", "```", "", "after"].join("\n");
+  it("treats an autolink or inline HTML line as a paragraph, so a following fence still opens", () => {
+    const text = [
+      "<https://example.com>",
+      "```md",
+      "",
+      "# literal",
+      "```",
+      "",
+      "<b>bold</b> text",
+      "```md",
+      "",
+      "# literal",
+      "```",
+      "",
+      "after",
+    ].join("\n");
     expect(starts(text)).toEqual(["<https://example.com>", "after"]);
+  });
+
+  it("keeps the complete sample fence before a later oversized source chunk", () => {
+    const example = ["```md", "Sample Markdown", "", "# Sample heading", "```"].join("\n");
+    const preview = ["x".repeat(4200), "<span>", example, "More prose", "<span>"].join("\n");
+    const oversized = "# Appendix\n" + "[link](/example) ".repeat(11_000);
+    const { chunks } = splitMarkdown(preview + "\n" + oversized);
+    expect(chunks.map((chunk) => chunk.text)).toEqual([preview, oversized]);
+  });
+
+  it.each(["===", "---", "***"])(
+    "keeps HTML together after a long paragraph and %s",
+    (boundary) => {
+      const text = ["x".repeat(9000), boundary, "<span>", "# literal"].join("\n");
+      expect(splitMarkdown(text).chunks.map((chunk) => chunk.text)).toEqual([text]);
+    },
+  );
+
+  it.each([
+    ["a fence", "```md", "```"],
+    ["an HTML comment", "<!--", "-->"],
+    ["display math", "$$", "$$"],
+  ])("keeps %s intact after an ambiguous standalone tag", (_, open, close) => {
+    const block = [open, "Sample Markdown", "", "# Sample heading", close].join("\n");
+    const preview = ["x".repeat(9000), "<span>", block].join("\n");
+    expect(splitMarkdown(preview).chunks.map((chunk) => chunk.text)).toEqual([preview]);
+  });
+
+  it("preserves an oversized ambiguous region for source display", () => {
+    const oversized = ["x".repeat(LARGE_MARKDOWN_CHUNK_MAX_CHARS), "<span>", "# Heading"].join(
+      "\n",
+    );
+    const next = "# Next";
+    const text = oversized + "\n\n" + next;
+    expect(splitMarkdown(text).chunks.map((chunk) => chunk.text)).toEqual([oversized + "\n", next]);
+  });
+
+  it.each([
+    ["multiline math with backticks", ["$$", "```", "$$", " # Heading"]],
+    ["single-line display math", ["$$x$$"]],
+  ])("keeps standalone HTML intact after %s", (_, math) => {
+    const text = ["x".repeat(4200), "<span>", ...math, "<span>", "# literal"].join("\n");
+    expect(splitMarkdown(text).chunks.map((chunk) => chunk.text)).toEqual([text]);
+  });
+
+  it("can cut at a heading after a tag in a lazy quote continuation", () => {
+    const quote = ["> " + "x".repeat(4200), "continued", "<span>"].join("\n");
+    const heading = "# Next";
+    expect(splitMarkdown(quote + "\n" + heading).chunks.map((chunk) => chunk.text)).toEqual([
+      quote,
+      heading,
+    ]);
   });
 
   it("waits for the target size before cutting", () => {
