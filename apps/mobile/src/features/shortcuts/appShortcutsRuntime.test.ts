@@ -8,6 +8,7 @@ vi.mock("../../state/atom-registry", () => ({}));
 vi.mock("../../state/threads", () => ({ environmentThreadShells: {} }));
 vi.mock("../../lib/rootNavigation", () => ({}));
 vi.mock("../../lib/uuid", () => ({}));
+vi.mock("../threads/start-new-task-action", () => ({}));
 vi.mock("../threads/use-start-new-task", () => ({}));
 vi.mock("./appShortcuts", async () => {
   const { withRecentThreadShortcut } =

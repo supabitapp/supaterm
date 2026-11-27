@@ -14,8 +14,8 @@ import { rootNavigationRef, whenRootNavigationReady } from "../../lib/rootNaviga
 import { uuidv4 } from "../../lib/uuid";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { environmentThreadShells } from "../../state/threads";
+import { startNewTaskAction } from "../threads/start-new-task-action";
 import { readStartNewTaskDestination } from "../threads/use-start-new-task";
-import { selectWorkspaceDetail } from "../layout/workspace/workspace-detail-selection";
 import {
   activeThreadRef,
   buildShortcutActions,
@@ -143,10 +143,8 @@ export function installAppShortcuts(navigate: (href: string) => void): () => voi
   const open = (action: QuickActions.Action) => {
     // "New task" goes through the compose action so it opens the last project.
     if (action.id === NEW_TASK_SHORTCUT_ID) {
-      void readStartNewTaskDestination(uuidv4()).then((params) =>
-        whenRootNavigationReady(() =>
-          rootNavigationRef.dispatch(selectWorkspaceDetail({ name: "Thread", params })),
-        ),
+      void readStartNewTaskDestination(uuidv4()).then((destination) =>
+        whenRootNavigationReady(() => rootNavigationRef.dispatch(startNewTaskAction(destination))),
       );
       return;
     }

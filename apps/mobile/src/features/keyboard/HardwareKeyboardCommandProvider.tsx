@@ -38,6 +38,7 @@ import { uuidv4 } from "../../lib/uuid";
 import { waitForThreadShellReady } from "../threads/threadForkNavigation";
 import type { GitActionProgress } from "../../state/use-vcs-action-state";
 import { GitActionProgressOverlay } from "../threads/GitActionProgressOverlay";
+import { startNewTaskAction } from "../threads/start-new-task-action";
 import { readStartNewTaskDestination } from "../threads/use-start-new-task";
 import { CommandPalette } from "./CommandPalette";
 import {
@@ -249,8 +250,8 @@ export function HardwareKeyboardCommandProvider({
       }
 
       if (command === "newTask") {
-        void readStartNewTaskDestination(uuidv4()).then((params) =>
-          navigation.dispatch(selectWorkspaceDetail({ name: "Thread", params })),
+        void readStartNewTaskDestination(uuidv4()).then((destination) =>
+          navigation.dispatch(startNewTaskAction(destination)),
         );
         return;
       }

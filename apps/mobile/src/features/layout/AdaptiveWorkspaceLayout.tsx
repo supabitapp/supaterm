@@ -80,6 +80,7 @@ import {
 import { startOpeningDetail } from "./workspace/useSelectWorkspaceDetail";
 import { useWorkspaceTabs } from "./workspace/WorkspaceTabsContext";
 import { HomeListOptionsProvider } from "../home/home-list-options";
+import { startNewTaskAction } from "../threads/start-new-task-action";
 import { readStartNewTaskDestination } from "../threads/use-start-new-task";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import { PaneContext } from "../../components/ui/Pane";
@@ -580,7 +581,11 @@ function AdaptiveWorkspaceLayoutContent(
   const compactAndroidSettings =
     Platform.OS === "android" && androidSettingsOpen && !layout.usesSplitView;
   const handleStartNewTask = () => {
-    void readStartNewTaskDestination(uuidv4()).then(handleSelectThreadRoute);
+    void readStartNewTaskDestination(uuidv4()).then((destination) =>
+      destination === null
+        ? navigation.dispatch(startNewTaskAction(destination))
+        : handleSelectThreadRoute(destination),
+    );
   };
 
   useHardwareKeyboardCommand("newTask", () => {
