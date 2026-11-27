@@ -35,9 +35,10 @@ test(
     // The input mounts before fonts and WASM finish loading and its handlers are installed.
     await expect(input).toHaveAttribute("data-workspace-focus-default", "");
     await input.focus();
-    // GNU ls writes `file://<hostname>/<path>`. Enough rows to scroll, so every row is the link.
+    // What GNU ls --hyperlink writes, `file://<hostname>/<path>`, by printf, which every platform has.
+    // Enough rows to scroll, so every row is the link.
     await browser.keyboard.type(
-      "for i in $(seq 1 100); do command ls --hyperlink=always --color=never -1 one.txt; done; touch ls.done\n",
+      'for i in $(seq 1 100); do printf \'\\033]8;;file://%s%s\\033\\\\one.txt\\033]8;;\\033\\\\\\n\' "$(hostname)" "$PWD/one.txt"; done; touch ls.done\n',
     );
     await expect.poll(() => readLines(`${project}/ls.done`), { timeout: 30_000 }).toEqual([""]);
     await browser.setViewport({ width: 1000, height: 700 });
@@ -53,10 +54,10 @@ test(
     });
     if (!canvas) throw new Error("The terminal canvas is not on the page.");
     await browser.mouse.move(canvas.x + 16, canvas.y + canvas.height / 2);
-    await browser.keyboard.down("Control");
+    await browser.keyboard.down("ControlOrMeta");
     await browser.mouse.down();
     await browser.mouse.up();
-    await browser.keyboard.up("Control");
+    await browser.keyboard.up("ControlOrMeta");
     await app.screenshot("after-ctrl-click");
 
     await expect

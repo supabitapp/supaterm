@@ -72,6 +72,14 @@ export const prepareHome = Effect.fn("startApp.prepareHome")(function* (home: st
       'writeFileSync(new URL("../editor-args.txt", import.meta.url), lines.join(""));',
     ].join("\n"),
   });
+  // The server reads PATH from a login shell, where the developer's own tools (a real `cursor`)
+  // would shadow these shims. This shell answers that probe with the scenario's PATH.
+  const loginShell = (yield* HostProcess.Platform) === "darwin" ? "/bin/zsh" : "/bin/bash";
+  yield* fs.writeFileString(
+    path.join(home, "bin/login-shell"),
+    `#!/bin/sh\nif [ "$1" = "-ilc" ]; then exec /bin/sh -c "$2"; fi\nexec ${loginShell} "$@"\n`,
+    { mode: 0o755 },
+  );
   const noModel = writeFakeCli({
     directory: path.join(home, "bin"),
     name: "no-model",
@@ -142,6 +150,7 @@ const startApp = Effect.fn("startApp")(function* (input: {
     PATH: [path.join(input.home, "bin"), hostEnvironment.PATH ?? ""].join(
       (yield* HostProcess.Platform) === "win32" ? ";" : ":",
     ),
+    SHELL: path.join(input.home, "bin/login-shell"),
     SUPATERM_AUTO_BOOTSTRAP_PROJECT_FROM_CWD: "0",
     ...SCENARIO_MACHINE_ENV,
   };

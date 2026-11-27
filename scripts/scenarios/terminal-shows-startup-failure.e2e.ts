@@ -8,7 +8,14 @@ import * as Schema from "effect/Schema";
 
 import { APP_DIR, SCENARIO_HOME } from "../e2e.config.ts";
 import { run } from "./shell.ts";
-import { runPromise, TERMINAL_COPY, TERMINAL_SELECT_ALL, test, WEB } from "./supaterm.ts";
+import {
+  HOST_PLATFORM,
+  runPromise,
+  TERMINAL_COPY,
+  TERMINAL_SELECT_ALL,
+  test,
+  WEB,
+} from "./supaterm.ts";
 
 const decodeRuntime = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ pid: Schema.Int })),
@@ -50,7 +57,8 @@ const exhaustFileDescriptors = Effect.fn("scenario.exhaustFileDescriptors")(func
   return run("prlimit", [`--pid=${pid}`, `--nofile=${soft}:${hard}`]);
 });
 
-test(
+// It finds the shell through /proc and limits it with prlimit, which only Linux has.
+test.runIf(HOST_PLATFORM === "linux")(
   "A terminal whose shell cannot start says why, also after its drawer reopens",
   WEB,
   async ({ supaterm, app, browser, screen }) => {

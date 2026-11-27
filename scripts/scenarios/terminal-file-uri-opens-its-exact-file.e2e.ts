@@ -24,9 +24,18 @@ const removeEditorArgs = () =>
     Effect.flatMap(FileSystem.FileSystem, (fs) => fs.remove(EDITOR_ARGS, { force: true })),
   );
 
-// GNU ls, made hostless, for filenames that end like a position.
+// What GNU ls --hyperlink prints, made hostless: every byte outside [A-Za-z0-9-._~/] as %xx.
+// printf stands in for it because BSD ls has no hyperlinks.
+const gnuEscape = (name: string) =>
+  [...new TextEncoder().encode(name)]
+    .map((byte) =>
+      /[A-Za-z0-9\-._~/]/.test(String.fromCharCode(byte))
+        ? String.fromCharCode(byte)
+        : `%${byte.toString(16).padStart(2, "0")}`,
+    )
+    .join("");
 const listed = (name: string) =>
-  `command ls -d --hyperlink=always --color=never -1 --quoting-style=literal -- '${name}' | sed -E 's@file://[^/]+/@file:///@'`;
+  `printf '\\033]8;;file://%s\\033\\\\%s\\033]8;;\\033\\\\\\n' "$PWD/${gnuEscape(name)}" '${name}'`;
 // An opaque label, so only the URI can name the file.
 const hashed = (uriPath: string) =>
   `printf '\\033]8;;file://%s\\033\\\\CLICKME\\033]8;;\\033\\\\\\n' "$PWD/${uriPath}"`;
@@ -85,10 +94,10 @@ test(
       if (!canvas) throw new Error("The terminal canvas is not on the page.");
       // Alternate rows, or a quick second click on the same spot counts as a double-click.
       await browser.mouse.move(canvas.x + 16, canvas.y + canvas.height / 2 - (index % 2) * 40);
-      await browser.keyboard.down("Control");
+      await browser.keyboard.down("ControlOrMeta");
       await browser.mouse.down();
       await browser.mouse.up();
-      await browser.keyboard.up("Control");
+      await browser.keyboard.up("ControlOrMeta");
 
       await expect
         .poll(() => readLines(EDITOR_ARGS), { timeout: 15_000 })
