@@ -9,7 +9,7 @@ import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { ScenarioError } from "./shell.ts";
-import { runPromise, test, WEB } from "./supaterm.ts";
+import { approvalRequiredThreads, runPromise, test, WEB } from "./supaterm.ts";
 
 // Serves on the port its last argument ends in, and prints once it listens.
 const LISTENER = `require("node:http").createServer((_, res) => res.end("ok")).listen(Number(process.argv.at(-1).split("=").at(-1)), "127.0.0.1", () => console.log("listening"))`;
@@ -49,11 +49,20 @@ test(
   "An agent browser's DevTools port is not listed with the thread's servers",
   WEB,
   async ({ supaterm, app, browser, screen }) => {
-    const project = await supaterm.project("demo");
-    const thread = await supaterm.thread({ project, title: "Dev server", messages: ["Start"] });
-    const [serverPort, devToolsPort] = [await freePort(), await freePort()];
+    const settings = await runPromise(approvalRequiredThreads);
     const scope = await runPromise(Scope.make());
     try {
+      await runPromise(settings.apply);
+      const project = await supaterm.project("demo");
+      // An approval holds the turn open, so the listeners start while its agent runs, as an
+      // agent's dev server does; the server reads listener owners only around running agents.
+      const thread = await supaterm.thread({
+        project,
+        title: "Dev server",
+        messages: ["Start"],
+        model: "approval",
+      });
+      const [serverPort, devToolsPort] = [await freePort(), await freePort()];
       await runPromise(
         Effect.all([
           listen(thread.threadId, `${serverPort}`),
@@ -69,6 +78,7 @@ test(
       await expect(servers.getByText(`localhost:${devToolsPort}`)).toHaveCount(0);
     } finally {
       await runPromise(Scope.close(scope, Exit.void));
+      await runPromise(settings.restore);
     }
   },
 );

@@ -1,35 +1,10 @@
 import { expect } from "e2e";
 import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
-import * as Path from "effect/Path";
-import * as Schema from "effect/Schema";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 
 import { SCENARIO_HOME } from "../e2e.config.ts";
 import { ScenarioError } from "./shell.ts";
-import { makeState, runPromise, test, WEB } from "./supaterm.ts";
-
-const SettingsJson = Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown));
-const decodeSettings = Schema.decodeEffect(SettingsJson);
-const encodeSettings = Schema.encodeEffect(SettingsJson);
-
-// A token from `auth session issue` acts at most in approval-required mode, so the thread must too.
-const approvalRequiredThreads = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const settingsPath = (yield* Path.Path).join(SCENARIO_HOME, "userdata/settings.json");
-  const original = yield* fs.readFileString(settingsPath);
-  const settings = yield* decodeSettings(original);
-  return {
-    apply: fs.writeFileString(
-      settingsPath,
-      yield* encodeSettings({
-        ...settings,
-        defaultRuntimeMode: "approval-required",
-      }),
-    ),
-    restore: fs.writeFileString(settingsPath, original),
-  };
-});
+import { approvalRequiredThreads, makeState, runPromise, test, WEB } from "./supaterm.ts";
 
 /** Archives a thread as an outside agent does: `supaterm_thread_organize` on the server's MCP endpoint. */
 const archiveOverMcp = Effect.fn("scenario.archiveOverMcp")(function* (
@@ -93,6 +68,7 @@ test(
   "Settings Archived lists a thread archived elsewhere while it is open",
   WEB,
   async ({ supaterm, app, screen }) => {
+    // A token from `auth session issue` acts at most in approval-required mode, so the thread must too.
     const settings = await runPromise(approvalRequiredThreads);
     try {
       await runPromise(settings.apply);

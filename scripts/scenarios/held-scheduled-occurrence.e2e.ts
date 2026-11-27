@@ -1,38 +1,15 @@
 import { expect } from "e2e";
-import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
-import * as Path from "effect/Path";
-import * as Schema from "effect/Schema";
 
-import { SCENARIO_HOME } from "../e2e.config.ts";
-import { runPromise, test, WEB } from "./supaterm.ts";
-
-const SettingsJson = Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown));
-const decodeSettings = Schema.decodeEffect(SettingsJson);
-const encodeSettings = Schema.encodeEffect(SettingsJson);
-
-const threadRuntimeSettings = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const settingsPath = (yield* Path.Path).join(SCENARIO_HOME, "userdata/settings.json");
-  const original = yield* fs.readFileString(settingsPath);
-  const settings = yield* decodeSettings(original);
-  return {
-    supervise: fs.writeFileString(
-      settingsPath,
-      yield* encodeSettings({ ...settings, defaultRuntimeMode: "approval-required" }),
-    ),
-    restore: fs.writeFileString(settingsPath, original),
-  };
-});
+import { approvalRequiredThreads, runPromise, test, WEB } from "./supaterm.ts";
 
 test(
   "A recurring task reports when its queued occurrence is held",
   WEB,
   async ({ supaterm, app, screen }) => {
-    const settings = await runPromise(threadRuntimeSettings);
+    const settings = await runPromise(approvalRequiredThreads);
     try {
       // Supervised mode makes the approval recording wait for an answer, which holds its turn open.
-      await runPromise(settings.supervise);
+      await runPromise(settings.apply);
       const project = await supaterm.project("scheduled-hold");
       await supaterm.thread({ project, title: "Earlier work", messages: ["Start"] });
       const thread = await supaterm.thread({

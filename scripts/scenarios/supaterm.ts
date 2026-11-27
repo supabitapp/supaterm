@@ -351,6 +351,28 @@ export const test = base.extend<{ supaterm: Supaterm }>({
 });
 
 /** The terminal's select-all and copy keys, which differ between macOS and Linux browsers. */
+const SettingsJson = Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown));
+const decodeSettings = Schema.decodeEffect(SettingsJson);
+const encodeSettings = Schema.encodeEffect(SettingsJson);
+
+/** Puts new threads in approval-required mode, where an approval recording holds its turn open. */
+export const approvalRequiredThreads = Effect.gen(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  const settingsPath = (yield* Path.Path).join(SCENARIO_HOME, "userdata/settings.json");
+  const original = yield* fs.readFileString(settingsPath);
+  const settings = yield* decodeSettings(original);
+  return {
+    apply: fs.writeFileString(
+      settingsPath,
+      yield* encodeSettings({
+        ...settings,
+        defaultRuntimeMode: "approval-required",
+      }),
+    ),
+    restore: fs.writeFileString(settingsPath, original),
+  };
+});
+
 /** The machine the app and its browser run on. */
 export const HOST_PLATFORM = Effect.runSync(HostProcess.Platform);
 export const TERMINAL_SELECT_ALL = HOST_PLATFORM === "darwin" ? "Meta+a" : "Control+Shift+A";

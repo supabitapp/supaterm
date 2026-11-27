@@ -1,29 +1,7 @@
 import { expect } from "e2e";
-import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
-import * as Path from "effect/Path";
-import * as Schema from "effect/Schema";
 
 import { SCENARIO_HOME } from "../e2e.config.ts";
-import { makeState, runPromise, test, WEB } from "./supaterm.ts";
-
-const SettingsJson = Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown));
-const decodeSettings = Schema.decodeEffect(SettingsJson);
-const encodeSettings = Schema.encodeEffect(SettingsJson);
-
-const threadRuntimeSettings = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const settingsPath = (yield* Path.Path).join(SCENARIO_HOME, "userdata/settings.json");
-  const original = yield* fs.readFileString(settingsPath);
-  const settings = yield* decodeSettings(original);
-  return {
-    supervise: fs.writeFileString(
-      settingsPath,
-      yield* encodeSettings({ ...settings, defaultRuntimeMode: "approval-required" }),
-    ),
-    restore: fs.writeFileString(settingsPath, original),
-  };
-});
+import { approvalRequiredThreads, makeState, runPromise, test, WEB } from "./supaterm.ts";
 
 test(
   "/compact sent while the agent works waits for the turn",
@@ -51,10 +29,10 @@ test(
     await app.screenshot("compact-sent");
     await expect(screen.getByRole("button", "Edit queued message")).toBeVisible();
 
-    const settings = await runPromise(threadRuntimeSettings);
+    const settings = await runPromise(approvalRequiredThreads);
     try {
       // An approval holds this turn open, so the queued command stays put while Send now is hovered.
-      await runPromise(settings.supervise);
+      await runPromise(settings.apply);
       const waiting = await supaterm.thread({
         project,
         title: "Waiting work",
