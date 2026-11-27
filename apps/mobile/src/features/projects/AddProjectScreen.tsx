@@ -737,8 +737,10 @@ function useOpenNewTaskDraft() {
     )
       return;
     const threadIndex = state.routes.findLastIndex((route) => route.name === "Thread");
+    const pickerIndex = state.routes.findIndex((route) => route.name === "NewTaskProject");
+    const flowStart = [threadIndex, pickerIndex].find((index) => index >= 0) ?? state.index;
     const routes = [
-      ...state.routes.slice(0, threadIndex < 0 ? state.index : threadIndex),
+      ...state.routes.slice(0, flowStart),
       { key: uuidv4(), name: "Thread", params: { draft: params } },
     ];
     navigation.dispatch(CommonActions.reset({ ...state, index: routes.length - 1, routes }));

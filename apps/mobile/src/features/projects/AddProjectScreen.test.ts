@@ -554,6 +554,17 @@ describe("local project navigation", () => {
     }
   });
 
+  it("replaces a picker opened straight from compose with the new project's draft", async () => {
+    const { created, projected, submit } = setup();
+    const navigation = mountProjectFlow();
+    const submission = submit();
+    created.resolve(AsyncResult.success(undefined));
+    projected.resolve({ environmentId: "environment", id: "project" });
+    await act(() => submission);
+
+    expect(navigation.getState().routes.map((route) => route.name)).toEqual(["Home", "Thread"]);
+  });
+
   it("does not replace a warm-linked flow sharing the original route key", async () => {
     const { created, projected, submit } = setup();
     const navigation = mountProjectFlow();
