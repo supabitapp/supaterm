@@ -4974,6 +4974,15 @@
   "9a50b20569f2c9e7": "No se pudieron cargar tus ajustes guardados.",
   "7a922b59b7dffc4b": "Supaterm no pudo confirmar este espacio de trabajo.",
   "573a9e6b17f4e9e3": "Recargar",
+  "0d08c06bd9d89375": "Extras",
+  "615a17789d50e503": "Comité y asesor",
+  "27277df27a4b8498": "Skills que permiten a tus agentes pedir a otros agentes una segunda opinión o un plan.",
+  "5d973795984549fc": "Instalar",
+  "63e3b745dcad33e8": "Abre aquí simuladores de iOS y emuladores de Android y deja que los agentes los controlen.",
+  "7f5a8e4946d52c3c": "Abre aquí simuladores de iOS y deja que los agentes los controlen.",
+  "8643cac879b947a1": "Abre aquí emuladores de Android y deja que los agentes los controlen.",
+  "5c174688fdb31c00": "Instaladas",
+  "fc05a3512bf05489": "Comprobando…",
   "d6c31ff9bb97570e": "Se alcanzó el límite de escaneo. Puede que falten algunos proyectos o conversaciones.",
   "da6f86321113fb7b": "Esta conexión no puede importar proyectos ni historial de hilos.",
   "1cdf16e5edb6bd99": "este equipo",
@@ -5008,7 +5017,6 @@
   "bd2304f25f6f999e": "{selected, plural, one {{selected} de {total} seleccionado} other {{selected} de {total} seleccionados}}",
   "228cd9fd55a55070": "No se pudieron volver a comprobar los proyectos. {error}",
   "a8c7bd8349214c14": "No se pudo guardar la configuración de Codex",
-  "5d973795984549fc": "Instalar",
   "4c180d45134b7da4": "Revisa el comando y pulsa Enter para ejecutarlo.",
   "728b7fa1184ea9c8": "No se pudo abrir la terminal de configuración.",
   "8769d29d8434e535": "Preparando el comando...",
@@ -5076,7 +5084,6 @@
     }
   ],
   "2eb756ce7da7d95d": "Listo",
-  "fc05a3512bf05489": "Comprobando…",
   "cade8b9f59f4b690": [
     "Ejecuta",
     " ",
@@ -8440,7 +8447,6 @@
   "833639e235c97484": "Resultados de búsqueda de ajustes",
   "be82bbfef472ab44": "No se encontraron ajustes",
   "f84879ada73428c9": "Instaladas",
-  "615a17789d50e503": "Comité y asesor",
   "5a9233d122811283": "Desinstalando…",
   "2c87759394b65c15": "Desinstalar",
   "1cdb320b3eb6c156": "Conéctate a un entorno para instalar las skills supaterm-commitee y supaterm-advisor.",
@@ -10286,6 +10292,5 @@
   "f7156ba86bf859f7": "Activar SidePulse",
   "25e724cc7db929e5": "Ajusta el brillo de todas las animaciones de SidePulse",
   "11a22e13ce78c616": "Luces",
-  "796a410d89b46def": "Mostrando ahora",
-  "5c174688fdb31c00": "Instaladas"
+  "796a410d89b46def": "Mostrando ahora"
 }

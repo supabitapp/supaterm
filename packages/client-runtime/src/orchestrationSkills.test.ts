@@ -50,6 +50,11 @@ describe("orchestration skill scope", () => {
         },
       ],
     });
-    expect(view).toEqual({ canInstall: true, canUninstall: false, installed: false });
+    expect(view).toEqual({
+      canInstall: true,
+      canUninstall: false,
+      installed: false,
+      conflict: true,
+    });
   });
 });

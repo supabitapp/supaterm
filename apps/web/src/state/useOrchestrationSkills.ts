@@ -115,5 +115,6 @@ export function useOrchestrationSkills(
       entries.every((entry) => entry.installed),
     canInstall: entries.some((entry) => entry.canManage && entry.canInstall),
     canUninstall: entries.some((entry) => entry.canManage && entry.canUninstall),
+    conflict: entries.some((entry) => entry.conflict),
   };
 }

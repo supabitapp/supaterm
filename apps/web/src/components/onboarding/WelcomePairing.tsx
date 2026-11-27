@@ -16,7 +16,8 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Input } from "../ui/input";
-import { WelcomeSection, WelcomeShell } from "./WelcomePage";
+import { WelcomeShell } from "./WelcomePage";
+import { WelcomeSection } from "./WelcomeSection";
 
 /** The Welcome page before there is a computer to set up, as on hosted web. */
 export function WelcomePairing({

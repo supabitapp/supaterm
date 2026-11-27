@@ -4977,6 +4977,15 @@
   "9a50b20569f2c9e7": "Your saved settings could not be loaded.",
   "7a922b59b7dffc4b": "Supaterm could not confirm this workspace.",
   "573a9e6b17f4e9e3": "Reload",
+  "0d08c06bd9d89375": "Extras",
+  "615a17789d50e503": "Committee and advisor",
+  "27277df27a4b8498": "Skills that let your agents ask other agents for a second opinion or a plan.",
+  "5d973795984549fc": "Install",
+  "63e3b745dcad33e8": "Open iOS simulators and Android emulators here and let agents control them.",
+  "7f5a8e4946d52c3c": "Open iOS simulators here and let agents control them.",
+  "8643cac879b947a1": "Open Android emulators here and let agents control them.",
+  "5c174688fdb31c00": "Installed",
+  "fc05a3512bf05489": "Checking…",
   "d6c31ff9bb97570e": "Scan limit reached. Some projects or conversations may be missing.",
   "da6f86321113fb7b": "This connection cannot import projects or thread history.",
   "1cdf16e5edb6bd99": "this computer",
@@ -5011,7 +5020,6 @@
   "bd2304f25f6f999e": "{selected, plural, one {{selected} of {total} selected} other {{selected} of {total} selected}}",
   "228cd9fd55a55070": "Could not check projects again. {error}",
   "a8c7bd8349214c14": "Could not save Codex setup",
-  "5d973795984549fc": "Install",
   "4c180d45134b7da4": "Review the command, then press Enter to run it.",
   "728b7fa1184ea9c8": "Could not open the setup terminal.",
   "8769d29d8434e535": "Preparing command...",
@@ -5080,7 +5088,6 @@
     " history"
   ],
   "2eb756ce7da7d95d": "Ready",
-  "fc05a3512bf05489": "Checking…",
   "cade8b9f59f4b690": [
     "Run",
     " ",
@@ -8454,7 +8461,6 @@
   "833639e235c97484": "Settings search results",
   "be82bbfef472ab44": "No settings found",
   "f84879ada73428c9": "Installed",
-  "615a17789d50e503": "Committee and advisor",
   "5a9233d122811283": "Uninstalling…",
   "2c87759394b65c15": "Uninstall",
   "1cdb320b3eb6c156": "Connect to an environment to install supaterm-commitee and supaterm-advisor skills.",
@@ -10302,6 +10308,5 @@
   "f7156ba86bf859f7": "Enable SidePulse",
   "25e724cc7db929e5": "Adjusts the brightness of every SidePulse animation",
   "11a22e13ce78c616": "Lights",
-  "796a410d89b46def": "Showing now",
-  "5c174688fdb31c00": "Installed"
+  "796a410d89b46def": "Showing now"
 }

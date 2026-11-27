@@ -4978,6 +4978,15 @@
   "9a50b20569f2c9e7": "Deine gespeicherten Einstellungen konnten nicht geladen werden.",
   "7a922b59b7dffc4b": "Supaterm konnte diesen Arbeitsbereich nicht bestätigen.",
   "573a9e6b17f4e9e3": "Neu laden",
+  "0d08c06bd9d89375": "Extras",
+  "615a17789d50e503": "Komitee und Berater",
+  "27277df27a4b8498": "Skills, mit denen deine Agenten andere Agenten um eine zweite Meinung oder einen Plan bitten können.",
+  "5d973795984549fc": "Installieren",
+  "63e3b745dcad33e8": "Öffne hier iOS-Simulatoren und Android-Emulatoren und lass Agenten sie steuern.",
+  "7f5a8e4946d52c3c": "Öffne hier iOS-Simulatoren und lass Agenten sie steuern.",
+  "8643cac879b947a1": "Öffne hier Android-Emulatoren und lass Agenten sie steuern.",
+  "5c174688fdb31c00": "Installiert",
+  "fc05a3512bf05489": "Wird geprüft…",
   "d6c31ff9bb97570e": "Suchlimit erreicht. Einige Projekte oder Unterhaltungen fehlen möglicherweise.",
   "da6f86321113fb7b": "Diese Verbindung kann keine Projekte oder Thread-Verläufe importieren.",
   "1cdf16e5edb6bd99": "dieser Computer",
@@ -5012,7 +5021,6 @@
   "bd2304f25f6f999e": "{selected, plural, one {{selected} von {total} ausgewählt} other {{selected} von {total} ausgewählt}}",
   "228cd9fd55a55070": "Projekte konnten nicht erneut geprüft werden. {error}",
   "a8c7bd8349214c14": "Codex-Einrichtung konnte nicht gespeichert werden",
-  "5d973795984549fc": "Installieren",
   "4c180d45134b7da4": "Prüfe den Befehl und drücke dann Enter, um ihn auszuführen.",
   "728b7fa1184ea9c8": "Das Einrichtungsterminal konnte nicht geöffnet werden.",
   "8769d29d8434e535": "Befehl wird vorbereitet...",
@@ -5078,7 +5086,6 @@
     "-Verlauf"
   ],
   "2eb756ce7da7d95d": "Bereit",
-  "fc05a3512bf05489": "Wird geprüft…",
   "cade8b9f59f4b690": [
     "Führe",
     " ",
@@ -8446,7 +8453,6 @@
   "833639e235c97484": "Suchergebnisse in den Einstellungen",
   "be82bbfef472ab44": "Keine Einstellungen gefunden",
   "f84879ada73428c9": "Installiert",
-  "615a17789d50e503": "Komitee und Berater",
   "5a9233d122811283": "Wird deinstalliert…",
   "2c87759394b65c15": "Deinstallieren",
   "1cdb320b3eb6c156": "Verbinde dich mit einer Umgebung, um die Skills supaterm-commitee und supaterm-advisor zu installieren.",
@@ -10294,6 +10300,5 @@
   "f7156ba86bf859f7": "SidePulse aktivieren",
   "25e724cc7db929e5": "Passt die Helligkeit jeder SidePulse-Animation an",
   "11a22e13ce78c616": "Lichter",
-  "796a410d89b46def": "Wird gerade angezeigt",
-  "5c174688fdb31c00": "Installiert"
+  "796a410d89b46def": "Wird gerade angezeigt"
 }
