@@ -19,6 +19,7 @@ import {
   TerminalProviderInstanceNotFoundError,
   TerminalProviderEnvironmentError,
   TerminalResizeError,
+  TerminalProcessChangedError,
   TerminalSessionLookupError,
   TerminalWriteError,
   type TerminalAttachInput,
@@ -419,6 +420,7 @@ function snapshot(session: TerminalSessionState): TerminalSessionSnapshot {
     worktreePath: session.worktreePath,
     status: session.status,
     pid: session.pid,
+    supportsConditionalWrites: true,
     history: session.history.value() + unfinishedSequenceReplay(session),
     exitCode: session.exitCode,
     exitSignal: session.exitSignal,
@@ -3846,8 +3848,19 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const write: TerminalManager["Service"]["write"] = Effect.fn("terminal.write")(
     function* (input, viewerId) {
       const terminalId = input.terminalId;
-      const session = yield* requireSession(input.threadId, terminalId);
+      const found = yield* getSession(input.threadId, terminalId);
+      if (Option.isNone(found)) {
+        if (input.expectedPid !== undefined) return yield* new TerminalProcessChangedError();
+        return yield* new TerminalSessionLookupError({ threadId: input.threadId, terminalId });
+      }
+      const session = found.value;
       const process = session.process;
+      if (
+        input.expectedPid !== undefined &&
+        (process?.pid !== input.expectedPid || session.status !== "running")
+      ) {
+        return yield* new TerminalProcessChangedError();
+      }
       if (!process || session.status !== "running") {
         if (session.status === "exited") return;
         return yield* new TerminalNotRunningError({
