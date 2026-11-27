@@ -34,8 +34,13 @@ test(
       await supaterm.open("/settings/maintenance");
       await screen.getByLabel("Delete old rotated logs in days").waitFor();
 
-      const deleteNow = screen.getByRole("button", "Delete now", { exact: true });
-      await deleteNow.tap();
+      const deleteNow = async () => {
+        await screen.getByRole("button", "Delete now", { exact: true }).tap();
+        // A confirm pressed within 250 ms of arming is ignored as a double click.
+        await runPromise(Effect.sleep("300 millis"));
+        await screen.getByRole("button", "Confirm delete", { exact: true }).tap();
+      };
+      await deleteNow();
       await screen.getByRole("button", "Deleting…", { exact: true }).waitFor({ state: "hidden" });
       await screen.getByRole("button", /^Last run/).tap();
       const logsResult = browser
@@ -53,7 +58,7 @@ test(
         }),
       );
 
-      await deleteNow.tap();
+      await deleteNow();
       await logsResult.scrollIntoView();
       try {
         await expect(logsResult).toContainText("Removed 1 rotated logs");
