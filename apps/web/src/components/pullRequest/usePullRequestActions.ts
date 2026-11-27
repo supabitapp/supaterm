@@ -338,6 +338,7 @@ export function prepareDraftCheckout(
         branch,
         worktreePath,
         envMode: worktreePath === null ? "local" : "worktree",
+        workspaceExplicit: true,
         // The draft carries the pull request until its first send makes it a thread, which links it.
         checkoutPullRequest: { url: pullRequest.url, branch },
       }),

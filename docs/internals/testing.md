@@ -50,6 +50,7 @@ Scenarios are [e2e](https://www.npmjs.com/package/e2e) tests in [`scripts/scenar
 ```sh
 vp run scenarios --target web                                     # every web scenario
 vp run scenarios:prove scripts/scenarios/<name>.e2e.ts --base main
+vp run scenarios:prove scripts/scenarios/<name>.e2e.ts --base main --target android   # a native scenario on Android
 ```
 
 - One test per file: `WEB` from `./supaterm.ts`, or `IOS` or `NATIVE` (iOS and Android) from `./supaterm-mobile.ts`. Seed projects and threads with `supaterm.project` and `supaterm.thread` before `supaterm.open(...)` so the app does not land on first-run setup.

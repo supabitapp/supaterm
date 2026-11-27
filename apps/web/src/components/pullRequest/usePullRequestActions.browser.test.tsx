@@ -303,6 +303,7 @@ it("moves the draft the user typed into during a checkout onto the checkout", as
   expect(useComposerDraftStore.getState().getDraftSession(opened)).toMatchObject({
     branch: "pr-1",
     worktreePath: "/repo-worktrees/pr-1",
+    workspaceExplicit: true,
   });
   expect(readPendingWorkspaceDefault(opened)).toBeNull();
 });

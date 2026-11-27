@@ -305,7 +305,7 @@ const prove = Effect.fn("prove")(function* (input: {
   readonly base: string;
   readonly head: string;
   readonly uploadCommand: Option.Option<string>;
-  readonly target: Option.Option<string>;
+  readonly target: Option.Option<"web" | "ios" | "android">;
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -316,7 +316,7 @@ const prove = Effect.fn("prove")(function* (input: {
   yield* fs.remove(proveDir, { recursive: true, force: true });
   yield* fs.makeDirectory(proveDir, { recursive: true });
   // Only that target's app starts: a web scenario needs no Metro and no device.
-  const target = Option.getOrElse(input.target, () => "") || (yield* targetOf(scenarioPath));
+  const target = Option.isSome(input.target) ? input.target.value : yield* targetOf(scenarioPath);
   const base = yield* runSide("base", input.base, scenarioPath, target);
   const head = yield* runSide("head", input.head, scenarioPath, target);
   const links = Option.isSome(input.uploadCommand)
@@ -355,9 +355,9 @@ const command = Command.make(
       Flag.withDescription("Command that takes capture paths and prints one URL per line."),
       Flag.optional,
     ),
-    target: Flag.String("target").pipe(
+    target: Flag.Literals("target", ["web", "ios", "android"]).pipe(
       Flag.withDescription(
-        "Target to run on: web or ios. Default: ios when the scenario imports supaterm-mobile.ts, else web.",
+        "Target to run on. Default: ios when the scenario imports supaterm-mobile.ts, else web; pass android for an Android proof.",
       ),
       Flag.optional,
     ),

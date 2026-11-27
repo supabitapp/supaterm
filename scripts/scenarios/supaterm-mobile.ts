@@ -1,7 +1,6 @@
 // `test` for native scenarios: e2e's mobile test plus `supaterm`, which seeds state like the web
 // one and opens the dev client paired with the scenario's server, on iOS or Android.
 import { test as base, type MobilePlatform } from "@e2e-dev/mobile";
-import { expect } from "e2e";
 import * as Effect from "effect/Effect";
 
 import { APP_DIR, NATIVE_APP_ID, NATIVE_APPS } from "../e2e.config.ts";
@@ -63,10 +62,10 @@ export const test = base.extend<{ supaterm: MobileSupaterm }>({
           `${SCHEME}://expo-development-client/?url=${metro}&disableOnboarding=1&disableFab=1&disableAutoLaunch=1`,
         );
         // The first load bundles the app; the pairing link only works once it is on screen.
+        // Setup waits with waitFor, not expect: a proof reads only a failed expectation as the bug.
         if (paired.has(platform)) return;
-        await expect(screen.getByRole("button", "Add environment")).toBeVisible({
-          timeout: 240_000,
-        });
+        const addEnvironment = screen.getByRole("button", "Add environment");
+        await addEnvironment.waitFor({ timeout: 240_000 });
         const query = new URLSearchParams({
           pairingUrl: await runPromise(pairingUrl),
           autoConnect: "1",
@@ -74,11 +73,13 @@ export const test = base.extend<{ supaterm: MobileSupaterm }>({
         await openLink(`${SCHEME}://connections/new?${query.toString()}`);
         // Paired once the empty state goes, connected once no placeholder or row says Connecting:
         // the app ignores taps on a thread whose environment is still connecting.
-        await expect(screen.getByRole("button", "Add environment")).toBeHidden({ timeout: 60_000 });
-        await expect(screen.getByText("Connecting to environment")).toBeHidden({ timeout: 60_000 });
-        await expect(screen.getByText("Connecting", { exact: true })).toBeHidden({
-          timeout: 60_000,
-        });
+        await addEnvironment.waitFor({ state: "hidden", timeout: 60_000 });
+        await screen
+          .getByText("Connecting to environment")
+          .waitFor({ state: "hidden", timeout: 60_000 });
+        await screen
+          .getByText("Connecting", { exact: true })
+          .waitFor({ state: "hidden", timeout: 60_000 });
         paired.add(platform);
       },
     });

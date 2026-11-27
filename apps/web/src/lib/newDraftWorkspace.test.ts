@@ -194,6 +194,33 @@ describe("moveDraftToProject", () => {
     expect(useComposerDraftStore.getState().getDraftSession(draftId)?.projectId).toBe(to.id);
   });
 
+  it("leaves a draft the user moved elsewhere while the added project's file loaded", async () => {
+    const other = makeProject("other-repo");
+    testState.projects = [from, to, other];
+    openDraftInWorktreeOnPinnedBranch();
+    let finishRead: (file: SupatermProjectFile | null) => void = () => {};
+    testState.heldProjectFile = new Promise((resolve) => {
+      finishRead = resolve;
+    });
+
+    const moving = moveWrittenDraftToProject({
+      draftId,
+      project: to,
+      logicalProjectKey: to.id,
+      serverConfig: serverConfigWith({ defaultThreadEnvMode: null }),
+    });
+    moveDraftToProject({
+      draftId,
+      project: other,
+      logicalProjectKey: other.id,
+      workspace: { envMode: "local", startFromOrigin: false },
+    });
+    finishRead(null);
+
+    await expect(moving).resolves.toBe(false);
+    expect(useComposerDraftStore.getState().getDraftSession(draftId)?.projectId).toBe(other.id);
+  });
+
   it("leaves a draft that is already being sent where it is", () => {
     openDraftInWorktreeOnPinnedBranch();
     useComposerDraftStore

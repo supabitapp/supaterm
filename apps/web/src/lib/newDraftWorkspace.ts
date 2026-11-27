@@ -321,11 +321,17 @@ export async function moveWrittenDraftToProject(input: {
   readonly logicalProjectKey: string;
   readonly serverConfig: DraftServerConfig;
 }): Promise<boolean> {
-  const draft = useComposerDraftStore.getState().getComposerDraft(input.draftId);
-  if (!composerDraftHasUserContent(draft)) return false;
+  const store = useComposerDraftStore.getState();
+  if (!composerDraftHasUserContent(store.getComposerDraft(input.draftId))) return false;
+  const before = store.getDraftSession(input.draftId);
   const workspace = await resolveNewDraftWorkspace(
     scopeProjectRef(input.project.environmentId, input.project.id),
     input.serverConfig,
   );
+  // The user may have moved the draft while the project file loaded; that move stands.
+  const after = useComposerDraftStore.getState().getDraftSession(input.draftId);
+  if (after?.projectId !== before?.projectId || after?.environmentId !== before?.environmentId) {
+    return false;
+  }
   return moveDraftToProject({ ...input, workspace });
 }
