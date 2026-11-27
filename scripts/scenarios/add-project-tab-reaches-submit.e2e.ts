@@ -9,8 +9,7 @@ test(
     await supaterm.project("demo");
     await supaterm.open();
 
-    await screen.getByRole("combobox", "Projects").tap();
-    await screen.getByRole("option", "Add project").tap();
+    await screen.getByRole("button", "Add project", { exact: true }).tap();
     await screen.getByText("Git URL").tap();
     await screen.getByRole("combobox").fill("https://github.com/supabitapp/supaterm.git");
     const submit = screen.getByRole("button", "Continue (Enter)");
