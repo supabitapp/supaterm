@@ -1,6 +1,7 @@
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import {
   DEFAULT_SERVER_SETTINGS,
+  type EnvironmentId,
   type ScopedProjectRef,
   type ServerConfig,
   type SupatermProjectFile,
@@ -17,6 +18,7 @@ import {
 } from "~/composerDraftStore";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { readProject, readThreadShells } from "~/state/entities";
+import { readEnvironment } from "~/state/environments";
 import { readUnloadedThreadCount } from "~/state/olderDoneShelf";
 import { environmentSummaries } from "~/state/presentation";
 import type { Project } from "~/types";
@@ -35,14 +37,8 @@ function draftWorkspaceSource(projectRef: ScopedProjectRef, serverConfig: DraftS
   const project = readProject(projectRef) ?? undefined;
   const serverSettings = serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS;
   const projectSettings = resolveProjectSettings(serverSettings, project?.id ?? null, project);
-  // Environment queries wait for a connection, so reading the project file on an
-  // offline machine would never settle and the draft would never open.
   const projectFileSource =
-    project !== undefined &&
-    projectSettings.settings.defaultThreadEnvMode === null &&
-    appAtomRegistry
-      .get(environmentSummaries.connectedEnvironmentIdsAtom)
-      .includes(project.environmentId)
+    project !== undefined && projectSettings.settings.defaultThreadEnvMode === null
       ? { environmentId: project.environmentId, workspaceRoot: project.workspaceRoot }
       : null;
   const workspaceFor = (projectFile: SupatermProjectFile | null): NewDraftWorkspace => {
@@ -77,6 +73,14 @@ function draftWorkspaceSource(projectRef: ScopedProjectRef, serverConfig: DraftS
   return { projectFileSource, workspaceFor };
 }
 
+// Environment queries wait for a connection, so reading the project file on an
+// offline machine would never settle and the draft would never open.
+function isConnected(environmentId: EnvironmentId) {
+  return appAtomRegistry
+    .get(environmentSummaries.connectedEnvironmentIdsAtom)
+    .includes(environmentId);
+}
+
 /** The workspace a new thread in the project starts with. */
 export async function resolveNewDraftWorkspace(
   projectRef: ScopedProjectRef,
@@ -84,13 +88,43 @@ export async function resolveNewDraftWorkspace(
 ): Promise<NewDraftWorkspace> {
   const { projectFileSource, workspaceFor } = draftWorkspaceSource(projectRef, serverConfig);
   return workspaceFor(
-    projectFileSource === null
+    projectFileSource === null || !isConnected(projectFileSource.environmentId)
       ? null
       : await readSupatermProjectFile(
           projectFileSource.environmentId,
           projectFileSource.workspaceRoot,
         ),
   );
+}
+
+async function destinationWorkspace(
+  projectRef: ScopedProjectRef,
+  signal: AbortSignal,
+): Promise<NewDraftWorkspace> {
+  const readSource = () =>
+    draftWorkspaceSource(projectRef, readEnvironment(projectRef.environmentId)?.serverConfig);
+  const { projectFileSource, workspaceFor } = readSource();
+  if (projectFileSource === null) return workspaceFor(null);
+  const { environmentId, workspaceRoot } = projectFileSource;
+  const cached = peekSupatermProjectFile(environmentId, workspaceRoot);
+  if (cached !== undefined) return workspaceFor(cached);
+  // A paired project can appear before its connection summary reports connected.
+  const projectFile = await readSupatermProjectFile(environmentId, workspaceRoot, signal);
+  return readSource().workspaceFor(projectFile);
+}
+
+/**
+ * The workspace for a draft moving to another project or machine: the default a new thread
+ * there starts with, unless the user chose one, which carries over.
+ */
+export async function retargetDraftWorkspace(
+  draft: Pick<DraftSessionState, "workspaceExplicit" | "worktreePath">,
+  projectRef: ScopedProjectRef,
+  signal: AbortSignal,
+): Promise<Partial<NewDraftWorkspace>> {
+  return draft.workspaceExplicit || draft.worktreePath !== null
+    ? {}
+    : destinationWorkspace(projectRef, signal);
 }
 
 // Drafts that opened before their project's supaterm.json was read. A send waits for the file's
@@ -186,7 +220,7 @@ export function openNewDraftWorkspace(
   readonly applyProjectFile: (draftId: DraftId) => void;
 } {
   const { projectFileSource, workspaceFor } = draftWorkspaceSource(projectRef, serverConfig);
-  if (projectFileSource === null) {
+  if (projectFileSource === null || !isConnected(projectFileSource.environmentId)) {
     return { workspace: workspaceFor(null), applyProjectFile: () => {} };
   }
   const { environmentId, workspaceRoot } = projectFileSource;
@@ -252,12 +286,10 @@ export function moveDraftToProject(input: {
     return false;
   }
   const projectRef = scopeProjectRef(project.environmentId, project.id);
-  store.setLogicalProjectDraftThreadId(
-    input.logicalProjectKey,
-    projectRef,
-    draftId,
-    input.workspace,
-  );
+  store.setLogicalProjectDraftThreadId(input.logicalProjectKey, projectRef, draftId, {
+    ...input.workspace,
+    workspaceExplicit: false,
+  });
   seedDraftModelSelection(draftId, projectRef);
   return true;
 }

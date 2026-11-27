@@ -150,6 +150,7 @@ describe("moveDraftToProject", () => {
 
   it("gives the moved draft the new project's workspace and machine routing", () => {
     openDraftInWorktreeOnPinnedBranch();
+    useComposerDraftStore.getState().setDraftThreadContext(draftId, { workspaceExplicit: true });
 
     moveDraftToProject({
       draftId,
@@ -168,6 +169,7 @@ describe("moveDraftToProject", () => {
       startFromOrigin: false,
     });
     expect(draft?.environmentSelection).toBeUndefined();
+    expect(draft?.workspaceExplicit).toBeUndefined();
     expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
   });
 

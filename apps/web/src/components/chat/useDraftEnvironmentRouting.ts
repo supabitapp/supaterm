@@ -29,12 +29,13 @@ import {
 import { useComposerDraftStore, DraftId } from "../../composerDraftStore";
 import { type EnvironmentPresentation, useEnvironmentProviders } from "../../state/environments";
 import { currentClientMetadata } from "../../connection/platform";
-import { useProjects } from "../../state/entities";
+import { readProjects, subscribeProjects, useProjects } from "../../state/entities";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { DraftSessionState } from "../../composerDraftStore";
 import { loadBalancingSendWarning } from "./composerSend.logic";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
+import { retargetDraftWorkspace } from "../../lib/newDraftWorkspace";
 import { seedDraftModelSelection } from "../../lib/seedDraftModelSelection";
 import { draftFanoutSelectionsAtom } from "./chatViewSend";
 import { msg, useGT } from "gt-react";
@@ -206,10 +207,35 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       return true;
     });
   };
+  const environmentChangeRef = useRef<{
+    readonly controller: AbortController;
+    readonly environmentId: EnvironmentId;
+    readonly draftId: string;
+    readonly projectKey: string | null;
+  } | null>(null);
+  const [isEnvironmentChanging, setIsEnvironmentChanging] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- abandons an in-flight environment change when the draft or project scope changes or unmounts
+  useLayoutEffect(() => {
+    return () => {
+      const request = environmentChangeRef.current;
+      if (request?.draftId === draftId && request.projectKey === activeProjectKey) {
+        request.controller.abort();
+        environmentChangeRef.current = null;
+        setIsEnvironmentChanging(false);
+      }
+    };
+  }, [draftId, activeProjectKey]);
   const refreshLoadBalancing = loadBalancing.refresh;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the resolved load-balanced environment into the draft store once the async pick settles
   useEffect(() => {
-    if (!needsLoadBalancing || loadBalancing.pending || !draftId || isSendInFlight()) return;
+    if (
+      !needsLoadBalancing ||
+      loadBalancing.pending ||
+      !draftId ||
+      isEnvironmentChanging ||
+      isSendInFlight()
+    )
+      return;
     if (!draftThread || draftThread.promotedTo || getDraftSession(draftId) !== draftThread) return;
     const target = logicalProjectEnvironments.find(
       (environment) => environment.environmentId === loadBalancing.environmentId,
@@ -225,6 +251,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     needsLoadBalancing,
     loadBalancing.pending,
     loadBalancing.environmentId,
+    isEnvironmentChanging,
     draftId,
     draftThread,
     getDraftSession,
@@ -246,6 +273,9 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       });
       return;
     }
+    environmentChangeRef.current?.controller.abort();
+    environmentChangeRef.current = null;
+    setIsEnvironmentChanging(false);
     refreshLoadBalancing(
       logicalProjectEnvironments.map((environment) => environment.environmentId),
     );
@@ -267,23 +297,6 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
           : gt("Auto balance")
     : undefined;
 
-  const environmentChangeRef = useRef<{
-    readonly environmentId: EnvironmentId;
-    readonly draftId: string;
-    readonly projectKey: string | null;
-  } | null>(null);
-  const [isEnvironmentChanging, setIsEnvironmentChanging] = useState(false);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mirrors the current change scope into a ref that async environment switches compare against
-  useLayoutEffect(() => {
-    return () => {
-      const request = environmentChangeRef.current;
-      if (request?.draftId === draftId && request.projectKey === activeProjectKey) {
-        environmentChangeRef.current = null;
-        setIsEnvironmentChanging(false);
-      }
-    };
-  }, [draftId, activeProjectKey]);
-
   const onEnvironmentChange = (nextEnvironmentId: EnvironmentId) => {
     if (envLocked || !draftId || sendInFlightRef.current) return;
     const originalDraft = getDraftSession(draftId);
@@ -292,15 +305,16 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       (env) => env.environmentId === nextEnvironmentId,
     );
     if (!target) return;
+    environmentChangeRef.current?.controller.abort();
     const request = {
+      controller: new AbortController(),
       environmentId: target.environmentId,
       draftId,
       projectKey: activeProjectKey,
     };
     environmentChangeRef.current = request;
     setIsEnvironmentChanging(false);
-    // `triagePrompt` is the prompt the target machine prepared for a triage draft.
-    const retarget = (project: (typeof allProjects)[number], triagePrompt?: string) => {
+    const readSwitchingDraft = () => {
       const currentDraft = getDraftSession(draftId);
       if (
         environmentChangeRef.current !== request ||
@@ -310,7 +324,58 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
         currentDraft.environmentId !== originalDraft.environmentId ||
         currentDraft.projectId !== originalDraft.projectId
       )
+        return null;
+      return currentDraft;
+    };
+    // `triagePrompt` is the prompt the target machine prepared for a triage draft.
+    const retarget = async (
+      project: (typeof allProjects)[number],
+      triagePrompt?: string,
+    ): Promise<void> => {
+      const draft = readSwitchingDraft();
+      if (!draft) return;
+      const projectRef = scopeProjectRef(target.environmentId, project.id);
+      // Use the catalog-backed list: an unpaired machine can still have a cached project snapshot.
+      const findDestination = (projects: typeof allProjects) =>
+        projects.find(
+          (candidate) =>
+            candidate.environmentId === projectRef.environmentId &&
+            candidate.id === projectRef.projectId,
+        );
+      const workspaceRoot = findDestination(readProjects())?.workspaceRoot;
+      const controller = new AbortController();
+      const unsubscribe = subscribeProjects((projects) => {
+        if (findDestination(projects)?.workspaceRoot !== workspaceRoot) controller.abort();
+      });
+      const workspaceRead =
+        workspaceRoot === undefined
+          ? Promise.resolve({})
+          : retargetDraftWorkspace(
+              draft,
+              projectRef,
+              AbortSignal.any([request.controller.signal, controller.signal]),
+            );
+      const defaultWorkspace = await workspaceRead.finally(unsubscribe);
+      const currentDraft = readSwitchingDraft();
+      if (!currentDraft) return;
+      const destination = findDestination(readProjects());
+      if (!destination) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: m(msg("Could not switch machine")),
+            description: m(msg("This project is no longer available.")),
+          }),
+        );
         return;
+      }
+      if (controller.signal.aborted || destination.workspaceRoot !== workspaceRoot) {
+        return retarget(destination, triagePrompt);
+      }
+      const workspace =
+        currentDraft.workspaceExplicit || currentDraft.worktreePath !== null
+          ? {}
+          : defaultWorkspace;
       if (triagePrompt !== undefined) {
         // Read now, so text typed while the machine prepared the session is kept.
         const prompt = getComposerDraft(draftId)?.prompt ?? "";
@@ -318,19 +383,19 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
         if (nextPrompt !== prompt) setPrompt(draftId, nextPrompt);
       }
       carryFanoutSelections(currentDraft, target.environmentId);
-      const projectRef = scopeProjectRef(target.environmentId, project.id);
       if (activeProjectIsScratch) {
         setLogicalProjectDraftThreadId(
-          deriveLogicalProjectKeyFromSettings(project, projectGroupingSettings),
+          deriveLogicalProjectKeyFromSettings(destination, projectGroupingSettings),
           projectRef,
           draftId,
-          { environmentSelection: "manual", loadBalancedEnvironmentId: null },
+          { environmentSelection: "manual", loadBalancedEnvironmentId: null, ...workspace },
         );
       } else {
         setDraftThreadContext(draftId, {
           projectRef,
           environmentSelection: "manual",
           loadBalancedEnvironmentId: null,
+          ...workspace,
         });
       }
       seedDraftModelSelection(draftId, projectRef);
@@ -347,8 +412,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     );
     // The playbook and context files exist only on the machine that prepared them.
     const followsTriage = isTriagePrompt(getComposerDraft(draftId)?.prompt ?? "");
-    if (target.projectId !== null && !(knownProject && followsTriage)) {
-      if (knownProject) retarget(knownProject);
+    if (target.projectId !== null && !knownProject) {
       finish();
       return;
     }
@@ -376,7 +440,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       const project =
         knownProject ??
         (await openScratchProject(target.environmentId, m(msg("Could not switch machine"))));
-      if (project) retarget(project, triagePrompt);
+      if (project) await retarget(project, triagePrompt);
     };
     setIsEnvironmentChanging(true);
     void switchMachine().finally(finish);

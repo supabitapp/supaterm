@@ -31,13 +31,15 @@ function toSupatermProjectFile(
 }
 
 /**
- * Imperative counterpart to `useSupatermProjectFileState` for the new-thread path, which resolves
- * defaults at call time. Optimistic in-app writes overlay the cached query result, matching what
- * `useProjectFileQuery` renders. Missing, truncated, or invalid files resolve to null.
+ * Imperative counterpart to `useSupatermProjectFileState`, with optimistic writes overlaid as
+ * `useProjectFileQuery` renders them. Missing, truncated, or invalid files resolve to null. Without
+ * a `signal` an offline machine's file comes from cache at once; with one the read waits for the
+ * machine until the signal aborts.
  */
 export async function readSupatermProjectFile(
   environmentId: EnvironmentId,
   workspaceRoot: string,
+  signal?: AbortSignal,
 ): Promise<SupatermProjectFile | null> {
   const query = getProjectFileQueryAtom(environmentId, workspaceRoot, SUPATERM_PROJECT_FILE_NAME);
   const connected =
@@ -45,9 +47,14 @@ export async function readSupatermProjectFile(
       .phase === "connected";
   // Opening a new offline thread must not wait on a filesystem RPC. Reuse any
   // cached project defaults; otherwise the normal project/server defaults apply.
-  const result = connected
-    ? await executeAtomQuery(appAtomRegistry, query, { reportDefect: false, reportFailure: false })
-    : appAtomRegistry.get(query);
+  const result =
+    connected || signal !== undefined
+      ? await executeAtomQuery(appAtomRegistry, query, {
+          reportDefect: false,
+          reportFailure: false,
+          signal,
+        })
+      : appAtomRegistry.get(query);
   return toSupatermProjectFile(
     environmentId,
     workspaceRoot,

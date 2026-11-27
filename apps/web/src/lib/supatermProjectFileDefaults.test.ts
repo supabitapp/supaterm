@@ -55,11 +55,22 @@ describe("new-thread project defaults", () => {
     expect(fixture.query).not.toHaveBeenCalled();
   });
 
-  it("reads project defaults through the query when connected", async () => {
-    fixture.connected = true;
-    expect(await readSupatermProjectFile(environmentId, "/repo")).toEqual({
+  it.each([
+    { name: "when connected", connected: true, signal: undefined },
+    {
+      name: "before the machine connects when the caller bounds the wait",
+      connected: false,
+      signal: new AbortController().signal,
+    },
+  ])("reads project defaults through the query $name", async ({ connected, signal }) => {
+    fixture.connected = connected;
+    expect(await readSupatermProjectFile(environmentId, "/repo", signal)).toEqual({
       defaultThreadEnvMode: "worktree",
     });
-    expect(fixture.query).toHaveBeenCalledOnce();
+    expect(fixture.query).toHaveBeenCalledWith(
+      expect.anything(),
+      "file",
+      expect.objectContaining({ signal }),
+    );
   });
 });
