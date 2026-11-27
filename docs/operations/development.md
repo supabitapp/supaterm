@@ -66,6 +66,9 @@ worktree starts empty. To give a clone its own seeded state, run
 The first start in any checkout also builds the native resource monitor with Cargo when
 `native/resource-monitor/target` has no binary. Without Rust, dev starts with a warning
 and no process telemetry; install Rust and run `vp run build:resource-monitor`.
+It likewise builds the built-in Tailscale helper with Go when `native/tailnet/bin` has no
+binary or its sources are newer. Without Go, dev starts with built-in Tailscale shown as
+unavailable; run `mise install` and then `vp run build:tailnet`.
 Never run a development server against the live `~/.supaterm/userdata`.
 See [test data](../../AGENTS.md#test-data) for copying a consistent database snapshot.
 

@@ -206,6 +206,23 @@ const resolveResourceMonitorPath = Effect.fn(
   return Option.none<string>();
 });
 
+const resolveTailnetPath = Effect.fn("desktop.backendConfiguration.resolveTailnetPath")(
+  function* () {
+    const environment = yield* DesktopEnvironment.DesktopEnvironment;
+    const fileSystem = yield* FileSystem.FileSystem;
+    const binaryName =
+      environment.platform === "win32" ? "supaterm-tailnet.exe" : "supaterm-tailnet";
+    return yield* Effect.findFirst(
+      environment.isDevelopment
+        ? [environment.path.join(environment.rootDir, "native/tailnet/bin", binaryName)]
+        : environment.isPackaged
+          ? [environment.path.join(environment.resourcesPath, "tailnet", binaryName)]
+          : environment.resolveResourcePathCandidates(environment.path.join("tailnet", binaryName)),
+      (candidate) => fileSystem.exists(candidate).pipe(Effect.orElseSucceed(() => false)),
+    );
+  },
+);
+
 const readPersistedBackendObservabilitySettings = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -525,6 +542,7 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
   function* (
     input: SharedBootstrapInput & {
       readonly resourceMonitorPath: Option.Option<string>;
+      readonly tailnetPath: Option.Option<string>;
       readonly cliPath: Option.Option<string>;
       readonly shellEnvironmentPrepared: boolean;
       readonly desktopAppUpdate: boolean;
@@ -557,6 +575,10 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       ...Option.match(input.resourceMonitorPath, {
         onNone: () => ({}),
         onSome: (resourceMonitorPath) => ({ resourceMonitorPath }),
+      }),
+      ...Option.match(input.tailnetPath, {
+        onNone: () => ({}),
+        onSome: (tailnetPath) => ({ tailnetPath }),
       }),
       ...buildObservabilityFragment(input.observabilitySettings),
     };
@@ -866,6 +888,10 @@ export const make = Effect.gen(function* () {
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
     );
+    const tailnetPath = yield* resolveTailnetPath().pipe(
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
+    );
     const cliPath = yield* DesktopCliShim.install.pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
@@ -874,6 +900,7 @@ export const make = Effect.gen(function* () {
     return yield* resolvePrimaryStartConfig({
       ...shared,
       resourceMonitorPath,
+      tailnetPath,
       cliPath,
       shellEnvironmentPrepared,
       desktopAppUpdate: yield* Ref.get(desktopState.canInstallUpdates),

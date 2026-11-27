@@ -453,6 +453,7 @@ import {
   ClientServerSettingsPatch,
 } from "./settings.ts";
 import { RelayConnectionInfo, RelayHostStatus, RelayPreparationError } from "./relay.ts";
+import { TailnetActionError, TailnetLoginResult, TailnetStatus } from "./tailnet.ts";
 import {
   ScheduledTaskDeleteInput,
   ScheduledTaskDeleteResult,
@@ -723,6 +724,9 @@ export const WS_METHODS = {
   subscribeAuthAccess: "subscribeAuthAccess",
   subscribeRelayStatus: "subscribeRelayStatus",
   prepareRelay: "relay.prepare",
+  subscribeTailnetStatus: "subscribeTailnetStatus",
+  tailnetLogin: "tailnet.login",
+  tailnetLogout: "tailnet.logout",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
 } as const;
 
@@ -2354,6 +2358,24 @@ const WsPrepareRelayRpc = Rpc.make(WS_METHODS.prepareRelay, {
   error: RelayPreparationError,
 });
 
+const WsSubscribeTailnetStatusRpc = Rpc.make(WS_METHODS.subscribeTailnetStatus, {
+  payload: Schema.Struct({}),
+  success: TailnetStatus,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
+const WsTailnetLoginRpc = Rpc.make(WS_METHODS.tailnetLogin, {
+  payload: Schema.Struct({}),
+  success: TailnetLoginResult,
+  error: TailnetActionError,
+});
+
+const WsTailnetLogoutRpc = Rpc.make(WS_METHODS.tailnetLogout, {
+  payload: Schema.Struct({}),
+  error: TailnetActionError,
+});
+
 const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeResourceTelemetry, {
   payload: Schema.Struct({}),
   success: ResourceTelemetrySnapshot,
@@ -2585,6 +2607,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeAuthAccessRpc,
   WsSubscribeRelayStatusRpc,
   WsPrepareRelayRpc,
+  WsSubscribeTailnetStatusRpc,
+  WsTailnetLoginRpc,
+  WsTailnetLogoutRpc,
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,

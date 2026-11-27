@@ -44,6 +44,24 @@ export function createRelayPairingEndpoint(relayEndpoint: string) {
   });
 }
 
+export function createBuiltInTailnetPairingEndpoint(httpBaseUrl: string) {
+  return createAdvertisedEndpoint({
+    id: `built-in-tailscale:${httpBaseUrl}`,
+    label: "Built-in Tailscale",
+    provider: {
+      id: "built-in-tailscale",
+      label: "Tailscale",
+      kind: "private-network",
+      isAddon: false,
+    },
+    httpBaseUrl,
+    reachability: "private-network",
+    hostedHttpsCompatibility: "compatible",
+    source: "server",
+    description: "Reachable from devices on the same tailnet.",
+  });
+}
+
 export function resolvePairingLinkRoutes(
   endpoints: ReadonlyArray<AdvertisedEndpoint>,
   pairingHints: PairingRouteHints,
@@ -126,7 +144,11 @@ export function resolveTailscaleHttpsRow(
     description:
       serveEnabled && endpoint
         ? endpoint.httpBaseUrl
-        : resolve(msg("Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.")),
+        : resolve(
+            msg(
+              "Older option. Uses the Tailscale app on this machine to serve this backend at a MagicDNS HTTPS URL.",
+            ),
+          ),
     status:
       serveEnabled && (error || endpoint?.status !== "available")
         ? (error ??

@@ -22,6 +22,11 @@ export function resolveServerAuthPolicy(
   return config.mode === "desktop" ? "desktop-managed-local" : "loopback-browser";
 }
 
+/** Built-in Tailscale makes any server reachable, and only pairing links reach it there. */
+export function tailnetAuthDescriptor(descriptor: ServerAuthDescriptor): ServerAuthDescriptor {
+  return { ...descriptor, policy: "remote-reachable", bootstrapMethods: ["one-time-token"] };
+}
+
 /** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;

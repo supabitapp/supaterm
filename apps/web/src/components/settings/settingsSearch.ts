@@ -1229,11 +1229,19 @@ export const SETTINGS_SEARCH_ITEMS = [
     localBackendManagementOnly: true,
   },
   {
+    id: "built-in-tailscale",
+    title: "Built-in Tailscale",
+    to: "/settings/access",
+    searchTerms: [
+      "tailscale tailnet headscale magicdns ts.net https certificate remote vpn serve over tailscale sign in sign out limit access machine name control server",
+    ],
+  },
+  {
     id: "tailscale-https",
-    title: msg("Tailscale HTTPS"),
+    title: msg("Tailscale app HTTPS"),
     to: "/settings/access",
     targetId: "connections-environment",
-    searchTerms: [msg("serve magicdns endpoint remote secure network")],
+    searchTerms: [msg("tailscale serve magicdns endpoint remote secure network older")],
     desktopOnly: true,
     localBackendManagementOnly: true,
   },

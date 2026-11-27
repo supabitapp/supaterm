@@ -187,6 +187,17 @@ jobs:
           path: native/resource-monitor/target/${{ inputs.rust_target }}/release/supaterm-resource-monitor${{ inputs.platform == 'win' && '.exe' || '' }}
           key: resource-monitor-${{ inputs.rust_target }}-${{ hashFiles('.cargo/config.toml', 'native/resource-monitor/Cargo.lock', 'native/resource-monitor/Cargo.toml', 'native/resource-monitor/src/**') }}
 
+      # Refs from before the tailnet helper (stable releases of an older nightly,
+      # preview PRs behind main) skip every tailnet step.
+      - &cache_tailnet
+        name: Cache tailnet helper
+        id: tailnet_cache
+        if: hashFiles('native/tailnet/go.mod') != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: native/tailnet/bin/${{ inputs.resource_key }}/supaterm-tailnet${{ inputs.platform == 'win' && '.exe' || '' }}
+          key: tailnet-${{ inputs.resource_key }}-${{ hashFiles('scripts/build-tailnet.ts', 'native/tailnet/go.mod', 'native/tailnet/go.sum', 'native/tailnet/**/*.go') }}
+
       - name: Cache Linux capture helpers
         if: inputs.platform == 'linux'
         id: capture_helper_cache
@@ -245,6 +256,22 @@ jobs:
         if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
         shell: bash
         run: cargo ${{ inputs.platform == 'win' && 'xwin build' || 'build' }} --locked --release --manifest-path native/resource-monitor/Cargo.toml --target "${INPUTS_RUST_TARGET}"
+
+      # No module cache: this job holds signing secrets, and any branch can
+      # write the cache on Depot runners.
+      - &setup_go
+        name: Setup Go
+        if: hashFiles('native/tailnet/go.mod') != '' && steps.tailnet_cache.outputs.cache-hit != 'true'
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: native/tailnet/go.mod
+          cache: false
+
+      - &build_tailnet
+        name: Build tailnet helper
+        if: hashFiles('native/tailnet/go.mod') != '' && steps.tailnet_cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: node scripts/build-tailnet.ts --target "${INPUTS_RESOURCE_KEY}"
 
       # Off Windows, scripts/lib/windows-jsign.ts signs through jsign instead of
       # the TrustedSigning PowerShell module.
@@ -384,6 +411,7 @@ jobs:
         env:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
           SUPATERM_DESKTOP_REUSE_RESOURCE_MONITOR: true
+          SUPATERM_DESKTOP_REUSE_TAILNET: true
           SUPATERM_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS: ${{ steps.capture_helper_cache.outputs.cache-hit == 'true' }}
           SUPATERM_DESKTOP_UNTRUSTED_BUNDLE: ${{ inputs.untrusted_bundle }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -581,6 +609,14 @@ jobs:
           path: resource-monitor-publish/${{ inputs.resource_key }}/*
           if-no-files-found: error
 
+      - name: Upload tailnet helper
+        if: hashFiles('native/tailnet/go.mod') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tailnet-${{ inputs.resource_key }}
+          path: native/tailnet/bin/${{ inputs.resource_key }}/*
+          if-no-files-found: error
+
   # The CLI archive and the macOS installer need nothing the desktop build
   # makes, so they build on a runner of their own beside it.
   cli:
@@ -602,6 +638,7 @@ jobs:
       - *download_dependency_verification
       - *install_dependencies
       - *cache_resource_monitor
+      - *cache_tailnet
 
       - name: Setup Rust
         if: steps.resource_monitor_cache.outputs.cache-hit != 'true'
@@ -614,6 +651,8 @@ jobs:
       - *download_js_bundle
       - *install_cargo_xwin
       - *build_resource_monitor
+      - *setup_go
+      - *build_tailnet
       - *install_jsign
 
       # The CLI archive ships apps/server/dist/client. The desktop build brands
@@ -704,18 +743,23 @@ jobs:
           echo "SUPATERM_MAC_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
           echo "macOS CLI and installer signing enabled."
 
-      - name: Stage resource monitor for the CLI archive
+      - name: Stage native helpers for the CLI archive
         if: inputs.cli_archive
         shell: bash
         run: |
           set -euo pipefail
-          binary_name="supaterm-resource-monitor"
+          suffix=""
           if [[ "${INPUTS_PLATFORM}" == "win" ]]; then
-            binary_name="${binary_name}.exe"
+            suffix=".exe"
           fi
           target_dir="$RUNNER_TEMP/cli-resource-monitor/${INPUTS_RESOURCE_KEY}"
           mkdir -p "$target_dir"
-          cp "native/resource-monitor/target/${INPUTS_RUST_TARGET}/release/${binary_name}" "$target_dir/$binary_name"
+          cp "native/resource-monitor/target/${INPUTS_RUST_TARGET}/release/supaterm-resource-monitor${suffix}" "$target_dir/"
+          if [[ -f native/tailnet/go.mod ]]; then
+            target_dir="$RUNNER_TEMP/cli-tailnet/${INPUTS_RESOURCE_KEY}"
+            mkdir -p "$target_dir"
+            cp "native/tailnet/bin/${INPUTS_RESOURCE_KEY}/supaterm-tailnet${suffix}" "$target_dir/"
+          fi
 
       - *setup_apt_mirrors
 
@@ -739,11 +783,14 @@ jobs:
         run: |
           set -euo pipefail
           extra_args=()
+          if [[ -d "$RUNNER_TEMP/cli-tailnet" ]]; then
+            extra_args+=(--tailnet-dir "$RUNNER_TEMP/cli-tailnet")
+          fi
           if [[ "${INPUTS_PLATFORM}" == "mac" ]]; then
             # Older release refs lack deferred notarization and still wait here.
             cli_help="$(node scripts/build-cli-archive.ts --help)"
             if [[ "$cli_help" == *--notary-submission-file* ]]; then
-              extra_args=(--notary-submission-file "$RUNNER_TEMP/supaterm-cli-notary-submission")
+              extra_args+=(--notary-submission-file "$RUNNER_TEMP/supaterm-cli-notary-submission")
               echo "deferred_notarization=true" >> "$GITHUB_OUTPUT"
             fi
           fi
@@ -888,3 +935,15 @@ jobs:
           }
           console.log(`Resource monitor sampled ${sample.scannedProcessCount} processes.`);
           EOF
+
+      # Go cross-compiles this binary on Linux, and nothing else runs it before users do.
+      - name: Smoke-test tailnet helper
+        shell: bash
+        env:
+          TAILNET: verify/${{ env.UNPACKED_DIR }}/resources/tailnet/supaterm-tailnet.exe
+        run: |
+          if [[ ! -e "$TAILNET" ]]; then
+            echo "This ref predates the tailnet helper."
+            exit 0
+          fi
+          "$TAILNET" --version

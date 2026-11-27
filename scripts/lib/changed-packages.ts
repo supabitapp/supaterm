@@ -33,6 +33,8 @@ const EXTRA_OWNERS: ReadonlyArray<readonly [RegExp, ReadonlyArray<string>]> = [
   [/^native\/browser-secret\//, ["@supaterm/desktop"]],
   [/^native\/(kde|hyprland)-snap-shot\//, ["@supaterm/desktop"]],
   [/^native\/libghostty-vt\//, ["@supaterm/web", "@supaterm/mobile"]],
+  // The server runs the source checkout's build; scripts/dev-runner.test.ts reads its sources.
+  [/^native\/tailnet\//, ["supaterm", "@supaterm/scripts"]],
 ];
 const RUST = /^native\/(resource-monitor|kde-snap-shot|hyprland-snap-shot)\//;
 

@@ -45,6 +45,7 @@ import * as DirectTunnel from "../relay/DirectTunnel.ts";
 import * as DirectTunnelHttp from "../relay/DirectTunnelHttp.ts";
 import * as RelayCompanion from "../relay/RelayCompanion.ts";
 import * as RelayIdentity from "../relay/RelayIdentity.ts";
+import * as TailnetNode from "../tailnet/TailnetNode.ts";
 import * as RelayIngress from "../relay/RelayIngress.ts";
 
 class PeerTestApi extends HttpApi.make("environment")
@@ -135,6 +136,7 @@ export const servePeer = <E, R, E2 = never, R2 = never>(
     // Without a server to hand tunnel sockets to, the route is mounted but carries nothing.
     const tunnelContext = yield* DirectTunnel.layer.pipe(
       Layer.provideMerge(RelayIdentity.layer),
+      Layer.provide(TailnetNode.layerOff),
       Layer.provide(
         tunnelServer === undefined
           ? Layer.succeed(RelayIngress.RelayIngress, { accept: (stream) => stream.reset() })

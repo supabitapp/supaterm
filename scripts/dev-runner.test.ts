@@ -9,10 +9,12 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import { assert, describe, it } from "@effect/vitest";
 import * as ByteSize from "effect/ByteSize";
 import * as ConfigProvider from "effect/ConfigProvider";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Sink from "effect/Sink";
@@ -443,13 +445,19 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
     });
 
     it.effect.each([
-      { built: "release", cargoFails: false, expectBuild: false },
-      { built: "debug", cargoFails: false, expectBuild: false },
-      { built: undefined, cargoFails: false, expectBuild: true },
-      { built: undefined, cargoFails: true, expectBuild: true },
+      { built: "release", cargoFails: false, expectBuild: false, tailnet: "fresh", goFails: false },
+      { built: "debug", cargoFails: false, expectBuild: false, tailnet: "stale", goFails: false },
+      {
+        built: undefined,
+        cargoFails: false,
+        expectBuild: true,
+        tailnet: "missing",
+        goFails: false,
+      },
+      { built: undefined, cargoFails: true, expectBuild: true, tailnet: "missing", goFails: true },
     ] as const)(
-      "builds the resource monitor only when it is missing: built=$built cargoFails=$cargoFails",
-      ({ built, cargoFails, expectBuild }) =>
+      "builds the resource monitor when missing and the tailnet helper when stale: built=$built cargoFails=$cargoFails tailnet=$tailnet goFails=$goFails",
+      ({ built, cargoFails, expectBuild, tailnet, goFails }) =>
         Effect.gen(function* () {
           const fs = yield* FileSystem.FileSystem;
           const spawned: Array<{ readonly command: string; readonly args: ReadonlyArray<string> }> =
@@ -463,7 +471,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
                 readonly args: ReadonlyArray<string>;
               };
               spawned.push({ command: spawn.command, args: spawn.args });
-              return spawn.command === "cargo" && cargoFails
+              return (spawn.command === "cargo" && cargoFails) ||
+                (spawn.command === "go" && goFails)
                 ? Effect.succeed(mockProcess(101))
                 : Effect.succeed(mockProcess(0));
             }),
@@ -488,6 +497,28 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
                       built !== undefined && NodePath.basename(NodePath.dirname(file)) === built,
                     )
                   : fs.exists(file),
+              stat: (file) =>
+                NodePath.basename(file) !== "supaterm-tailnet"
+                  ? fs.stat(file)
+                  : tailnet === "missing"
+                    ? Effect.fail(
+                        PlatformError.systemError({
+                          _tag: "NotFound",
+                          module: "FileSystem",
+                          method: "stat",
+                          pathOrDescriptor: file,
+                        }),
+                      )
+                    : fs.stat(import.meta.filename).pipe(
+                        Effect.map((info) => ({
+                          ...info,
+                          mtime: Option.some(
+                            DateTime.toDateUtc(
+                              DateTime.makeUnsafe(tailnet === "fresh" ? 8.64e15 : 0),
+                            ),
+                          ),
+                        })),
+                      ),
             }),
             Effect.provideService(HostProcess.Platform, "linux"),
           );
@@ -498,8 +529,12 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             assert.includeMembers([...cargo[0]!.args], ["build", "--locked", "--release"]);
             assert.isTrue(cargo[0]!.args.at(-1)!.endsWith("Cargo.toml"));
           }
-          assert.lengthOf(warnings, cargoFails ? 1 : 0);
+          const go = spawned.filter((spawn) => spawn.command === "go");
+          assert.lengthOf(go, tailnet === "fresh" ? 0 : 1);
+          if (tailnet !== "fresh") assert.includeMembers([...go[0]!.args], ["build", "-trimpath"]);
+          assert.lengthOf(warnings, Number(cargoFails) + Number(goFails));
           if (cargoFails) assert.include(warnings[0]!, "vp run build:resource-monitor");
+          if (goFails) assert.include(warnings.at(-1)!, "vp run build:tailnet");
           // A failed build never blocks dev.
           assert.equal(spawned.at(-1)?.command, "vp");
         }),

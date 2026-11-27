@@ -1,8 +1,13 @@
 // @effect-diagnostics nodeBuiltinImport:off - the direct tunnel owns its native WebSocket upgrade.
 import type * as NodeHttp from "node:http";
+import * as NodeNet from "node:net";
 import * as NodeOS from "node:os";
 import WebSocket, { WebSocketServer } from "ws";
-import { MAX_DIRECT_TUNNEL_URLS, type ServerTunnelEndpoints } from "@supaterm/contracts";
+import {
+  MAX_DIRECT_TUNNEL_URLS,
+  type ServerTunnelEndpoints,
+  type TailnetStatus,
+} from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { TUNNEL_MAX_PLAIN_BYTES } from "@supaterm/shared/relay/tunnel";
 import * as Context from "effect/Context";
@@ -19,6 +24,7 @@ import { resolveBoundEndpoints } from "../environment/DirectEndpoints.ts";
 import { serveHostTunnel } from "./hostTunnel.ts";
 import * as RelayIdentity from "./RelayIdentity.ts";
 import { RelayIngress } from "./RelayIngress.ts";
+import * as TailnetNode from "../tailnet/TailnetNode.ts";
 
 const HANDSHAKE_TIMEOUT = Duration.seconds(15);
 const EMPTY_HEAD = Buffer.alloc(0);
@@ -83,11 +89,18 @@ const isWebSocketUpgrade = (request: NodeHttp.IncomingMessage) =>
 const peerKey = (address: string | undefined) =>
   address?.startsWith("::ffff:") ? address.slice("::ffff:".length) : (address ?? "");
 
+function tailnetTunnelUrls(status: TailnetStatus): ReadonlyArray<string> {
+  if (status.state !== "running") return [];
+  const address = status.addresses.find((candidate) => NodeNet.isIPv4(candidate));
+  return address === undefined ? [] : [`ws://${address}`];
+}
+
 const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimits) {
   const config = yield* ServerConfig.ServerConfig;
   const platform = yield* HostProcess.Platform;
   const identity = yield* RelayIdentity.RelayIdentity;
   const ingress = yield* RelayIngress;
+  const tailnet = yield* TailnetNode.TailnetNode;
   // The host's shared WebSocket server negotiates permessage-deflate and
   // accepts 100 MiB frames. Ciphertext does not compress, and an anonymous
   // peer must not make the host buffer more than one tunnel record.
@@ -222,31 +235,32 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
 
   const endpointsFor = (
     found: Option.Option<{ readonly address: string }>,
+    tailnetStatus: TailnetStatus,
   ): Option.Option<ServerTunnelEndpoints> =>
     Option.flatMap(found, ({ address }) => {
-      const urls = resolveBoundEndpoints({
-        platform,
-        host: config.host,
-        port: config.port,
-        interfaces: NodeOS.networkInterfaces(),
-      })
-        .map((endpoint) => `ws://${new URL(endpoint.httpBaseUrl).host}`)
-        .slice(0, MAX_DIRECT_TUNNEL_URLS);
+      const urls = [
+        ...tailnetTunnelUrls(tailnetStatus),
+        ...resolveBoundEndpoints({
+          platform,
+          host: config.host,
+          port: config.port,
+          interfaces: NodeOS.networkInterfaces(),
+        }).map((endpoint) => `ws://${new URL(endpoint.httpBaseUrl).host}`),
+      ].slice(0, MAX_DIRECT_TUNNEL_URLS);
       return urls.length === 0 ? Option.none() : Option.some({ address, urls });
     });
 
   return DirectTunnel.of({
     accept,
-    advertisement: identity.existing.pipe(
-      Effect.map(endpointsFor),
+    advertisement: Effect.zipWith(identity.existing, tailnet.current, endpointsFor).pipe(
       Effect.catch((error) =>
         Effect.logWarning("Direct tunnel endpoints are unavailable", { error }).pipe(
           Effect.as(Option.none()),
         ),
       ),
     ),
-    advertisements: identity.changes.pipe(
-      Stream.map(endpointsFor),
+    advertisements: Stream.zipLatest(identity.changes, tailnet.changes).pipe(
+      Stream.map(([found, tailnetStatus]) => endpointsFor(found, tailnetStatus)),
       Stream.catch(() => Stream.empty),
     ),
   });

@@ -6,6 +6,7 @@ import * as NodeHttp from "node:http";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as RelayAccess from "./relay/RelayAccess.ts";
 import * as DirectTunnel from "./relay/DirectTunnel.ts";
+import * as TailnetNode from "./tailnet/TailnetNode.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -223,7 +224,7 @@ it.effect("resends late editors without rolling back updates already sent", () =
       },
       Stream.empty,
       { resolveTargets: () => Effect.succeed([]) },
-      { resolve: () => Effect.succeed([]) },
+      { resolve: () => Effect.succeed([]), changes: Stream.empty },
     ).pipe(
       Stream.tap((event) =>
         event.type === "settingsUpdated" ? Deferred.succeed(settingsSent, undefined) : Effect.void,
@@ -256,7 +257,7 @@ it.effect("resends a reveal kind and remote targets that outlast the snapshot ti
       },
       Stream.empty,
       { resolveTargets: () => Deferred.await(finishDiscovery) },
-      { resolve: () => Effect.succeed([]) },
+      { resolve: () => Effect.succeed([]), changes: Stream.empty },
     ).pipe(Stream.runCollect, Effect.forkScoped({ startImmediately: true }));
     yield* TestClock.adjust("6 seconds");
     yield* Deferred.succeed(finishDiscovery, targets);
@@ -329,13 +330,39 @@ it.effect("resends the snapshot only when the tunnel endpoints change", () =>
       },
       Stream.make(Option.none(), Option.some(endpoints), Option.some(endpoints), Option.none()),
       { resolveTargets: () => Effect.succeed([]) },
-      { resolve: () => Effect.succeed([]) },
+      { resolve: () => Effect.succeed([]), changes: Stream.empty },
     ).pipe(Stream.runCollect);
     assert.deepEqual(
       Array.from(events).map((event) =>
         event.type === "snapshot" ? event.config.tunnelEndpoints : event.type,
       ),
       [endpoints, undefined],
+    );
+  }),
+);
+
+it.effect("resends the snapshot when built-in Tailscale changes the direct endpoints", () =>
+  Effect.gen(function* () {
+    const tailnet = {
+      kind: "tailnet" as const,
+      httpBaseUrl: "https://supaterm-mbp.tail1234.ts.net/",
+    };
+    const events = yield* withLateConfig(
+      snapshotConfig({}),
+      Stream.empty,
+      {
+        resolveAvailableEditors: () => Effect.succeed([]),
+        resolveFileManagerRevealKind: () => Effect.undefined,
+      },
+      Stream.empty,
+      { resolveTargets: () => Effect.succeed([]) },
+      { resolve: () => Effect.succeed([]), changes: Stream.make([tailnet], [tailnet], []) },
+    ).pipe(Stream.runCollect);
+    assert.deepEqual(
+      Array.from(events).map((event) =>
+        event.type === "snapshot" ? event.config.directEndpoints : event.type,
+      ),
+      [[tailnet], []],
     );
   }),
 );
@@ -356,7 +383,7 @@ it.effect.each([relayAdvertisement, null])(
         },
         Stream.empty,
         { resolveTargets: () => Effect.succeed([]) },
-        { resolve: () => Effect.succeed([]) },
+        { resolve: () => Effect.succeed([]), changes: Stream.empty },
       ).pipe(
         Stream.tap((event) =>
           event.type === "relayAdvertisementUpdated"
@@ -878,6 +905,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
     advertisement: Effect.succeedNone,
     advertisements: Stream.empty,
   }),
+  TailnetNode.layerOff,
   Layer.mock(ServerLifecycleEvents.ServerLifecycleEvents)({}),
   Layer.mock(ServerRuntimeStartup.ServerRuntimeStartup)({}),
   Layer.mock(ServerSelfUpdate.ServerSelfUpdate)({}),
@@ -954,7 +982,7 @@ it.live.each([
         Layer.mock(ProviderRegistry.ProviderRegistry)({}),
         Layer.mock(ExternalLauncher.ExternalLauncher)({}),
         Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
-        Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+        Layer.mock(DirectEndpoints.DirectEndpoints)({ changes: Stream.empty }),
         Layer.mock(ServerEnvironment.ServerEnvironment)({}),
         Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({
           resolveLink: () => undefined,
@@ -1075,6 +1103,7 @@ it.effect.each([
             ),
         }),
         Layer.mock(DirectEndpoints.DirectEndpoints)({
+          changes: Stream.empty,
           resolveAvailable: () => Effect.succeed(discovery === "direct-cached" ? endpoints : bound),
           resolve: () =>
             direct
@@ -1412,7 +1441,7 @@ it.effect("access changes made while the snapshot loads reach the client after i
               Layer.mock(ExternalLauncher.ExternalLauncher)({}),
               Layer.mock(ProviderRegistry.ProviderRegistry)({}),
               Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
-              Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+              Layer.mock(DirectEndpoints.DirectEndpoints)({ changes: Stream.empty }),
               Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
                 namedProjectsRoot: "/unused",
               }),
@@ -1549,6 +1578,7 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
       Layer.mock(DirectEndpoints.DirectEndpoints)({
         resolve: () => Effect.succeed([]),
         resolveAvailable: () => Effect.succeed([]),
+        changes: Stream.empty,
       }),
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
         scratchRoot: Effect.succeedNone,
@@ -1926,7 +1956,7 @@ it.effect("a missing thread worktree gets its project's skills in the cwd snapsh
       ),
       Layer.mock(ExternalLauncher.ExternalLauncher)({}),
       Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
-      Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+      Layer.mock(DirectEndpoints.DirectEndpoints)({ changes: Stream.empty }),
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
         scratchRoot: Effect.succeedNone,
         namedProjectsRoot: process.cwd(),
@@ -2101,7 +2131,7 @@ it.effect("a git action that fails partway still refreshes the repository status
       Layer.mock(ExternalLauncher.ExternalLauncher)({}),
       Layer.mock(ProviderRegistry.ProviderRegistry)({}),
       Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
-      Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+      Layer.mock(DirectEndpoints.DirectEndpoints)({ changes: Stream.empty }),
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
       Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
       Layer.mock(ServerEnvironment.ServerEnvironment)({}),
@@ -2179,7 +2209,7 @@ it.effect("a publish whose push fails still refreshes the new remote", () =>
       Layer.mock(ExternalLauncher.ExternalLauncher)({}),
       Layer.mock(ProviderRegistry.ProviderRegistry)({}),
       Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
-      Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+      Layer.mock(DirectEndpoints.DirectEndpoints)({ changes: Stream.empty }),
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
       Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
       Layer.mock(ServerEnvironment.ServerEnvironment)({}),
@@ -2990,7 +3020,7 @@ it.effect("ACP session RPCs list a thread missing its history and repair it on i
       Layer.mock(ExternalLauncher.ExternalLauncher)({}),
       Layer.mock(ProviderRegistry.ProviderRegistry)({}),
       Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
-      Layer.mock(DirectEndpoints.DirectEndpoints)({}),
+      Layer.mock(DirectEndpoints.DirectEndpoints)({ changes: Stream.empty }),
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/unused" }),
       Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
       Layer.mock(ServerEnvironment.ServerEnvironment)({}),

@@ -23,6 +23,7 @@ import {
 import { UsageModelFilter } from "./usage.ts";
 import { SecretProviderId, SecretProviderSlug } from "./secretReference.ts";
 import { containsSecretReference, SettingsSecretValue } from "./settingsSecretValue.ts";
+import { TailnetSettings, TailnetSettingsPatch } from "./tailnet.ts";
 import { EnvironmentMachineKind, ThreadEnvMode, WorktreeSubmodules } from "./environment.ts";
 import { KeybindingShortcut } from "./keybindings.ts";
 import { CodexMicroSettings } from "./codexMicro.ts";
@@ -1259,6 +1260,9 @@ export const ServerSettings = Schema.Struct({
   publicRelayUrl: Schema.String.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_PUBLIC_RELAY_URL)),
   ),
+  tailnet: TailnetSettings.pipe(
+    Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(TailnetSettings)({}))),
+  ),
   favorites: ModelFavorites.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   providerModelPreferences: ProviderModelPreferences.pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
@@ -1595,6 +1599,7 @@ const ModelSelectionPatch = Schema.Struct({
 export const ServerSettingsPatch = Schema.Struct({
   publicRelayEnabled: Schema.optionalKey(Schema.Boolean),
   publicRelayUrl: Schema.optionalKey(RelayServerUrl),
+  tailnet: Schema.optionalKey(TailnetSettingsPatch),
   setModelFavorites: Schema.optionalKey(
     Schema.Array(Schema.Struct({ ...ModelFavorite.fields, favorite: Schema.Boolean })),
   ),
@@ -1824,7 +1829,7 @@ export function requiredScopesForServerSettingsPatch(
   let changesAccess = false;
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
-    if (key === "enablePreviewTunnel") {
+    if (key === "enablePreviewTunnel" || key === "tailnet") {
       changesAccess = true;
     } else if (key === "providerInstances" || key === "secretProviders") {
       changesProviders = true;

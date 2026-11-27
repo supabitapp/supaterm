@@ -53,9 +53,11 @@ import { ProviderRegistry } from "./ProviderRegistry.ts";
 import budget from "./agentContextBudget.json" with { type: "json" };
 import { SecretRequests } from "../secrets/SecretRequests.ts";
 import { RemoteDelegation } from "../peer/RemoteDelegation.ts";
+import * as TailnetNode from "../tailnet/TailnetNode.ts";
 
 // Registration only stores tool definitions, so the handlers' services are never called.
 const toolHandlerServices = Layer.mergeAll(
+  TailnetNode.layerOff,
   Layer.mock(AssetSigner)({}),
   Layer.mock(DeviceService)({}),
   Layer.mock(DocumentText)({}),

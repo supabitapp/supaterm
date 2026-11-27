@@ -21,6 +21,7 @@ import * as Schema from "effect/Schema";
 import { Argument, Command, Flag } from "effect/cli";
 import { ChildProcess } from "effect/process";
 
+import { buildTailnet, TAILNET_BIN_DIR, tailnetExecutableName } from "./build-tailnet.ts";
 import { defaultDevMemoryLimitBytes, enforceDevMemoryLimit } from "./lib/dev-memory-limit.ts";
 import { type DevShareError, shareDevServer, unshareDevServer } from "./lib/dev-share.ts";
 import { loadRepoEnv } from "./lib/public-config.ts";
@@ -629,10 +630,10 @@ const runRepoScript = Effect.fn("dev-runner.runRepoScript")(function* (
 });
 
 /**
- * The first start in a worktree seeds its empty database from a small live database,
- * builds the native resource monitor, and warms the web dependency cache. Each step
- * checks for its own output, so later starts skip it. The live database is only ever
- * read, through migrate-dev-db's read-only attach, and only the worktree's own home is written.
+ * The first start in a worktree seeds its empty database from a small live database, builds
+ * the native resource monitor and tailnet helper, and warms the web dependency cache. Each step
+ * checks for its own output, so later starts skip it. The live database is only ever read,
+ * through migrate-dev-db's read-only attach, and only the worktree's own home is written.
  */
 const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (input: {
   readonly mode: DevMode;
@@ -722,6 +723,33 @@ const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (i
           "[dev-runner] could not build the resource monitor; starting without process telemetry. Install Rust and run `vp run build:resource-monitor`.",
         );
       }
+    }
+
+    const tailnetDir = path.join(repoRoot, "native/tailnet");
+    const modifiedAt = (file: string) =>
+      fs
+        .stat(file)
+        .pipe(Effect.map((info) => Option.getOrElse(Option.map(info.mtime, Number), () => 0)));
+    const tailnetStale = yield* Effect.gen(function* () {
+      const builtAt = yield* modifiedAt(
+        path.join(repoRoot, TAILNET_BIN_DIR, tailnetExecutableName(yield* HostProcess.Platform)),
+      ).pipe(Effect.option);
+      if (Option.isNone(builtAt)) return true;
+      for (const entry of yield* fs.readDirectory(tailnetDir, { recursive: true })) {
+        if (!/\.go$|^go\.(mod|sum)$/.test(entry)) continue;
+        if ((yield* modifiedAt(path.join(tailnetDir, entry))) > builtAt.value) return true;
+      }
+      return false;
+    }).pipe(Effect.orElseSucceed(() => true));
+    if (tailnetStale) {
+      yield* Effect.logInfo("[dev-runner] building the tailnet helper.");
+      yield* buildTailnet({ repoRoot, target: Option.none() }).pipe(
+        Effect.catch(() =>
+          Effect.logWarning(
+            "[dev-runner] could not build the tailnet helper; Tailscale stays unavailable. Install Go (`mise install`) and run `vp run build:tailnet`.",
+          ),
+        ),
+      );
     }
   }
 

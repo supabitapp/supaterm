@@ -31,6 +31,7 @@ import * as DirectTunnelHttp from "./DirectTunnelHttp.ts";
 import * as RelayIdentity from "./RelayIdentity.ts";
 import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as RelayIngress from "./RelayIngress.ts";
+import * as TailnetNode from "../tailnet/TailnetNode.ts";
 
 const layerConfig = (overrides: Partial<ServerConfig.ServerConfig["Service"]> = {}) =>
   Layer.effect(
@@ -95,7 +96,9 @@ const startHost = (limits: DirectTunnel.DirectTunnelLimits) =>
         disableListenLog: true,
         disableLogger: true,
       }).pipe(
-        Layer.provideMerge(DirectTunnel.layerWithLimits(limits)),
+        Layer.provideMerge(
+          DirectTunnel.layerWithLimits(limits).pipe(Layer.provide(TailnetNode.layerOff)),
+        ),
         Layer.provideMerge(
           EnvironmentAuth.layer.pipe(
             Layer.provide(ManagedPolicy.layerTest()),
@@ -479,9 +482,10 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
   );
 });
 
-const layerAdvertiser = (host: string) =>
+const layerAdvertiser = (host: string, tailnet = TailnetNode.layerOff) =>
   DirectTunnel.layerWithLimits(roomy).pipe(
     Layer.provideMerge(RelayIdentity.layer),
+    Layer.provide(tailnet),
     Layer.provide(ServerSecretStore.layer),
     Layer.provide(Layer.succeed(RelayIngress.RelayIngress, { accept: () => {} })),
     Layer.provide(layerConfig({ host, port: 3773 })),
@@ -513,6 +517,31 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))(
         yield* (yield* RelayIdentity.RelayIdentity).get;
         expect(Option.isNone(yield* tunnel.advertisement)).toBe(true);
       }).pipe(Effect.provide(layerAdvertiser("127.0.0.1"))),
+    );
+
+    it.effect("advertises built-in Tailscale's address first, even for a loopback bind", () =>
+      Effect.gen(function* () {
+        const tunnel = yield* DirectTunnel.DirectTunnel;
+        const created = yield* (yield* RelayIdentity.RelayIdentity).get;
+        expect(yield* tunnel.advertisement).toEqual(
+          Option.some({ address: created.address, urls: ["ws://100.101.102.103"] }),
+        );
+      }).pipe(
+        Effect.provide(
+          layerAdvertiser(
+            "127.0.0.1",
+            TailnetNode.layerStatic({
+              state: "running",
+              dnsName: "supaterm-mbp.tail1234.ts.net",
+              addresses: ["fd7a:115c:a1e0::1", "100.101.102.103"],
+              owner: { type: "user", login: "alice@example.com", displayName: "Alice" },
+              https: "unavailable",
+              keyExpiry: null,
+              health: [],
+            }),
+          ),
+        ),
+      ),
     );
   },
 );

@@ -246,14 +246,16 @@ describe("resolveTailscaleHttpsRow", () => {
 
   it("offers setup before Tailscale has reported a MagicDNS name", () => {
     expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: false })).toEqual({
-      description: "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
+      description:
+        "Older option. Uses the Tailscale app on this machine to serve this backend at a MagicDNS HTTPS URL.",
       status: null,
     });
   });
 
   it("reports unavailable HTTPS when Serve is on but no MagicDNS name is reported", () => {
     expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: true })).toEqual({
-      description: "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
+      description:
+        "Older option. Uses the Tailscale app on this machine to serve this backend at a MagicDNS HTTPS URL.",
       status:
         "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
     });
