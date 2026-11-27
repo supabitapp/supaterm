@@ -91,10 +91,17 @@ test(
         if (type !== "message" || typeof listener !== "function") {
           return addEventListener.call(this, type, listener, options);
         }
+        let pending = "";
         const wrapped = (event: Event) => {
           const data = (event as MessageEvent).data;
           if (typeof data !== "string") return listener.call(this, event);
-          const parsed = JSON.parse(data);
+          // The server splits a large frame into parts; all but the last start with this mark.
+          if (data.startsWith("\u001e")) {
+            pending += data.slice(1);
+            return;
+          }
+          const parsed = JSON.parse(pending + data);
+          pending = "";
           const messages = [parsed].flat();
           const isConfig = (message: { requestId?: unknown }) =>
             tags.get(String(message.requestId)) === "subscribeServerConfig";
