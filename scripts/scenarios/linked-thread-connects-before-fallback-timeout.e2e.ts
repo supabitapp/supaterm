@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { SCENARIO_HOME } from "../e2e.config.ts";
+import { linkedThreadTab, restoreLinkedThreadTab } from "./linked-thread-tab.ts";
 import { SECOND_HOME, startSecondServer } from "./second-server.ts";
 import { environmentId, makeState, rpcClient, runPromise, test, WEB } from "./supaterm.ts";
 
@@ -35,7 +36,11 @@ test(
   "Connect to interact opens the editable thread before a silent fallback times out",
   WEB,
   async ({ supaterm, app, browser, screen }) => {
-    await supaterm.project("primary");
+    const parent = await supaterm.thread({
+      project: await supaterm.project("primary"),
+      title: "Current work",
+      messages: ["first"],
+    });
     const primary = app.baseUrl ?? "";
     const secondServer = startSecondServer(primary);
     try {
@@ -69,8 +74,18 @@ test(
           });
         };
       }, alternate.origin);
+      await browser.addInitScript(
+        restoreLinkedThreadTab,
+        linkedThreadTab({
+          via,
+          linked: target,
+          parentId: parent.threadId,
+          childId: thread.threadId,
+          title: "Linked handoff",
+        }),
+      );
 
-      await supaterm.open(`/linked/${via}/${target}/${thread.threadId}`);
+      await supaterm.open(parent);
       await screen.getByRole("heading", "Linked handoff").waitFor();
       await screen.getByRole("button", "Connect to interact").tap();
 
