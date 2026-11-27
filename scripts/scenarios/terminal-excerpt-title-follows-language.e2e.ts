@@ -23,7 +23,9 @@ test(
     await browser.locator("canvas.cursor-text").secondaryTap();
     await screen.getByText("チャットに追加", { exact: true }).tap();
 
-    const excerpt = browser.locator('[data-testid="composer-editor"]').getByText(/行目/);
+    const excerpt = browser
+      .locator('[data-testid="composer-editor"]')
+      .getByRole("button", { name: /^ターミナルの抜粋、/ });
     await excerpt.waitFor();
     const expectedTitle = (await excerpt.textContent())!.trim();
     await app.screenshot("terminal-excerpt-draft-row");
