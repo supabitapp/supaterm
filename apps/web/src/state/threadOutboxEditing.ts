@@ -78,7 +78,8 @@ const sameIds = (
 const sameItems = <A>(left: ReadonlyArray<A>, right: ReadonlyArray<A>) =>
   left.length === right.length && left.every((item, index) => item === right[index]);
 
-// Uploads and model or mode changes replace the draft object without touching what the user wrote.
+// Uploads, saving images for reload, and model or mode changes replace the draft object without
+// touching what the user wrote.
 function sameComposerContent(
   current: ComposerThreadDraftState | null,
   sent: ComposerThreadDraftState | null,
@@ -89,7 +90,6 @@ function sameComposerContent(
     current.prompt === sent.prompt &&
     sameIds(current.images, sent.images) &&
     sameIds(current.files, sent.files) &&
-    sameIds(current.persistedAttachments, sent.persistedAttachments) &&
     sameItems(current.terminalContexts, sent.terminalContexts) &&
     sameItems(current.previewAnnotations, sent.previewAnnotations) &&
     sameItems(current.reviewComments, sent.reviewComments) &&

@@ -9,7 +9,11 @@ import {
   TurnItemId,
 } from "@supaterm/contracts";
 
-import { useComposerDraftStore, type ComposerFileAttachment } from "../composerDraftStore";
+import {
+  useComposerDraftStore,
+  type ComposerFileAttachment,
+  type ComposerImageAttachment,
+} from "../composerDraftStore";
 import {
   buildMessageContext,
   fileContextReference,
@@ -22,6 +26,7 @@ import {
   buildEditedThreadOutboxTurn,
   captureOutboxAttachments,
   createThreadOutboxEditor,
+  releaseSentComposerDraft,
 } from "./threadOutboxEditing";
 
 const transport = vi.hoisted(() => ({
@@ -287,6 +292,48 @@ describe("outbox editing in the composer", () => {
         addedAttachments: [],
       }),
     ).toThrow("Enter a message or keep an attachment");
+  });
+});
+
+describe("releasing a sent draft", () => {
+  it("clears a sent draft whose image was saved for reload after the send read it", () => {
+    const image: ComposerImageAttachment = {
+      type: "image",
+      id: "screenshot",
+      name: "screenshot.png",
+      mimeType: "image/png",
+      sizeBytes: 4,
+      previewUrl: "blob:screenshot",
+      file: new File(["shot"], "screenshot.png", { type: "image/png" }),
+    };
+    const store = useComposerDraftStore.getState();
+    store.setPrompt(threadTarget, "What is in this screenshot?");
+    store.addImages(threadTarget, [image]);
+    const sent = useComposerDraftStore.getState().getComposerDraft(threadTarget);
+    useComposerDraftStore.setState((state) => ({
+      draftsByThreadKey: Object.fromEntries(
+        Object.entries(state.draftsByThreadKey).map(([key, draft]) => [
+          key,
+          {
+            ...draft,
+            persistedAttachments: [
+              {
+                id: image.id,
+                name: image.name,
+                mimeType: image.mimeType,
+                sizeBytes: image.sizeBytes,
+                dataUrl: "data:image/png;base64,c2hvdA==",
+              },
+            ],
+          },
+        ]),
+      ),
+    }));
+
+    expect(releaseSentComposerDraft({ target: threadTarget, sent, attachments: [image] })).toBe(
+      true,
+    );
+    expect(useComposerDraftStore.getState().getComposerDraft(threadTarget)?.prompt ?? "").toBe("");
   });
 });
 
