@@ -36,7 +36,8 @@ test(
       return null;
     });
     await expect(dialog).toBeHidden();
-    await screen.getByRole("button", "Use Aurora theme", { exact: true }).tap();
+    await screen.getByRole("combobox", "Light theme", { exact: true }).tap();
+    await screen.getByRole("option", "Aurora", { exact: true }).tap();
     await app.screenshot("paired-theme-custom-css");
     await expect
       .poll(() =>
