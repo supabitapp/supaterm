@@ -36,6 +36,7 @@ apps/mobile/.android-cache/
 artifacts/app-store/captures/
 artifacts/app-store/screenshots/
 artifacts/app-store/fastlane/
+scripts/.e2e/
 apps/mobile/vendor/bundle/
 apps/mobile/.bundle/
 apps/mobile/fastlane/report.xml

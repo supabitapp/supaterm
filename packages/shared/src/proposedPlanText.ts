@@ -1,6 +1,22 @@
 export function proposedPlanTitle(planMarkdown: string): string | null {
-  const heading = planMarkdown.match(/^\s{0,3}#{1,6}\s+(.+)$/m)?.[1]?.trim();
-  return heading && heading.length > 0 ? heading : null;
+  let fence = "";
+  for (const line of planMarkdown.split(/\r?\n/)) {
+    const [, marker = "", info = ""] = line.match(/^ {0,3}(`{3,}|~{3,})([^\r\n]*)$/) ?? [];
+    if (fence) {
+      if (marker[0] === fence[0] && marker.length >= fence.length && /^[ \t]*$/.test(info)) {
+        fence = "";
+      }
+      continue;
+    }
+    // CommonMark: a backtick fence's info string cannot contain a backtick.
+    if (marker && (marker[0] !== "`" || !info.includes("`"))) {
+      fence = marker;
+      continue;
+    }
+    const heading = line.match(/^\s{0,3}#{1,6}\s+(.+)$/)?.[1]?.trim();
+    if (heading) return heading;
+  }
+  return null;
 }
 
 export function stripDisplayedPlanMarkdown(planMarkdown: string): string {

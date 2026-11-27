@@ -47,6 +47,7 @@ vi.mock("./supatermProjectFileDefaults", () => ({
 import { DraftId, useComposerDraftStore } from "../composerDraftStore";
 import {
   moveDraftToProject,
+  moveWrittenDraftToProject,
   openNewDraftWorkspace,
   readPendingWorkspaceDefault,
   resolveNewDraftWorkspace,
@@ -149,6 +150,7 @@ describe("moveDraftToProject", () => {
 
   it("gives the moved draft the new project's workspace and machine routing", () => {
     openDraftInWorktreeOnPinnedBranch();
+    useComposerDraftStore.getState().setDraftThreadContext(draftId, { workspaceExplicit: true });
 
     moveDraftToProject({
       draftId,
@@ -167,7 +169,56 @@ describe("moveDraftToProject", () => {
       startFromOrigin: false,
     });
     expect(draft?.environmentSelection).toBeUndefined();
+    expect(draft?.workspaceExplicit).toBeUndefined();
     expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
+  });
+
+  it("moves a draft the user wrote in to an added project and leaves an empty one", async () => {
+    testState.projects = [from, to];
+    openDraftInWorktreeOnPinnedBranch();
+    const moveTo = (project: Project) =>
+      moveWrittenDraftToProject({
+        draftId,
+        project,
+        logicalProjectKey: project.id,
+        serverConfig: serverConfigWith({ defaultThreadEnvMode: "local" }),
+      });
+
+    await expect(moveTo(to)).resolves.toBe(true);
+    const store = useComposerDraftStore.getState();
+    expect(store.getDraftSession(draftId)).toMatchObject({ projectId: to.id, envMode: "local" });
+    expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
+
+    store.setPrompt(draftId, "");
+    await expect(moveTo(from)).resolves.toBe(false);
+    expect(useComposerDraftStore.getState().getDraftSession(draftId)?.projectId).toBe(to.id);
+  });
+
+  it("leaves a draft the user moved elsewhere while the added project's file loaded", async () => {
+    const other = makeProject("other-repo");
+    testState.projects = [from, to, other];
+    openDraftInWorktreeOnPinnedBranch();
+    let finishRead: (file: SupatermProjectFile | null) => void = () => {};
+    testState.heldProjectFile = new Promise((resolve) => {
+      finishRead = resolve;
+    });
+
+    const moving = moveWrittenDraftToProject({
+      draftId,
+      project: to,
+      logicalProjectKey: to.id,
+      serverConfig: serverConfigWith({ defaultThreadEnvMode: null }),
+    });
+    moveDraftToProject({
+      draftId,
+      project: other,
+      logicalProjectKey: other.id,
+      workspace: { envMode: "local", startFromOrigin: false },
+    });
+    finishRead(null);
+
+    await expect(moving).resolves.toBe(false);
+    expect(useComposerDraftStore.getState().getDraftSession(draftId)?.projectId).toBe(other.id);
   });
 
   it("leaves a draft that is already being sent where it is", () => {

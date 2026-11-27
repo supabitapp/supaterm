@@ -1,3 +1,4 @@
+import * as Equal from "effect/Equal";
 import { readWorktreeBaseBranch } from "../../worktreeRepositoryChoiceStore";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
@@ -22,7 +23,11 @@ import {
   markPromotedDraftThreadByRef,
   useComposerDraftStore,
 } from "../../composerDraftStore";
-import { countPreparingComposerImages, holdComposerSend } from "./preparingComposerImages";
+import {
+  countPreparingComposerImages,
+  holdComposerSend,
+  watchComposerSendEdits,
+} from "./preparingComposerImages";
 import { type ComposerSubmissionIntent } from "../../composer-logic";
 import { readPendingWorkspaceDefault } from "../../lib/newDraftWorkspace";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
@@ -101,7 +106,7 @@ import {
 } from "./composerSend.logic";
 import { threadEnvironment } from "../../state/threads";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
-import { draftSendState } from "./chatViewSend";
+import { draftFanoutSelectionsAtom, draftSendState } from "./chatViewSend";
 import type { makeThreadErrorSetter } from "../ChatView.logic";
 import type { usePendingThreadRequests } from "./usePendingThreadRequests";
 import type { useQueuedRunEditWithOutbox } from "./useQueuedRunEditWithOutbox";
@@ -1224,17 +1229,44 @@ export function useComposerSend(input: ComposerSendInput) {
   };
 
   const onSendLatest = useStableCallback(onSend);
+  const reportDraftChangedBeforeSend = () => {
+    if (currentRouteThreadKeyRef.current !== routeThreadKey || !activeThread) return;
+    setThreadError(
+      activeThread.id,
+      m(msg("Draft changed while preparing this message. Review it and send again.")),
+    );
+  };
+  const waitBeforeSend = async <T>(pending: Promise<T>) => {
+    const finishWatching = watchComposerSendEdits(composerDraftTarget);
+    const fanoutSelectionsAtom = draftFanoutSelectionsAtom(routeThreadKey);
+    const fanoutSelections = appAtomRegistry.get(fanoutSelectionsAtom);
+    sendInFlightRef.current = true;
+    const result = await pending
+      .catch((error: unknown) => {
+        finishWatching();
+        return Promise.reject(error);
+      })
+      .finally(() => {
+        sendInFlightRef.current = false;
+      });
+    const watchedStatus = finishWatching();
+    const draftStatus =
+      watchedStatus === "ready" &&
+      !Equal.equals(fanoutSelections, appAtomRegistry.get(fanoutSelectionsAtom))
+        ? "edited"
+        : watchedStatus;
+    const sameRoute = currentRouteThreadKeyRef.current === routeThreadKey;
+    if (draftStatus === "edited") reportDraftChangedBeforeSend();
+    return { result, draftReady: draftStatus === "ready", sameRoute };
+  };
   const sendWithEnvironmentRefresh = async (...args: Parameters<typeof onSend>) => {
     const refresh =
       args[3] || sendInFlightRef.current || readPendingEnvironmentChange() !== null
         ? null
         : refreshBeforeSend();
     if (refresh === null) return onSend(...args);
-    sendInFlightRef.current = true;
-    const ready = await refresh.finally(() => {
-      sendInFlightRef.current = false;
-    });
-    if (ready) return onSendLatest(...args);
+    const { result: ready, draftReady } = await waitBeforeSend(refresh);
+    if (ready && draftReady) return onSendLatest(...args);
   };
   const sendWithEnvironmentRefreshLatest = useStableCallback(sendWithEnvironmentRefresh);
   const onSendWithRouting = async (...args: Parameters<typeof onSend>) => {
@@ -1242,10 +1274,9 @@ export function useComposerSend(input: ComposerSendInput) {
     const workspaceDefault =
       draftId && !sendInFlightRef.current ? readPendingWorkspaceDefault(draftId) : null;
     if (workspaceDefault === null) return sendWithEnvironmentRefresh(...args);
-    sendInFlightRef.current = true;
-    await workspaceDefault.finally(() => {
-      sendInFlightRef.current = false;
-    });
+    const { result, draftReady, sameRoute } = await waitBeforeSend(workspaceDefault);
+    if (result === "moved") reportDraftChangedBeforeSend();
+    if (result === false || result === "moved" || !draftReady || !sameRoute) return;
     return sendWithEnvironmentRefreshLatest(...args);
   };
   return { onSend: onSendWithRouting, prepareVoiceSend };

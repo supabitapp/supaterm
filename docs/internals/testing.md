@@ -42,3 +42,22 @@ Rules for writing tests, and for asking for them in review. AGENTS.md carries th
     expect(onSave).toHaveBeenCalledWith("Title");
   });
   ```
+
+## Scenarios
+
+Scenarios are [e2e](https://www.npmjs.com/package/e2e) tests in [`scripts/scenarios`](../../scripts/scenarios) (`*.e2e.ts`) that drive the real app (server, HTTP and WebSocket, and a web browser, iOS simulator or Android emulator) with the free `Replay (dev)` agent. Use one as real-app proof for a bug fix a user can reproduce:
+
+```sh
+vp run scenarios --target web                                     # every web scenario
+vp run scenarios:prove scripts/scenarios/<name>.e2e.ts --base main
+vp run scenarios:prove scripts/scenarios/<name>.e2e.ts --base main --target android   # a native scenario on Android
+```
+
+- One test per file: `WEB` from `./supaterm.ts`, or `IOS` or `NATIVE` (iOS and Android) from `./supaterm-mobile.ts`. Seed projects and threads with `supaterm.project` and `supaterm.thread` before `supaterm.open(...)` so the app does not land on first-run setup.
+- In web scenarios, open the screen directly with `supaterm.open(thread)` or `supaterm.open("/settings/...")` unless the scenario exercises navigation.
+- Assert only the behavior the bug breaks, and call `app.screenshot("label")` where it shows, so `scenarios:prove` pairs base and head captures. Never call `agent.act` or `agent.assert`: no model is configured.
+- The app starts with a minimal environment (`PATH`, `HOME`, temp directory). Pass more with `SUPATERM_SCENARIO_INHERIT_ENV='VAR,PREFIX_*'`. Run one scenario run at a time per checkout, and never edit `scripts/e2e.config.ts` during a run: its workers reload it and stop.
+- The `ios` and `android` targets exist only when `SUPATERM_SCENARIO_IOS_DEVICE` or `SUPATERM_SCENARIO_ANDROID_DEVICE` names a device (simulator UDID or name, emulator serial). A run reinstalls the dev app there and resets the iOS simulator's keychain, so give scenarios a simulator and an emulator of their own. The first run builds the dev client if `vp run mobile:install` has not cached it.
+- `scenarios:prove` exits `0` only when the test fails on base and passes on head (`1` did not prove, `2` the app did not start, `3` the scenario stopped before its assertion). `--upload-command` takes any command that prints one URL per line for the captures it is given.
+- The Scenarios workflow runs the web target nightly and on changes to scenarios, so a committed scenario keeps passing.
+- Scenarios cannot cover the desktop shell and IPC, provider-specific protocol behavior (replay speaks generic ACP), or timing and performance regressions.

@@ -13,7 +13,7 @@ import type {
 import { create } from "zustand";
 
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { environmentProjectClonesAtom, silenceProjectCloneToasts } from "../state/projectClones";
+import { environmentProjectClonesAtom } from "../state/projectClones";
 import { projectEnvironment } from "../state/projects";
 import { sourceControlEnvironment } from "../state/sourceControl";
 import { msg } from "gt-react";
@@ -103,7 +103,7 @@ export function dismissProjectFileCopy(ref: ScopedProjectRef) {
 /**
  * Clones onto another machine, then relays the chosen ignored files, since the
  * two servers never talk. Resolves with the cloning project once it starts; the
- * caller opens it, and its composer shows progress, so nothing toasts.
+ * caller decides whether to open it and show progress in the composer.
  */
 export async function addProjectToMachine(input: AddProjectToMachineInput): Promise<ProjectId> {
   // Read first, so the copy reflects the files as they were when the user asked.
@@ -125,8 +125,6 @@ export async function addProjectToMachine(input: AddProjectToMachineInput): Prom
 
   const requestedRef = { environmentId: input.target.environmentId, projectId: input.projectId };
   const requestedKey = scopedProjectKey(requestedRef);
-  // Marked before the start request, since the clone list can arrive before its reply.
-  silenceProjectCloneToasts(requestedRef);
   if (reads.length > 0) setFileCopy(requestedKey, { phase: "copying" });
   const started = await runAtomCommand(
     appAtomRegistry,
@@ -152,7 +150,6 @@ export async function addProjectToMachine(input: AddProjectToMachineInput): Prom
   const targetRef = { environmentId: input.target.environmentId, projectId };
   const copyKey = scopedProjectKey(targetRef);
   if (projectId !== input.projectId) {
-    silenceProjectCloneToasts(targetRef);
     if (reads.length > 0) {
       setFileCopy(copyKey, { phase: "copying" });
       setFileCopy(requestedKey, null);

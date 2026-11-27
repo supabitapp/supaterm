@@ -1,6 +1,7 @@
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import {
   DEFAULT_SERVER_SETTINGS,
+  type EnvironmentId,
   type ScopedProjectRef,
   type ServerConfig,
   type SupatermProjectFile,
@@ -9,6 +10,7 @@ import { resolveNewThreadEnvMode, resolveProjectSettings } from "@supaterm/share
 import { flushSync } from "react-dom";
 
 import {
+  composerDraftHasUserContent,
   type DraftId,
   type DraftSessionState,
   type DraftThreadEnvMode,
@@ -16,6 +18,7 @@ import {
 } from "~/composerDraftStore";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { readProject, readThreadShells } from "~/state/entities";
+import { readEnvironment } from "~/state/environments";
 import { readUnloadedThreadCount } from "~/state/olderDoneShelf";
 import { environmentSummaries } from "~/state/presentation";
 import type { Project } from "~/types";
@@ -34,14 +37,8 @@ function draftWorkspaceSource(projectRef: ScopedProjectRef, serverConfig: DraftS
   const project = readProject(projectRef) ?? undefined;
   const serverSettings = serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS;
   const projectSettings = resolveProjectSettings(serverSettings, project?.id ?? null, project);
-  // Environment queries wait for a connection, so reading the project file on an
-  // offline machine would never settle and the draft would never open.
   const projectFileSource =
-    project !== undefined &&
-    projectSettings.settings.defaultThreadEnvMode === null &&
-    appAtomRegistry
-      .get(environmentSummaries.connectedEnvironmentIdsAtom)
-      .includes(project.environmentId)
+    project !== undefined && projectSettings.settings.defaultThreadEnvMode === null
       ? { environmentId: project.environmentId, workspaceRoot: project.workspaceRoot }
       : null;
   const workspaceFor = (projectFile: SupatermProjectFile | null): NewDraftWorkspace => {
@@ -76,6 +73,14 @@ function draftWorkspaceSource(projectRef: ScopedProjectRef, serverConfig: DraftS
   return { projectFileSource, workspaceFor };
 }
 
+// Environment queries wait for a connection, so reading the project file on an
+// offline machine would never settle and the draft would never open.
+function isConnected(environmentId: EnvironmentId) {
+  return appAtomRegistry
+    .get(environmentSummaries.connectedEnvironmentIdsAtom)
+    .includes(environmentId);
+}
+
 /** The workspace a new thread in the project starts with. */
 export async function resolveNewDraftWorkspace(
   projectRef: ScopedProjectRef,
@@ -83,7 +88,7 @@ export async function resolveNewDraftWorkspace(
 ): Promise<NewDraftWorkspace> {
   const { projectFileSource, workspaceFor } = draftWorkspaceSource(projectRef, serverConfig);
   return workspaceFor(
-    projectFileSource === null
+    projectFileSource === null || !isConnected(projectFileSource.environmentId)
       ? null
       : await readSupatermProjectFile(
           projectFileSource.environmentId,
@@ -92,39 +97,158 @@ export async function resolveNewDraftWorkspace(
   );
 }
 
-// Drafts that opened before their project's supaterm.json was read. A send waits for the file's
-// workspace default unless the user has already chosen a workspace.
-interface ProvisionalWorkspace {
-  readonly logicalProjectKey: string | undefined;
-  readonly envMode: DraftThreadEnvMode;
-  // A reused draft keeps an earlier "manual" marker; only a switch to manual after opening is a choice.
-  readonly openedManual: boolean;
+async function destinationWorkspace(
+  projectRef: ScopedProjectRef,
+  signal: AbortSignal,
+): Promise<NewDraftWorkspace> {
+  const readSource = () =>
+    draftWorkspaceSource(projectRef, readEnvironment(projectRef.environmentId)?.serverConfig);
+  const { projectFileSource, workspaceFor } = readSource();
+  if (projectFileSource === null) return workspaceFor(null);
+  const { environmentId, workspaceRoot } = projectFileSource;
+  const cached = peekSupatermProjectFile(environmentId, workspaceRoot);
+  if (cached !== undefined) return workspaceFor(cached);
+  // A paired project can appear before its connection summary reports connected.
+  const projectFile = await readSupatermProjectFile(environmentId, workspaceRoot, signal);
+  return readSource().workspaceFor(projectFile);
 }
 
-const pendingWorkspaceDefaults = new Map<
-  DraftId,
-  ProvisionalWorkspace & { readonly settled: Promise<void> }
->();
+/**
+ * The workspace for a draft moving to another project or machine: the default a new thread
+ * there starts with, unless the user chose one, which carries over.
+ */
+export async function retargetDraftWorkspace(
+  draft: Pick<DraftSessionState, "workspaceExplicit" | "worktreePath">,
+  projectRef: ScopedProjectRef,
+  signal: AbortSignal,
+): Promise<Partial<NewDraftWorkspace>> {
+  return draft.workspaceExplicit || draft.worktreePath !== null
+    ? {}
+    : destinationWorkspace(projectRef, signal);
+}
 
-function keepsProvisionalWorkspace(
+function isInProject(
   draft: DraftSessionState | null,
-  provisional: ProvisionalWorkspace,
+  projectRef: ScopedProjectRef,
 ): draft is DraftSessionState {
   return (
     draft !== null &&
     draft.promotedTo == null &&
-    draft.logicalProjectKey === provisional.logicalProjectKey &&
-    draft.envMode === provisional.envMode &&
-    draft.worktreePath === null &&
-    (provisional.openedManual || draft.environmentSelection !== "manual")
+    draft.environmentId === projectRef.environmentId &&
+    draft.projectId === projectRef.projectId
   );
 }
 
-export function readPendingWorkspaceDefault(draftId: DraftId): Promise<void> | null {
+// Drafts showing a provisional workspace while their project's default loads. A send waits for
+// the default unless the user has already chosen a workspace.
+interface PendingWorkspaceDefault {
+  readonly projectRef: ScopedProjectRef;
+  readonly workspace: NewDraftWorkspace;
+  // A reused draft keeps an earlier "manual" marker; only a switch to manual after opening is a choice.
+  readonly openedManual: boolean;
+  readonly settled: Promise<void>;
+}
+
+const pendingWorkspaceDefaults = new Map<DraftId, PendingWorkspaceDefault>();
+
+function acceptsWorkspaceDefault(
+  draft: DraftSessionState | null,
+  pending: PendingWorkspaceDefault,
+): draft is DraftSessionState {
+  return (
+    isInProject(draft, pending.projectRef) &&
+    draft.envMode === pending.workspace.envMode &&
+    !draft.workspaceExplicit &&
+    draft.worktreePath === null &&
+    (pending.openedManual || draft.environmentSelection !== "manual")
+  );
+}
+
+/** A visible draft can use a provisional workspace while its project's default loads. */
+export function trackPendingWorkspaceDefault(
+  draftId: DraftId,
+  projectRef: ScopedProjectRef,
+  workspace: NewDraftWorkspace,
+  resolution: Promise<NewDraftWorkspace>,
+) {
+  const { getDraftSession, setDraftThreadContext } = useComposerDraftStore.getState();
+  const settled = resolution
+    .then((resolved) => {
+      const draft = getDraftSession(draftId);
+      if (
+        pendingWorkspaceDefaults.get(draftId) !== pending ||
+        !acceptsWorkspaceDefault(draft, pending)
+      )
+        return;
+      if (
+        resolved.envMode === workspace.envMode &&
+        resolved.startFromOrigin === workspace.startFromOrigin
+      )
+        return;
+      // A send waiting on this promise must see the resolved workspace when it resumes.
+      flushSync(() =>
+        setDraftThreadContext(draftId, {
+          envMode: resolved.envMode,
+          ...(draft.startFromOrigin === workspace.startFromOrigin
+            ? { startFromOrigin: resolved.startFromOrigin }
+            : {}),
+        }),
+      );
+    })
+    .finally(() => {
+      if (pendingWorkspaceDefaults.get(draftId) === pending)
+        pendingWorkspaceDefaults.delete(draftId);
+    });
+  const pending: PendingWorkspaceDefault = {
+    projectRef,
+    workspace,
+    openedManual: getDraftSession(draftId)?.environmentSelection === "manual",
+    settled,
+  };
+  pendingWorkspaceDefaults.set(draftId, pending);
+}
+
+type CheckoutOutcome = boolean | "moved";
+
+const pendingCheckouts = new Map<DraftId, Promise<CheckoutOutcome>>();
+
+/**
+ * A waiting send can resume only after the current checkout has been applied. Moving the draft
+ * to another project drops the checkout, even if the draft moves back before it finishes.
+ */
+export function trackPendingDraftCheckout(
+  draftId: DraftId,
+  projectRef: ScopedProjectRef,
+  checkoutReady: Promise<boolean>,
+) {
+  let resolve!: (outcome: CheckoutOutcome) => void;
+  const settled = new Promise<CheckoutOutcome>((done) => {
+    resolve = done;
+  });
+  const isCurrent = () => pendingCheckouts.get(draftId) === settled;
+  const release = (outcome: CheckoutOutcome) => {
+    unsubscribe();
+    if (isCurrent()) pendingCheckouts.delete(draftId);
+    resolve(outcome);
+  };
+  const unsubscribe = useComposerDraftStore.subscribe((state) => {
+    if (!isInProject(state.getDraftSession(draftId), projectRef)) release("moved");
+  });
+  pendingCheckouts.set(draftId, settled);
+  checkoutReady.then(release, () => release(false));
+  return isCurrent;
+}
+
+/** "moved" means the send waited on a checkout the draft left by changing projects. */
+export function readPendingWorkspaceDefault(
+  draftId: DraftId,
+): Promise<CheckoutOutcome | void> | null {
+  const checkout = pendingCheckouts.get(draftId);
+  if (checkout) return checkout;
   const pending = pendingWorkspaceDefaults.get(draftId);
   if (pending === undefined) return null;
   const draft = useComposerDraftStore.getState().getDraftSession(draftId);
-  return keepsProvisionalWorkspace(draft, pending) ? pending.settled : null;
+  return acceptsWorkspaceDefault(draft, pending) ? pending.settled : null;
 }
 
 /**
@@ -140,7 +264,7 @@ export function openNewDraftWorkspace(
   readonly applyProjectFile: (draftId: DraftId) => void;
 } {
   const { projectFileSource, workspaceFor } = draftWorkspaceSource(projectRef, serverConfig);
-  if (projectFileSource === null) {
+  if (projectFileSource === null || !isConnected(projectFileSource.environmentId)) {
     return { workspace: workspaceFor(null), applyProjectFile: () => {} };
   }
   const { environmentId, workspaceRoot } = projectFileSource;
@@ -150,40 +274,13 @@ export function openNewDraftWorkspace(
     return { workspace: workspaceFor(cachedProjectFile), applyProjectFile: () => {} };
   }
   const workspace = workspaceFor(null);
-  const applyProjectFile = (draftId: DraftId) => {
-    const openedDraft = useComposerDraftStore.getState().getDraftSession(draftId);
-    const provisional: ProvisionalWorkspace = {
-      logicalProjectKey: openedDraft?.logicalProjectKey,
-      envMode: workspace.envMode,
-      openedManual: openedDraft?.environmentSelection === "manual",
-    };
-    const settled = projectFileRead
-      .then((projectFile) => {
-        const fileWorkspace = workspaceFor(projectFile);
-        const draft = useComposerDraftStore.getState().getDraftSession(draftId);
-        if (
-          fileWorkspace.envMode === workspace.envMode ||
-          !keepsProvisionalWorkspace(draft, provisional)
-        ) {
-          return;
-        }
-        // Commit before a waiting send re-reads the composer's workspace.
-        flushSync(() =>
-          useComposerDraftStore.getState().setDraftThreadContext(draftId, {
-            envMode: fileWorkspace.envMode,
-            ...(draft.startFromOrigin === workspace.startFromOrigin
-              ? { startFromOrigin: fileWorkspace.startFromOrigin }
-              : {}),
-          }),
-        );
-      })
-      .finally(() => {
-        if (pendingWorkspaceDefaults.get(draftId)?.settled === settled) {
-          pendingWorkspaceDefaults.delete(draftId);
-        }
-      });
-    pendingWorkspaceDefaults.set(draftId, { ...provisional, settled });
-  };
+  const applyProjectFile = (draftId: DraftId) =>
+    trackPendingWorkspaceDefault(
+      draftId,
+      projectRef,
+      workspace,
+      projectFileRead.then(workspaceFor),
+    );
   return { workspace, applyProjectFile };
 }
 
@@ -198,19 +295,43 @@ export function moveDraftToProject(input: {
   readonly project: Project;
   readonly logicalProjectKey: string;
   readonly workspace: NewDraftWorkspace;
-}): void {
+}): boolean {
   const { draftId, project } = input;
   const store = useComposerDraftStore.getState();
   const draft = store.getDraftSession(draftId);
   if (!draft || draft.promotedTo) {
-    return;
+    return false;
   }
   const projectRef = scopeProjectRef(project.environmentId, project.id);
-  store.setLogicalProjectDraftThreadId(
-    input.logicalProjectKey,
-    projectRef,
-    draftId,
-    input.workspace,
-  );
+  store.setLogicalProjectDraftThreadId(input.logicalProjectKey, projectRef, draftId, {
+    ...input.workspace,
+    workspaceExplicit: false,
+  });
   seedDraftModelSelection(draftId, projectRef);
+  return true;
+}
+
+/**
+ * Moves a draft the user wrote in to a project added for it. An empty draft stays: moving it
+ * would replace the project's own draft and strand browser tabs on it.
+ */
+export async function moveWrittenDraftToProject(input: {
+  readonly draftId: DraftId;
+  readonly project: Project;
+  readonly logicalProjectKey: string;
+  readonly serverConfig: DraftServerConfig;
+}): Promise<boolean> {
+  const store = useComposerDraftStore.getState();
+  if (!composerDraftHasUserContent(store.getComposerDraft(input.draftId))) return false;
+  const before = store.getDraftSession(input.draftId);
+  const workspace = await resolveNewDraftWorkspace(
+    scopeProjectRef(input.project.environmentId, input.project.id),
+    input.serverConfig,
+  );
+  // The user may have moved the draft while the project file loaded; that move stands.
+  const after = useComposerDraftStore.getState().getDraftSession(input.draftId);
+  if (after?.projectId !== before?.projectId || after?.environmentId !== before?.environmentId) {
+    return false;
+  }
+  return moveDraftToProject({ ...input, workspace });
 }

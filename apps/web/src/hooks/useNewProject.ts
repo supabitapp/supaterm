@@ -7,14 +7,13 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import type { EnvironmentId } from "@supaterm/contracts";
+import type { EnvironmentId, ScopedProjectRef } from "@supaterm/contracts";
 
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { waitForProject } from "~/state/entities";
 import { projectEnvironment } from "~/state/projects";
 import { sourceControlEnvironment } from "~/state/sourceControl";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { useNewThreadHandler } from "./useHandleNewThread";
 import { msg } from "gt-react";
 import { m } from "~/i18n/messages";
 
@@ -24,12 +23,11 @@ function errorMessage(error: unknown): string {
     : m(msg("An error occurred."));
 }
 
-export function useNewProject() {
+export function useNewProject(openProject: (projectRef: ScopedProjectRef) => Promise<void>) {
   const createNew = useAtomCommand(projectEnvironment.createNew, { reportFailure: false });
   const publishRepository = useAtomCommand(sourceControlEnvironment.publishRepository, {
     reportFailure: false,
   });
-  const handleNewThread = useNewThreadHandler();
 
   const publishNewRepository = async (input: {
     readonly environmentId: EnvironmentId;
@@ -139,7 +137,7 @@ export function useNewProject() {
       return null;
     });
     if (project === null) return true;
-    await handleNewThread(projectRef).catch((error: unknown) => {
+    await openProject(projectRef).catch((error: unknown) => {
       toastManager.add(
         stackedThreadToast({
           type: "error",

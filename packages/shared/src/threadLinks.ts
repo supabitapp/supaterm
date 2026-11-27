@@ -6,8 +6,8 @@ export const THREAD_LINK_PROTOCOL = "supaterm-thread";
 const V1_PREFIX = `${THREAD_LINK_PROTOCOL}://v1/`;
 const V2_PREFIX = `${THREAD_LINK_PROTOCOL}://v2/`;
 const THREAD_HREF = String.raw`supaterm-thread:\/\/v[12]\/`;
-// A label stops at any bracket, so a run of unclosed brackets is scanned once, not once per bracket.
-const LABEL = String.raw`[^[\]\n]*`;
+// Unescaped brackets end a label, so consecutive unclosed brackets cannot restart a long scan.
+const LABEL = String.raw`(?:\\[^\n]|[^\\[\]\n])*`;
 // Earlier alternatives claim text so later ones cannot match inside it: an escaped character opens
 // nothing, code is literal, and a link to anywhere else keeps a thread URL in its label or href.
 const THREAD_LINK_OUTSIDE_CODE = new RegExp(

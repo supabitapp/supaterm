@@ -124,6 +124,7 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
   });
   ```
 
+- A bug a user can reproduce in the app can carry a [scenario](docs/internals/testing.md#scenarios) as its proof: `vp run scenarios:prove scripts/scenarios/<name>.e2e.ts --base main` exits 0 only when it fails on base and passes on head.
 - User-visible frontend changes should get one integrated pass in a real client: `test-supaterm-app` for web, `test-supaterm-mobile` for mobile. The primary agent does this once after integrating. Subagents do not launch their own dev servers.
 
 - Real agent turns cost money. To watch a turn stream through the pipeline and UI, use the free `Replay (dev)` provider that `vp run dev` registers; [test-supaterm-app](.agents/skills/test-supaterm-app/SKILL.md) shows how to start one. Use a real provider only when the change depends on that provider's behavior, and then pick its cheapest model, such as Haiku for Claude or Luna for Codex.

@@ -219,6 +219,8 @@ describe("thread links inside other links", () => {
       [`\\\\\\\\[old](${link})`, `\\\\\\\\${relabeled}`],
       [`\\[ <${link}> ](https://example.com)`, `\\[ ${relabeled} ](https://example.com)`],
       [`\\[old](${link}) \\<${link}>`],
+      [`[Fix \\[ci\\]](${link})`, relabeled],
+      [`[see \\[1\\] <${link}>](https://example.com)`],
     ] as const) {
       expect(relabelThreadLinks(markdown, local, title)).toBe(expected ?? markdown);
       expect(threadLinkRefs(markdown, local)).toEqual(

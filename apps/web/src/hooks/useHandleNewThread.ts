@@ -62,6 +62,7 @@ interface NewThreadWorkspaceOptions {
   worktreePath?: string | null;
   envMode?: DraftThreadEnvMode;
   startFromOrigin?: boolean;
+  workspaceExplicit?: boolean;
 }
 
 function pickExplicitWorkspaceOptions(options: NewThreadWorkspaceOptions | undefined) {
@@ -70,6 +71,9 @@ function pickExplicitWorkspaceOptions(options: NewThreadWorkspaceOptions | undef
     ...(options?.worktreePath !== undefined ? { worktreePath: options.worktreePath } : {}),
     ...(options?.envMode !== undefined ? { envMode: options.envMode } : {}),
     ...(options?.startFromOrigin !== undefined ? { startFromOrigin: options.startFromOrigin } : {}),
+    ...(options?.envMode !== undefined || options?.startFromOrigin !== undefined
+      ? { workspaceExplicit: true }
+      : {}),
   };
 }
 
@@ -226,7 +230,12 @@ export function createNewThreadHandler(router: AnyRouter) {
         } else if (!isDraftAlreadyOpen) {
           const defaultWorkspace = resolveDefaultWorkspace();
           applyProjectFile = defaultWorkspace.applyProjectFile;
-          workspaceContext = { branch: null, worktreePath: null, ...defaultWorkspace.workspace };
+          workspaceContext = {
+            branch: null,
+            worktreePath: null,
+            ...defaultWorkspace.workspace,
+            workspaceExplicit: false,
+          };
         }
         if (workspaceContext) {
           setDraftThreadContext(emptyStoredDraftThread.draftId, {
@@ -327,6 +336,9 @@ export function createNewThreadHandler(router: AnyRouter) {
         worktreePath: options?.worktreePath ?? null,
         envMode: workspace.envMode,
         startFromOrigin: options?.startFromOrigin ?? workspace.startFromOrigin,
+        ...(options?.envMode !== undefined || options?.startFromOrigin !== undefined
+          ? { workspaceExplicit: true }
+          : {}),
         runtimeMode: defaultRuntimeMode,
       });
       applyStickyState(draftId);

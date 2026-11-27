@@ -112,7 +112,7 @@ export function DraftProjectPicker({
     projectEntryByKey,
   } = useDraftProjectCatalog(activeProjectRef);
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
-  const openAddProject = () => openCommandPalette({ open: "add-project" });
+  const openAddProject = () => openCommandPalette({ open: "add-project", draftId });
   const { scratchEnvironmentId, scratchWorkspaceRootFor, openScratchProject } = useScratchProject();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const projectPickerShortcut = shortcutLabelForCommand(keybindings, "projectPicker.toggle");

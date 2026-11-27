@@ -1,4 +1,5 @@
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -192,9 +193,20 @@ const isWsl = Effect.fn("isWsl")(function* () {
   return kernelRelease.toLowerCase().includes("microsoft");
 });
 
+// Names this environment instead of the machine, e.g. for scenario captures.
+const labelOverride = Config.String("SUPATERM_ENVIRONMENT_LABEL").pipe(
+  Config.option,
+  Config.map(Option.flatMap((label) => Option.fromNullishOr(normalizeLabel(label)))),
+);
+
 export const resolveServerEnvironmentLabel = Effect.fn("resolveServerEnvironmentLabel")(function* (
   input: ResolveServerEnvironmentLabelInput,
 ) {
+  const override = yield* labelOverride.pipe(Effect.orElseSucceed(() => Option.none<string>()));
+  if (Option.isSome(override)) {
+    return override.value;
+  }
+
   const friendlyHostLabel = yield* resolveFriendlyHostLabel();
   if (friendlyHostLabel) {
     return friendlyHostLabel;

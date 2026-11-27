@@ -1,0 +1,74 @@
+import { expect } from "e2e";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+
+import { SCENARIO_HOME } from "../e2e.config.ts";
+import { runPromise, test, WEB } from "./supaterm.ts";
+
+test(
+  "Appearance reflects new edits after the environment theme directory is restored",
+  WEB,
+  async ({ supaterm, app, screen }) => {
+    await supaterm.project("theme-directory");
+    const themes = `${SCENARIO_HOME}/userdata/themes`;
+    const previous = `${SCENARIO_HOME}/themes-before-restore`;
+    const restored = `${SCENARIO_HOME}/themes-to-restore`;
+    const file = "restore-fixture.json";
+    const contents = (name: string) =>
+      JSON.stringify({
+        version: 1,
+        name,
+        appearance: "dark",
+        colors: { canvas: "#171820", accent: "#7aa2f7" },
+      });
+    await runPromise(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        yield* fs.writeFileString(`${themes}/${file}`, contents("Original Palette"));
+        yield* fs.makeDirectory(restored);
+        yield* fs.writeFileString(`${restored}/${file}`, contents("Restored Palette"));
+      }),
+    );
+    try {
+      await supaterm.open("/settings/appearance");
+      await screen.getByRole("combobox", "Dark theme", { exact: true }).tap();
+      await screen.getByRole("option", "Original Palette", { exact: true }).waitFor();
+      await runPromise(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          yield* fs.rename(themes, previous);
+          yield* fs.rename(restored, themes);
+        }),
+      );
+      // Wait for the rename event to be reflected before editing the replacement directory.
+      const restoredTheme = screen.getByRole("option", "Restored Palette", { exact: true });
+      await restoredTheme.waitFor();
+      await restoredTheme.scrollIntoView();
+
+      await runPromise(
+        Effect.flatMap(FileSystem.FileSystem, (fs) =>
+          fs.writeFileString(`${themes}/${file}`, contents("Edited Restored Palette")),
+        ),
+      );
+      try {
+        await expect(
+          screen.getByRole("option", "Edited Restored Palette", { exact: true }),
+        ).toBeVisible();
+      } finally {
+        await app.screenshot("appearance-after-editing-restored-theme");
+      }
+    } finally {
+      await runPromise(
+        Effect.gen(function* () {
+          const fs = yield* FileSystem.FileSystem;
+          if (yield* fs.exists(previous)) {
+            yield* fs.remove(themes, { recursive: true, force: true });
+            yield* fs.rename(previous, themes);
+          }
+          yield* fs.remove(`${themes}/${file}`, { force: true });
+          yield* fs.remove(restored, { recursive: true, force: true });
+        }),
+      );
+    }
+  },
+);
