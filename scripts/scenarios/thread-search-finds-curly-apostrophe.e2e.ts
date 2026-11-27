@@ -16,8 +16,9 @@ test(
     await composer.press("Enter");
     await expect(screen.getByText("second fixture turn complete", { exact: false })).toBeVisible();
 
-    await screen.getByRole("combobox", "Search threads").fill("部署 John’s");
-    await expect(screen.getByRole("listbox", "Thread search results")).toContainText(
+    await screen.getByRole("button", "Search").tap();
+    await screen.getByRole("dialog", "Command palette").getByRole("combobox").fill("部署 John’s");
+    await expect(screen.getByRole("dialog", "Command palette").getByRole("listbox")).toContainText(
       "John’s service",
     );
     await app.screenshot("search");
