@@ -45,8 +45,8 @@ test(
       await screen.getByRole("button", "Edit queued message").tap();
       await browser.locator("[data-chat-provider-model-picker-label]").first().tap();
       await browser.keyboard.type("Showcase");
+      // Choosing a model closes the picker; Escape would then cancel the edit.
       await browser.keyboard.press("Enter");
-      await browser.keyboard.press("Escape");
       await screen.getByRole("button", "Update queued message", { exact: false }).tap();
       await screen.getByRole("button", "Approve", { exact: true }).tap();
       await expect
