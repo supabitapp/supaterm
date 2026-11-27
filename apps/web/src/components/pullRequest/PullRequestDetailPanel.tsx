@@ -58,6 +58,7 @@ import { isCommandPaletteOpen } from "~/commandPaletteBus";
 import { resolveShortcutCommand, type ShortcutMatchContext } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import {
+  prepareDraftCheckout,
   type PullRequestThreadTask,
   usePullRequestDefaultMergeMethod,
   writeHandoffToComposer,
@@ -1120,17 +1121,21 @@ export function PullRequestDetailPanel({
       });
       return;
     }
-    const prepared = await prepareThread.run({
-      reference: handoffSummary.url,
-      mode,
-      threadId: opened.threadId,
-    });
-    if (cancelled) {
-      setHandoff(null);
+    const prepared = await prepareDraftCheckout(
+      opened.draftId,
+      prepareThread.run({
+        reference: handoffSummary.url,
+        mode,
+        threadId: opened.threadId,
+      }),
+      () => cancelled,
+    );
+    setHandoff(null);
+    if (cancelled || prepared._tag === "Cancelled") {
+      if (!cancelled) toastManager.close(toastId);
       return;
     }
     if (prepared._tag === "Failure") {
-      setHandoff(null);
       toastManager.update(toastId, {
         type: "error",
         title: m(
@@ -1145,43 +1150,6 @@ export function PullRequestDetailPanel({
       });
       return;
     }
-    const pointed = await newThread(projectRef, {
-      branch: prepared.value.branch,
-      worktreePath: prepared.value.worktreePath,
-      envMode: prepared.value.worktreePath === null ? "local" : "worktree",
-    }).then(
-      (session) => session,
-      () => null,
-    );
-    if (cancelled) {
-      setHandoff(null);
-      return;
-    }
-    if (pointed === null) {
-      setHandoff(null);
-      // The checkout is on disk; only the thread failed to move onto it. Writing the task now
-      // would send the agent at whatever the thread was already open on — which is the one
-      // outcome worth stopping for, since it reads as success and is not.
-      toastManager.update(toastId, {
-        type: "error",
-        title: m(msg("Checked out, but the thread stayed where it was")),
-        description: m(
-          msg(
-            "The checkout is ready on `{branch}`. Point a thread at it from the branch picker, then ask again.",
-            { branch: prepared.value.branch },
-          ),
-        ),
-      });
-      return;
-    }
-    // The draft carries the pull request until its first send makes it a thread, which links it.
-    useComposerDraftStore.getState().setDraftThreadContext(pointed.draftId, {
-      checkoutPullRequest: {
-        url: prepared.value.pullRequest.url,
-        branch: prepared.value.branch,
-      },
-    });
-    setHandoff(null);
     if (task === null) {
       toastManager.update(
         toastId,
@@ -1212,9 +1180,7 @@ export function PullRequestDetailPanel({
       );
       return;
     }
-    // The task goes on the checkout draft: if the user typed into `opened` while the
-    // checkout ran, that is no longer the draft the user is looking at.
-    await openThreadWithTask(projectRef, task, pointed);
+    await openThreadWithTask(projectRef, task, opened);
     toastManager.update(
       toastId,
       prepared.value.isOnPullRequestHead
