@@ -25,7 +25,7 @@ test(
     await runPromise(
       makeState(SCENARIO_HOME).cli(["thread", "send", thread.threadId, "Show me again"]),
     );
-    await screen.getByText("Working for", { exact: false }).waitFor();
+    await screen.getByRole("button", "Stop generation").waitFor();
     // Enter steers by default; the alternate send queues.
     await browser.keyboard.press("ControlOrMeta+Enter");
 
