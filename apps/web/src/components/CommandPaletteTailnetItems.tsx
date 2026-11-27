@@ -1,4 +1,4 @@
-import { AuthAccessWriteScope, isManagedSettingPath } from "@supaterm/contracts";
+import { AuthAccessWriteScope } from "@supaterm/contracts";
 import { CopyIcon, NetworkIcon, PowerIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useGT } from "gt-react";
@@ -6,7 +6,6 @@ import { useGT } from "gt-react";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { useUpdateEnvironmentSettings } from "../hooks/useSettings";
 import { usePrimaryEnvironmentId } from "../state/environments";
-import { useManagedPolicy } from "../state/managedPolicy";
 import { useEnvironmentScope } from "../state/session";
 import { ITEM_ICON_CLASS, type CommandPaletteActionItem } from "./CommandPalette.logic";
 import { useTailnetView } from "./settings/useTailnetView";
@@ -16,7 +15,6 @@ export function useCommandPaletteTailnetItems(): ReadonlyArray<CommandPaletteAct
   const gt = useGT();
   const environmentId = usePrimaryEnvironmentId();
   const tailnet = useTailnetView(environmentId);
-  const policy = useManagedPolicy(environmentId);
   const canWrite = useEnvironmentScope(environmentId, AuthAccessWriteScope);
   const updateSettings = useUpdateEnvironmentSettings(environmentId);
   const navigate = useNavigate();
@@ -53,7 +51,7 @@ export function useCommandPaletteTailnetItems(): ReadonlyArray<CommandPaletteAct
       },
     });
   }
-  if (settings.enabled && canWrite && !isManagedSettingPath(policy, "tailnet.enabled")) {
+  if (settings.enabled && canWrite && view.serveManaged === undefined) {
     items.push({
       kind: "action",
       value: "action:tailnet:turn-off",

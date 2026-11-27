@@ -16,11 +16,19 @@ import { Command } from "effect/cli";
 
 import { cli } from "../binCli.ts";
 
-const runUnderPolicy = (policy: ManagedPolicyDocument, args: ReadonlyArray<string>) => {
+const runUnderPolicy = (
+  policy: ManagedPolicyDocument,
+  args: ReadonlyArray<string>,
+  stored?: Record<string, unknown>,
+) => {
   const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-tailscale-cli-"));
   const policyPath = NodePath.join(baseDir, "policy.json");
   NodeFS.writeFileSync(policyPath, JSON.stringify(policy));
   const settingsPath = NodePath.join(baseDir, "userdata", "settings.json");
+  if (stored !== undefined) {
+    NodeFS.mkdirSync(NodePath.dirname(settingsPath), { recursive: true });
+    NodeFS.writeFileSync(settingsPath, JSON.stringify(stored));
+  }
   const tailnet = () =>
     NodeFS.existsSync(settingsPath)
       ? JSON.parse(NodeFS.readFileSync(settingsPath, "utf8")).tailnet
@@ -63,23 +71,23 @@ describe("supaterm tailscale", () => {
     }),
   );
 
-  it.effect("refuses only the field a policy locks", () =>
+  it.effect("refuses only the field a policy locks and keeps the user's own value", () =>
     Effect.gen(function* () {
-      const { result, run, tailnet } = runUnderPolicy(HOSTNAME_LOCKED, [
-        "on",
-        "--hostname",
-        "other-name",
-      ]);
+      const { result, run, tailnet } = runUnderPolicy(
+        HOSTNAME_LOCKED,
+        ["on", "--hostname", "other-name"],
+        { tailnet: { hostname: "original" } },
+      );
       const refused = yield* Effect.flip(result);
       expect(refused.message).toBe(
         "tailnet.hostname is managed by Example Corp and cannot be changed.",
       );
-      expect(tailnet()).toBeUndefined();
+      expect(tailnet()).toEqual({ hostname: "original" });
 
-      yield* run(["on"]);
-      expect(tailnet()).toEqual({ enabled: true });
+      yield* run(["on", "--hostname", "studio"]);
+      expect(tailnet()).toEqual({ hostname: "original", enabled: true });
       yield* run(["off"]);
-      expect(tailnet()).toEqual({ enabled: false });
+      expect(tailnet()).toEqual({ hostname: "original", enabled: false });
     }),
   );
 });

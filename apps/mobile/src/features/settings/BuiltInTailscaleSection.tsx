@@ -149,7 +149,7 @@ export function BuiltInTailscaleSection({
         disabled={
           busy ||
           !canWrite ||
-          enabledLock !== undefined ||
+          view.serveManaged !== undefined ||
           (view.kind === "unavailable" && !settings.enabled)
         }
         onValueChange={(enabled) => void patch({ enabled })}

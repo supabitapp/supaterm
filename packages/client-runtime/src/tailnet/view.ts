@@ -13,6 +13,7 @@ import { mFallback, msg } from "gt-i18n";
 import type { MFunctionType } from "gt-i18n/types";
 
 import { managedCapabilityDenial } from "../contractLabels.ts";
+import { managedSettingDenial } from "../managedPolicy.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TAILNET_KEY_EXPIRY_WARNING_MS = 14 * DAY_MS;
@@ -32,6 +33,8 @@ export interface TailnetAccount {
 interface TailnetViewCommon {
   readonly hostname: string;
   readonly summary: string;
+  /** Why the policy holds the Serve switch; a switch that is on stays free so it can be turned off. */
+  readonly serveManaged: string | undefined;
 }
 
 export type TailnetView = TailnetViewCommon &
@@ -127,7 +130,6 @@ function addressNote(
 
 function unavailableSummary(
   reason: Extract<TailnetStatus, { state: "unavailable" }>["reason"],
-  managedPolicy: ManagedPolicySummary | undefined,
   resolve: MFunctionType,
 ): string {
   switch (reason) {
@@ -136,10 +138,7 @@ function unavailableSummary(
     case "binary-missing":
       return resolve(msg("Built-in Tailscale isn't included in this build."));
     case "managed-policy":
-      return (
-        managedCapabilityDenial(managedPolicy, "remoteClients", resolve) ??
-        resolve(msg("Your organization's policy does not allow built-in Tailscale."))
-      );
+      return resolve(msg("Your organization's policy does not allow built-in Tailscale."));
   }
 }
 
@@ -161,19 +160,24 @@ export function tailnetView({
   resolve = mFallback,
 }: TailnetViewInput): TailnetView {
   const hostname = tailnetHostname(settings, machineHostname);
+  const remoteDenial = managedCapabilityDenial(managedPolicy, "remoteClients", resolve);
   const base = {
     hostname,
     summary: resolve(msg("Reach this machine from your tailnet without the Tailscale app.")),
+    serveManaged:
+      (settings.enabled ? undefined : remoteDenial) ??
+      managedSettingDenial([managedPolicy], ["tailnet.enabled"], resolve),
   };
 
-  if (status?.state === "unavailable") {
-    return {
-      ...base,
-      kind: "unavailable",
-      account: null,
-      summary: unavailableSummary(status.reason, managedPolicy, resolve),
-    };
-  }
+  const unavailable = (summary: string): TailnetView => ({
+    ...base,
+    kind: "unavailable",
+    account: null,
+    summary,
+  });
+  if (remoteDenial !== undefined) return unavailable(remoteDenial);
+  if (status?.state === "unavailable")
+    return unavailable(unavailableSummary(status.reason, resolve));
   if (!settings.enabled) return { ...base, kind: "off", account: null };
   if (status === null) {
     return {

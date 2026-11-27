@@ -99,6 +99,38 @@ describe("tailnetView", () => {
   });
 
   it.each([
+    [
+      "off, remote clients denied",
+      null,
+      { enabled: false },
+      NO_REMOTE_POLICY,
+      "Example Corp's policy does not allow connecting from other devices.",
+    ],
+    [
+      "on, remote clients denied",
+      { state: "unavailable", reason: "managed-policy" },
+      {},
+      NO_REMOTE_POLICY,
+      undefined,
+    ],
+    [
+      "on, switch locked",
+      { state: "off" },
+      {},
+      { organization: "Example Corp", lockedSettings: ["tailnet.enabled"] },
+      "Managed by Example Corp.",
+    ],
+    ["off, unmanaged", { state: "off" }, { enabled: false }, undefined, undefined],
+  ] as const)(
+    "holds the Serve switch only where the policy does: %s",
+    (_, status, settings, policy, managed) => {
+      const result = view(status, settings, policy);
+      expect(result.serveManaged).toBe(managed);
+      if (policy === NO_REMOTE_POLICY) expect(result.kind).toBe("unavailable");
+    },
+  );
+
+  it.each([
     [{ state: "starting" }, "starting", "Connecting…", null],
     [{ state: "off" }, "starting", "Connecting…", null],
     [{ state: "needs-login", loginReady: true }, "needs-login", "Not signed in", "sign-in"],

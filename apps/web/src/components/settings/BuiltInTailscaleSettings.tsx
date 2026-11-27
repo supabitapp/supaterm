@@ -4,7 +4,6 @@ import {
   type EnvironmentId,
   type TailnetSettingsPatch,
 } from "@supaterm/contracts";
-import { managedCapabilityDenial } from "@supaterm/client-runtime/contract-labels";
 import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   isAtomCommandInterrupted,
@@ -42,7 +41,7 @@ import {
 } from "./BuiltInTailscaleSettings.logic";
 import { SettingsDisclosure } from "./SettingsDisclosure";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useTailnetView } from "./useTailnetView";
 
 type SignIn =
@@ -62,6 +61,7 @@ export function BuiltInTailscaleSettings({
 }) {
   const gt = useGT();
   const m = useMessages();
+  const searchableSetting = useSearchableSetting();
   const tailnet = useTailnetView(environmentId);
   const policy = useManagedPolicy(environmentId);
   const canWrite = useEnvironmentScope(environmentId, AuthAccessWriteScope);
@@ -90,9 +90,6 @@ export function BuiltInTailscaleSettings({
   const available = view.kind !== "unavailable";
   const ownerLogin = view.kind === "running" ? view.ownerLogin : null;
   const lock = (path: string) => managedSettingDenial([policy], [path], m);
-  const enabledManaged =
-    (settings.enabled ? undefined : managedCapabilityDenial(policy, "remoteClients", m)) ??
-    lock("tailnet.enabled");
   const admissionManaged = lock("tailnet.admission");
   const hostnameManaged = lock("tailnet.hostname");
   const allowedLoginsManaged = lock("tailnet.allowedLogins");
@@ -180,7 +177,7 @@ export function BuiltInTailscaleSettings({
       <SettingsRow
         title={gt("Serve over Tailscale")}
         description={view.summary}
-        managed={enabledManaged}
+        managed={view.serveManaged}
         status={
           statusError !== null ? (
             <span className="block text-destructive">{statusError}</span>
@@ -272,7 +269,7 @@ export function BuiltInTailscaleSettings({
             control={
               <Switch
                 checked={settings.admission === "owner"}
-                disabled={!canWrite || admissionManaged !== undefined}
+                disabled={!canWrite}
                 onCheckedChange={(owner) => patch({ admission: owner ? "owner" : "tailnet" })}
                 aria-label={gt("Limit access to your Tailscale account")}
               />
@@ -281,7 +278,7 @@ export function BuiltInTailscaleSettings({
           <HostnameRow
             value={view.hostname}
             running={settings.enabled}
-            disabled={!canWrite || hostnameManaged !== undefined}
+            disabled={!canWrite}
             managed={hostnameManaged}
             onCommit={(hostname, restore) => patch({ hostname }, restore)}
           />
@@ -289,7 +286,7 @@ export function BuiltInTailscaleSettings({
             {settings.admission === "owner" ? (
               <AllowedLoginsRow
                 allowed={settings.allowedLogins}
-                disabled={!canWrite || allowedLoginsManaged !== undefined}
+                disabled={!canWrite}
                 managed={allowedLoginsManaged}
                 onChange={(allowedLogins) => patch({ allowedLogins })}
               />
@@ -302,7 +299,7 @@ export function BuiltInTailscaleSettings({
               value={settings.controlUrl}
               validate={(draft) => tailnetControlUrlDraftError(draft, m)}
               actionLabel={gt("Save")}
-              disabled={!canWrite || controlUrlManaged !== undefined}
+              disabled={!canWrite}
               managed={controlUrlManaged}
               onCommit={async (controlUrl, restore) => {
                 if (settings.enabled) {
@@ -405,8 +402,9 @@ function AllowedLoginsRow({
   const gt = useGT();
   const [draft, setDraft] = useState("");
   const next = addAllowedTailnetLogin(allowed, draft);
+  const locked = disabled || managed !== undefined;
   const add = () => {
-    if (next === null || disabled) return;
+    if (next === null || locked) return;
     onChange(next);
     setDraft("");
   };
@@ -446,7 +444,7 @@ function AllowedLoginsRow({
                   size="icon-micro"
                   variant="ghost-muted"
                   aria-label={gt("Remove {login}", { login })}
-                  disabled={disabled}
+                  disabled={locked}
                   onClick={() => onChange(allowed.filter((existing) => existing !== login))}
                 >
                   <XIcon />

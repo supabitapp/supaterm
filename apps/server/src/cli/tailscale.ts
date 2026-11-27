@@ -2,6 +2,7 @@ import {
   AuthAccessReadScope,
   AuthAccessWriteScope,
   type AuthEnvironmentScope,
+  isManagedSettingPath,
   ServerSettingsError,
   TailnetControlUrl,
   TailnetHostname,
@@ -127,7 +128,7 @@ const patchTailnetSettings = Effect.fn("tailscale.patchTailnetSettings")(functio
       "so built-in Tailscale cannot be turned on",
     );
   }
-  // Vet only the fields this command writes: a lock on one tailnet field leaves the others free.
+  // Locks are per field, so a lock on one tailnet field leaves the others writable.
   const current = policy.settings.applyLocks(policy.settings.defaults);
   const vetted = policy.settings.vetWrite(
     current,
@@ -142,9 +143,15 @@ const patchTailnetSettings = Effect.fn("tailscale.patchTailnetSettings")(functio
       managedBy: policy.document?.organization,
     });
   }
+  // A locked field the patch already matches is skipped, keeping the user's value for when the policy goes.
+  const unlocked = Object.fromEntries(
+    Object.entries(patch).filter(
+      ([key]) => !isManagedSettingPath(policy.summary, `tailnet.${key}`),
+    ),
+  );
   yield* editSettingsObject(config.settingsPath, (value) => ({
     ...value,
-    tailnet: { ...(Predicate.isObject(value.tailnet) ? value.tailnet : {}), ...patch },
+    tailnet: { ...(Predicate.isObject(value.tailnet) ? value.tailnet : {}), ...unlocked },
   }));
 });
 
