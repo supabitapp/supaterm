@@ -283,6 +283,12 @@ it("marks the most preferred available model as default", () => {
       { slug: "gpt-5.4", isDefault: undefined },
     ],
   );
+
+  const withoutSol = applyPreferredCodexDefaultModel([
+    { slug: "gpt-5.6-sol", name: "GPT-5.6-Sol", isCustom: false, capabilities: null },
+    { slug: "gpt-6-astra", name: "GPT-6-Astra", isCustom: false, capabilities: null },
+  ]);
+  assert.deepStrictEqual(withoutSol.find((model) => model.isDefault)?.slug, "gpt-6-astra");
 });
 
 it("ranks qualified Codex models while preserving their wire ids", () => {
