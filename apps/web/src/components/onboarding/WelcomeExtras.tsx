@@ -1,7 +1,7 @@
 import { AuthSettingsWriteScope, type EnvironmentId } from "@supaterm/contracts";
 import { CheckIcon, SmartphoneIcon, UsersIcon } from "@supaterm/icons";
 import { T, useGT } from "gt-react";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { deviceEnvironment, useDeviceState } from "../../state/device";
 import { serverEnvironment } from "../../state/server";
@@ -24,6 +24,7 @@ export function WelcomeExtras({
   const gt = useGT();
   const skills = useOrchestrationSkills([{ environmentId, label }], serverEnvironment);
   const devices = useWelcomeDevices(environmentId);
+  const devicesDetailId = useId();
   // Replacing a folder the user already has under a skill name is left to Settings.
   const showSkills =
     !skills.conflict &&
@@ -77,6 +78,7 @@ export function WelcomeExtras({
                 ? gt("Open iOS simulators here and let agents control them.")
                 : gt("Open Android emulators here and let agents control them.")
           }
+          detailId={devicesDetailId}
           alert={devices.failure}
           control={
             <span className="flex items-center gap-3">
@@ -85,6 +87,7 @@ export function WelcomeExtras({
                 checked={devices.enabled}
                 disabled={devices.busy}
                 aria-label={gt("Simulators")}
+                aria-describedby={devicesDetailId}
                 onCheckedChange={(checked) => void devices.setEnabled(Boolean(checked))}
               />
             </span>
@@ -130,12 +133,14 @@ function ExtraRow({
   icon,
   title,
   detail,
+  detailId,
   alert,
   control,
 }: {
   readonly icon: ReactNode;
   readonly title: string;
   readonly detail: string;
+  readonly detailId?: string;
   readonly alert: string | undefined;
   readonly control: ReactNode;
 }) {
@@ -144,7 +149,9 @@ function ExtraRow({
       <RowIcon>{icon}</RowIcon>
       <div className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-foreground">{title}</span>
-        <p className="text-xs leading-relaxed text-muted-foreground">{detail}</p>
+        <p id={detailId} className="text-xs leading-relaxed text-muted-foreground">
+          {detail}
+        </p>
         {alert ? (
           <p role="alert" className="text-xs leading-relaxed text-destructive">
             {alert}
