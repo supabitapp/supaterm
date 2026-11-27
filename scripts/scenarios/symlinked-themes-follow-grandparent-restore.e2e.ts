@@ -23,8 +23,7 @@ test(
         appearance: "dark",
         colors: { canvas: "#171820", accent: "#7aa2f7" },
       });
-    const theme = (name: string) =>
-      screen.getByRole("button", `Use ${name} theme`, { exact: true });
+    const theme = (name: string) => screen.getByRole("option", name, { exact: true });
 
     await runPromise(
       Effect.gen(function* () {
@@ -42,6 +41,7 @@ test(
 
     try {
       await supaterm.open("/settings/appearance");
+      await screen.getByRole("combobox", "Dark theme", { exact: true }).tap();
       await theme("Original Tree Palette").waitFor();
       await runPromise(
         Effect.gen(function* () {
