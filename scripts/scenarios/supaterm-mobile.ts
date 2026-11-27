@@ -1,18 +1,14 @@
 // `test` for native scenarios: e2e's mobile test plus `supaterm`, which seeds state like the web
 // one and opens the dev client paired with the scenario's server, on iOS or Android.
 import { test as base, type MobilePlatform } from "@e2e-dev/mobile";
-import * as HostProcess from "@supaterm/shared/HostProcess";
 import { expect } from "e2e";
 import * as Effect from "effect/Effect";
-import * as Path from "effect/Path";
-import * as Schema from "effect/Schema";
 
-import { APP_DIR, NATIVE_APPS } from "../e2e.config.ts";
-import { run, ScenarioError } from "./shell.ts";
-import { androidAbi } from "./start-app.ts";
+import { APP_DIR, NATIVE_APP_ID, NATIVE_APPS } from "../e2e.config.ts";
+import { ScenarioError } from "./shell.ts";
+import { prepareDevClient } from "./start-app.ts";
 import { makeState, runPromise, type SupatermState } from "./supaterm.ts";
 
-export const APP_ID = "com.supaterm.mobile.dev";
 const SCHEME = "supaterm-dev";
 
 export interface MobileSupaterm extends SupatermState {
@@ -24,35 +20,6 @@ export interface MobileSupaterm extends SupatermState {
   /** Opens a `supaterm-dev://` path in the dev client. */
   readonly openLink: (path: string) => Promise<void>;
 }
-
-const decodePrepared = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(Schema.Struct({ fingerprint: Schema.String })),
-);
-
-/** The dev client built for this checkout's native code, from the shared cache. */
-const devClientPath = Effect.fn("scenario.devClientPath")(function* (platform: MobilePlatform) {
-  const path = yield* Path.Path;
-  const abi = yield* androidAbi;
-  const prepared = yield* run(
-    yield* HostProcess.ExecutablePath,
-    [
-      "scripts/mobile-native-client.ts",
-      "ensure",
-      platform,
-      "--prepare",
-      ...(platform === "android" ? ["--abi", abi] : []),
-    ],
-    { cwd: APP_DIR },
-  );
-  const { fingerprint } = yield* decodePrepared(prepared.stdout.trim().split("\n").at(-1) ?? "");
-  const artifacts = path.join(
-    yield* HostProcess.HomeDirectory,
-    ".cache/supaterm/native-clients/artifacts",
-  );
-  return platform === "ios"
-    ? path.join(artifacts, "ios/development", fingerprint, "SupatermDev.app")
-    : path.join(artifacts, `android/development-${abi}`, fingerprint, "app-debug.apk");
-});
 
 // Each run starts the app with no data, since the server it was paired with is gone, and then
 // keeps the install and the pairing for the rest of the run.
@@ -75,7 +42,7 @@ export const test = base.extend<{ supaterm: MobileSupaterm }>({
     });
     // iOS asks before a link opens another app.
     const openLink = async (url: string) => {
-      await device.openLink(url, { app: APP_ID });
+      await device.openLink(url, { app: NATIVE_APP_ID });
       if (platform === "ios") await device.alert("accept").catch(() => {});
     };
     await use({
@@ -87,7 +54,7 @@ export const test = base.extend<{ supaterm: MobileSupaterm }>({
         if (!installed.has(platform)) {
           // Saved environments live in the iOS keychain, which outlives the app.
           if (platform === "ios") await device.clearKeychain();
-          await device.installApp(await runPromise(devClientPath(platform)));
+          await device.installApp(await runPromise(prepareDevClient(APP_DIR, platform)));
           await app.clearState();
           installed.add(platform);
         }

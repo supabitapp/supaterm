@@ -37,6 +37,8 @@ const startApp = resolved.startApp;
  * runner and the app can resolve that name to different addresses.
  */
 const LOOPBACK = "127.0.0.1";
+/** The development build of the mobile app, on both platforms. */
+export const NATIVE_APP_ID = "com.supaterm.mobile.dev";
 
 /**
  * Where each native target's server and Metro listen. A mobile target has no `app.url`, so e2e
@@ -67,11 +69,11 @@ export const NATIVE_APPS = {
 const nativeTargets = (Object.keys(NATIVE_APPS) as Array<MobilePlatform>).flatMap((platform) => {
   const native = NATIVE_APPS[platform];
   if (native.device === undefined) return [];
-  const target = {
+  return {
     name: platform,
     engine: mobile({ platform, device: native.device, session: `supaterm-scenarios-${platform}` }),
     app: {
-      bundleId: "com.supaterm.mobile.dev",
+      bundleId: NATIVE_APP_ID,
       // Metro starts after the server listens, so it answering means both are up.
       readyUrl: `http://${LOOPBACK}:${native.metroPort}/status`,
       command: {
@@ -92,7 +94,6 @@ const nativeTargets = (Object.keys(NATIVE_APPS) as Array<MobilePlatform>).flatMa
       },
     },
   };
-  return [target];
 });
 
 export default {

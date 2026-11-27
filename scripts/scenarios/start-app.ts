@@ -43,8 +43,40 @@ const REAL_PROVIDERS = [
 export const SCENARIO_LINEAR_PORT = 13_997;
 
 /** The Android dev client built for an emulator, which runs the host's architecture. */
-export const androidAbi = Effect.gen(function* () {
+const androidAbi = Effect.gen(function* () {
   return (yield* HostProcess.Architecture) === "arm64" ? "arm64-v8a" : "x86_64";
+});
+
+const decodePrepared = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(Schema.Struct({ fingerprint: Schema.String })),
+);
+
+/** Builds the dev client for the checkout's native code on a cache miss and returns its path. */
+export const prepareDevClient = Effect.fn("startApp.prepareDevClient")(function* (
+  checkout: string,
+  platform: "ios" | "android",
+) {
+  const path = yield* Path.Path;
+  const abi = yield* androidAbi;
+  const prepared = yield* run(
+    yield* HostProcess.ExecutablePath,
+    [
+      "scripts/mobile-native-client.ts",
+      "ensure",
+      platform,
+      "--prepare",
+      ...(platform === "android" ? ["--abi", abi] : []),
+    ],
+    { cwd: checkout, echo: true },
+  );
+  const { fingerprint } = yield* decodePrepared(prepared.stdout.trim().split("\n").at(-1) ?? "");
+  const artifacts = path.join(
+    yield* HostProcess.HomeDirectory,
+    ".cache/supaterm/native-clients/artifacts",
+  );
+  return platform === "ios"
+    ? path.join(artifacts, "ios/development", fingerprint, "SupatermDev.app")
+    : path.join(artifacts, `android/development-${abi}`, fingerprint, "app-debug.apk");
 });
 
 /** Captures must not depend on, or show, the machine that made them. */
@@ -220,17 +252,7 @@ const startApp = Effect.fn("startApp")(function* (input: {
   // `deviceHost`. Tests mint their own pairing links, so the startup one is dropped.
   const [serverPort = "", metroPort = "", deviceHost = ""] = input.ports;
   // A cache miss builds the dev client, which outlasts a test, so it happens before the app is up.
-  yield* run(
-    node,
-    [
-      "scripts/mobile-native-client.ts",
-      "ensure",
-      input.surface,
-      "--prepare",
-      ...(input.surface === "android" ? ["--abi", yield* androidAbi] : []),
-    ],
-    { cwd: checkout, echo: true },
-  );
+  yield* prepareDevClient(checkout, input.surface);
   const server = yield* start({
     cwd: checkout,
     command: node,
