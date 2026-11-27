@@ -2237,6 +2237,40 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))(
       },
     };
 
+    it.effect("refuses turning built-in Tailscale on without remote clients, never off", () =>
+      Effect.gen(function* () {
+        const service = yield* ServerSettingsModule.ServerSettingsService;
+        const config = yield* ServerConfig.ServerConfig;
+        const fs = yield* FileSystem.FileSystem;
+
+        const rejected = yield* service
+          .updateSettings({ tailnet: { enabled: true } })
+          .pipe(Effect.flip);
+        assert.equal(rejected.managedSetting, "tailnet.enabled");
+        assert.isFalse((yield* service.getSettings).tailnet.enabled);
+
+        // Saved before the policy: re-sending it with other fields still saves, and it turns off.
+        yield* fs.writeFileString(
+          config.settingsPath,
+          JSON.stringify({ tailnet: { enabled: true } }),
+        );
+        yield* service.updateSettings({ tailnet: { enabled: true, hostname: "studio" } });
+        yield* service.updateSettings({ tailnet: { enabled: false } });
+        assert.deepInclude((yield* service.getSettings).tailnet, {
+          enabled: false,
+          hostname: "studio",
+        });
+      }).pipe(
+        Effect.provide(
+          layerServerSettings({
+            schemaVersion: 1,
+            organization: "Example Corp",
+            limits: { clients: ["desktop", "local-browser"] },
+          }),
+        ),
+      ),
+    );
+
     it.effect("uses policy defaults until the user picks something else", () =>
       Effect.gen(function* () {
         const service = yield* ServerSettingsModule.ServerSettingsService;

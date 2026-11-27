@@ -517,6 +517,7 @@ const ciOnly = [
   "full test suites",
   "build",
   "rust",
+  "go",
   "release smoke",
   ...(files.some((file) => MOBILE_NATIVE.test(file)) ? ["mobile native lint"] : []),
 ];

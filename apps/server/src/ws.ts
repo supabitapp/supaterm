@@ -1,4 +1,5 @@
 import * as RelayAccess from "./relay/RelayAccess.ts";
+import * as TailnetNode from "./tailnet/TailnetNode.ts";
 import * as DirectTunnel from "./relay/DirectTunnel.ts";
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import { OrchestrationDispatchCommandError } from "@supaterm/contracts";
@@ -352,7 +353,7 @@ export const withLateConfig = <E, R>(
   launcher: EditorDiscovery,
   tunnelEndpoints: Stream.Stream<Option.Option<ServerTunnelEndpoints>>,
   remoteOpenTargets: RemoteOpenTargets.RemoteOpenTargets["Service"],
-  directEndpoints: Pick<DirectEndpoints.DirectEndpoints["Service"], "resolve">,
+  directEndpoints: Pick<DirectEndpoints.DirectEndpoints["Service"], "resolve" | "changes">,
 ) => {
   const lateEditorConfig = Stream.fromEffect(launcher.resolveAvailableEditors()).pipe(
     Stream.filter(
@@ -385,10 +386,10 @@ export const withLateConfig = <E, R>(
     Stream.map((targets) => ({ type: "remoteOpenTargetsResolved" as const, targets })),
   );
 
-  const lateDirectEndpoints = Stream.fromEffect(directEndpoints.resolve()).pipe(
-    Stream.catchCause(() => Stream.empty),
-    Stream.map((endpoints) => ({ type: "directEndpointsResolved" as const, endpoints })),
-  );
+  const lateDirectEndpoints = Stream.concat(
+    Stream.fromEffect(directEndpoints.resolve()).pipe(Stream.catchCause(() => Stream.empty)),
+    directEndpoints.changes,
+  ).pipe(Stream.map((endpoints) => ({ type: "directEndpointsResolved" as const, endpoints })));
 
   return Stream.merge(
     liveUpdates,
@@ -1505,6 +1506,7 @@ export const layerWsRpc = (
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
       const relayAccess = yield* RelayAccess.RelayAccess;
+      const tailnetNode = yield* TailnetNode.TailnetNode;
       const directTunnel = yield* DirectTunnel.DirectTunnel;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
       yield* Effect.addFinalizer(() =>
@@ -3456,7 +3458,7 @@ export const layerWsRpc = (
                 externalLauncher,
                 directTunnel.advertisements,
                 { resolveTargets: () => Fiber.join(remoteTargets) },
-                { resolve: () => Fiber.join(directResult) },
+                { resolve: () => Fiber.join(directResult), changes: directEndpoints.changes },
               );
               return Stream.concat(
                 rpcInitialItems([
@@ -3537,6 +3539,9 @@ export const layerWsRpc = (
           ),
         [WS_METHODS.subscribeRelayStatus]: (_input) => relayAccess.status,
         [WS_METHODS.prepareRelay]: (_input) => relayAccess.prepare,
+        [WS_METHODS.subscribeTailnetStatus]: (_input) => tailnetNode.changes,
+        [WS_METHODS.tailnetLogin]: (_input) => tailnetNode.login,
+        [WS_METHODS.tailnetLogout]: (_input) => tailnetNode.logout,
         [WS_METHODS.subscribeResourceTelemetry]: (_input) =>
           Stream.unwrap(
             Effect.map(resourceTelemetry.subscribe, ({ latest, changes }) =>

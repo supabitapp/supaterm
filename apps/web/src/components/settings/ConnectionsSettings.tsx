@@ -1,5 +1,5 @@
 import { SessionPermissions } from "./SessionPermissions";
-import { ChevronRightIcon, EllipsisIcon, PencilIcon } from "@supaterm/icons";
+import { EllipsisIcon, PencilIcon } from "@supaterm/icons";
 import { useAtom, useAtomValue } from "@effect/atom-react";
 import { type ReactNode, useRef, useState } from "react";
 import {
@@ -31,6 +31,9 @@ import {
   PublicRelaySettings,
   usePublicRelayStatus,
 } from "./PublicRelaySettings";
+import { BuiltInTailscaleSettings } from "./BuiltInTailscaleSettings";
+import { SettingsDisclosure } from "./SettingsDisclosure";
+import { useTailnetView } from "./useTailnetView";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { resolvePairingShareValue } from "./pairingUrls";
 import { PairingLinkCreatedDialog } from "./PairingLinkCreatedDialog";
@@ -39,6 +42,7 @@ import {
   isWslSettingsRowVisible,
   resolveAccessEnvironmentId,
   resolveLocalVersionStatusLabel,
+  createBuiltInTailnetPairingEndpoint,
   createRelayPairingEndpoint,
   resolvePairingLinkRoutes,
   resolveTailscaleHttpsRow,
@@ -760,9 +764,19 @@ function ConnectionsSettingsContent({
   const relayEndpointUrl =
     relayStatus?.state === "registered" ? relayStatus.relayEndpoint : undefined;
   const relayEndpoint = relayEndpointUrl ? createRelayPairingEndpoint(relayEndpointUrl) : null;
+  // Tailscale Serve advertises the same endpoint kind, so the node's own status names its address.
+  const builtInTailnetView = useTailnetView(accessEnvironmentId)?.view;
+  const builtInTailnetUrl =
+    builtInTailnetView?.kind === "running" && builtInTailnetView.https === "ready"
+      ? `https://${builtInTailnetView.dnsName}/`
+      : undefined;
+  const builtInTailnetEndpoint = builtInTailnetUrl
+    ? createBuiltInTailnetPairingEndpoint(builtInTailnetUrl, m)
+    : null;
   const visibleDesktopAdvertisedEndpoints = [
     ...visibleDesktopNetworkAdvertisedEndpoints,
     ...(tailscaleHttpsEndpoint ? [tailscaleHttpsEndpoint] : []),
+    ...(builtInTailnetEndpoint ? [builtInTailnetEndpoint] : []),
     ...(relayEndpoint ? [relayEndpoint] : []),
   ];
   const pairingHints = {
@@ -784,6 +798,7 @@ function ConnectionsSettingsContent({
     selectPairingEndpoint(
       [
         ...(tailscaleHttpsEndpoint ? [tailscaleHttpsEndpoint] : []),
+        ...(builtInTailnetEndpoint ? [builtInTailnetEndpoint] : []),
         ...(relayEndpoint ? [relayEndpoint] : []),
       ],
       defaultAdvertisedEndpointKey,
@@ -1328,19 +1343,14 @@ function ConnectionsSettingsContent({
               renderDisabledNetworkAccessRow()
             ) : null}
             {accessEnvironment ? (
-              <details className="group px-3 sm:px-4">
-                <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-                  <T>Permissions</T>
-                  <ChevronRightIcon
-                    aria-hidden
-                    className="size-3 text-muted-foreground transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none"
+              <SettingsDisclosure title={<T>Permissions</T>}>
+                <div className="px-3 sm:px-4">
+                  <SessionPermissions
+                    environmentId={accessEnvironment.environmentId}
+                    connected={accessEnvironment.connection.phase === "connected"}
                   />
-                </summary>
-                <SessionPermissions
-                  environmentId={accessEnvironment.environmentId}
-                  connected={accessEnvironment.connection.phase === "connected"}
-                />
-              </details>
+                </div>
+              </SettingsDisclosure>
             ) : null}
             {canManageLocalBackend ? (
               <SettingsRow
@@ -1407,6 +1417,8 @@ function ConnectionsSettingsContent({
               />
             ) : null}
           </SettingsSection>
+
+          {canReadAccess ? <BuiltInTailscaleSettings environmentId={accessEnvironmentId} /> : null}
 
           {canReadAccess || canWriteAccess ? (
             <FoldedSettingsSection

@@ -543,7 +543,10 @@ describe("settings mutation authorization", () => {
     }),
   );
 
-  it.effect("switches the preview tunnel only with access:write", () =>
+  it.effect.each([
+    ["the preview tunnel", { enablePreviewTunnel: false }],
+    ["built-in Tailscale", { tailnet: { enabled: true } }],
+  ] as const)("switches %s only with access:write", ([, patch]) =>
     Effect.gen(function* () {
       let handled = 0;
       const makeClient = (scopes: Parameters<typeof RpcAuthorization.layer>[0]) =>
@@ -560,7 +563,6 @@ describe("settings mutation authorization", () => {
             ),
           ),
         );
-      const patch = { enablePreviewTunnel: false };
       const settingsWriter = yield* makeClient([AuthSettingsWriteScope]);
       expect(
         yield* settingsWriter[WS_METHODS.serverUpdateSettings]({ patch }).pipe(Effect.flip),

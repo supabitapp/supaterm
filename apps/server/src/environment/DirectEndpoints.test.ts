@@ -19,6 +19,7 @@ import { describe, expect, it } from "vite-plus/test";
 import * as ServerConfig from "../config.ts";
 import * as DirectEndpoints from "./DirectEndpoints.ts";
 import * as ServerEnvironment from "./ServerEnvironment.ts";
+import * as TailnetNode from "../tailnet/TailnetNode.ts";
 import { resolveBoundEndpoints } from "./DirectEndpoints.ts";
 
 const INTERFACES: ReturnType<typeof NodeOS.networkInterfaces> = {
@@ -294,7 +295,7 @@ const layerServeProbe = (status: number) =>
     HttpClient.make((request) => Effect.succeed(serveProbeResponse(request, status))),
   );
 
-const layerServeConfig = (host = "127.0.0.1") =>
+const layerServeConfig = (host = "127.0.0.1", tailnet = TailnetNode.layerOff) =>
   Layer.effect(
     ServerConfig.ServerConfig,
     Effect.map(ServerConfig.ServerConfig, (config) => ({
@@ -307,6 +308,7 @@ const layerServeConfig = (host = "127.0.0.1") =>
   ).pipe(
     Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-direct-" })),
     Layer.provide(NodeServices.layer),
+    Layer.merge(tailnet),
     Layer.merge(
       Layer.succeed(ServerEnvironment.ServerEnvironment, {
         getEnvironmentId: Effect.succeed(EnvironmentId.make("serve-test")),
@@ -393,6 +395,43 @@ describe("DirectEndpoints Tailscale Serve", () => {
   effectIt.effect("leaves the tailnet name out when Serve is not forwarding", () =>
     Effect.gen(function* () {
       expect(yield* resolveWithServe(502)).toEqual([]);
+    }),
+  );
+});
+
+describe("DirectEndpoints built-in Tailscale", () => {
+  const running = (https: "ready" | "provisioning" | "unavailable") =>
+    TailnetNode.layerStatic({
+      state: "running",
+      dnsName: "supaterm-mbp.tail1234.ts.net",
+      addresses: ["100.101.102.103"],
+      owner: { type: "user", login: "alice@example.com", displayName: "Alice" },
+      https,
+      keyExpiry: null,
+      health: [],
+    });
+  const resolveAvailable = (https: "ready" | "provisioning" | "unavailable") =>
+    Effect.flatMap(DirectEndpoints.DirectEndpoints, (service) => service.resolveAvailable()).pipe(
+      Effect.provide(
+        DirectEndpoints.layer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              layerServeConfig("127.0.0.1", running(https)),
+              layerTailscaleUp,
+              layerServeProbe(502),
+            ),
+          ),
+        ),
+      ),
+    );
+
+  effectIt.effect("lists the node's HTTPS name only once its certificate is ready", () =>
+    Effect.gen(function* () {
+      expect(yield* resolveAvailable("ready")).toEqual([
+        { kind: "tailnet", httpBaseUrl: "https://supaterm-mbp.tail1234.ts.net/" },
+      ]);
+      expect(yield* resolveAvailable("provisioning")).toEqual([]);
+      expect(yield* resolveAvailable("unavailable")).toEqual([]);
     }),
   );
 });

@@ -834,6 +834,7 @@ describe("DesktopBackendConfiguration", () => {
         assert.equal(config.bootstrap.tailscaleServeEnabled, false);
         assert.notProperty(config.bootstrap, "desktopTelemetryFd");
         assert.notProperty(config.bootstrap, "resourceMonitorPath");
+        assert.notProperty(config.bootstrap, "tailnetPath");
         assert.equal(config.httpBaseUrl.href, "http://172.27.0.99:5050/");
         assert.equal(config.env.OPENAI_API_KEY, "openai-key");
         assert.equal(config.env.ANTHROPIC_API_KEY, "anthropic-key");
@@ -982,7 +983,7 @@ describe("DesktopBackendConfiguration", () => {
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  it.effect("prefers the external packaged resource monitor over the copy inside the asar", () =>
+  it.effect("passes the packaged native helpers outside the asar to the backend", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -1003,11 +1004,15 @@ describe("DesktopBackendConfiguration", () => {
       yield* fileSystem.writeFileString(embeddedMonitorPath, "embedded");
       yield* fileSystem.writeFileString(monitorPath, "binary");
       yield* fileSystem.chmod(monitorPath, 0o755);
+      const tailnetPath = path.join(resourcesPath, "tailnet/supaterm-tailnet");
+      yield* fileSystem.makeDirectory(path.dirname(tailnetPath), { recursive: true });
+      yield* fileSystem.writeFileString(tailnetPath, "binary");
 
       yield* Effect.gen(function* () {
         const configuration = yield* DesktopBackendConfiguration.DesktopBackendConfiguration;
         const config = yield* configuration.resolvePrimary;
         assert.equal(config.bootstrap.resourceMonitorPath, monitorPath);
+        assert.equal(config.bootstrap.tailnetPath, tailnetPath);
         assert.equal(config.bootstrap.desktopTelemetryFd, 4);
         assert.equal(config.bootstrap.desktopTelemetryControlFd, 5);
       }).pipe(

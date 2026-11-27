@@ -151,6 +151,10 @@ import * as EventLoopMonitor from "./observability/EventLoopMonitor.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
 import * as DirectEndpoints from "./environment/DirectEndpoints.ts";
 import * as RelayAccess from "./relay/RelayAccess.ts";
+import * as TailnetAdmission from "./tailnet/TailnetAdmission.ts";
+import * as TailnetHttp from "./tailnet/TailnetHttp.ts";
+import * as TailnetIngress from "./tailnet/TailnetIngress.ts";
+import * as TailnetNode from "./tailnet/TailnetNode.ts";
 import * as DirectTunnel from "./relay/DirectTunnel.ts";
 import * as DirectTunnelHttp from "./relay/DirectTunnelHttp.ts";
 import * as RelayHttp from "./relay/RelayHttp.ts";
@@ -326,7 +330,11 @@ const layerHttpServer = Layer.unwrap(
       // to compress, so no size threshold is set (ws only honors
       // `threshold` when context takeover is disabled).
       websocket: { perMessageDeflate: true },
-    }).pipe(Layer.provideMerge(RelayIngress.layerFromServer(server)), Layer.merge(layerSpawner));
+    }).pipe(
+      Layer.provideMerge(RelayIngress.layerFromServer(server)),
+      Layer.provideMerge(TailnetIngress.layerFromServer(server)),
+      Layer.merge(layerSpawner),
+    );
   }),
 ).pipe(
   Layer.provide(ManagedPolicy.layer),
@@ -502,6 +510,7 @@ const layerProjectFaviconResolver = ProjectFaviconResolver.layer.pipe(
 // One identity instance, so a direct tunnel advertisement sees the identity that
 // Encrypted Relay creates when it is first turned on.
 const layerRelayAccess = Layer.merge(RelayAccess.layer, DirectTunnel.layer).pipe(
+  Layer.provideMerge(TailnetNode.layer),
   Layer.provideMerge(RelayIdentity.layer.pipe(Layer.provide(ServerSecretStore.layer))),
   Layer.provide(layerServerSettings),
   Layer.provide(ManagedPolicy.layer),
@@ -760,6 +769,7 @@ const layerMakeRoutes = Layer.mergeAll(
     HttpApiBuilder.layer(EnvironmentHttpApi).pipe(
       Layer.provide(AuthHttp.layer),
       Layer.provide(RelayHttp.layer),
+      Layer.provide(TailnetHttp.layer),
       Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
       Layer.provide(PeerClientPairingHttp.layer.pipe(Layer.provide(PeerClientPairing.layerIssuer))),
       Layer.provide(OrchestrationHttp.layer),
@@ -836,6 +846,7 @@ const layerMakeRoutes = Layer.mergeAll(
   Layer.provide(ServerHttp.layerBrowserApiCors),
   Layer.provide(ServerHttp.layerHttpCompression),
   Layer.provide(RelayIngress.layerPathGuard),
+  Layer.provide(TailnetAdmission.layerGuard),
 );
 
 const layerMakeServer = Layer.unwrap(
@@ -1080,6 +1091,13 @@ const layerMakeServer = Layer.unwrap(
           yield* awaitActivation;
           const relay = yield* RelayAccess.RelayAccess;
           yield* relay.start;
+        }),
+      ),
+      Layer.effectDiscard(
+        Effect.gen(function* () {
+          yield* awaitActivation;
+          const tailnet = yield* TailnetNode.TailnetNode;
+          yield* tailnet.start;
         }),
       ),
     );

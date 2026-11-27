@@ -52,6 +52,7 @@ import {
   PEER_LINK_PAIRING_SUBJECT_PREFIX,
 } from "../persistence/AuthPairingLinks.ts";
 import { requestUrl } from "../requestUrl.ts";
+import { tailnetPeerOfRequest } from "../tailnet/tailnetPeer.ts";
 
 const DEFAULT_SESSION_SUBJECT = "cli-issued-session";
 export const INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT = "administrative-bootstrap";
@@ -675,13 +676,17 @@ export const make = Effect.gen(function* () {
     return authenticateToken(credential.token);
   };
 
-  const getSessionState: EnvironmentAuth["Service"]["getSessionState"] = (request) =>
-    authenticateRequest(request).pipe(
+  const getSessionState: EnvironmentAuth["Service"]["getSessionState"] = (request) => {
+    const auth =
+      tailnetPeerOfRequest(request) === undefined
+        ? descriptor
+        : EnvironmentAuthPolicy.tailnetAuthDescriptor(descriptor);
+    return authenticateRequest(request).pipe(
       Effect.map(
         (session) =>
           ({
             authenticated: true,
-            auth: descriptor,
+            auth,
             ...authScopeResponse(session.scopes),
             sessionMethod: session.method,
             ...(session.expiresAt ? { expiresAt: DateTime.toUtc(session.expiresAt) } : {}),
@@ -690,11 +695,12 @@ export const make = Effect.gen(function* () {
       Effect.catchIf(isServerAuthCredentialError, () =>
         Effect.succeed({
           authenticated: false,
-          auth: descriptor,
+          auth,
         } satisfies AuthSessionState),
       ),
       Effect.withSpan("EnvironmentAuth.getSessionState"),
     );
+  };
 
   // Counts "revoke all others" runs. An exchange or sign-in approval that began before a run
   // issues its session here, under the lock the run holds, so it cannot leave a session behind.

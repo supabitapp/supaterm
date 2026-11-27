@@ -611,6 +611,14 @@
       "types": "./src/relay/gateway.ts",
       "default": "./src/relay/gateway.ts"
     },
+    "./tailnet/view": {
+      "types": "./src/tailnet/view.ts",
+      "default": "./src/tailnet/view.ts"
+    },
+    "./tailnet/atoms": {
+      "types": "./src/tailnet/atoms.ts",
+      "default": "./src/tailnet/atoms.ts"
+    },
     "./source-control-clients": {
       "types": "./src/sourceControlClients.ts",
       "default": "./src/sourceControlClients.ts"

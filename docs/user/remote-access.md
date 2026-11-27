@@ -208,10 +208,56 @@ machine even when all are busy and prefers machines with spare capacity. If no u
 resource readings are available, machine preferences determine the selection. A machine
 set to **Manual only** remains excluded. Mobile keeps its manual environment selection.
 
-### Tailscale HTTPS
+### Built-in Tailscale
 
+Supaterm can join your tailnet itself, so the machine running it doesn't need
+the Tailscale app. It appears in your tailnet as its own device, named
+`supaterm-<machine>` unless you choose another name.
+
+1. Open **Settings → Sharing & access → Built-in Tailscale** for the machine you
+   want to reach, check **Machine name**, and turn on **Serve over Tailscale**.
+2. Choose **Sign in…** and sign in with the account the machine should belong to.
+   If your tailnet requires device approval, approve it in the Tailscale admin
+   console.
+3. On your phone or another computer, sign in to the Tailscale app with an account
+   that can reach this machine, then pair it with a pairing link as usual. The
+   **Address** row shows where to find it, such as
+   `https://supaterm-machine.tailnet.ts.net/`.
+
+Devices you connect from still need the Tailscale app. Pairing still decides what
+each device can do; Tailscale only decides who can reach the machine. **Limit
+access to your Tailscale account** is on by default, so only that account can
+reach the machine. Turn it off to let your tailnet's access rules decide. Under
+**Advanced** you can allow other accounts or use your own control server, such as
+Headscale.
+
+HTTPS needs MagicDNS and HTTPS certificates turned on for your tailnet; see
+[Tailscale's HTTPS setup](https://tailscale.com/docs/how-to/set-up-https-certificates).
+Turning them on publishes the machine's name in public certificate logs. Without
+them, apps paired through the Encrypted Relay can still connect directly over the
+tailnet, but browsers can't.
+
+Turning **Serve over Tailscale** off keeps the sign-in for next time. **Sign out…**
+removes this machine's sign-in. Renaming the machine gives it a new address, so
+routes saved under the old name stop working.
+
+On a machine with a [managed policy](./managed-policy.md#clients-and-the-encrypted-relay),
+built-in Tailscale runs only when the policy allows remote clients, and the policy
+can lock any of these settings.
+
+From a terminal:
+
+```bash
+supaterm tailscale on --hostname studio
+supaterm tailscale login
+supaterm tailscale status
+```
+
+### Tailscale app HTTPS
+
+This older option uses the Tailscale app already installed on this machine.
 Join both devices to the same tailnet. In the desktop app, enable **Tailscale
-HTTPS** in **Settings → Sharing & access**. **Network access** can stay off; Tailscale
+app HTTPS** in **Settings → Sharing & access**. **Network access** can stay off; Tailscale
 reaches the backend on this machine. Turn it off there to remove that route.
 
 Your tailnet needs MagicDNS and HTTPS certificates enabled; see

@@ -37,6 +37,10 @@ describe("affectedPackages", () => {
       affectedPackages(["native/hyprland-snap-shot/src/main.rs"], packages).affected,
       ["@supaterm/desktop", "@supaterm/scripts"],
     );
+    assert.deepStrictEqual(affectedPackages(["native/tailnet/main.go"], packages).affected, [
+      "@supaterm/scripts",
+      "supaterm",
+    ]);
   });
 
   it("affects every package for manifests, shared test setup, and unknown paths", () => {

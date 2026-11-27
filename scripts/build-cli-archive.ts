@@ -436,7 +436,8 @@ export const signMacArchiveContents = Effect.fn("signMacArchiveContents")(functi
         entry.endsWith(".node") ||
         entry.endsWith(".dylib") ||
         entry.endsWith("spawn-helper") ||
-        entry.endsWith("supaterm-resource-monitor"),
+        entry.endsWith("supaterm-resource-monitor") ||
+        entry.endsWith("supaterm-tailnet"),
     )
     .map((entry) => path.join(input.contentDir, entry));
 
@@ -464,16 +465,35 @@ export const signMacArchiveContents = Effect.fn("signMacArchiveContents")(functi
     return;
   }
   // notarytool only accepts archives, and a bare executable cannot be stapled,
-  // so notarize a zip of the binary and rely on the online ticket lookup.
-  const notarizeZip = path.join(path.dirname(input.executablePath), ".notarize-supaterm.zip");
+  // so notarize a zip of the executables and rely on the online ticket lookup.
+  const notarizeDir = path.join(path.dirname(input.executablePath), ".notarize-supaterm");
+  const notarizeZip = `${notarizeDir}.zip`;
+  const executables = [
+    input.executablePath,
+    ...libraries.filter(
+      (target) =>
+        target.endsWith("supaterm-resource-monitor") || target.endsWith("supaterm-tailnet"),
+    ),
+  ];
+  yield* fs.makeDirectory(notarizeDir, { recursive: true });
+  for (const target of executables) {
+    yield* fs.copyFile(target, path.join(notarizeDir, path.basename(target)));
+  }
   yield* runCommand(
-    ChildProcess.make("ditto", ["-c", "-k", "--keepParent", input.executablePath, notarizeZip]),
+    ChildProcess.make("ditto", ["-c", "-k", "--keepParent", notarizeDir, notarizeZip]),
     "ditto (notarization zip)",
   );
   const submission = yield* notarytool(
     ["submit", notarizeZip, ...(deferred === undefined ? ["--wait"] : [])],
     credentials.value,
-  ).pipe(Effect.ensuring(fs.remove(notarizeZip, { force: true }).pipe(Effect.ignore)));
+  ).pipe(
+    Effect.ensuring(
+      Effect.all([
+        fs.remove(notarizeZip, { force: true }),
+        fs.remove(notarizeDir, { recursive: true, force: true }),
+      ]).pipe(Effect.ignore),
+    ),
+  );
   if (deferred === undefined) {
     yield* requireAccepted(submission);
     return;
@@ -601,6 +621,7 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   readonly version: string;
   readonly outputDir: string;
   readonly resourceMonitorDir: Option.Option<string>;
+  readonly tailnetDir: Option.Option<string>;
   readonly notarySubmissionFile: Option.Option<string>;
 }) {
   const fs = yield* FileSystem.FileSystem;
@@ -629,6 +650,7 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   const resourceMonitorDir = Option.getOrElse(input.resourceMonitorDir, () =>
     path.join(serverDir, "dist/resource-monitor"),
   );
+  const tailnetDir = Option.getOrElse(input.tailnetDir, () => path.join(serverDir, "dist/tailnet"));
 
   yield* requireInput(
     builtExecutable,
@@ -642,6 +664,14 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
     resourceMonitorDir,
     "Build the resource monitor or pass --resource-monitor-dir.",
   );
+  yield* requireInput(
+    path.join(
+      tailnetDir,
+      `${input.platform === "mac" ? "darwin" : input.platform === "win" ? "win32" : "linux"}-${input.arch}`,
+      input.platform === "win" ? "supaterm-tailnet.exe" : "supaterm-tailnet",
+    ),
+    "Build the tailnet helper for this target (`node scripts/build-tailnet.ts --target <platform>-<arch>`) or pass --tailnet-dir.",
+  );
 
   const stem = cliArchiveStem(input.version, input.platform, input.arch);
   const stageRoot = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-cli-archive-" });
@@ -652,6 +682,7 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   yield* fs.copyFile(builtExecutable, path.join(contentDir, executableName));
   yield* stageWebClient(webClient, path.join(contentDir, "client"));
   yield* fs.copy(resourceMonitorDir, path.join(contentDir, "resource-monitor"));
+  yield* fs.copy(tailnetDir, path.join(contentDir, "tailnet"));
   yield* stageRuntimeExternals({
     repoRoot,
     stageDir: contentDir,
@@ -740,6 +771,12 @@ const command = Command.make(
     resourceMonitorDir: Flag.String("resource-monitor-dir").pipe(
       Flag.withDescription(
         "Directory laid out like dist/resource-monitor (defaults to apps/server/dist/resource-monitor).",
+      ),
+      Flag.optional,
+    ),
+    tailnetDir: Flag.String("tailnet-dir").pipe(
+      Flag.withDescription(
+        "Directory laid out like dist/tailnet (defaults to apps/server/dist/tailnet).",
       ),
       Flag.optional,
     ),

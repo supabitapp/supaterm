@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+# `mise exec` installs every missing tool; only the Go job needs Go, and it uses setup-go.
+env:
+  MISE_DISABLE_TOOLS: go
+
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -370,6 +374,45 @@ jobs:
             cargo test --locked --manifest-path "native/$crate/Cargo.toml"
           done
 
+  # The tailnet helper ships for every desktop target, so vet it for each OS.
+  go:
+    name: Go
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: native/tailnet
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: native/tailnet/go.mod
+          cache-dependency-path: native/tailnet/go.sum
+
+      - name: Check Go formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [[ -n "$unformatted" ]]; then
+            printf 'gofmt -w would change:\n%s\n' "$unformatted" >&2
+            exit 1
+          fi
+
+      - name: Vet Go module
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          for goos in linux darwin windows; do
+            GOOS="$goos" go vet ./...
+          done
+
+      - name: Test Go module
+        run: go test ./...
+
   # The static analysis below needs a macOS runner, so gate it on the native
   # sources it actually lints instead of holding one on every push. Detection is
   # API-only (no checkout) and fails open: if the diff cannot be resolved, the
@@ -526,6 +569,7 @@ jobs:
         test_mobile,
         test_server,
         rust,
+        go,
         mobile_native_changes,
         mobile_native_static_analysis,
         release_smoke,

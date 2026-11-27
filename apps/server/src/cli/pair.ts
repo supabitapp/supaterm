@@ -6,6 +6,7 @@
 import {
   type AuthEnvironmentScope,
   AuthStandardClientScopes,
+  AuthAccessReadScope,
   AuthAccessWriteScope,
   EnvironmentHttpApi,
   ExecutionEnvironmentDescriptor,
@@ -382,6 +383,7 @@ const makePairServerConfig = Effect.fn(function* (input: {
     desktopBrowserControlFd: undefined,
     desktopTelemetryControlFd: undefined,
     resourceMonitorPath: undefined,
+    tailnetPath: undefined,
     autoBootstrapProjectFromCwd: false,
     logWebSocketEvents: false,
     tailscaleServeEnabled: false,
@@ -534,6 +536,32 @@ const prepareRelay = Effect.fn("pair.prepareRelay")(function* (
   );
 });
 
+const builtInTailnetBaseUrl = Effect.fn("pair.builtInTailnetBaseUrl")(function* (
+  target: DiscoveredPairTarget,
+  config: ServerConfig.ServerConfig["Service"],
+) {
+  if (target.state.devUrl !== undefined) return Option.none<string>();
+  return yield* Effect.gen(function* () {
+    const auth = yield* EnvironmentAuth.EnvironmentAuth;
+    const client = yield* HttpApiClient.make(EnvironmentHttpApi, { baseUrl: target.state.origin });
+    const status = yield* Effect.acquireUseRelease(
+      auth.issueSession({
+        scopes: [AuthAccessReadScope],
+        ttl: Duration.seconds(30),
+        label: "supaterm pair tailnet lookup",
+      }),
+      (session) => client.tailnet.status({ headers: { authorization: `Bearer ${session.token}` } }),
+      (session) => auth.revokeSession(session.sessionId).pipe(Effect.ignore),
+    );
+    return status.state === "running" && status.https === "ready"
+      ? Option.some(`https://${status.dnsName}/`)
+      : Option.none<string>();
+  }).pipe(
+    Effect.provide(EnvironmentAuth.layerRuntime.pipe(Layer.provide(ServerConfig.layer(config)))),
+    Effect.orElseSucceed(() => Option.none<string>()),
+  );
+});
+
 const ttlFlag = Flag.String("ttl").pipe(
   Flag.withSchema(DurationFromString),
   Flag.withDescription(
@@ -549,7 +577,7 @@ const labelFlag = Flag.String("label").pipe(
 
 const tailscaleFlag = Flag.Boolean("tailscale").pipe(
   Flag.withDescription(
-    "Publish the server over Tailscale Serve HTTPS and pair through the tailnet URL.",
+    "Pair through the tailnet URL: built-in Tailscale when it is signed in with HTTPS, otherwise Tailscale Serve.",
   ),
   Flag.withDefault(false),
 );
@@ -615,12 +643,17 @@ export const pairCommand = Command.make("pair", {
             "so Tailscale Serve cannot be turned on",
           );
         }
-        const resolved = yield* resolveTailscalePairingBase({
-          target,
-          servePort: flags.tailscaleServePort,
-        });
-        pairingBaseUrl = resolved.baseUrl;
-        notes.push(...resolved.notes);
+        const builtIn = yield* builtInTailnetBaseUrl(target, config);
+        if (Option.isSome(builtIn)) {
+          pairingBaseUrl = builtIn.value;
+        } else {
+          const resolved = yield* resolveTailscalePairingBase({
+            target,
+            servePort: flags.tailscaleServePort,
+          });
+          pairingBaseUrl = resolved.baseUrl;
+          notes.push(...resolved.notes);
+        }
       } else {
         pairingBaseUrl = resolveDirectPairingBaseUrl(target.state);
         if (isLoopbackHost(new URL(pairingBaseUrl).hostname)) {

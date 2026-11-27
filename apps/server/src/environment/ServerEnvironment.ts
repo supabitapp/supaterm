@@ -243,6 +243,7 @@ export const make = Effect.gen(function* () {
       queuedRunModelEdit: true,
       npmReleaseLookup: true,
       secretSourceCheck: true,
+      tailnet: true,
       ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
       ...(serverInstallation === null ? {} : { serverInstallation }),
       ...(serverSelfUpdate === "boot-service" || desktopAppUpdate

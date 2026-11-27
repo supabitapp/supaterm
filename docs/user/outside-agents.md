@@ -20,7 +20,7 @@ The copied URL uses the route this device is connected over, so an agent on the
 same device can reach it.
 
 - **An agent on your own computers** can use `localhost` on the host or any
-  `https` address, such as [Tailscale HTTPS](./remote-access.md#tailscale-https).
+  `https` address, such as [built-in Tailscale](./remote-access.md#built-in-tailscale).
   Signing in sends the agent's credentials to the environment, and agents only
   do that over `https` or to `localhost`. A plain-`http` LAN or Tailscale
   address, like `http://100.x.y.z:3773`, lets an agent find the environment but

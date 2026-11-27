@@ -74,6 +74,7 @@ vi.mock("../state/use-atom-query-runner", () => ({
   // Doubles as the add-project folder scan, which finds nothing to track.
   useAtomQueryRunner: () => async () => ({ _tag: "Success", value: { folders: [] } }),
 }));
+vi.mock("./CommandPaletteTailnetItems", () => ({ useCommandPaletteTailnetItems: () => [] }));
 vi.mock("../state/environments", async (original) => ({
   ...(await original<typeof import("../state/environments")>()),
   useEnvironments: () => ({

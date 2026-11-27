@@ -29,6 +29,13 @@ import {
 } from "./update-release-package-versions.ts";
 import { applyWebBrandAssets } from "./apply-web-brand-assets.ts";
 import {
+  buildTailnet,
+  TAILNET_BIN_DIR,
+  tailnetExecutableName,
+  tailnetTargetFile,
+  type TailnetTarget,
+} from "./build-tailnet.ts";
+import {
   BRAND_ASSET_PATHS,
   resolveWebAssetBrandForChannel,
   type WebAssetBrand,
@@ -149,6 +156,17 @@ export function resolveResourceMonitorRustTargets(
 
 export function resourceMonitorExecutableName(platform: typeof BuildPlatform.Type): string {
   return platform === "win" ? "supaterm-resource-monitor.exe" : "supaterm-resource-monitor";
+}
+
+const NODE_PLATFORMS = { mac: "darwin", linux: "linux", win: "win32" } as const;
+
+function resolveTailnetTargets(
+  platform: typeof BuildPlatform.Type,
+  arch: typeof BuildArch.Type,
+): ReadonlyArray<TailnetTarget> {
+  return (arch === "universal" ? (["arm64", "x64"] as const) : [arch]).map(
+    (cpu) => `${NODE_PLATFORMS[platform]}-${cpu}` as const,
+  );
 }
 
 const PLATFORM_CONFIG: Record<typeof BuildPlatform.Type, PlatformConfig> = {
@@ -313,6 +331,7 @@ export const LINUX_DESKTOP_BUILD_PREREQUISITES = [
     packages: ["libusb-1.0-0-dev", "libudev-dev", "pkg-config"],
   },
   { id: "imagemagick", description: "ImageMagick", packages: ["imagemagick"] },
+  { id: "go", description: "Go toolchain (run `mise install`)", packages: [] },
 ] as const;
 
 export class LinuxDesktopBuildPrerequisitesMissingError extends Schema.TaggedError<LinuxDesktopBuildPrerequisitesMissingError>()(
@@ -360,6 +379,7 @@ const MAC_DESKTOP_BUILD_PREREQUISITES = [
   { id: "sips", description: "macOS image tool (sips)" },
   { id: "actool", description: `${XCODE_REQUIREMENT} asset compiler (actool)` },
   { id: "lipo", description: "Xcode universal-binary tool (lipo)" },
+  { id: "go", description: "Go toolchain (run `mise install`)" },
 ] as const;
 
 export class MacDesktopBuildPrerequisitesMissingError extends Schema.TaggedError<MacDesktopBuildPrerequisitesMissingError>()(
@@ -394,6 +414,7 @@ const WINDOWS_DESKTOP_BUILD_PREREQUISITES = [
     description: "Visual Studio Build Tools with C++, Windows SDK, and Spectre libraries",
   },
   { id: "tar", description: "tar to inspect the bundled WSL runtime archive" },
+  { id: "go", description: "Go toolchain (run `mise install`)" },
 ] as const;
 
 export class WindowsDesktopBuildPrerequisitesMissingError extends Schema.TaggedError<WindowsDesktopBuildPrerequisitesMissingError>()(
@@ -418,6 +439,15 @@ export class WindowsDesktopBuildPrerequisitesMissingError extends Schema.TaggedE
       "",
       "Then rerun the desktop artifact command.",
     ].join("\n");
+  }
+}
+
+class TailnetBuildOutputMissingError extends Schema.TaggedError<TailnetBuildOutputMissingError>()(
+  "TailnetBuildOutputMissingError",
+  { binaryPath: Schema.String },
+) {
+  override get message(): string {
+    return `SUPATERM_DESKTOP_REUSE_TAILNET is set, but ${this.binaryPath} does not exist. Run \`node scripts/build-tailnet.ts --target <platform>-<arch>\` first.`;
   }
 }
 
@@ -701,7 +731,7 @@ const WindowsPackagedPayloadValidationReason = Schema.Literals([
   "sidecar-missing",
   "sidecar-invalid",
   "unpacked-native-missing",
-  "resource-monitor-missing",
+  "native-helper-missing",
   "wsl-runtime-missing",
   "wsl-runtime-invalid",
   "file-limit-exceeded",
@@ -725,8 +755,8 @@ export class WindowsPackagedPayloadValidationError extends Schema.TaggedError<Wi
     if (this.reason === "unpacked-native-missing") {
       return `Windows server sidecar is missing ${String(this.missingFiles?.length ?? 0)} unpacked native files.`;
     }
-    if (this.reason === "resource-monitor-missing") {
-      return "Windows packaged payload is missing the resource monitor executable.";
+    if (this.reason === "native-helper-missing") {
+      return `Windows packaged payload is missing native helper executables: ${(this.missingFiles ?? []).join(", ")}.`;
     }
     if (this.reason === "wsl-runtime-missing") {
       return "Windows packaged payload is missing the WSL runtime archive or SHA-256 sidecar.";
@@ -957,6 +987,8 @@ export const DESKTOP_FILE_EXCLUSIONS = [
   "!apps/desktop/prod-resources/browser-secret/**/*",
   "!apps/desktop/prod-resources/sd-eject-guard",
   "!apps/desktop/prod-resources/sd-eject-guard/**/*",
+  "!apps/desktop/prod-resources/tailnet",
+  "!apps/desktop/prod-resources/tailnet/**/*",
   // Windows stages the server sidecar below prod-resources so electron-builder
   // can copy it using project-relative extraResources matchers. Keep those
   // staging inputs out of app.asar; they are emitted once at resources/.
@@ -1109,6 +1141,10 @@ export const DESKTOP_EXTRA_RESOURCES = [
   {
     from: "apps/desktop/prod-resources/resource-monitor",
     to: "resource-monitor",
+  },
+  {
+    from: "apps/desktop/prod-resources/tailnet",
+    to: "tailnet",
   },
 ] as const;
 export const LINUX_CAPTURE_EXTRA_RESOURCES = [
@@ -1609,6 +1645,15 @@ const rustTargetIsInstalled = Effect.fn("rustTargetIsInstalled")(function* (targ
   return entries.some((entry) => entry.startsWith("libstd-") && entry.endsWith(".rlib"));
 });
 
+const tailnetGoProbe = Effect.gen(function* () {
+  const reuseTailnet = yield* Config.Boolean("SUPATERM_DESKTOP_REUSE_TAILNET").pipe(
+    Config.withDefault(false),
+  );
+  return reuseTailnet
+    ? true
+    : yield* desktopBuildProbeSucceeds(ChildProcess.make("go", ["version"]), "go");
+});
+
 export const preflightLinuxDesktopBuild = Effect.fn("preflightLinuxDesktopBuild")(function* (
   arch: typeof BuildArch.Type = "x64",
 ) {
@@ -1641,6 +1686,7 @@ export const preflightLinuxDesktopBuild = Effect.fn("preflightLinuxDesktopBuild"
         desktopBuildProbeSucceeds(ChildProcess.make("magick", ["-version"]), "magick"),
         desktopBuildProbeSucceeds(ChildProcess.make("convert", ["-version"]), "convert"),
       ]).pipe(Effect.map(([magick, convert]) => magick || convert)),
+      go: tailnetGoProbe,
     },
     { concurrency: "unbounded" },
   );
@@ -1684,6 +1730,7 @@ export const preflightMacDesktopBuild = Effect.fn("preflightMacDesktopBuild")(fu
         arch === "universal"
           ? desktopBuildProbeSucceeds(ChildProcess.make("lipo", ["-version"]), "lipo")
           : Effect.succeed(true),
+      go: tailnetGoProbe,
     },
     { concurrency: "unbounded" },
   );
@@ -1745,6 +1792,7 @@ export const preflightWindowsDesktopBuild = Effect.fn("preflightWindowsDesktopBu
         tar: input.bundlesWslRuntime
           ? desktopBuildProbeSucceeds(ChildProcess.make("tar.exe", ["--version"]), "tar")
           : Effect.succeed(true),
+        go: tailnetGoProbe,
       },
       { concurrency: "unbounded" },
     );
@@ -2121,6 +2169,52 @@ export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* 
     );
   }
 
+  if (input.platform !== "win") {
+    yield* fs.chmod(destinationPath, 0o755);
+  }
+});
+
+const stageTailnet = Effect.fn("stageTailnet")(function* (input: {
+  readonly repoRoot: string;
+  readonly stageResourcesDir: string;
+  readonly platform: typeof BuildPlatform.Type;
+  readonly arch: typeof BuildArch.Type;
+  readonly verbose: boolean;
+}) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  // Release CI restores a cached binary per target and skips Go on a hit.
+  const reuseTailnet = yield* Config.Boolean("SUPATERM_DESKTOP_REUSE_TAILNET").pipe(
+    Config.withDefault(false),
+  );
+  const builtBinaries: string[] = [];
+  for (const target of resolveTailnetTargets(input.platform, input.arch)) {
+    const binaryPath = path.join(input.repoRoot, TAILNET_BIN_DIR, tailnetTargetFile(target));
+    if (!reuseTailnet) {
+      yield* buildTailnet({ repoRoot: input.repoRoot, target: Option.some(target) });
+    } else if (yield* fs.exists(binaryPath)) {
+      yield* Effect.log(`[desktop-artifact] Reusing cached tailnet helper (${target}).`);
+    } else {
+      return yield* new TailnetBuildOutputMissingError({ binaryPath });
+    }
+    builtBinaries.push(binaryPath);
+  }
+
+  const destinationDirectory = path.join(input.stageResourcesDir, "tailnet");
+  const destinationPath = path.join(
+    destinationDirectory,
+    tailnetExecutableName(NODE_PLATFORMS[input.platform]),
+  );
+  yield* fs.remove(destinationDirectory, { recursive: true, force: true }).pipe(Effect.ignore);
+  yield* fs.makeDirectory(destinationDirectory, { recursive: true });
+  if (builtBinaries.length === 1) {
+    yield* fs.copyFile(builtBinaries[0]!, destinationPath);
+  } else {
+    yield* runCommand(
+      ChildProcess.make("lipo", ["-create", ...builtBinaries, "-output", destinationPath]),
+      { label: "lipo tailnet helper universal binary", verbose: input.verbose },
+    );
+  }
   if (input.platform !== "win") {
     yield* fs.chmod(destinationPath, 0o755);
   }
@@ -3170,16 +3264,20 @@ export const validateWindowsPackagedPayload = Effect.fn(
     });
   }
 
-  const resourceMonitorPath = path.join(
-    resourcesDir,
-    "resource-monitor",
-    resourceMonitorExecutableName("win"),
-  );
-  if (!(yield* isFile(resourceMonitorPath))) {
+  const missingHelpers: string[] = [];
+  for (const helper of [
+    `resource-monitor/${resourceMonitorExecutableName("win")}`,
+    `tailnet/${tailnetExecutableName("win32")}`,
+  ]) {
+    if (!(yield* isFile(path.join(resourcesDir, ...helper.split("/"))))) {
+      missingHelpers.push(helper);
+    }
+  }
+  if (missingHelpers.length > 0) {
     return yield* new WindowsPackagedPayloadValidationError({
-      reason: "resource-monitor-missing",
+      reason: "native-helper-missing",
       packagedAppDir,
-      missingFiles: ["resource-monitor/supaterm-resource-monitor.exe"],
+      missingFiles: missingHelpers,
     });
   }
 
@@ -3257,7 +3355,15 @@ export const validateWindowsPackagedPayload = Effect.fn(
         ),
       );
     }
-    const requiredMembers = [`${stem}/supaterm`, `${stem}/client`, `${stem}/node_modules`];
+    // The in-distro server finds the helper through its bundled tailnet/<platform>-<arch>/ lookup.
+    const requiredMembers = [
+      `${stem}/supaterm`,
+      `${stem}/client`,
+      `${stem}/node_modules`,
+      ...resolveTailnetTargets("linux", input.targetArch).map(
+        (target) => `${stem}/tailnet/${tailnetTargetFile(target)}`,
+      ),
+    ];
     const missingMembers = requiredMembers.filter((member) => !members.includes(member));
     const ptyCandidates = [
       `${stem}/node_modules/node-pty/build/Release/pty.node`,
@@ -3579,6 +3685,13 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "apps/server/dist"));
   }
   yield* stageResourceMonitor({
+    repoRoot,
+    stageResourcesDir,
+    platform: options.platform,
+    arch: options.arch,
+    verbose: options.verbose,
+  });
+  yield* stageTailnet({
     repoRoot,
     stageResourcesDir,
     platform: options.platform,

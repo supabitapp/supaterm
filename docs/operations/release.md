@@ -322,7 +322,7 @@ break:
   a single `supaterm-<version>-linux-<arch>` directory holding `supaterm`, `client/`, and
   `node_modules/` with the Linux node-pty binary, and must not carry a loose
   server bundle (`bin.mjs`).
-- The external Windows resource monitor is absent.
+- The external Windows resource monitor or built-in Tailscale helper is absent.
 - The unpacked Windows application contains more than 80 files.
 
 Cross-architecture Windows builds retain every structural and extracted-sidecar

@@ -83,6 +83,7 @@ const decodePackageVersion = Schema.decodeUnknownEffect(
 const makeLinuxCliArchiveFixture = Effect.fn("test.makeLinuxCliArchiveFixture")(function* (input: {
   readonly root: string;
   readonly stem: string;
+  readonly arch?: "x64" | "arm64";
   readonly extraMembers?: ReadonlyArray<string>;
   readonly omitMembers?: ReadonlyArray<string>;
 }) {
@@ -95,6 +96,7 @@ const makeLinuxCliArchiveFixture = Effect.fn("test.makeLinuxCliArchiveFixture")(
     `${input.stem}/client/index.html`,
     `${input.stem}/node_modules/node-pty/package.json`,
     `${input.stem}/node_modules/node-pty/build/Release/pty.node`,
+    `${input.stem}/tailnet/linux-${input.arch ?? "x64"}/supaterm-tailnet`,
     ...(input.extraMembers ?? []),
   ].filter((member) => !(input.omitMembers ?? []).includes(member));
   for (const member of members) {
@@ -136,7 +138,7 @@ const WINDOWS_PAYLOAD_FIXTURE_VERSION = "1.2.3";
 const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(function* (input: {
   readonly copyUnpackedNatives: boolean;
   readonly serverEntrySource?: string;
-  readonly wslRuntime?: "valid" | "loose-server-tree" | "missing-pty" | "bad-digest";
+  readonly wslRuntime?: "valid" | "loose-server-tree" | "missing-natives" | "bad-digest";
   readonly targetArch?: "x64" | "arm64";
   readonly ptyPrebuildArch?: "x64" | "arm64";
 }) {
@@ -160,6 +162,7 @@ const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(fu
   const packagedAppDir = path.join(stageDistDir, "win-unpacked");
   const resourcesDir = path.join(packagedAppDir, "resources");
   yield* fs.makeDirectory(path.join(resourcesDir, "resource-monitor"), { recursive: true });
+  yield* fs.makeDirectory(path.join(resourcesDir, "tailnet"), { recursive: true });
   yield* fs.copyFile(generatedAsarPath, path.join(resourcesDir, WINDOWS_SERVER_ASAR_RESOURCE));
   if (input.copyUnpackedNatives) {
     yield* fs.copy(
@@ -171,6 +174,7 @@ const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(fu
     path.join(resourcesDir, "resource-monitor/supaterm-resource-monitor.exe"),
     "monitor",
   );
+  yield* fs.writeFileString(path.join(resourcesDir, "tailnet/supaterm-tailnet.exe"), "tailnet");
   const appExecutableName = "supaterm.exe";
   yield* fs.writeFileString(path.join(packagedAppDir, appExecutableName), "electron");
   yield* fs.writeFileString(path.join(packagedAppDir, "chrome_crashpad_handler.exe"), "crashpad");
@@ -188,9 +192,17 @@ const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(fu
         : yield* makeLinuxCliArchiveFixture({
             root: path.join(tempDir, "wsl-runtime"),
             stem,
-            ...(input.wslRuntime === "missing-pty" || input.ptyPrebuildArch !== undefined
-              ? { omitMembers: [`${stem}/node_modules/node-pty/build/Release/pty.node`] }
-              : {}),
+            arch: input.targetArch ?? "x64",
+            ...(input.wslRuntime === "missing-natives"
+              ? {
+                  omitMembers: [
+                    `${stem}/node_modules/node-pty/build/Release/pty.node`,
+                    `${stem}/tailnet/linux-${input.targetArch ?? "x64"}/supaterm-tailnet`,
+                  ],
+                }
+              : input.ptyPrebuildArch !== undefined
+                ? { omitMembers: [`${stem}/node_modules/node-pty/build/Release/pty.node`] }
+                : {}),
             ...(input.ptyPrebuildArch !== undefined
               ? {
                   extraMembers: [
@@ -1158,12 +1170,12 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     ),
   );
 
-  it.effect("rejects an embedded archive without the Linux node-pty binary", () =>
+  it.effect("rejects an embedded archive without the Linux node-pty or tailnet binaries", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const fixture = yield* makeWindowsPayloadFixture({
           copyUnpackedNatives: true,
-          wslRuntime: "missing-pty",
+          wslRuntime: "missing-natives",
         });
         const error = yield* validateWindowsPackagedPayload({
           stageDistDir: fixture.stageDistDir,
@@ -1176,6 +1188,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         assert.instanceOf(error, WindowsPackagedPayloadValidationError);
         assert.equal(error.reason, "wsl-runtime-invalid");
         assert.deepStrictEqual(error.missingFiles, [
+          `${wslRuntimeArchiveStem(WINDOWS_PAYLOAD_FIXTURE_VERSION, "x64")}/tailnet/linux-x64/supaterm-tailnet`,
           `${wslRuntimeArchiveStem(WINDOWS_PAYLOAD_FIXTURE_VERSION, "x64")}/node_modules/node-pty/build/Release/pty.node`,
           `${wslRuntimeArchiveStem(WINDOWS_PAYLOAD_FIXTURE_VERSION, "x64")}/node_modules/node-pty/prebuilds/linux-x64/pty.node`,
         ]);
@@ -1433,6 +1446,9 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         );
         yield* fs.remove(resourceMonitorPath);
         yield* fs.makeDirectory(resourceMonitorPath);
+        yield* fs.remove(
+          path.join(fixture.packagedAppDir, "resources/tailnet/supaterm-tailnet.exe"),
+        );
 
         const resourceMonitorError = yield* validateWindowsPackagedPayload({
           stageDistDir: fixture.stageDistDir,
@@ -1441,9 +1457,10 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
           appVersion: WINDOWS_PAYLOAD_FIXTURE_VERSION,
         }).pipe(Effect.flip);
         assert.instanceOf(resourceMonitorError, WindowsPackagedPayloadValidationError);
-        assert.equal(resourceMonitorError.reason, "resource-monitor-missing");
+        assert.equal(resourceMonitorError.reason, "native-helper-missing");
         assert.deepStrictEqual(resourceMonitorError.missingFiles, [
           "resource-monitor/supaterm-resource-monitor.exe",
+          "tailnet/supaterm-tailnet.exe",
         ]);
       }),
     ),

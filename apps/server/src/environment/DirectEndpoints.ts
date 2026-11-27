@@ -3,7 +3,7 @@
  * Only bound addresses are listed: a loopback-only server lists none, because its loopback
  * address means a different machine to every client.
  */
-import type { ServerDirectEndpoint } from "@supaterm/contracts";
+import type { ServerDirectEndpoint, TailnetStatus } from "@supaterm/contracts";
 import {
   buildTailscaleHttpsBaseUrl,
   probeTailscaleHttpsEndpoint,
@@ -15,6 +15,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
+import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/http";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as NodeNet from "node:net";
@@ -30,6 +31,7 @@ import {
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "./ServerEnvironment.ts";
+import * as TailnetNode from "../tailnet/TailnetNode.ts";
 import { isLoopbackHost } from "../startupAccess.ts";
 
 type NetworkInterfacesMap = ReturnType<typeof NodeOS.networkInterfaces>;
@@ -45,6 +47,7 @@ export class DirectEndpoints extends Context.Service<
   {
     readonly resolveAvailable: () => Effect.Effect<ReadonlyArray<ServerDirectEndpoint>>;
     readonly resolve: () => Effect.Effect<ReadonlyArray<ServerDirectEndpoint>>;
+    readonly changes: Stream.Stream<ReadonlyArray<ServerDirectEndpoint>>;
   }
 >()("supaterm/environment/DirectEndpoints") {}
 
@@ -118,6 +121,12 @@ export function resolveBoundEndpoints(input: {
   }));
 }
 
+function tailnetDirectEndpoint(status: TailnetStatus): ServerDirectEndpoint | undefined {
+  return status.state === "running" && status.https === "ready"
+    ? { kind: "tailnet", httpBaseUrl: `https://${status.dnsName}/` }
+    : undefined;
+}
+
 /** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
@@ -125,6 +134,7 @@ export const make = Effect.gen(function* () {
   const httpClient = yield* HttpClient.HttpClient;
   const platform = yield* HostProcess.Platform;
   const environmentId = yield* (yield* ServerEnvironment.ServerEnvironment).getEnvironmentId;
+  const tailnet = yield* TailnetNode.TailnetNode;
 
   const servedEndpoint = yield* Ref.make<Option.Option<string>>(Option.none());
   const resolveAvailable = Effect.fn("DirectEndpoints.resolveAvailable")(function* () {
@@ -138,6 +148,12 @@ export const make = Effect.gen(function* () {
     ];
     const servedUrl = yield* Ref.get(servedEndpoint);
     if (Option.isSome(servedUrl)) endpoints.push({ kind: "tailnet", httpBaseUrl: servedUrl.value });
+    const builtIn = tailnetDirectEndpoint(yield* tailnet.current);
+    if (
+      builtIn !== undefined &&
+      !endpoints.some((endpoint) => endpoint.httpBaseUrl === builtIn.httpBaseUrl)
+    )
+      endpoints.push(builtIn);
     return endpoints;
   });
 
@@ -174,6 +190,11 @@ export const make = Effect.gen(function* () {
     resolve: Effect.fn("DirectEndpoints.resolve")(function () {
       return resolve;
     }),
+    changes: tailnet.changes.pipe(
+      Stream.map(tailnetDirectEndpoint),
+      Stream.changesWith((left, right) => left?.httpBaseUrl === right?.httpBaseUrl),
+      Stream.mapEffect(() => resolveAvailable()),
+    ),
   });
 });
 
