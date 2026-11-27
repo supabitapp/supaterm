@@ -3,6 +3,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { ORCHESTRATION_PROTOCOL_VERSION } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -207,6 +208,35 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("ServerEnvironmen
     }),
   );
 
+  it.effect("names the environment and its machine from the overrides", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const baseDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-server-environment-override-test-",
+      });
+      const descriptor = yield* Effect.gen(function* () {
+        const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
+        return yield* serverEnvironment.getDescriptor;
+      }).pipe(
+        Effect.provide(
+          layerServerEnvironment(baseDir).pipe(
+            Layer.provide(
+              ConfigProvider.layer(
+                ConfigProvider.fromEnv({
+                  env: {
+                    SUPATERM_ENVIRONMENT_LABEL: " MacBook ",
+                    SUPATERM_ENVIRONMENT_MACHINE_KIND: "laptop",
+                  },
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(descriptor.label).toBe("MacBook");
+      expect(descriptor.platform.machine).toBe("laptop");
+    }),
+  );
   it.effect("persists the environment id across service restarts", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;

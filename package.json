@@ -40,6 +40,8 @@
     "lint:mobile": "node scripts/mobile-native-static-check.ts",
     "mobile:install": "node scripts/mobile-native-client.ts ensure",
     "mobile:audit": "node scripts/mobile-audit.ts",
+    "scenarios": "vp run --filter @supaterm/scripts scenarios",
+    "scenarios:prove": "node scripts/prove-scenario.ts",
     "test": "vp run -r test",
     "bench": "vp run -r bench",
     "test:perf:v2-wire": "vp test run apps/server/src/orchestration-v2/WireProjection.test.ts apps/server/src/orchestration-v2/threadHistoryPaging.test.ts apps/server/src/orchestration-v2/ThreadStream.test.ts apps/server/src/orchestration-v2/ThreadTransportPerformance.test.ts apps/server/src/orchestration-v2/ShellStream.test.ts apps/server/src/orchestration-v2/CommandPolicy.test.ts apps/server/src/orchestration-v2/runtimeLayer.test.ts apps/server/src/ws.test.ts packages/contracts/src/orchestrationV2.test.ts packages/client-runtime/src/operations/commands.test.ts packages/client-runtime/src/operations/commands.performance.test.ts packages/client-runtime/src/state/boundedThreadSnapshotHttp.test.ts packages/client-runtime/src/state/threadHistoryController.test.ts packages/client-runtime/src/state/threadHistoryMerge.test.ts packages/client-runtime/src/state/threadDetail.test.ts packages/client-runtime/src/state/threads-sync.test.ts packages/client-runtime/src/state/shellReducer.test.ts",
