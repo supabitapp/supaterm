@@ -2,6 +2,7 @@ import {
   AuthAccessReadScope,
   AuthAccessWriteScope,
   type AuthEnvironmentScope,
+  ServerSettingsError,
   TailnetControlUrl,
   TailnetHostname,
   type TailnetSettingsPatch,
@@ -19,7 +20,9 @@ import { FetchHttpClient } from "effect/http";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
+import * as ManagedLimits from "../policy/managedLimits.ts";
 import { authLocationFlags, type CliAuthLocationFlags, resolveCliAuthConfig } from "./config.ts";
+import { readInstalledPolicy } from "./policy.ts";
 import * as RunningServer from "./runningServer.ts";
 import { editSettingsObject } from "./settingsFile.ts";
 
@@ -55,9 +58,14 @@ function describeTailnetStatus(status: TailnetStatus): string {
     case "off":
       return "Built-in Tailscale is off.";
     case "unavailable":
-      return status.reason === "binary-missing"
-        ? "Built-in Tailscale is not included in this build."
-        : "Built-in Tailscale does not support this platform.";
+      switch (status.reason) {
+        case "binary-missing":
+          return "Built-in Tailscale is not included in this build.";
+        case "unsupported-platform":
+          return "Built-in Tailscale does not support this platform.";
+        case "managed-policy":
+          return "Your organization's policy does not allow built-in Tailscale on this machine.";
+      }
     case "starting":
       return "Built-in Tailscale is starting.";
     case "needs-login":
@@ -112,6 +120,28 @@ const patchTailnetSettings = Effect.fn("tailscale.patchTailnetSettings")(functio
   patch: TailnetSettingsPatch,
 ) {
   const config = yield* resolveCliAuthConfig(flags, yield* GlobalFlag.LogLevel);
+  const policy = yield* readInstalledPolicy;
+  if (patch.enabled === true && !ManagedLimits.allowsRemoteClients(policy)) {
+    return yield* ManagedLimits.refuseRemoteClients(
+      policy,
+      "so built-in Tailscale cannot be turned on",
+    );
+  }
+  // Vet only the fields this command writes: a lock on one tailnet field leaves the others free.
+  const current = policy.settings.applyLocks(policy.settings.defaults);
+  const vetted = policy.settings.vetWrite(
+    current,
+    { ...current, tailnet: { ...current.tailnet, ...patch } },
+    { tailnet: patch },
+  );
+  if (vetted._tag === "Locked") {
+    return yield* new ServerSettingsError({
+      settingsPath: config.settingsPath,
+      operation: "write-managed-setting",
+      managedSetting: vetted.path,
+      managedBy: policy.document?.organization,
+    });
+  }
   yield* editSettingsObject(config.settingsPath, (value) => ({
     ...value,
     tailnet: { ...(Predicate.isObject(value.tailnet) ? value.tailnet : {}), ...patch },

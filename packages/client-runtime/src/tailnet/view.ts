@@ -1,4 +1,5 @@
 import {
+  type ManagedPolicySummary,
   tailnetHostname,
   type TailnetAdmission,
   type TailnetHttpsState,
@@ -8,14 +9,18 @@ import {
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
+import { mFallback, msg } from "gt-i18n";
+import type { MFunctionType } from "gt-i18n/types";
+
+import { managedCapabilityDenial } from "../contractLabels.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TAILNET_KEY_EXPIRY_WARNING_MS = 14 * DAY_MS;
 export const TAILSCALE_DNS_ADMIN_URL = "https://login.tailscale.com/admin/dns";
 
-const TAILNET_SUMMARY = "Reach this machine from your tailnet without the Tailscale app.";
-export const TAILNET_MACHINE_NAME_DESCRIPTION =
-  "Used for the Tailscale address. With HTTPS on, it appears in public certificate logs.";
+export const TAILNET_MACHINE_NAME_DESCRIPTION = msg(
+  "Used for the Tailscale address. With HTTPS on, it appears in public certificate logs.",
+);
 
 export interface TailnetAccount {
   readonly title: string;
@@ -53,45 +58,88 @@ interface TailnetViewInput {
   readonly settings: TailnetSettings;
   readonly machineHostname: string;
   readonly now: number;
+  readonly managedPolicy?: ManagedPolicySummary | undefined;
+  readonly resolve?: MFunctionType;
 }
 
 export function tailnetAdmissionDescription(
   admission: TailnetAdmission,
   ownerLogin: string | null,
+  resolve: MFunctionType = mFallback,
 ): string {
-  if (admission === "tailnet") return "Any device your tailnet's access rules allow can connect.";
+  if (admission === "tailnet") {
+    return resolve(msg("Any device your tailnet's access rules allow can connect."));
+  }
   return ownerLogin === null
-    ? "Only devices signed in to this machine's Tailscale account can connect."
-    : `Only devices signed in as ${ownerLogin} can connect.`;
+    ? resolve(msg("Only devices signed in to this machine's Tailscale account can connect."))
+    : resolve(msg("Only devices signed in as {login} can connect.", { login: ownerLogin }));
 }
 
-function ownerDetail(owner: TailnetOwner): string {
-  return owner.type === "user" ? `Signed in as ${owner.login}` : `Tagged ${owner.tags.join(", ")}`;
+function ownerDetail(owner: TailnetOwner, resolve: MFunctionType): string {
+  return owner.type === "user"
+    ? resolve(msg("Signed in as {login}", { login: owner.login }))
+    : resolve(msg("Tagged {tags}", { tags: owner.tags.join(", ") }));
 }
 
-function keyExpiryWarning(keyExpiry: string | null, now: number): string | null {
+function keyExpiryWarning(
+  keyExpiry: string | null,
+  now: number,
+  resolve: MFunctionType,
+): string | null {
   const expiresAt = keyExpiry === null ? Option.none() : DateTime.make(keyExpiry);
   if (Option.isNone(expiresAt)) return null;
   const remaining = DateTime.toEpochMillis(expiresAt.value) - now;
   if (remaining > TAILNET_KEY_EXPIRY_WARNING_MS) return null;
-  if (remaining <= 0) return "Sign-in expired. Sign in again.";
+  if (remaining <= 0) return resolve(msg("Sign-in expired. Sign in again."));
   const days = Math.ceil(remaining / DAY_MS);
-  const when = days === 1 ? "within a day" : `in ${days} days`;
-  return `Sign-in expires ${when}. Sign in again, or turn off key expiry for this machine in Tailscale.`;
+  return days === 1
+    ? resolve(
+        msg(
+          "Sign-in expires within a day. Sign in again, or turn off key expiry for this machine in Tailscale.",
+        ),
+      )
+    : resolve(
+        msg(
+          "{count, plural, one {Sign-in expires in {count} day. Sign in again, or turn off key expiry for this machine in Tailscale.} other {Sign-in expires in {count} days. Sign in again, or turn off key expiry for this machine in Tailscale.}}",
+          { count: days },
+        ),
+      );
 }
 
-function addressNote(https: TailnetHttpsState, httpsError: string | undefined): string | null {
+function addressNote(
+  https: TailnetHttpsState,
+  httpsError: string | undefined,
+  resolve: MFunctionType,
+): string | null {
   switch (https) {
     case "ready":
       return null;
     case "provisioning":
-      return "Getting an HTTPS certificate…";
+      return resolve(msg("Getting an HTTPS certificate…"));
     case "unavailable":
-      return "HTTPS certificates are off for this tailnet.";
+      return resolve(msg("HTTPS certificates are off for this tailnet."));
     case "failed":
       return httpsError === undefined
-        ? "Couldn't get an HTTPS certificate."
-        : `Couldn't get an HTTPS certificate. ${httpsError}`;
+        ? resolve(msg("Couldn't get an HTTPS certificate."))
+        : resolve(msg("Couldn't get an HTTPS certificate. {error}", { error: httpsError }));
+  }
+}
+
+function unavailableSummary(
+  reason: Extract<TailnetStatus, { state: "unavailable" }>["reason"],
+  managedPolicy: ManagedPolicySummary | undefined,
+  resolve: MFunctionType,
+): string {
+  switch (reason) {
+    case "unsupported-platform":
+      return resolve(msg("Built-in Tailscale isn't supported on this system."));
+    case "binary-missing":
+      return resolve(msg("Built-in Tailscale isn't included in this build."));
+    case "managed-policy":
+      return (
+        managedCapabilityDenial(managedPolicy, "remoteClients", resolve) ??
+        resolve(msg("Your organization's policy does not allow built-in Tailscale."))
+      );
   }
 }
 
@@ -109,24 +157,30 @@ export function tailnetView({
   settings,
   machineHostname,
   now,
+  managedPolicy,
+  resolve = mFallback,
 }: TailnetViewInput): TailnetView {
   const hostname = tailnetHostname(settings, machineHostname);
-  const base = { hostname, summary: TAILNET_SUMMARY };
+  const base = {
+    hostname,
+    summary: resolve(msg("Reach this machine from your tailnet without the Tailscale app.")),
+  };
 
   if (status?.state === "unavailable") {
     return {
       ...base,
       kind: "unavailable",
       account: null,
-      summary:
-        status.reason === "unsupported-platform"
-          ? "Built-in Tailscale isn't supported on this system."
-          : "Built-in Tailscale isn't included in this build.",
+      summary: unavailableSummary(status.reason, managedPolicy, resolve),
     };
   }
   if (!settings.enabled) return { ...base, kind: "off", account: null };
   if (status === null) {
-    return { ...base, kind: "loading", account: account("Checking Tailscale…", null) };
+    return {
+      ...base,
+      kind: "loading",
+      account: account(resolve(msg("Checking Tailscale…")), null),
+    };
   }
   switch (status.state) {
     case "off":
@@ -134,15 +188,18 @@ export function tailnetView({
       return {
         ...base,
         kind: "starting",
-        account: account("Connecting…", `Joining your tailnet as ${hostname}.`),
+        account: account(
+          resolve(msg("Connecting…")),
+          resolve(msg("Joining your tailnet as {hostname}.", { hostname })),
+        ),
       };
     case "needs-login":
       return {
         ...base,
         kind: "needs-login",
         account: account(
-          "Not signed in",
-          "Sign in with the Tailscale account that should own this machine.",
+          resolve(msg("Not signed in")),
+          resolve(msg("Sign in with the Tailscale account that should own this machine.")),
           "sign-in",
         ),
       };
@@ -151,8 +208,8 @@ export function tailnetView({
         ...base,
         kind: "needs-approval",
         account: account(
-          "Waiting for approval",
-          "A tailnet admin needs to approve this machine in Tailscale.",
+          resolve(msg("Waiting for approval")),
+          resolve(msg("A tailnet admin needs to approve this machine in Tailscale.")),
           "sign-out",
         ),
       };
@@ -160,24 +217,29 @@ export function tailnetView({
       return {
         ...base,
         kind: "crashed",
-        account: account("Tailscale stopped", `${status.message} Retrying shortly.`),
+        account: account(
+          resolve(msg("Tailscale stopped")),
+          resolve(msg("{message} Retrying shortly.", { message: status.message })),
+        ),
         retryAt: status.retryAt,
       };
     case "running": {
       const dnsName = status.dnsName.replace(/\.$/, "");
-      const expiry = keyExpiryWarning(status.keyExpiry, now);
+      const expiry = keyExpiryWarning(status.keyExpiry, now, resolve);
       return {
         ...base,
         kind: "running",
-        account: account("Signed in to Tailscale", ownerDetail(status.owner), "sign-out", [
-          ...(expiry === null ? [] : [expiry]),
-          ...status.health,
-        ]),
+        account: account(
+          resolve(msg("Signed in to Tailscale")),
+          ownerDetail(status.owner, resolve),
+          "sign-out",
+          [...(expiry === null ? [] : [expiry]), ...status.health],
+        ),
         dnsName,
         https: status.https,
         address:
           status.https === "ready" || status.https === "provisioning" ? `https://${dnsName}` : null,
-        addressNote: addressNote(status.https, status.httpsError),
+        addressNote: addressNote(status.https, status.httpsError, resolve),
         ownerLogin: status.owner.type === "user" ? status.owner.login : null,
       };
     }

@@ -241,6 +241,10 @@ Turning **Serve over Tailscale** off keeps the sign-in for next time. **Sign out
 removes this machine's sign-in. Renaming the machine gives it a new address, so
 routes saved under the old name stop working.
 
+On a machine with a [managed policy](./managed-policy.md#clients-and-the-encrypted-relay),
+built-in Tailscale runs only when the policy allows remote clients, and the policy
+can lock any of these settings.
+
 From a terminal:
 
 ```bash

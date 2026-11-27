@@ -1,5 +1,6 @@
 import { AuthAccessReadScope, type EnvironmentId } from "@supaterm/contracts";
 import { tailnetView } from "@supaterm/client-runtime/tailnet/view";
+import { useMessages } from "gt-react";
 
 import { useNowMinuteMs } from "~/hooks/useNowMinute";
 import { useEnvironment } from "~/state/environments";
@@ -19,6 +20,7 @@ export function useTailnetView(environmentId: EnvironmentId | null) {
       : null,
   );
   const now = useNowMinuteMs();
+  const m = useMessages();
   if (environmentId === null || serverConfig === null || settings === null || !canRead) return null;
   return {
     environmentId,
@@ -29,6 +31,8 @@ export function useTailnetView(environmentId: EnvironmentId | null) {
       settings,
       machineHostname: serverConfig.hostname ?? "",
       now,
+      managedPolicy: serverConfig.managedPolicy,
+      resolve: m,
     }),
   };
 }

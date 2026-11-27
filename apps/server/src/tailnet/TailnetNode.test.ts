@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import {
   DEFAULT_SERVER_SETTINGS,
+  type ManagedPolicyDocument,
   type ServerSettings,
   type TailnetSettings,
   type TailnetStatus,
@@ -20,6 +21,7 @@ import { ChildProcessSpawner } from "effect/process";
 import { expect } from "vite-plus/test";
 
 import * as ServerConfig from "../config.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as ServerSettingsService from "../serverSettings.ts";
 import type { SidecarCommand, SidecarEvent } from "./protocol.ts";
 import * as TailnetBinary from "./TailnetBinary.ts";
@@ -58,6 +60,7 @@ const settingsWith = (tailnet: Partial<TailnetSettings>): ServerSettings => ({
 const setup = Effect.fn(function* (options: {
   readonly tailnet: Partial<TailnetSettings>;
   readonly binary?: TailnetBinary.TailnetBinaryResolution;
+  readonly policy?: ManagedPolicyDocument;
 }) {
   const settings = yield* SubscriptionRef.make(settingsWith(options.tailnet));
   const spawned = yield* Queue.unbounded<FakeProcess>();
@@ -111,6 +114,7 @@ const setup = Effect.fn(function* (options: {
         }),
         Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
         ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-tailnet-" }),
+        ManagedPolicy.layerTest(options.policy),
       ),
     ),
     Effect.provideService(HostProcess.Hostname, "Mac-Mini.local"),
@@ -230,6 +234,25 @@ it.layer(NodeServices.layer)("TailnetNode", (it) => {
         type: "start",
         hostname: "studio",
       });
+    }),
+  );
+
+  it.effect("never starts the helper when the policy leaves out remote clients", () =>
+    Effect.gen(function* () {
+      const { node, spawned } = yield* setup({
+        tailnet: { enabled: true },
+        policy: {
+          schemaVersion: 1,
+          organization: "Example Corp",
+          limits: { clients: ["desktop", "local-browser"] },
+        },
+      });
+      yield* node.start;
+      expect(yield* node.current).toEqual({ state: "unavailable", reason: "managed-policy" });
+      expect(yield* Queue.size(spawned)).toBe(0);
+      const refused = yield* node.login.pipe(Effect.flip);
+      expect(refused).toMatchObject({ reason: "managed-policy" });
+      expect(refused.message).toContain("Example Corp's policy does not allow remote clients");
     }),
   );
 

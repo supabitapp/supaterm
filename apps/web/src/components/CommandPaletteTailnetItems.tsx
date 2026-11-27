@@ -1,18 +1,22 @@
-import { AuthAccessWriteScope } from "@supaterm/contracts";
+import { AuthAccessWriteScope, isManagedSettingPath } from "@supaterm/contracts";
 import { CopyIcon, NetworkIcon, PowerIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
+import { useGT } from "gt-react";
 
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
 import { useUpdateEnvironmentSettings } from "../hooks/useSettings";
 import { usePrimaryEnvironmentId } from "../state/environments";
+import { useManagedPolicy } from "../state/managedPolicy";
 import { useEnvironmentScope } from "../state/session";
 import { ITEM_ICON_CLASS, type CommandPaletteActionItem } from "./CommandPalette.logic";
 import { useTailnetView } from "./settings/useTailnetView";
 
 /** Built-in Tailscale actions for the primary environment. */
 export function useCommandPaletteTailnetItems(): ReadonlyArray<CommandPaletteActionItem> {
+  const gt = useGT();
   const environmentId = usePrimaryEnvironmentId();
   const tailnet = useTailnetView(environmentId);
+  const policy = useManagedPolicy(environmentId);
   const canWrite = useEnvironmentScope(environmentId, AuthAccessWriteScope);
   const updateSettings = useUpdateEnvironmentSettings(environmentId);
   const navigate = useNavigate();
@@ -23,7 +27,7 @@ export function useCommandPaletteTailnetItems(): ReadonlyArray<CommandPaletteAct
     items.push({
       kind: "action",
       value: "action:tailnet:set-up",
-      title: "Set up built-in Tailscale",
+      title: gt("Set up built-in Tailscale"),
       searchTerms: ["tailscale", "tailnet", "headscale", "remote", "vpn", "sign in"],
       icon: <NetworkIcon className={ITEM_ICON_CLASS} />,
       run: async () => {
@@ -40,20 +44,20 @@ export function useCommandPaletteTailnetItems(): ReadonlyArray<CommandPaletteAct
     items.push({
       kind: "action",
       value: "action:tailnet:copy-address",
-      title: "Copy Tailscale address",
+      title: gt("Copy Tailscale address"),
       description: view.dnsName,
       searchTerms: ["tailscale", "tailnet", "address", "url", "copy", "ts.net"],
       icon: <CopyIcon className={ITEM_ICON_CLASS} />,
       run: async () => {
-        await writeTextToClipboard(address, "Tailscale address");
+        await writeTextToClipboard(address, gt("Tailscale address"));
       },
     });
   }
-  if (settings.enabled && canWrite) {
+  if (settings.enabled && canWrite && !isManagedSettingPath(policy, "tailnet.enabled")) {
     items.push({
       kind: "action",
       value: "action:tailnet:turn-off",
-      title: "Turn off built-in Tailscale",
+      title: gt("Turn off built-in Tailscale"),
       searchTerms: ["tailscale", "tailnet", "disable", "stop", "off"],
       icon: <PowerIcon className={ITEM_ICON_CLASS} />,
       run: async () => {

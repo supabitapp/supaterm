@@ -1,4 +1,9 @@
-import type { TailnetRunning, TailnetSettings, TailnetStatus } from "@supaterm/contracts";
+import type {
+  ManagedPolicySummary,
+  TailnetRunning,
+  TailnetSettings,
+  TailnetStatus,
+} from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -25,12 +30,23 @@ const RUNNING: TailnetRunning = {
   health: [],
 };
 
-function view(status: TailnetStatus | null, settings: Partial<TailnetSettings> = {}) {
+const NO_REMOTE_POLICY: ManagedPolicySummary = {
+  organization: "Example Corp",
+  lockedSettings: [],
+  limits: { clients: ["desktop", "local-browser"] },
+};
+
+function view(
+  status: TailnetStatus | null,
+  settings: Partial<TailnetSettings> = {},
+  managedPolicy?: ManagedPolicySummary,
+) {
   return tailnetView({
     status,
     settings: { ...SETTINGS, ...settings },
     machineHostname: "Studio.local",
     now: NOW,
+    managedPolicy,
   });
 }
 
@@ -66,10 +82,16 @@ describe("tailnetView", () => {
   });
 
   it.each([
-    ["binary-missing", "Built-in Tailscale isn't included in this build."],
-    ["unsupported-platform", "Built-in Tailscale isn't supported on this system."],
-  ] as const)("explains why it is unavailable: %s", (reason, summary) => {
-    expect(view({ state: "unavailable", reason })).toMatchObject({
+    ["binary-missing", undefined, "Built-in Tailscale isn't included in this build."],
+    ["unsupported-platform", undefined, "Built-in Tailscale isn't supported on this system."],
+    [
+      "managed-policy",
+      NO_REMOTE_POLICY,
+      "Example Corp's policy does not allow connecting from other devices.",
+    ],
+    ["managed-policy", undefined, "Your organization's policy does not allow built-in Tailscale."],
+  ] as const)("explains why it is unavailable: %s", (reason, policy, summary) => {
+    expect(view({ state: "unavailable", reason }, {}, policy)).toMatchObject({
       kind: "unavailable",
       summary,
       account: null,

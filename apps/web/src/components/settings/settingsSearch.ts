@@ -1230,10 +1230,12 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "built-in-tailscale",
-    title: "Built-in Tailscale",
+    title: msg("Built-in Tailscale"),
     to: "/settings/access",
     searchTerms: [
-      "tailscale tailnet headscale magicdns ts.net https certificate remote vpn serve over tailscale sign in sign out limit access machine name control server",
+      msg(
+        "tailscale tailnet headscale magicdns ts.net https certificate remote vpn serve over tailscale sign in sign out limit access machine name control server",
+      ),
     ],
   },
   {

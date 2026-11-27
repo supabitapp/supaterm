@@ -73,6 +73,10 @@ session. Pairing stays the only way in. Port 80 serves only the encrypted direct
 tunnel, which is why tunnel candidates include the node's address while
 `directEndpoints` lists only its HTTPS name.
 
+Tailnet callers arrive on a loopback socket, so binding the server to loopback does
+not keep them out. A managed policy without remote clients stops the
+[node](../../apps/server/src/tailnet/TailnetNode.ts) from starting instead.
+
 ## Peer links
 
 A [peer link](../../apps/server/src/peer/PeerLinks.ts) lets one environment's

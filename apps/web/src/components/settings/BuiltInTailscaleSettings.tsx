@@ -4,6 +4,8 @@ import {
   type EnvironmentId,
   type TailnetSettingsPatch,
 } from "@supaterm/contracts";
+import { managedCapabilityDenial } from "@supaterm/client-runtime/contract-labels";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   isAtomCommandInterrupted,
   settlePromise,
@@ -15,6 +17,7 @@ import {
   tailnetAdmissionDescription,
 } from "@supaterm/client-runtime/tailnet/view";
 import { CheckIcon, CopyIcon, XIcon } from "@supaterm/icons";
+import { T, useGT, useMessages } from "gt-react";
 import { useState } from "react";
 
 import { isWebUrl } from "~/browser/webUrl";
@@ -22,6 +25,7 @@ import { requestConfirmDialog } from "~/confirmDialog";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useUpdateEnvironmentSettings } from "~/hooks/useSettings";
 import { ensureLocalApi, readLocalApi } from "~/localApi";
+import { useManagedPolicy } from "~/state/managedPolicy";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { tailnetEnvironment } from "~/state/tailnet";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -56,7 +60,10 @@ export function BuiltInTailscaleSettings({
 }: {
   readonly environmentId: EnvironmentId;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const tailnet = useTailnetView(environmentId);
+  const policy = useManagedPolicy(environmentId);
   const canWrite = useEnvironmentScope(environmentId, AuthAccessWriteScope);
   const canSignIn = useAtomValue(tailnetEnvironment.login.permissionAtom(environmentId));
   const canSignOut = useAtomValue(tailnetEnvironment.logout.permissionAtom(environmentId));
@@ -66,11 +73,11 @@ export function BuiltInTailscaleSettings({
   const [signIn, setSignIn] = useState<SignIn>({ phase: "idle" });
   const [signingOut, setSigningOut] = useState(false);
   const { copyToClipboard, isCopied } = useCopyToClipboard({
-    target: "Tailscale address",
+    target: gt("Tailscale address"),
     onError: (error) =>
       toastManager.add({
         type: "error",
-        title: "Could not copy the Tailscale address",
+        title: gt("Could not copy the Tailscale address"),
         description: error.message,
       }),
   });
@@ -82,6 +89,13 @@ export function BuiltInTailscaleSettings({
     setSignIn({ phase: "idle" });
   const available = view.kind !== "unavailable";
   const ownerLogin = view.kind === "running" ? view.ownerLogin : null;
+  const lock = (path: string) => managedSettingDenial([policy], [path], m);
+  const enabledManaged =
+    (settings.enabled ? undefined : managedCapabilityDenial(policy, "remoteClients", m)) ??
+    lock("tailnet.enabled");
+  const admissionManaged = lock("tailnet.admission");
+  const allowedLoginsManaged = lock("tailnet.allowedLogins");
+  const controlUrlManaged = lock("tailnet.controlUrl");
 
   const startSignIn = async () => {
     if (signIn.phase === "requesting" || !readEnvironmentScope(environmentId, AuthAccessWriteScope))
@@ -100,7 +114,7 @@ export function BuiltInTailscaleSettings({
               phase: "failed",
               message: failureMessage(
                 squashAtomCommandFailure(result),
-                "Could not start Tailscale sign-in. Try again.",
+                gt("Could not start Tailscale sign-in. Try again."),
               ),
             },
       );
@@ -111,7 +125,7 @@ export function BuiltInTailscaleSettings({
       pending?.close();
       setSignIn({
         phase: "failed",
-        message: "Tailscale returned a sign-in link that is not a web address.",
+        message: gt("Tailscale returned a sign-in link that is not a web address."),
       });
       return;
     }
@@ -124,14 +138,16 @@ export function BuiltInTailscaleSettings({
     setSignIn(
       opened._tag === "Success"
         ? { phase: "browser" }
-        : { phase: "failed", message: "Could not open the Tailscale sign-in page." },
+        : { phase: "failed", message: gt("Could not open the Tailscale sign-in page.") },
     );
   };
 
   const signOut = async () => {
     if (signingOut) return;
     const confirmed = await requestConfirmDialog(
-      "Sign out of Tailscale?\nThis machine leaves your tailnet. Devices using its Tailscale address lose access until you sign in again.",
+      gt(
+        "Sign out of Tailscale?\nThis machine leaves your tailnet. Devices using its Tailscale address lose access until you sign in again.",
+      ),
       { variant: "destructive" },
     );
     if (confirmed !== true || !readEnvironmentScope(environmentId, AuthAccessWriteScope)) return;
@@ -141,8 +157,8 @@ export function BuiltInTailscaleSettings({
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       toastManager.add({
         type: "error",
-        title: "Could not sign out of Tailscale",
-        description: failureMessage(squashAtomCommandFailure(result), "Try again."),
+        title: gt("Could not sign out of Tailscale"),
+        description: failureMessage(squashAtomCommandFailure(result), gt("Try again.")),
       });
     }
   };
@@ -150,19 +166,20 @@ export function BuiltInTailscaleSettings({
   const accountAction =
     view.account?.action === "sign-in" && canSignIn ? (
       <Button size="sm" disabled={signIn.phase === "requesting"} onClick={() => void startSignIn()}>
-        {signIn.phase === "requesting" ? "Opening Tailscale…" : "Sign in…"}
+        {signIn.phase === "requesting" ? gt("Opening Tailscale…") : gt("Sign in…")}
       </Button>
     ) : view.account?.action === "sign-out" && canSignOut ? (
       <Button size="sm" variant="outline" disabled={signingOut} onClick={() => void signOut()}>
-        Sign out…
+        <T>Sign out…</T>
       </Button>
     ) : undefined;
 
   return (
     <SettingsSection {...searchableSetting("built-in-tailscale")}>
       <SettingsRow
-        title="Serve over Tailscale"
+        title={gt("Serve over Tailscale")}
         description={view.summary}
+        managed={enabledManaged}
         status={
           statusError !== null ? (
             <span className="block text-destructive">{statusError}</span>
@@ -173,7 +190,7 @@ export function BuiltInTailscaleSettings({
             checked={settings.enabled}
             disabled={!canWrite || (!available && !settings.enabled)}
             onCheckedChange={(enabled) => patch({ enabled })}
-            aria-label="Serve over built-in Tailscale"
+            aria-label={gt("Serve over built-in Tailscale")}
           />
         }
       />
@@ -191,9 +208,9 @@ export function BuiltInTailscaleSettings({
                 ))}
                 {signIn.phase === "browser" ? (
                   <span className="block">
-                    Finish signing in in your browser. This page updates on its own.{" "}
+                    <T>Finish signing in in your browser. This page updates on its own.</T>{" "}
                     <InlineButton tone="link" onClick={() => void startSignIn()}>
-                      Open it again
+                      <T>Open it again</T>
                     </InlineButton>
                   </span>
                 ) : signIn.phase === "failed" ? (
@@ -207,7 +224,7 @@ export function BuiltInTailscaleSettings({
       ) : null}
       {view.kind === "running" ? (
         <SettingsRow
-          title="Address"
+          title={gt("Address", { $context: "network address of this machine" })}
           description={
             <>
               <span className="block select-text">{view.address ?? view.dnsName}</span>
@@ -223,7 +240,7 @@ export function BuiltInTailscaleSettings({
                           void readLocalApi()?.shell.openExternal(TAILSCALE_DNS_ADMIN_URL)
                         }
                       >
-                        Turn them on in Tailscale
+                        <T>Turn them on in Tailscale</T>
                       </InlineButton>
                     </>
                   ) : null}
@@ -236,7 +253,7 @@ export function BuiltInTailscaleSettings({
               <Button
                 size="icon-sm"
                 variant="outline"
-                aria-label={isCopied ? "Copied" : "Copy Tailscale address"}
+                aria-label={isCopied ? gt("Copied") : gt("Copy Tailscale address")}
                 onClick={() => copyToClipboard(view.address ?? "", undefined)}
               >
                 {isCopied ? <CheckIcon /> : <CopyIcon />}
@@ -248,14 +265,15 @@ export function BuiltInTailscaleSettings({
       {available ? (
         <>
           <SettingsRow
-            title="Limit access to your Tailscale account"
-            description={tailnetAdmissionDescription(settings.admission, ownerLogin)}
+            title={gt("Limit access to your Tailscale account")}
+            description={tailnetAdmissionDescription(settings.admission, ownerLogin, m)}
+            managed={admissionManaged}
             control={
               <Switch
                 checked={settings.admission === "owner"}
-                disabled={!canWrite}
+                disabled={!canWrite || admissionManaged !== undefined}
                 onCheckedChange={(owner) => patch({ admission: owner ? "owner" : "tailnet" })}
-                aria-label="Limit access to your Tailscale account"
+                aria-label={gt("Limit access to your Tailscale account")}
               />
             }
           />
@@ -263,29 +281,39 @@ export function BuiltInTailscaleSettings({
             value={view.hostname}
             running={settings.enabled}
             disabled={!canWrite}
+            managed={lock("tailnet.hostname")}
             onCommit={(hostname, restore) => patch({ hostname }, restore)}
           />
-          <SettingsDisclosure title="Advanced">
+          <SettingsDisclosure title={<T>Advanced</T>}>
             {settings.admission === "owner" ? (
               <AllowedLoginsRow
                 allowed={settings.allowedLogins}
-                disabled={!canWrite}
+                disabled={!canWrite || allowedLoginsManaged !== undefined}
+                managed={allowedLoginsManaged}
                 onChange={(allowedLogins) => patch({ allowedLogins })}
               />
             ) : null}
             <DraftRow
-              title="Control server"
-              description="Leave empty for Tailscale. Enter a Headscale URL to use your own."
-              ariaLabel="Tailscale control server URL"
+              title={gt("Control server")}
+              description={gt("Leave empty for Tailscale. Enter a Headscale URL to use your own.")}
+              ariaLabel={gt("Tailscale control server URL")}
               placeholder="Tailscale"
               value={settings.controlUrl}
-              validate={tailnetControlUrlDraftError}
-              actionLabel="Save"
-              disabled={!canWrite}
+              validate={(draft) => tailnetControlUrlDraftError(draft, m)}
+              actionLabel={gt("Save")}
+              disabled={!canWrite || controlUrlManaged !== undefined}
+              managed={controlUrlManaged}
               onCommit={async (controlUrl, restore) => {
                 if (settings.enabled) {
                   const confirmed = await requestConfirmDialog(
-                    `${controlUrl === "" ? "Use Tailscale's control server" : `Use ${controlUrl} as the control server`}?\nBuilt-in Tailscale restarts, and you may need to sign in again.`,
+                    controlUrl === ""
+                      ? gt(
+                          "Use Tailscale's control server?\nBuilt-in Tailscale restarts, and you may need to sign in again.",
+                        )
+                      : gt(
+                          "Use {controlUrl} as the control server?\nBuilt-in Tailscale restarts, and you may need to sign in again.",
+                          { controlUrl },
+                        ),
                   );
                   if (confirmed !== true) return false;
                 }
@@ -304,25 +332,33 @@ function HostnameRow({
   value,
   running,
   disabled,
+  managed,
   onCommit,
 }: {
   readonly value: string;
   readonly running: boolean;
   readonly disabled: boolean;
+  readonly managed: string | undefined;
   readonly onCommit: (hostname: string, restore: () => void) => void;
 }) {
+  const gt = useGT();
+  const m = useMessages();
   const [draft, setDraft] = useState<string | null>(null);
   const shown = draft ?? value;
-  const error = draft === null ? null : tailnetHostnameDraftError(draft);
+  const error = draft === null ? null : tailnetHostnameDraftError(draft, m);
+  const locked = disabled || managed !== undefined;
   const commit = async () => {
     const next = shown.trim();
-    if (disabled || draft === null || next === value || error !== null) {
+    if (locked || draft === null || next === value || error !== null) {
       if (draft !== null && next === value) setDraft(null);
       return;
     }
     if (running) {
       const confirmed = await requestConfirmDialog(
-        `Rename this machine to ${next}?\nBuilt-in Tailscale restarts with a new address. Saved routes that use ${value} stop working.`,
+        gt(
+          "Rename this machine to {next}?\nBuilt-in Tailscale restarts with a new address. Saved routes that use {value} stop working.",
+          { next, value },
+        ),
       );
       if (confirmed !== true) return;
     }
@@ -331,16 +367,17 @@ function HostnameRow({
   };
   return (
     <SettingsRow
-      title="Machine name"
-      description={TAILNET_MACHINE_NAME_DESCRIPTION}
+      title={gt("Machine name")}
+      description={m(TAILNET_MACHINE_NAME_DESCRIPTION)}
       status={error ? <span className="block text-destructive">{error}</span> : null}
+      managed={managed}
       control={
         <Input
           size="sm"
-          aria-label="Tailscale machine name"
+          aria-label={gt("Tailscale machine name")}
           autoCapitalize="none"
           spellCheck={false}
-          disabled={disabled}
+          disabled={locked}
           value={shown}
           onChange={(event) => setDraft(normalizeTailnetHostnameDraft(event.target.value))}
           onBlur={() => void commit()}
@@ -357,12 +394,15 @@ function HostnameRow({
 function AllowedLoginsRow({
   allowed,
   disabled,
+  managed,
   onChange,
 }: {
   readonly allowed: ReadonlyArray<string>;
   readonly disabled: boolean;
+  readonly managed: string | undefined;
   readonly onChange: (allowed: ReadonlyArray<string>) => void;
 }) {
+  const gt = useGT();
   const [draft, setDraft] = useState("");
   const next = addAllowedTailnetLogin(allowed, draft);
   const add = () => {
@@ -372,13 +412,14 @@ function AllowedLoginsRow({
   };
   return (
     <SettingsRow
-      title="Also allow"
-      description="Other Tailscale accounts that can connect."
+      title={gt("Also allow")}
+      description={gt("Other Tailscale accounts that can connect.")}
+      managed={managed}
       control={
         <>
           <Input
             size="sm"
-            aria-label="Tailscale login to allow"
+            aria-label={gt("Tailscale login to allow")}
             placeholder="name@example.com"
             autoCapitalize="none"
             spellCheck={false}
@@ -390,7 +431,7 @@ function AllowedLoginsRow({
             }}
           />
           <Button size="sm" variant="outline" disabled={disabled || next === null} onClick={add}>
-            Add
+            <T>Add</T>
           </Button>
         </>
       }
@@ -404,7 +445,7 @@ function AllowedLoginsRow({
                 <Button
                   size="icon-micro"
                   variant="ghost-muted"
-                  aria-label={`Remove ${login}`}
+                  aria-label={gt("Remove {login}", { login })}
                   disabled={disabled}
                   onClick={() => onChange(allowed.filter((existing) => existing !== login))}
                 >
@@ -429,6 +470,7 @@ function DraftRow({
   validate,
   actionLabel,
   disabled,
+  managed,
   onCommit,
 }: {
   readonly title: string;
@@ -440,6 +482,7 @@ function DraftRow({
   readonly validate: (draft: string) => string | null;
   readonly actionLabel: string;
   readonly disabled: boolean;
+  readonly managed: string | undefined;
   readonly onCommit: (value: string, restore: () => void) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -456,6 +499,7 @@ function DraftRow({
       title={title}
       description={description}
       status={error ? <span className="block text-destructive">{error}</span> : null}
+      managed={managed}
       control={
         <>
           <Input

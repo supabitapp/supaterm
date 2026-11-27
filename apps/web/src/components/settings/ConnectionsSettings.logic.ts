@@ -44,10 +44,13 @@ export function createRelayPairingEndpoint(relayEndpoint: string) {
   });
 }
 
-export function createBuiltInTailnetPairingEndpoint(httpBaseUrl: string) {
+export function createBuiltInTailnetPairingEndpoint(
+  httpBaseUrl: string,
+  resolve: MessageResolver = m,
+) {
   return createAdvertisedEndpoint({
     id: `built-in-tailscale:${httpBaseUrl}`,
-    label: "Built-in Tailscale",
+    label: resolve(msg("Built-in Tailscale")),
     provider: {
       id: "built-in-tailscale",
       label: "Tailscale",
@@ -58,7 +61,7 @@ export function createBuiltInTailnetPairingEndpoint(httpBaseUrl: string) {
     reachability: "private-network",
     hostedHttpsCompatibility: "compatible",
     source: "server",
-    description: "Reachable from devices on the same tailnet.",
+    description: resolve(msg("Reachable from devices on the same tailnet.")),
   });
 }
 

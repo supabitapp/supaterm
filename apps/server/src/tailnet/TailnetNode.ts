@@ -29,6 +29,8 @@ import * as Ndjson from "effect/encoding/Ndjson";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import * as ServerConfig from "../config.ts";
+import * as ManagedLimits from "../policy/managedLimits.ts";
+import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as ServerSettingsService from "../serverSettings.ts";
 import {
   SidecarCommand,
@@ -147,6 +149,9 @@ export const make = Effect.gen(function* () {
   const environment = yield* HostProcess.Environment;
   const platform = yield* HostProcess.Platform;
   const machineHostname = yield* HostProcess.Hostname;
+  const policy = yield* ManagedPolicy.ManagedPolicy;
+  // The policy is fixed for the server's life, and built-in Tailscale lets remote clients in.
+  const remoteAllowed = ManagedLimits.allowsRemoteClients(policy);
   const stateDir = path.join(config.stateDir, "tailscale");
   const verbose = environment.SUPATERM_TAILNET_VERBOSE === "1";
 
@@ -387,6 +392,7 @@ export const make = Effect.gen(function* () {
   const start = Effect.gen(function* () {
     if (started) return;
     started = true;
+    if (!remoteAllowed) return yield* setStatus({ state: "unavailable", reason: "managed-policy" });
     const scope = yield* Effect.scope;
     yield* Effect.addFinalizer(() =>
       stopRunning.pipe(Effect.andThen(setStatus({ state: "off" })), lock.withPermit),
@@ -411,7 +417,13 @@ export const make = Effect.gen(function* () {
     status.state === "off"
       ? new TailnetActionError({ reason: "off" })
       : status.state === "unavailable"
-        ? new TailnetActionError({ reason: "unavailable" })
+        ? status.reason === "managed-policy"
+          ? new TailnetActionError({
+              reason: "managed-policy",
+              detail: ManagedLimits.refuseRemoteClients(policy, "so built-in Tailscale cannot run")
+                .message,
+            })
+          : new TailnetActionError({ reason: "unavailable" })
         : status.state === "running"
           ? new TailnetActionError({ reason: "signed-in" })
           : new TailnetActionError({ reason: "failed" });

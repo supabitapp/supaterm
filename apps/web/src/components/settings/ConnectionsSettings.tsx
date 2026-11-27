@@ -770,7 +770,7 @@ function ConnectionsSettingsContent({
       endpoint.httpBaseUrl !== tailscaleHttpsEndpoint?.httpBaseUrl,
   )?.httpBaseUrl;
   const builtInTailnetEndpoint = builtInTailnetUrl
-    ? createBuiltInTailnetPairingEndpoint(builtInTailnetUrl)
+    ? createBuiltInTailnetPairingEndpoint(builtInTailnetUrl, m)
     : null;
   const visibleDesktopAdvertisedEndpoints = [
     ...visibleDesktopNetworkAdvertisedEndpoints,

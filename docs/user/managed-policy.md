@@ -159,8 +159,9 @@ Leave `acpRegistry` out of `allowedDrivers` if users should not add ACP Registry
 - `local-browser` is a browser on the same machine, which includes a server started with
   `supaterm serve` that listens only on loopback.
 - `remote` is everything off the machine: phones, other computers, and remote browsers, over the
-  [Encrypted Relay](./remote-access.md#pair-through-the-encrypted-relay), the network, or
-  [Tailscale](./remote-access.md#tailscale-https).
+  [Encrypted Relay](./remote-access.md#pair-through-the-encrypted-relay), the network,
+  [built-in Tailscale](./remote-access.md#built-in-tailscale), or
+  [Tailscale app HTTPS](./remote-access.md#tailscale-app-https).
 
 A headless server that listens on loopback and is reached through the relay needs
 `["local-browser", "remote"]`. A server that listens on a network address needs `remote`, and so
@@ -171,7 +172,10 @@ allows it.
 Without `remote`, the server refuses relay pairing, turns the relay off, and no device off the
 machine can pair. The server does not start on a network address or with `--tailscale-serve`. At
 startup it turns off Tailscale Serve routes that forward to it, and it does not start while one
-remains.
+remains. Built-in Tailscale stays off, whatever **Serve over Tailscale** is set to.
+
+To allow remote clients but not built-in Tailscale, lock `tailnet.enabled` to `false` in
+`settings`.
 
 `"relay": false` turns the Encrypted Relay off whatever **Encrypted Relay** is set to, and refuses
 relay pairing. Network and Tailscale connections keep working when `clients` includes `remote`.

@@ -81,7 +81,11 @@ export const TailnetRunning = Schema.Struct({
 });
 export type TailnetRunning = typeof TailnetRunning.Type;
 
-export const TailnetUnavailableReason = Schema.Literals(["binary-missing", "unsupported-platform"]);
+export const TailnetUnavailableReason = Schema.Literals([
+  "binary-missing",
+  "unsupported-platform",
+  "managed-policy",
+]);
 
 export const TailnetStatus = Schema.Union([
   Schema.Struct({ state: Schema.Literal("off") }),
@@ -104,7 +108,16 @@ export type TailnetLoginResult = typeof TailnetLoginResult.Type;
 export class TailnetActionError extends Schema.TaggedError<TailnetActionError>()(
   "TailnetActionError",
   {
-    reason: Schema.Literals(["off", "unavailable", "signed-in", "timeout", "failed"]),
+    reason: Schema.Literals([
+      "off",
+      "unavailable",
+      "managed-policy",
+      "signed-in",
+      "timeout",
+      "failed",
+    ]),
+    /** For `managed-policy`: the refusal naming the administrator's organization. */
+    detail: Schema.optionalKey(Schema.String),
     cause: Schema.optionalKey(Schema.Defect()),
   },
   { httpApiStatus: 503 },
@@ -115,6 +128,8 @@ export class TailnetActionError extends Schema.TaggedError<TailnetActionError>()
         return "Built-in Tailscale is turned off.";
       case "unavailable":
         return "Built-in Tailscale is not available in this build.";
+      case "managed-policy":
+        return this.detail ?? "Your organization's policy does not allow built-in Tailscale.";
       case "signed-in":
         return "Built-in Tailscale is already signed in.";
       case "timeout":

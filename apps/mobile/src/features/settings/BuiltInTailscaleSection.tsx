@@ -5,12 +5,14 @@ import {
   type EnvironmentId,
   type TailnetSettingsPatch,
 } from "@supaterm/contracts";
+import { managedSettingDenial } from "@supaterm/client-runtime/managed-policy";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import type * as Cause from "effect/Cause";
 import { tailnetAdmissionDescription, tailnetView } from "@supaterm/client-runtime/tailnet/view";
+import { useGT, useMessages } from "gt-react-native";
 import { useState } from "react";
 import { View } from "react-native";
 
@@ -57,13 +59,22 @@ export function BuiltInTailscaleSection({
   const [error, setError] = useState<string | null>(null);
   const [waitingForBrowser, setWaitingForBrowser] = useState(false);
   const now = useNowMinuteMs();
+  const gt = useGT();
+  const m = useMessages();
   if (config === null || settings === null || !canRead) return null;
   const view = tailnetView({
     status: status.data,
     settings,
     machineHostname: config.hostname ?? "",
     now,
+    managedPolicy: config.managedPolicy,
+    resolve: m,
   });
+  const locked = (path: string) => managedSettingDenial([config.managedPolicy], [path], m);
+  const withReason = (subtitle: string, reason: string | undefined) =>
+    reason === undefined ? subtitle : gt("{subtitle} {reason}", { subtitle, reason });
+  const enabledLock = locked("tailnet.enabled");
+  const admissionLock = locked("tailnet.admission");
   if (view.kind !== "needs-login" && waitingForBrowser) setWaitingForBrowser(false);
 
   const patch = async (tailnet: TailnetSettingsPatch) => {
@@ -73,7 +84,7 @@ export function BuiltInTailscaleSection({
     const result = await updateSettings({ environmentId, input: { patch: { tailnet } } });
     setPending(null);
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      setError(failureMessage(result, "Could not save the Tailscale setting."));
+      setError(failureMessage(result, gt("Could not save the Tailscale setting.")));
     }
   };
 
@@ -85,23 +96,25 @@ export function BuiltInTailscaleSection({
     setPending(null);
     if (result._tag === "Failure") {
       if (!isAtomCommandInterrupted(result)) {
-        setError(failureMessage(result, "Could not start Tailscale sign-in."));
+        setError(failureMessage(result, gt("Could not start Tailscale sign-in.")));
       }
       return;
     }
     const opened = await tryOpenExternalUrl(result.value.loginUrl, "provider-auth");
     setWaitingForBrowser(opened);
-    if (!opened) setError("Could not open the Tailscale sign-in page.");
+    if (!opened) setError(gt("Could not open the Tailscale sign-in page."));
   };
 
   const signOut = () =>
     Dialog.alert(
-      "Sign out of Tailscale?",
-      "This machine leaves your tailnet. Devices using its Tailscale address lose access until you sign in again.",
+      gt("Sign out of Tailscale?"),
+      gt(
+        "This machine leaves your tailnet. Devices using its Tailscale address lose access until you sign in again.",
+      ),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: gt("Cancel"), style: "cancel" },
         {
-          text: "Sign out",
+          text: gt("Sign out", { $context: "verb, signs this machine out of Tailscale" }),
           style: "destructive",
           onPress: () =>
             void (async () => {
@@ -112,7 +125,7 @@ export function BuiltInTailscaleSection({
               const result = await logout({ environmentId, input: {} });
               setPending(null);
               if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-                setError(failureMessage(result, "Could not sign out of Tailscale."));
+                setError(failureMessage(result, gt("Could not sign out of Tailscale.")));
               }
             })(),
         },
@@ -124,16 +137,21 @@ export function BuiltInTailscaleSection({
   const accountNotes = [
     ...(view.account?.warnings ?? []),
     ...(view.kind === "needs-login" && waitingForBrowser
-      ? ["Finish signing in in your browser. This updates on its own."]
+      ? [gt("Finish signing in in your browser. This updates on its own.")]
       : []),
   ];
   return (
-    <SettingsSection title="Built-in Tailscale">
+    <SettingsSection title={gt("Built-in Tailscale")}>
       <SettingsToggleRow
-        label="Serve over Tailscale"
-        description={view.summary}
+        label={gt("Serve over Tailscale")}
+        description={withReason(view.summary, enabledLock)}
         value={settings.enabled}
-        disabled={busy || !canWrite || (view.kind === "unavailable" && !settings.enabled)}
+        disabled={
+          busy ||
+          !canWrite ||
+          enabledLock !== undefined ||
+          (view.kind === "unavailable" && !settings.enabled)
+        }
         onValueChange={(enabled) => void patch({ enabled })}
       />
       {view.account !== null ? (
@@ -153,7 +171,7 @@ export function BuiltInTailscaleSection({
       ) : null}
       {view.kind === "running" ? (
         <View className="gap-1 px-4 py-3">
-          <Text className="text-base text-foreground">Address</Text>
+          <Text className="text-base text-foreground">{gt("Address")}</Text>
           <Text selectable className="text-sm text-foreground-muted">
             {view.address ?? view.dnsName}
           </Text>
@@ -175,7 +193,7 @@ export function BuiltInTailscaleSection({
       {view.account?.action === "sign-in" && canSignIn ? (
         <SettingsActionRow
           icon="person.crop.circle"
-          label={waitingForBrowser ? "Open sign-in page again" : "Sign in…"}
+          label={waitingForBrowser ? gt("Open sign-in page again") : gt("Sign in…")}
           disabled={busy}
           loading={pending === "sign-in"}
           onPress={() => void signIn()}
@@ -184,7 +202,7 @@ export function BuiltInTailscaleSection({
       {view.account?.action === "sign-out" && canSignOut ? (
         <SettingsActionRow
           icon="person.fill.xmark"
-          label="Sign out…"
+          label={gt("Sign out…")}
           tone="danger"
           disabled={busy}
           loading={pending === "sign-out"}
@@ -193,10 +211,13 @@ export function BuiltInTailscaleSection({
       ) : null}
       {view.kind !== "unavailable" ? (
         <SettingsToggleRow
-          label="Limit access to your Tailscale account"
-          description={tailnetAdmissionDescription(settings.admission, ownerLogin)}
+          label={gt("Limit access to your Tailscale account")}
+          description={withReason(
+            tailnetAdmissionDescription(settings.admission, ownerLogin, m),
+            admissionLock,
+          )}
           value={settings.admission === "owner"}
-          disabled={busy || !canWrite}
+          disabled={busy || !canWrite || admissionLock !== undefined}
           onValueChange={(owner) => void patch({ admission: owner ? "owner" : "tailnet" })}
         />
       ) : null}
