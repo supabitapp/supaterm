@@ -90,7 +90,7 @@ test(
       if (threadId === undefined) throw new Error("Could not start the location agent's turn.");
 
       await supaterm.open({ threadId });
-      await screen.getByText("Working for", { exact: false }).first().waitFor({ timeout: 60_000 });
+      await screen.getByRole("button", "Stop generation").waitFor({ timeout: 60_000 });
       try {
         await expect(screen.getByRole("button", /^demo\/src\/location-proof\.ts$/)).toBeVisible({
           timeout: 15_000,
