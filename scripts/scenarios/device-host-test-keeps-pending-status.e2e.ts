@@ -61,29 +61,20 @@ test(
     });
 
     await supaterm.open(
-      `/settings/devices?machine=${encodeURIComponent(environment)}#device-sources`,
+      `/settings/devices?machine=${encodeURIComponent(environment)}#device-hosts`,
     );
-    const more = browser.locator("#device-sources").getByRole("button", "More", { exact: true });
-    const testConnection = screen.getByRole("menuitem", "Test connection", { exact: true });
-    const pending = screen.getByText("Testing connection", { exact: true });
+    const testConnection = browser
+      .locator("#device-hosts")
+      .getByRole("button", "Test connection", { exact: true });
+    const pending = screen.getByText("Checking connection…", { exact: true });
     try {
-      await more.tap();
       await testConnection.tap();
       await pending.waitFor();
       await browser.evaluate(async () => {
         await window.deviceHostProbeGate!.started;
         return null;
       });
-      if (await more.isEnabled()) {
-        await more.tap();
-        await screen.getByRole("menu").waitFor();
-        if ((await testConnection.isVisible()) && (await testConnection.isEnabled())) {
-          await testConnection.tap();
-          await testConnection.waitFor({ state: "hidden" });
-        } else {
-          await browser.keyboard.press("Escape");
-        }
-      }
+      if (await testConnection.isEnabled()) await testConnection.tap();
 
       await app.screenshot("second-connection-check");
       expect(await pending.isVisible(), "The SSH connection check still shows as pending").toBe(
