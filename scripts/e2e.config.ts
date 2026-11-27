@@ -60,11 +60,15 @@ export const NATIVE_APPS = {
   },
 } satisfies Record<MobilePlatform, unknown>;
 
-const nativeTarget = (platform: MobilePlatform) => {
+/**
+ * A native target runs only on the device its variable names: a run reinstalls the dev app and, on
+ * iOS, resets the simulator's keychain, so it must never pick a device someone else uses.
+ */
+const nativeTargets = (Object.keys(NATIVE_APPS) as Array<MobilePlatform>).flatMap((platform) => {
   const native = NATIVE_APPS[platform];
-  return {
+  if (native.device === undefined) return [];
+  const target = {
     name: platform,
-    // Without a device, e2e takes a booted one no other agent-device session holds.
     engine: mobile({ platform, device: native.device, session: `supaterm-scenarios-${platform}` }),
     app: {
       bundleId: "com.supaterm.mobile.dev",
@@ -88,7 +92,8 @@ const nativeTarget = (platform: MobilePlatform) => {
       },
     },
   };
-};
+  return [target];
+});
 
 export default {
   tests: "scenarios/**/*.e2e.ts",
@@ -112,8 +117,7 @@ export default {
         },
       },
     },
-    nativeTarget("ios"),
-    nativeTarget("android"),
+    ...nativeTargets,
   ],
   // One server holds every test's state, and a dev stack is heavy.
   workers: 1,

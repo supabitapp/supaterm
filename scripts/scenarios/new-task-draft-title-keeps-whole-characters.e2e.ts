@@ -13,24 +13,45 @@ test(
     await supaterm.project("demo");
     await supaterm.open();
 
-    await screen.getByRole("button", "New chat").tap({ timeout: 120_000 });
+    await screen
+      .getByLabel(/^New (chat|thread)$/)
+      .first()
+      .tap({ timeout: 120_000 });
     const composer = screen.getByRole("textbox", "Ask anything");
-    const projectSearch = screen.getByRole("textbox", "Search projects");
-    // The project list slides over the draft, which names its project too.
-    await projectSearch.waitFor();
-    await composer.waitFor({ state: "hidden" });
-    await screen.getByRole("button", "demo").tap();
-    await projectSearch.waitFor({ state: "hidden" });
+    if (supaterm.platform === "ios") {
+      const projectSearch = screen.getByRole("textbox", "Search projects");
+      // The project list slides over the draft, which names its project too.
+      await projectSearch.waitFor();
+      await composer.waitFor({ state: "hidden" });
+      await screen.getByRole("button", "demo").tap();
+      await projectSearch.waitFor({ state: "hidden" });
+    } else {
+      // Android lists projects by name and path before the draft opens.
+      const project = screen.getByRole("button", /^demo, /).first();
+      await project.tap();
+      await project.waitFor({ state: "hidden" });
+    }
     await composer.fill(PROMPT);
-    await screen.getByTestId("BackButton").tap();
+    await (
+      supaterm.platform === "ios"
+        ? screen.getByTestId("BackButton")
+        : screen.getByRole("button", "Navigate up").first()
+    ).tap();
 
     const row = screen.getByLabel(KEPT, { exact: false });
     await row.waitFor({ timeout: 30_000 });
     // The row clips its title before the cut; the discard prompt shows it whole.
     await row.longPress();
-    await screen.getByRole("button", "Discard").tap();
+    // Android's long-press menu exposes its items as text, iOS's as buttons.
+    await (
+      supaterm.platform === "ios"
+        ? screen.getByRole("button", "Discard")
+        : screen.getByText("Discard", { exact: true })
+    ).tap();
     await app.screenshot("discard-prompt");
-    await device.alert("dismiss");
+    // iOS confirms in a system alert; Android in the app's own dialog.
+    if (supaterm.platform === "ios") await device.alert("dismiss");
+    else await screen.getByText("Cancel", { exact: true }).tap();
     await expect(row).toHaveAccessibleName(`${KEPT}...`);
   },
 );

@@ -3,7 +3,7 @@ import { expect } from "e2e";
 import { NATIVE, test } from "./supaterm-mobile.ts";
 
 test(
-  "The iOS app lists a seeded thread and opens its history",
+  "The mobile app lists a seeded thread and opens its history",
   NATIVE,
   async ({ supaterm, app, screen }) => {
     const project = await supaterm.project("demo");

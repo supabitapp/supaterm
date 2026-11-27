@@ -54,7 +54,7 @@ const installed = new Set<MobilePlatform>();
 const paired = new Set<MobilePlatform>();
 
 export const test = base.extend<{ supaterm: MobileSupaterm }>({
-  supaterm: async ({ device, screen }, use) => {
+  supaterm: async ({ app, device, screen }, use) => {
     const platform = device.unstable_raw.platform;
     const native = NATIVE_APPS[platform];
     const { state, cli, cleanup } = makeState(native.home, {
@@ -79,7 +79,10 @@ export const test = base.extend<{ supaterm: MobileSupaterm }>({
       openLink: (path) => openLink(`${SCHEME}://${path}`),
       open: async () => {
         if (!installed.has(platform)) {
-          await device.installApp(await runPromise(devClientPath(platform)), { reinstall: true });
+          // Saved environments live in the iOS keychain, which outlives the app.
+          if (platform === "ios") await device.clearKeychain();
+          await device.installApp(await runPromise(devClientPath(platform)));
+          await app.clearState();
           installed.add(platform);
         }
         const metro = encodeURIComponent(`http://${native.deviceHost}:${native.metroPort}`);
@@ -96,6 +99,8 @@ export const test = base.extend<{ supaterm: MobileSupaterm }>({
           autoConnect: "1",
         });
         await openLink(`${SCHEME}://connections/new?${query.toString()}`);
+        // Connected once the empty state gives way to the environment's threads.
+        await expect(screen.getByRole("button", "Add environment")).toBeHidden({ timeout: 60_000 });
         paired.add(platform);
       },
     });

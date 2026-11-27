@@ -1,0 +1,54 @@
+name: Scenarios
+
+# Real-app scenarios on the web target, so a committed scenario keeps proving what it proved.
+on:
+  schedule:
+    - cron: "37 6 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/e2e.config.ts
+      - scripts/scenarios/**
+      - .github/workflows/scenarios.yml
+
+permissions:
+  contents: read
+
+env:
+  MISE_DISABLE_TOOLS: go
+
+concurrency:
+  group: scenarios-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web scenarios
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Mise
+        uses: ./.github/actions/setup-mise
+      - name: Install workspace dependencies
+        uses: ./.github/actions/setup-ci-deps
+      - uses: ./.github/actions/setup-chromium
+        with:
+          playwright: scripts/node_modules/playwright-core
+      - name: Install video encoder
+        run: node scripts/node_modules/playwright-core/cli.js install ffmpeg
+      - name: Run scenarios
+        run: vp run scenarios --target web
+      - name: Upload results
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scenarios-web
+          path: |
+            scripts/.e2e/
+            !scripts/.e2e/**/*.webm
+          if-no-files-found: ignore
+          retention-days: 14
