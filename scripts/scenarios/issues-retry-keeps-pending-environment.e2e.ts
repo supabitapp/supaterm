@@ -117,7 +117,7 @@ test(
       await supaterm.open("/settings/connections");
       await screen.getByRole("button", "Add environment").tap();
       const dialog = screen.getByRole("dialog");
-      await dialog.getByPlaceholder("backend.example.com").fill(host);
+      await dialog.getByRole("textbox", "Host", { exact: true }).fill(host);
       await dialog.getByPlaceholder("PAIRCODE").fill(token);
       await dialog.getByRole("button", "Add environment").tap();
       await screen.getByRole("button", "More actions for Scenario").waitFor({ timeout: 60_000 });
