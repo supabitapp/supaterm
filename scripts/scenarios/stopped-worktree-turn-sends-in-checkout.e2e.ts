@@ -35,12 +35,11 @@ test(
     await stop.tap();
     await stop.waitFor({ state: "hidden" });
 
-    await browser.locator('[data-slot="combobox-trigger"][aria-label^="Branch:"]:visible').click();
+    await browser.locator('[role="combobox"][aria-label^="Branch:"]:visible').click();
     await screen.getByRole("option", /^main\b/).tap();
-    // The server has moved the thread to the project checkout before the send.
-    await browser
-      .locator('[aria-label^="Run context:"][aria-label$="Local checkout"]')
-      .waitFor({ timeout: 60_000 });
+    // The server has moved the thread to the project checkout before the send: the Changes row
+    // reads the thread's folder, which no longer compares a worktree branch against main.
+    await screen.getByRole("button", /^Changes Uncommitted/).waitFor({ timeout: 60_000 });
 
     await screen.getByRole("textbox").fill("Once more");
     await screen.getByRole("textbox").press("Enter");
