@@ -413,20 +413,24 @@ export const make = Effect.gen(function* () {
     Stream.changesWith<TailnetStatus>(Equal.equals),
   );
 
-  const failFor = (status: TailnetStatus) =>
-    status.state === "off"
-      ? new TailnetActionError({ reason: "off" })
-      : status.state === "unavailable"
-        ? status.reason === "managed-policy"
+  const failFor = (status: TailnetStatus) => {
+    switch (status.state) {
+      case "off":
+        return new TailnetActionError({ reason: "off" });
+      case "unavailable":
+        return status.reason === "managed-policy"
           ? new TailnetActionError({
               reason: "managed-policy",
               detail: ManagedLimits.refuseRemoteClients(policy, "so built-in Tailscale cannot run")
                 .message,
             })
-          : new TailnetActionError({ reason: "unavailable" })
-        : status.state === "running"
-          ? new TailnetActionError({ reason: "signed-in" })
-          : new TailnetActionError({ reason: "failed" });
+          : new TailnetActionError({ reason: "unavailable" });
+      case "running":
+        return new TailnetActionError({ reason: "signed-in" });
+      default:
+        return new TailnetActionError({ reason: "failed" });
+    }
+  };
 
   const commandFor = (status: TailnetStatus) =>
     Ref.get(send).pipe(

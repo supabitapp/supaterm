@@ -94,6 +94,7 @@ export function BuiltInTailscaleSettings({
     (settings.enabled ? undefined : managedCapabilityDenial(policy, "remoteClients", m)) ??
     lock("tailnet.enabled");
   const admissionManaged = lock("tailnet.admission");
+  const hostnameManaged = lock("tailnet.hostname");
   const allowedLoginsManaged = lock("tailnet.allowedLogins");
   const controlUrlManaged = lock("tailnet.controlUrl");
 
@@ -280,8 +281,8 @@ export function BuiltInTailscaleSettings({
           <HostnameRow
             value={view.hostname}
             running={settings.enabled}
-            disabled={!canWrite}
-            managed={lock("tailnet.hostname")}
+            disabled={!canWrite || hostnameManaged !== undefined}
+            managed={hostnameManaged}
             onCommit={(hostname, restore) => patch({ hostname }, restore)}
           />
           <SettingsDisclosure title={<T>Advanced</T>}>
@@ -346,10 +347,9 @@ function HostnameRow({
   const [draft, setDraft] = useState<string | null>(null);
   const shown = draft ?? value;
   const error = draft === null ? null : tailnetHostnameDraftError(draft, m);
-  const locked = disabled || managed !== undefined;
   const commit = async () => {
     const next = shown.trim();
-    if (locked || draft === null || next === value || error !== null) {
+    if (disabled || draft === null || next === value || error !== null) {
       if (draft !== null && next === value) setDraft(null);
       return;
     }
@@ -377,7 +377,7 @@ function HostnameRow({
           aria-label={gt("Tailscale machine name")}
           autoCapitalize="none"
           spellCheck={false}
-          disabled={locked}
+          disabled={disabled}
           value={shown}
           onChange={(event) => setDraft(normalizeTailnetHostnameDraft(event.target.value))}
           onBlur={() => void commit()}
