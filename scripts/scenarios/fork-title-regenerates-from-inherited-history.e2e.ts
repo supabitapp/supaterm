@@ -2,8 +2,8 @@ import { expect } from "e2e";
 
 import { test, WEB } from "./supaterm.ts";
 
-// Scenarios title with a Codex command that always fails, so reaching it is the fixed behavior;
-// the bug refused first with "This thread has no messages to title yet."
+// Scenarios turn every text generation provider off, so reaching the title model fails with "No
+// text generation provider"; the bug refused first with "This thread has no messages to title yet."
 test(
   "Regenerate title on a fresh fork reaches the title model with the inherited history",
   WEB,
@@ -21,6 +21,6 @@ test(
     await screen.getByRole("menuitem", "Regenerate title").tap();
     await expect(screen.getByText("Failed to regenerate thread title")).toBeVisible();
     await app.screenshot("regenerate-result");
-    await expect(screen.getByText("Codex CLI command", { exact: false })).toBeVisible();
+    await expect(screen.getByText("No text generation provider", { exact: false })).toBeVisible();
   },
 );
