@@ -51,11 +51,9 @@ test(
       await supaterm.open("/settings/connections");
       await screen.getByRole("button", "Add environment").tap();
       const dialog = screen.getByRole("dialog");
-      await dialog.getByPlaceholder("backend.example.com").fill(host);
+      await dialog.getByRole("textbox", "Host", { exact: true }).fill(host);
       await dialog.getByPlaceholder("PAIRCODE").fill(token);
       await dialog.getByRole("button", "Add environment").tap();
-      // The map is the default view; its rows carry no actions menu.
-      await screen.getByRole("button", "List", { exact: true }).tap();
       await expect(screen.getByRole("button", "More actions for Scenario")).toBeVisible({
         timeout: 60_000,
       });
@@ -68,14 +66,15 @@ test(
       const models = screen.getByRole("button", "Showcase, Plan and reads", { exact: false });
       await expect(models.first()).toBeVisible();
 
-      // Both machines are named Scenario; the draft runs on the checked one.
-      const runOn = () => screen.getByText("Scenario").last().tap();
-      const machine = (index: number) => browser.locator('[role="menuitemradio"]').nth(index);
+      // Both machines are named Scenario; the draft runs on the selected one.
+      const runOn = () => screen.getByRole("combobox", "Run on", { exact: true }).tap();
+      const machine = (index: number) =>
+        screen.getByRole("option", "Scenario", { exact: true }).nth(index);
       await runOn();
-      const target = (await machine(0).getAttribute("aria-checked")) === "true" ? 1 : 0;
-      await machine(target).click();
+      const target = (await machine(0).getAttribute("aria-selected")) === "true" ? 1 : 0;
+      await machine(target).tap();
       await runOn();
-      await expect(machine(target)).toHaveAttribute("aria-checked", "true");
+      await expect(machine(target)).toHaveAttribute("aria-selected", "true");
       await browser.keyboard.press("Escape");
 
       await app.screenshot("after-machine-switch");
