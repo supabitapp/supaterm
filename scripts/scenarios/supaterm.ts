@@ -162,8 +162,6 @@ export function makeState(home: string, env: NodeJS.ProcessEnv = {}) {
         Effect.mapError((cause) => new ScenarioError({ message: `${mutation.type}: ${cause}` })),
       );
   });
-  const projects: Array<ProjectId> = [];
-
   const project = Effect.fn("scenario.project")(function* (
     title: string,
     files: Readonly<Record<string, string | Uint8Array>>,
@@ -188,14 +186,13 @@ export function makeState(home: string, env: NodeJS.ProcessEnv = {}) {
     yield* git(["init", "--quiet", "--initial-branch=main"]);
     yield* git(["add", "--all"]);
     yield* git([...author, "commit", "--quiet", "--message", "Initial commit"]);
-    const created = yield* mutate({
+    yield* mutate({
       type: "project.create",
       commandId: CommandId.make(yield* uuid),
       projectId: ProjectId.make(yield* uuid),
       title,
       workspaceRoot: workspace,
     });
-    projects.push(created.id);
     return workspace;
   });
 
@@ -222,20 +219,27 @@ export function makeState(home: string, env: NodeJS.ProcessEnv = {}) {
       project: (title, files = {}) => runPromise(project(title, files)),
       thread: (input) => runPromise(thread(input)),
     } satisfies SupatermState,
-    // The server outlives the test, so the next one must not see this one's projects.
-    cleanup: Effect.forEach(
-      projects,
-      (projectId) =>
-        Effect.flatMap(uuid, (commandId) =>
-          mutate({
-            type: "project.delete",
-            commandId: CommandId.make(commandId),
-            projectId,
-            force: true,
-          }),
-        ),
-      { discard: true },
-    ),
+    // The server outlives the test, so the next one must find none of this one's projects,
+    // whether the fixture or the app made them; a failed clone goes with its project.
+    cleanup: Effect.gen(function* () {
+      const { client, headers } = yield* api;
+      const { projects } = yield* client.projects
+        .snapshot({ headers })
+        .pipe(Effect.mapError((cause) => new ScenarioError({ message: `projects: ${cause}` })));
+      yield* Effect.forEach(
+        projects,
+        (project) =>
+          Effect.flatMap(uuid, (commandId) =>
+            mutate({
+              type: "project.delete",
+              commandId: CommandId.make(commandId),
+              projectId: project.id,
+              force: true,
+            }),
+          ),
+        { discard: true },
+      );
+    }),
   };
 }
 
