@@ -269,13 +269,17 @@ it("uses standard routing when the catalog has no default service tier", () => {
 it("marks the most preferred available model as default", () => {
   const models = applyPreferredCodexDefaultModel([
     { slug: "gpt-5.6-terra", name: "GPT-5.6-Terra", isCustom: false, capabilities: null },
+    { slug: "gpt-6-astra", name: "GPT-6-Astra", isCustom: false, capabilities: null },
+    { slug: "gpt-6.2-sol", name: "GPT-6.2-Sol", isCustom: false, capabilities: null },
     { slug: "gpt-5.4", name: "GPT-5.4", isCustom: false, isDefault: true, capabilities: null },
   ]);
 
   assert.deepStrictEqual(
     models.map((model) => ({ slug: model.slug, isDefault: model.isDefault })),
     [
-      { slug: "gpt-5.6-terra", isDefault: true },
+      { slug: "gpt-5.6-terra", isDefault: undefined },
+      { slug: "gpt-6-astra", isDefault: undefined },
+      { slug: "gpt-6.2-sol", isDefault: true },
       { slug: "gpt-5.4", isDefault: undefined },
     ],
   );
