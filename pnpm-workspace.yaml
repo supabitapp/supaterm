@@ -17,6 +17,8 @@ allowBuilds:
   electron: false
   electron-winstaller: false
   esbuild: true
+  # Ships prebuilds; its host-architecture probe triggers source builds during cross-packaging.
+  koffi: false
   msgpackr-extract: true
   msw: false
   # Ships N-API prebuilds; the install script would only fall back to node-gyp.

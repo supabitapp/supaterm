@@ -146,7 +146,11 @@ it.effect("reads a collected reference again once it is invalidated", () =>
     current = "rotated";
     yield* invalidateSettingsSecrets(
       resolver,
-      Effect.succeed({ sourceControlHosts: hosts, easDeviceHosts }),
+      Effect.succeed({
+        sourceControlHosts: hosts,
+        easDeviceHosts,
+        cloudSpeechCredentials: { openai: "", xai: "", openrouter: "" },
+      }),
     );
     assert.isFalse(cache.has("expo#token"));
     assert.deepEqual((yield* read()).bitbucket, {

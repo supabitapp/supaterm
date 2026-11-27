@@ -202,6 +202,11 @@ import { makePersistedServerRuntimeState } from "./serverRuntimeState.ts";
 import { loopbackUrlHostForAddress } from "./startupAccess.ts";
 import * as OrchestrationHttp from "./orchestration-v2/http.ts";
 import * as ProjectHttp from "./project/http.ts";
+import * as SpeechModelStore from "./speech/SpeechModelStore.ts";
+import * as SpeechService from "./speech/SpeechService.ts";
+import * as CloudSpeech from "./speech/CloudSpeech.ts";
+import { speechHttpApiLayer } from "./speech/http.ts";
+import { speechStreamRouteLayer } from "./speech/stream.ts";
 import * as NetService from "@supaterm/shared/Net";
 import {
   disableTailscaleServe,
@@ -773,6 +778,7 @@ const layerMakeRoutes = Layer.mergeAll(
       Layer.provide(OrchestrationHttp.layer),
       Layer.provide(PullRequestHttp.layer),
       Layer.provide(ProjectHttp.layer),
+      Layer.provide(speechHttpApiLayer),
       Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
       Layer.provide(ServerHttp.layerApiBodyLimit),
@@ -782,6 +788,7 @@ const layerMakeRoutes = Layer.mergeAll(
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
     LinkThreadHttp.layer,
+    speechStreamRouteLayer,
     DeviceHubProxy.layer,
     DirectTunnelHttp.layer,
     ServerBrowserStream.routeLayer,
@@ -830,6 +837,13 @@ const layerMakeRoutes = Layer.mergeAll(
       ),
     ),
   ),
+  Layer.provide(
+    SpeechService.layer.pipe(
+      Layer.provide(layerServerSettings),
+      Layer.provide(SpeechModelStore.layer),
+    ),
+  ),
+  Layer.provide(CloudSpeech.layer.pipe(Layer.provide(SecretResolver.layer))),
   Layer.provide(PreviewAutomationBroker.layer),
   Layer.provide(ServerSelfUpdate.layer.pipe(Layer.provide(layerDesktopAppUpdate))),
   Layer.provide(ProviderMaintenanceRunner.layer),

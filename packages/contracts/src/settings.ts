@@ -12,6 +12,7 @@ import * as Schema from "effect/Schema";
 import * as Struct from "effect/Struct";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import {
+  EnvironmentId,
   ForwardCompatibleNullable,
   ForwardCompatibleOptional,
   OmittedWhenNull,
@@ -55,6 +56,15 @@ import {
 } from "./providerInstance.ts";
 import { PullRequestMergeMethod } from "./pullRequest.ts";
 import { DEFAULT_PUBLIC_RELAY_URL, RelayServerUrl } from "./relay.ts";
+import {
+  CloudSpeechModelId,
+  SpeechAcceleration,
+  SpeechCorrectionCue,
+  SpeechCustomWords,
+  SpeechLanguage,
+  SpeechModelUnloadTimeout,
+  SpeechPostProcessingPromptSettings,
+} from "./speech.ts";
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
 export type TimestampFormat = typeof TimestampFormat.Type;
@@ -241,15 +251,48 @@ const DEFAULT_SNAP_SHOT_SHORTCUT: SnapShotShortcut = {
   kind: "both-shift-keys",
 };
 
-export const VoiceHoldToTalkKey = Schema.Literals(["alt", "space", "off"]);
-export type VoiceHoldToTalkKey = typeof VoiceHoldToTalkKey.Type;
+export const VoiceShortcutMode = Schema.Literals(["auto", "hold", "toggle"]);
+export type VoiceShortcutMode = typeof VoiceShortcutMode.Type;
 
-/** A browser input, kept by label too because a browser can reissue its device ids. */
-export const VoiceMicrophone = Schema.Struct({
-  deviceId: Schema.String,
-  label: Schema.String,
-});
-export type VoiceMicrophone = typeof VoiceMicrophone.Type;
+export const VoiceMicrophoneEntry = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal("default") }),
+  Schema.Struct({ kind: Schema.Literal("device"), deviceId: Schema.String, label: Schema.String }),
+]);
+export type VoiceMicrophoneEntry = typeof VoiceMicrophoneEntry.Type;
+
+/**
+ * Where this device sends microphone audio. A cloud grant names the forwarding environment and
+ * the provider; an OpenRouter grant also names the exact model, since OpenRouter has no default.
+ */
+export const VoiceTranscriptionDestination = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal("environment"), environmentId: EnvironmentId }),
+  Schema.Struct({
+    kind: Schema.Literal("cloud"),
+    environmentId: EnvironmentId,
+    provider: Schema.Literals(["openai", "xai"]),
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("cloud"),
+    environmentId: EnvironmentId,
+    provider: Schema.Literal("openrouter"),
+    model: CloudSpeechModelId,
+  }),
+]);
+export type VoiceTranscriptionDestination = typeof VoiceTranscriptionDestination.Type;
+
+// Older builds saved the chosen microphone as `{ deviceId, label }`, or null for the default.
+const LegacyVoiceMicrophone = Schema.Union([
+  Schema.Struct({ deviceId: Schema.String, label: Schema.String }),
+  Schema.Null,
+]).pipe(
+  Schema.decodeTo(
+    Schema.String,
+    SchemaTransformation.transform({
+      decode: (value) => value?.deviceId ?? "",
+      encode: (deviceId) => (deviceId === "" ? null : { deviceId, label: "" }),
+    }),
+  ),
+);
 
 export const NotificationMode = Schema.Literals([
   "off",
@@ -449,18 +492,6 @@ export const ClientSettingsSchema = Schema.Struct({
   followUpBehavior: Schema.Literals(["queue", "steer"]).pipe(
     Schema.withDecodingDefault(Effect.succeed("steer")),
   ),
-  /** BCP 47 tag voice input is spoken in. Null follows the system language. */
-  voiceLanguage: Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))).pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
-  voiceHoldToTalkKey: VoiceHoldToTalkKey.pipe(Schema.withDecodingDefault(Effect.succeed("alt"))),
-  /** The input voice input records from on this device. Null follows the system default. */
-  voiceMicrophone: Schema.NullOr(VoiceMicrophone).pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
-  voiceAvoidBluetoothMicrophone: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(true)),
-  ),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   toolCallVisibility: ToolCallVisibility.pipe(
@@ -499,6 +530,27 @@ export const ClientSettingsSchema = Schema.Struct({
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
+  // Superseded by voiceMicrophones; read only to seed an empty order.
+  voiceMicrophone: Schema.Union([Schema.String, LegacyVoiceMicrophone]).pipe(
+    Schema.withDecodingDefault(Effect.succeed("")),
+  ),
+  // Device-local microphone order. Recording uses the first connected entry.
+  voiceMicrophones: Schema.Array(VoiceMicrophoneEntry).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  voiceShortcutMode: VoiceShortcutMode.pipe(Schema.withDecodingDefault(Effect.succeed("auto"))),
+  speechLanguage: SpeechLanguage.pipe(Schema.withDecodingDefault(Effect.succeed("auto"))),
+  speechTranslateToEnglish: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  speechCustomWords: SpeechCustomWords.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  speechSilenceFiltering: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  speechStreaming: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  speechRemoveFillerWords: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  speechPostProcessingPrompt: SpeechPostProcessingPromptSettings.pipe(
+    Schema.withDecodingDefault(
+      Effect.succeed({ mode: "default" as const, customInstructions: "" }),
+    ),
+  ),
+  speechCorrectionWord: SpeechCorrectionCue.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   // A locale code or "system". Open string so new locales and downgrades need no migration.
   language: Schema.String.pipe(Schema.withDecodingDefault(Effect.succeed("en"))),
   snapShotEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
@@ -1028,6 +1080,7 @@ export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
   "sidebarAutoMarkDoneKeepPullRequests",
   "continueThreadsAfterServerUpdate",
   "responseStreamingMode",
+  "speechProjectCustomWords",
 ] as const;
 export type ProjectScopedServerSettingKey = (typeof PROJECT_SCOPED_SERVER_SETTING_KEYS)[number];
 
@@ -1070,6 +1123,7 @@ export const ProjectSettingsOverrides = Schema.Struct({
   sidebarAutoMarkDoneKeepPullRequests: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),
+  speechProjectCustomWords: Schema.optionalKey(SpeechCustomWords),
   providerInstances: Schema.optionalKey(
     Schema.Record(ProviderInstanceId, ProjectProviderInstanceOverride),
   ),
@@ -1227,6 +1281,15 @@ export const StorageCleanupSettings = Schema.Struct({
 });
 export type StorageCleanupSettings = typeof StorageCleanupSettings.Type;
 
+const CloudSpeechCredential = SettingsSecretValue.pipe(
+  Schema.withDecodingDefault(Effect.succeed("")),
+);
+export const CloudSpeechCredentials = Schema.Struct({
+  openai: CloudSpeechCredential,
+  xai: CloudSpeechCredential,
+  openrouter: CloudSpeechCredential,
+});
+
 const UsageHistoryRetentionDays = Schema.Union([
   Schema.Int.check(Schema.isGreaterThan(0)),
   Schema.Literal("unlimited"),
@@ -1276,6 +1339,22 @@ export const ServerSettings = Schema.Struct({
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   /** Lets clients reach this machine's loopback ports over `/api/preview/tunnel`. */
   enablePreviewTunnel: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  cloudSpeechCredentials: CloudSpeechCredentials.pipe(
+    Schema.withDecodingDefault(Effect.succeed({ openai: "", xai: "", openrouter: "" })),
+  ),
+  speechModelId: Schema.String.pipe(
+    Schema.withDecodingDefault(Effect.succeed("handy-computer/parakeet-unified-en-0.6b-gguf")),
+  ),
+  speechAcceleration: SpeechAcceleration.pipe(Schema.withDecodingDefault(Effect.succeed("auto"))),
+  speechModelUnloadTimeout: SpeechModelUnloadTimeout.pipe(
+    Schema.withDecodingDefault(Effect.succeed("min_15")),
+  ),
+  // Vocabulary shared by everyone who dictates in a project; it lives with the project's environment.
+  speechProjectCustomWords: SpeechCustomWords.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
+  // Null follows textGenerationModelSelection; a selection pins transcript cleanup to its own model.
+  speechPostProcessingModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   defaultAutoPull: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   defaultProjectScripts: Schema.Array(ProjectScript).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
@@ -1619,6 +1698,18 @@ export const ServerSettingsPatch = Schema.Struct({
   pruneEventHistory: Schema.optionalKey(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
   enablePreviewTunnel: Schema.optionalKey(Schema.Boolean),
+  cloudSpeechCredentials: Schema.optionalKey(
+    Schema.Struct({
+      openai: Schema.optionalKey(SettingsSecretValue),
+      xai: Schema.optionalKey(SettingsSecretValue),
+      openrouter: Schema.optionalKey(SettingsSecretValue),
+    }),
+  ),
+  speechModelId: Schema.optionalKey(Schema.String),
+  speechAcceleration: Schema.optionalKey(SpeechAcceleration),
+  speechModelUnloadTimeout: Schema.optionalKey(SpeechModelUnloadTimeout),
+  speechProjectCustomWords: Schema.optionalKey(SpeechCustomWords),
+  speechPostProcessingModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultAutoPull: Schema.optionalKey(Schema.Boolean),
   defaultProjectScripts: Schema.optionalKey(Schema.Array(ProjectScript)),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),

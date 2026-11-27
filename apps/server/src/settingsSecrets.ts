@@ -1,6 +1,7 @@
 import {
   AntigravitySettings,
   ClaudeSettings,
+  CloudSpeechCredentials,
   CodexSettings,
   EasDeviceHostConfig,
   type ProviderInstanceConfig,
@@ -42,6 +43,7 @@ const providerSecretFields = new Map([
       [definition.driverKind, secretSettingsFields(definition.settingsSchema)] as const,
   ),
 ]);
+const voiceSecretFields = secretSettingsFields(CloudSpeechCredentials);
 const easDeviceHostSecretFields = secretSettingsFields(EasDeviceHostConfig);
 const encode = (value: string) => Buffer.from(value, "utf8").toString("base64url");
 
@@ -216,7 +218,17 @@ function mapSecretFieldGroups(
       ) as EasDeviceHostConfig,
   );
 
-  return { ...settings, providerInstances, sourceControlHosts, easDeviceHosts };
+  return {
+    ...settings,
+    cloudSpeechCredentials: mapFields(
+      settings.cloudSpeechCredentials,
+      voiceSecretFields,
+      (provider) => `voice-cloud-${provider}`,
+    ) as ServerSettings["cloudSpeechCredentials"],
+    providerInstances,
+    sourceControlHosts,
+    easDeviceHosts,
+  };
 }
 
 /**

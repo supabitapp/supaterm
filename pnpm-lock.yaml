@@ -921,6 +921,9 @@ importers:
       stream-json:
         specifier: 3.7.0
         version: 3.7.0
+      transcribe-cpp:
+        specifier: 0.4.1
+        version: 0.4.1
       undici:
         specifier: 'catalog:'
         version: 8.12.4
@@ -943,6 +946,9 @@ importers:
       '@effect/vitest':
         specifier: 4.1.5
         version: 4.1.5(effect@4.1.5(patch_hash=4efcfa75f4af910e670008caaea1aa2ce73194092a2bcc3e9be61658a6b88187))(vitest@5.0.5)
+      '@handy-computer/models':
+        specifier: 0.2.3
+        version: 0.2.3
       '@muse-code/sdk':
         specifier: 1.4.6
         version: 1.4.6(@types/node@24.12.4)
@@ -4073,6 +4079,10 @@ packages:
   '@generaltranslation/vue-extractor@0.1.23':
     resolution: {integrity: sha512-eGWcDLoFdJCcfNlwc16fBoTcjqfhS9e4UQo68wvceeK/2sMxYm+klGyEbOxC+pIXh5rhG9mK7l8sMzp4p1zVlA==}
 
+  '@handy-computer/models@0.2.3':
+    resolution: {integrity: sha512-EcyPojMY8hG5adDZGR/2h/m9jniqAnSND00gmiAErRLB1BQqMD9jrJaqsfoYF/UfPC8ocKZFUNSkTegoYqjF5w==}
+    engines: {node: '>=20.10'}
+
   '@hono/node-server@2.1.6':
     resolution: {integrity: sha512-p/KH9MnfNcsm3sR6x4lNgm5j+QN4Et8srKredl9DZfXiyZ1UQ3aQ2YVpFLbqktYN5JI+DB+VZFKM2PqE5hLKjQ==}
     engines: {node: '>=20'}
@@ -4293,6 +4303,106 @@ packages:
     engines: {node: '>= 10.16.0'}
     peerDependencies:
       jsep: ^0.4.0||^1.0.0
+
+  '@koromix/koffi-android-arm64@3.3.8':
+    resolution: {integrity: sha512-Y0lt2JexRGXlg1PxFuegfi5p6bIcLMj7Mig0WapZRKEM3Yv2L9J3Ej4XHPYMsB0TRNttBRHiliaJOH6EedEIXg==}
+    cpu: [arm64]
+    os: [android]
+
+  '@koromix/koffi-android-x64@3.3.8':
+    resolution: {integrity: sha512-ZOwUZJoQ7Xd0rRF85Qc5XyIBjZPKGNLNgoTFakWdxn55AoZ6zdGEYvOXQMIN8JLjQ6qYUiQMtlFlusddZr+pjA==}
+    cpu: [x64]
+    os: [android]
+
+  '@koromix/koffi-darwin-arm64@3.3.8':
+    resolution: {integrity: sha512-7tzlnYSePCQW66iEIi+wgN9HgTiF431KL9wIDhH9b+32KOYZXBdA+JyDgRVi2E5AIyJ1hdkQFNg7YCAOft2mKw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@koromix/koffi-darwin-x64@3.3.8':
+    resolution: {integrity: sha512-Pw1EsCT9Yov4Szo4joLhABbQfqNgYhwfkhWZiIbEZ2b3sGyv9Yj2N0p00jOpdTfQ+u9QFFi8XhNivJbBTqMTPA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@koromix/koffi-freebsd-arm64@3.3.8':
+    resolution: {integrity: sha512-bpkvHfxUn5EqaHQO9k42lqO8+5t9aF8McgJyOsXx+vd/xicA0Zc0vP2kz0MjQu760ZdsR3WI4VFiNh2xHRP6Lw==}
+    cpu: [arm64]
+    os: [freebsd]
+
+  '@koromix/koffi-freebsd-ia32@3.3.8':
+    resolution: {integrity: sha512-h2WI3Ofb+TioTqWDTMXPgtZ2LAghY2CPwZwMM3mZeGAzKygo9RxZ4PRGq8bvrdvinR4VN9ZK+H48m9GV3/u3mQ==}
+    cpu: [ia32]
+    os: [freebsd]
+
+  '@koromix/koffi-freebsd-x64@3.3.8':
+    resolution: {integrity: sha512-Z1VAr2CfWaHYfqJ1UlbZBH2IcPqZHilBSCgSqDmVhmyN/tSz5kSjaRfxcBGloJted3CCvsNFg8lOJiKkPiAUNQ==}
+    cpu: [x64]
+    os: [freebsd]
+
+  '@koromix/koffi-linux-arm64@3.3.8':
+    resolution: {integrity: sha512-7yknlwsy7X76+Qy7leuI+RTQfYHX1W8Uv+CFpyiMsdLnpaSCpNJDIpCr6/qnQzpLx93mRncB+VBBD2PB/IMX8g==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@koromix/koffi-linux-arm@3.3.8':
+    resolution: {integrity: sha512-9c9IfIz5sFpzbuwV2HomSBWOakpbd9tJ3FChmE556KdPzw9iXrJoMT5JyzPnUe10Soag2NK6SMKrDafOsR6J2A==}
+    cpu: [arm]
+    os: [linux]
+
+  '@koromix/koffi-linux-ia32@3.3.8':
+    resolution: {integrity: sha512-/AqDOcvQzeSDnwDsdqfJP2LjBgCX6CJZwSuYJc+YZCFFtUvsIDq9sRfSvyDy6xTC3HTkJKaT1SrrlE6Ji1aZCA==}
+    cpu: [ia32]
+    os: [linux]
+
+  '@koromix/koffi-linux-loong64@3.3.8':
+    resolution: {integrity: sha512-XgqxynMlKdcPZ5Hu0EyhFqfvEMcqm1RzLj8vbhRTtwV/GhrAMoToExzcF5uHXqiVL/EsWE1V/BmdrCfjlUsqtA==}
+    cpu: [loong64]
+    os: [linux]
+
+  '@koromix/koffi-linux-ppc64@3.3.8':
+    resolution: {integrity: sha512-nzoG1pIu00cdwbMmQ+U4Tr1Xaej1L/XP39wG0nQMviDf/7tlZeM8i/yD1ggNHeSYao/CHcaJr0eW5IjmkfO10Q==}
+    cpu: [ppc64]
+    os: [linux]
+
+  '@koromix/koffi-linux-riscv64@3.3.8':
+    resolution: {integrity: sha512-i6CtjaydMXmhvUPz5gCCodgCBCQOA27Cs0mCTcodHzaJCmICqlmGr0y7ManHIeqTxzrDNIJERa0BFNBpoPpe4A==}
+    cpu: [riscv64]
+    os: [linux]
+
+  '@koromix/koffi-linux-x64@3.3.8':
+    resolution: {integrity: sha512-0KyTCxjxzjdwCxTA8HdEFCLeJLZPQdOqpJQVvf2KJA8izmnDlM/g2NZd6jNJ4lwvuU8+R6fN7zW0OrwSM6pHzA==}
+    cpu: [x64]
+    os: [linux]
+
+  '@koromix/koffi-openbsd-arm64@3.3.8':
+    resolution: {integrity: sha512-HY1pfpsHrHL248y3TRg0FAa8MlSLuVMABkkieiKINqNvIWWvuMekZO/zQM+BtmgFQHXO+t/Hd0W55fzH/U2EYA==}
+    cpu: [arm64]
+    os: [openbsd]
+
+  '@koromix/koffi-openbsd-ia32@3.3.8':
+    resolution: {integrity: sha512-745gBEJnFhO9N7mnRVRkd2NQnQGbBUKkEUsJcm2Di5KBkkTyfjf2BQSvzegJE+ab6gLnQ57ZEA0UwBBdS0MlrA==}
+    cpu: [ia32]
+    os: [openbsd]
+
+  '@koromix/koffi-openbsd-x64@3.3.8':
+    resolution: {integrity: sha512-bwcuk5PquAQGgR1DYAVrZwInSEeKuq0RXFylejAs5kQCJCBoyUOipkAJj4q4HYdOtCCxwqdrMm/+XwXrwtf3ZQ==}
+    cpu: [x64]
+    os: [openbsd]
+
+  '@koromix/koffi-win32-arm64@3.3.8':
+    resolution: {integrity: sha512-f43sCr9lxFIvkOEE0Br+Qr5+KH2XqRm/EAQgAflYprIsjCz4eBTPVwEjbuymyN/6iDEKyO7EDz/7xQgNiyvIyA==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@koromix/koffi-win32-ia32@3.3.8':
+    resolution: {integrity: sha512-aBozU1HP1mWzanVAoo2fkJBLJsEVVs2b3/FbtqbotrgDFsBt8r71LNX+mKX7d4YASXMIAsUPG3iXBpNtk7+Y8Q==}
+    cpu: [ia32]
+    os: [win32]
+
+  '@koromix/koffi-win32-x64@3.3.8':
+    resolution: {integrity: sha512-Ef9XpIn/AfnZWMI1lvA6IOjCsTVRlako+BXosp4cRaLZZXkgjwiBVqYXXhqZix1G8e+27UAv97XBTmDEyfS7jA==}
+    cpu: [x64]
+    os: [win32]
 
   '@legendapp/list@3.7.3':
     resolution: {integrity: sha512-trGu1i4xo1+r6gG6GI3qrrZAfYHbB25uVj32/KnxhaQ7/eW4AqzhM5cW21Oye4dpg+180Ts1aejRuI8z6Xc4eg==}
@@ -6353,6 +6463,33 @@ packages:
 
   '@tiptap/starter-kit@3.31.3':
     resolution: {integrity: sha512-WKof9RewdmGHvWJ1wn0/HVNG2mV+HOgVRyJkKekuM9fgr6BZAAH/xZsWE1eon+94JnQ+KtK2ThydXQM/qc6b2A==}
+
+  '@transcribe-cpp/darwin-arm64-metal@0.4.1':
+    resolution: {integrity: sha512-Sg8obJiDeBxSWQvFcHxlVJoY5X+BzMFMNH+5LU5oVfj8iHJ0dj0uVlBUrNIN6D2xCBksoLVOEMCbasqUXv/DLw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@transcribe-cpp/darwin-x64-cpu@0.4.1':
+    resolution: {integrity: sha512-lRP/Mr8msBMUHXkLPtGZoVhNXgxdTV3tzEmpLki0VeBP3LraPC73m9PjfhzoYNEwXEnpqdLwNaTnuCHOwJRugw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@transcribe-cpp/linux-arm64-cpu-vulkan@0.4.1':
+    resolution: {integrity: sha512-b010Fhfnqe4jGJLMhvx6LucvysxK638qY2eww1oaaErzkAKutdN0uRx84vsfXVxVr3lKlzdL5vq6Zv/QfAArTA==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@transcribe-cpp/linux-x64-cpu-vulkan@0.4.1':
+    resolution: {integrity: sha512-AuiE8PSFbDndLJDpt8lilZIyg2syQSRBmZQWklx0rd9vF1M/Wfn4StKUXTGC4rouQOTJPy3ViioGLpyYr6unaw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@transcribe-cpp/win32-x64-cpu-vulkan@0.4.1':
+    resolution: {integrity: sha512-0W8yQ6SgmPKgVaLHVGkj5gr2uzMS9mAVHMCJKZCFdhvQxeQlUbrvN/8ooyYD7S5qmLsLNEHt0ecMMVgsoWUu9A==}
+    cpu: [x64]
+    os: [win32]
 
   '@ts-morph/common@0.29.0':
     resolution: {integrity: sha512-35oUmphHbJvQ/+UTwFNme/t2p3FoKiGJ5auTjjpNTop2dyREspirjMy82PLSC1pnDJ8ah1GU98hwpVt64YXQsg==}
@@ -9366,6 +9503,9 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
+  koffi@3.3.8:
+    resolution: {integrity: sha512-CTDlV3BDh8LFyCgv9vamD+5eu49HQ5wBetAJ9wxERAoAy6rfodahgo28tqhz010l2OGcZvrnBC6MOTyQUt4EIQ==}
+
   lan-network@0.2.1:
     resolution: {integrity: sha512-ONPnazC96VKDntab9j9JKwIWhZ4ZUceB4A9Epu4Ssg0hYFmtHZSeQ+n15nIwTFmcBUKtExOer8WTJ4GF9MO64A==}
     hasBin: true
@@ -11417,6 +11557,10 @@ packages:
   tr46@6.0.0:
     resolution: {integrity: sha512-bLVMLPtstlZ4iMQHpFHTR7GAGj2jxi8Dg0s2h2MafAE4uSWF98FC/3MomU51iQAMf8/qDUbKWf5GxuvvVcXEhw==}
     engines: {node: '>=20'}
+
+  transcribe-cpp@0.4.1:
+    resolution: {integrity: sha512-6+cemagaGsOC8X3XWPCn7Ek+jjwyH2/NdTyBcEH7FtFjC3Ciyih2Xx6/GSRirZolxmxENtbvfwu1WV5RzutgCw==}
+    engines: {node: '>=22'}
 
   trim-lines@3.0.1:
     resolution: {integrity: sha512-kRj8B+YHZCc9kQYdWfJB2/oUl9rA99qbowYYBtr4ui4mZyAQ2JpvVBd/6U2YloATfqBhBTSMhTpgBHtU0Mf3Rg==}
@@ -14130,6 +14274,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@handy-computer/models@0.2.3': {}
+
   '@hono/node-server@2.1.6(hono@4.13.17)':
     dependencies:
       hono: 4.13.17
@@ -14295,6 +14441,66 @@ snapshots:
   '@jsep-plugin/regex@1.1.0(jsep@1.6.0)':
     dependencies:
       jsep: 1.6.0
+
+  '@koromix/koffi-android-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-android-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-darwin-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-darwin-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-freebsd-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-freebsd-ia32@3.3.8':
+    optional: true
+
+  '@koromix/koffi-freebsd-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-arm@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-ia32@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-loong64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-ppc64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-riscv64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-linux-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-openbsd-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-openbsd-ia32@3.3.8':
+    optional: true
+
+  '@koromix/koffi-openbsd-x64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-win32-arm64@3.3.8':
+    optional: true
+
+  '@koromix/koffi-win32-ia32@3.3.8':
+    optional: true
+
+  '@koromix/koffi-win32-x64@3.3.8':
+    optional: true
 
   '@legendapp/list@3.7.3(patch_hash=bac75f81c1b2053036a8b760b39a64b713fef51da0d53a959384fbb8518afc76)(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)':
     dependencies:
@@ -15880,6 +16086,21 @@ snapshots:
       '@tiptap/extension-underline': 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/extensions': 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3)
       '@tiptap/pm': 3.31.3
+
+  '@transcribe-cpp/darwin-arm64-metal@0.4.1':
+    optional: true
+
+  '@transcribe-cpp/darwin-x64-cpu@0.4.1':
+    optional: true
+
+  '@transcribe-cpp/linux-arm64-cpu-vulkan@0.4.1':
+    optional: true
+
+  '@transcribe-cpp/linux-x64-cpu-vulkan@0.4.1':
+    optional: true
+
+  '@transcribe-cpp/win32-x64-cpu-vulkan@0.4.1':
+    optional: true
 
   '@ts-morph/common@0.29.0':
     dependencies:
@@ -19425,6 +19646,29 @@ snapshots:
       yaml: 2.9.0
       zod: 4.6.5
 
+  koffi@3.3.8:
+    optionalDependencies:
+      '@koromix/koffi-android-arm64': 3.3.8
+      '@koromix/koffi-android-x64': 3.3.8
+      '@koromix/koffi-darwin-arm64': 3.3.8
+      '@koromix/koffi-darwin-x64': 3.3.8
+      '@koromix/koffi-freebsd-arm64': 3.3.8
+      '@koromix/koffi-freebsd-ia32': 3.3.8
+      '@koromix/koffi-freebsd-x64': 3.3.8
+      '@koromix/koffi-linux-arm': 3.3.8
+      '@koromix/koffi-linux-arm64': 3.3.8
+      '@koromix/koffi-linux-ia32': 3.3.8
+      '@koromix/koffi-linux-loong64': 3.3.8
+      '@koromix/koffi-linux-ppc64': 3.3.8
+      '@koromix/koffi-linux-riscv64': 3.3.8
+      '@koromix/koffi-linux-x64': 3.3.8
+      '@koromix/koffi-openbsd-arm64': 3.3.8
+      '@koromix/koffi-openbsd-ia32': 3.3.8
+      '@koromix/koffi-openbsd-x64': 3.3.8
+      '@koromix/koffi-win32-arm64': 3.3.8
+      '@koromix/koffi-win32-ia32': 3.3.8
+      '@koromix/koffi-win32-x64': 3.3.8
+
   lan-network@0.2.1: {}
 
   lazy-val@1.0.5: {}
@@ -22212,6 +22456,16 @@ snapshots:
   tr46@6.0.0:
     dependencies:
       punycode: 2.3.1
+
+  transcribe-cpp@0.4.1:
+    dependencies:
+      koffi: 3.3.8
+    optionalDependencies:
+      '@transcribe-cpp/darwin-arm64-metal': 0.4.1
+      '@transcribe-cpp/darwin-x64-cpu': 0.4.1
+      '@transcribe-cpp/linux-arm64-cpu-vulkan': 0.4.1
+      '@transcribe-cpp/linux-x64-cpu-vulkan': 0.4.1
+      '@transcribe-cpp/win32-x64-cpu-vulkan': 0.4.1
 
   trim-lines@3.0.1: {}
 

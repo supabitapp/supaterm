@@ -40,6 +40,7 @@ import { relayClientCommand } from "./cli/relayClient.ts";
 import { settingsCommand } from "./cli/settings.ts";
 import { tailscaleCommand } from "./cli/tailscale.ts";
 import { triageCommand } from "./cli/triage.ts";
+import { speechWorkerCommand } from "./cli/speechWorker.ts";
 
 const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer);
 
@@ -84,6 +85,7 @@ export const makeCli = () =>
       doctorCommand,
       policyCommand,
       triageCommand,
+      speechWorkerCommand,
       relayClientCommand,
       settingsCommand,
       tailscaleCommand,

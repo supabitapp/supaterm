@@ -479,6 +479,59 @@ const decodeModelSelectionJson = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.NullOr(ModelSelection)),
 );
 
+const SPEECH_CUSTOM_WORDS_MAX = 100;
+const SPEECH_CUSTOM_WORD_MAX_LENGTH = 50;
+const SPEECH_CUSTOM_WORD_MAX_ALIASES = 8;
+// What builds before upstream speech seeded the dictionary with; nobody chose it.
+const LEGACY_DEFAULT_DICTIONARY_TERM = "Supaterm";
+const LEGACY_DEFAULT_DICTIONARY_ALIASES = ["super term", "supa term", "soup a term"];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * Builds that transcribed through provider logins kept a `transcriptionDictionary`; its terms
+ * become this environment's speech vocabulary unless one is already set.
+ */
+export function migrateLegacyTranscriptionDictionary(raw: unknown): {
+  readonly raw: unknown;
+  readonly migrated: boolean;
+} {
+  if (!isRecord(raw) || !Object.hasOwn(raw, "transcriptionDictionary")) {
+    return { raw, migrated: false };
+  }
+  const { transcriptionDictionary, ...rest } = raw;
+  if (Object.hasOwn(rest, "speechProjectCustomWords") || !Array.isArray(transcriptionDictionary)) {
+    return { raw: rest, migrated: true };
+  }
+  const seen = new Set<string>();
+  const claim = (spelling: unknown): string | null => {
+    if (typeof spelling !== "string") return null;
+    const trimmed = spelling.trim();
+    const key = trimmed.normalize("NFC").toLocaleLowerCase();
+    if (!trimmed || trimmed.length > SPEECH_CUSTOM_WORD_MAX_LENGTH || seen.has(key)) return null;
+    seen.add(key);
+    return trimmed;
+  };
+  const words: Array<{ term: string; aliases: string[] }> = [];
+  for (const entry of transcriptionDictionary) {
+    if (!isRecord(entry) || words.length >= SPEECH_CUSTOM_WORDS_MAX) continue;
+    const aliases = Array.isArray(entry.aliases) ? entry.aliases : [];
+    if (
+      entry.term === LEGACY_DEFAULT_DICTIONARY_TERM &&
+      aliases.length === LEGACY_DEFAULT_DICTIONARY_ALIASES.length &&
+      aliases.every((alias, index) => alias === LEGACY_DEFAULT_DICTIONARY_ALIASES[index])
+    ) {
+      continue;
+    }
+    const term = claim(entry.term);
+    if (term === null) continue;
+    const kept = aliases.flatMap((alias) => claim(alias) ?? []);
+    words.push({ term, aliases: kept.slice(0, SPEECH_CUSTOM_WORD_MAX_ALIASES) });
+  }
+  return { raw: { ...rest, speechProjectCustomWords: words }, migrated: true };
+}
+
 interface LegacyProjectSettingsRow {
   readonly projectId: string;
   readonly defaultModelSelection: string | null;
@@ -654,13 +707,20 @@ const make = Effect.gen(function* () {
   const loadSettingsFromDisk = Effect.gen(function* () {
     let settings = managed.defaults;
     let parseFailure = Option.none<unknown>();
+    let legacyDictionaryMigrated = false;
 
     if (yield* readConfigExists) {
       const raw = yield* readRawConfig;
       const parsed = decodeSettingsFileJsonExit(raw);
+      const legacyDictionary = Exit.isFailure(parsed)
+        ? undefined
+        : migrateLegacyTranscriptionDictionary(parsed.value);
+      legacyDictionaryMigrated = legacyDictionary?.migrated === true;
       const decoded = Exit.isFailure(parsed)
         ? parsed
-        : decodePersistedServerSettingsExit(managed.withDefaults(parsed.value));
+        : decodePersistedServerSettingsExit(
+            managed.withDefaults(legacyDictionary?.raw ?? parsed.value),
+          );
       if (decoded._tag === "Failure") {
         const metadata = decodePersistedServerSettingsMetadataJsonExit(raw);
         settings = {
@@ -716,7 +776,7 @@ const make = Effect.gen(function* () {
       ? foldLegacyProjectSettings(loaded, legacyProjectRows)
       : loaded;
     const migrated = settingsFileTrusted ? yield* moveInlineSettingsSecrets(folded) : folded;
-    if (migrated !== loaded) {
+    if (migrated !== loaded || (settingsFileTrusted && legacyDictionaryMigrated)) {
       yield* writeSettingsAtomically(migrated);
     }
     return { settings: migrated, parseFailure };
