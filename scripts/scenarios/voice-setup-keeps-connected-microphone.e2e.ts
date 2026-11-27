@@ -1,5 +1,4 @@
 /// <reference lib="dom" />
-import type { EnvironmentSpeechModel, EnvironmentSpeechStatus } from "@supaterm/contracts";
 import { expect } from "e2e";
 
 import { test, WEB } from "./supaterm.ts";
@@ -7,7 +6,7 @@ import { test, WEB } from "./supaterm.ts";
 declare global {
   interface Window {
     voiceSetupDevices: {
-      holdNext: () => void;
+      holdNextRefresh: () => void;
       held: Promise<void>;
       replaceMicrophone: () => void;
       releaseOld: () => Promise<void>;
@@ -16,55 +15,10 @@ declare global {
 }
 
 test(
-  "Voice setup keeps the current microphone after an older refresh finishes",
+  "Voice settings keep the current microphone after an older refresh finishes",
   WEB,
   async ({ supaterm, app, browser, screen }) => {
-    const project = await supaterm.project("demo");
-    const thread = await supaterm.thread({ project, title: "Voice notes", messages: ["first"] });
-
-    const model = {
-      id: "scenario-speech",
-      name: "Scenario speech model",
-      description: "",
-      size: 1_048_576,
-      languages: ["en", "fr", "de"],
-      accuracy: 1,
-      speed: 1,
-      recommended: true,
-      supportsStreaming: false,
-      supportsLanguageDetection: true,
-      supportsTranslation: false,
-      active: false,
-      state: "downloadable",
-    } satisfies EnvironmentSpeechModel;
-    let installed = false;
-    await browser.route(/\/api\/voice\/status$/, (route) => {
-      const status = {
-        supported: true,
-        state: installed ? "ready" : "missing-model",
-        modelId: model.id,
-        model: model.name,
-        size: model.size,
-        supportsStreaming: false,
-        supportsTranslation: false,
-        acceleration: "cpu",
-        benchmarkTier: "cpu",
-        modelUnloadTimeout: "never",
-        gpuDevices: [],
-      } satisfies EnvironmentSpeechStatus;
-      return route.fulfill({ json: status });
-    });
-    await browser.route(/\/api\/voice\/models(?:\?|$)/, (route) =>
-      route.fulfill({
-        json: { models: [installed ? { ...model, active: true, state: "installed" } : model] },
-      }),
-    );
-    await browser.route(/\/api\/voice\/models\/download$/, (route) => {
-      installed = true;
-      return route.fulfill({
-        json: { models: [{ ...model, active: true, state: "installed" }] },
-      });
-    });
+    await supaterm.project("demo");
 
     await browser.addInitScript(() => {
       const oldMicrophone = { kind: "audioinput", deviceId: "desk", label: "Desk microphone" };
@@ -85,8 +39,9 @@ test(
         },
       });
       window.voiceSetupDevices = {
-        holdNext: () => {
+        holdNextRefresh: () => {
           holdNext = true;
+          media.dispatchEvent(new Event("devicechange"));
         },
         held,
         replaceMicrophone: () => {
@@ -103,31 +58,16 @@ test(
       };
     });
 
-    await supaterm.open(thread);
-    const threadPath = new URL(await browser.url()).pathname;
-    const voice = screen.getByRole("button", "Start voice input");
-    await voice.tap();
-    const destination = screen.getByRole("combobox", "Transcribe with");
-    await destination.tap();
-    // The only paired environment is the first choice after Off.
-    await screen.getByRole("option").nth(1).tap();
-    await app.open(threadPath);
-    await voice.tap();
-
-    const download = screen.getByRole("button", "Download model", { exact: true });
-    await download.waitFor();
-    await browser.evaluate(() => {
-      window.voiceSetupDevices.holdNext();
-      return null;
-    });
-    await download.tap();
-    await screen.getByText("Voice input is ready", { exact: true }).waitFor();
+    await supaterm.open("/settings/voice");
+    const microphone = screen.getByRole("combobox", "Microphone", { exact: true });
+    await expect(microphone).toHaveText("System default");
     await browser.evaluate(async () => {
+      window.voiceSetupDevices.holdNextRefresh();
       await window.voiceSetupDevices.held;
       window.voiceSetupDevices.replaceMicrophone();
       return null;
     });
-    await screen.getByRole("combobox", "Microphone", { exact: true }).tap();
+    await microphone.tap();
     const connected = screen.getByRole("option", "USB microphone", { exact: true });
     await connected.waitFor();
 
@@ -139,7 +79,9 @@ test(
     const labels = await browser.evaluate(() =>
       Array.from(
         document.querySelectorAll('[role="listbox"] [role="option"]'),
-        (option) => option.textContent?.trim() ?? "",
+        (option) =>
+          option.querySelector('[data-slot="select-item-text"] > span')?.firstChild?.textContent ??
+          "",
       ),
     );
     expect(labels, "The microphone picker lists only the current devices").toEqual([
