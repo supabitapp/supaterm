@@ -28,9 +28,17 @@ test(
         }
         if (!watched.has(this)) {
           watched.add(this);
+          // The server splits a long frame into parts, each but the last prefixed with U+001E.
+          let pending = "";
           this.addEventListener("message", (event) => {
             if (typeof event.data !== "string") return;
-            for (const message of [JSON.parse(event.data)].flat()) {
+            if (event.data.startsWith("\u001e")) {
+              pending += event.data.slice(1);
+              return;
+            }
+            const frame = pending + event.data;
+            pending = "";
+            for (const message of [JSON.parse(frame)].flat()) {
               const tag = message?._tag === "Exit" ? tags.get(String(message.requestId)) : null;
               if (tag?.startsWith("projects.")) log.push(`${tag}:${message.exit._tag}`);
             }
@@ -69,6 +77,18 @@ test(
         return null;
       });
 
+    const editorLine = () =>
+      browser.evaluate(() => {
+        for (const host of document.querySelectorAll("*")) {
+          const line = host.shadowRoot?.querySelector("[data-content] [data-line]");
+          if (line) {
+            const box = line.getBoundingClientRect();
+            return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+          }
+        }
+        return null;
+      });
+
     const project = await supaterm.project("demo", { "notes.txt": "before save" });
     const notes = `${project}/notes.txt`;
     const thread = await supaterm.thread({ project, title: "Notes", messages: ["first"] });
@@ -78,6 +98,12 @@ test(
     await screen.getByText("Files").tap();
     await expect.poll(() => openTreeRow("notes.txt")).toBe(true);
     await expect.poll(editorText).toContain("before save");
+    // Keys typed while the editor lacks focus go to the composer.
+    const line = await editorLine();
+    if (!line) throw new Error("The editor has no line to click");
+    await browser.mouse.move(line.x, line.y);
+    await browser.mouse.down();
+    await browser.mouse.up();
 
     // Requires a non-root server and in-place writes: autosave succeeds, confirmation read fails.
     await chmod(notes, 0o200);
