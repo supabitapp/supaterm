@@ -24,7 +24,8 @@ test(
     );
     await dialog.getByRole("button", "Add theme", { exact: true }).tap();
     await dialog.waitFor({ state: "hidden" });
-    await screen.getByRole("button", "Use Quoted Preview theme", { exact: true }).tap();
+    await screen.getByRole("combobox", "Light theme", { exact: true }).tap();
+    await screen.getByRole("option", "Quoted Preview", { exact: true }).tap();
 
     try {
       await expect
