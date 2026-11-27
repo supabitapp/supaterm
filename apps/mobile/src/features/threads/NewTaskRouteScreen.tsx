@@ -46,6 +46,8 @@ import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspace
 import { T, useGT, useMessages } from "gt-react-native";
 
 type NewTaskRouteParams = {
+  /** Set by compose: the choice starts this new draft rather than retargeting one beneath. */
+  readonly requestId?: string;
   readonly incomingShareId?: string | string[];
   /** An existing draft whose project is gone; the chosen project takes it over. */
   readonly draftId?: string | string[];
@@ -197,7 +199,8 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
       : navigation.getParent();
     const rootState = root?.getState();
     const threadRoute = rootState?.routes[rootState.index - 1];
-    if (routeDraftId === undefined && isDraftThreadRoute(threadRoute)) {
+    const requestId = route.params?.requestId;
+    if (requestId === undefined && routeDraftId === undefined && isDraftThreadRoute(threadRoute)) {
       setProject(project);
       root?.goBack();
       return;
@@ -227,6 +230,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
       name: "Thread",
       params: {
         draft: {
+          requestId,
           environmentId: String(project.environmentId),
           projectId: String(project.id),
           draftId,

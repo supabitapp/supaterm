@@ -49,6 +49,6 @@ describe("resolveStartNewTaskDestination", () => {
         requestId: "request-1",
         useLastProject,
       }),
-    ).toEqual({ draft: { requestId: "request-1" } });
+    ).toBeNull();
   });
 });

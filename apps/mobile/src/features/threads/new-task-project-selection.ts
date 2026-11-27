@@ -256,5 +256,5 @@ export function newTaskDestination(options: {
           projectId: String(project.id),
         },
       }
-    : { draft: { requestId: options.requestId } };
+    : null;
 }

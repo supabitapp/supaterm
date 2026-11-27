@@ -21,7 +21,7 @@ import { newTaskDestination, newTaskFilteredProject } from "./new-task-project-s
 /**
  * Compose opens a draft in the project the thread list is filtered to, else in the
  * last project used on this device while it is listed; otherwise, or with Use last
- * project off, the draft asks for a project.
+ * project off, the project picker opens.
  */
 export function resolveStartNewTaskDestination(input: {
   readonly stickyProject: ScopedProjectRef | null;

@@ -277,7 +277,7 @@ describe("resolveDraftProjectSelection", () => {
 });
 
 describe("newTaskDestination", () => {
-  const picker = { draft: { requestId: "request" } };
+  const picker = null;
 
   function destination(options: {
     readonly useLastProject: boolean | undefined;

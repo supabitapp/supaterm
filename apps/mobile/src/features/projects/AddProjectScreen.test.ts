@@ -34,6 +34,7 @@ const state = vi.hoisted(() => ({
   newProjectsRoot: null as string | null,
   waitForProject: vi.fn(async (): Promise<unknown> => null),
   dispatch: vi.fn(),
+  selectDetail: vi.fn(),
   alert: vi.fn(),
   navigationState: undefined as NavigationState | undefined,
   environments: [{ environmentId: "environment", environmentLabel: "Environment" }],
@@ -53,6 +54,9 @@ function loadRouters() {
   };
 }
 
+vi.mock("../layout/workspace/useSelectWorkspaceDetail", () => ({
+  useSelectWorkspaceDetail: () => state.selectDetail,
+}));
 vi.mock("../../components/ui/NavigationRow", () => ({ NavigationRow: "NavigationRow" }));
 vi.mock("../../components/ui/Button", () => ({ Button: "Button" }));
 vi.mock("../../components/ui/ScreenScrollView", () => ({ ScreenScrollView: "ScrollView" }));
@@ -339,7 +343,7 @@ describe("clone project permissions", () => {
   });
 });
 
-function mountProjectFlow(screenName = "AddProjectLocal") {
+function mountProjectFlow(screenName = "AddProjectLocal", pickerParams?: object) {
   const { StackRouter, StackActions, CommonActions } = loadRouters();
   const router = StackRouter({});
   const options = {
@@ -361,7 +365,8 @@ function mountProjectFlow(screenName = "AddProjectLocal") {
     current = next;
     state.navigationState = current;
   };
-  for (const name of ["NewTaskProject", "AddProject", screenName]) {
+  apply(StackActions.push("NewTaskProject", pickerParams));
+  for (const name of ["AddProject", screenName]) {
     apply(StackActions.push(name));
   }
   state.navigationState = current;
@@ -552,6 +557,22 @@ describe("local project navigation", () => {
     } finally {
       state.existingProjects = [];
     }
+  });
+
+  it("selects the new project's draft when compose opened the picker", async () => {
+    const { created, projected, submit } = setup();
+    mountProjectFlow("AddProjectLocal", { requestId: "compose" });
+    state.selectDetail.mockReset();
+    const submission = submit();
+    created.resolve(AsyncResult.success(undefined));
+    projected.resolve({ environmentId: "environment", id: "project" });
+    await act(() => submission);
+
+    expect(state.dispatch).not.toHaveBeenCalled();
+    expect(state.selectDetail).toHaveBeenCalledWith({
+      name: "Thread",
+      params: { draft: expect.objectContaining({ requestId: "compose", projectId: "project" }) },
+    });
   });
 
   it("does not replace a warm-linked flow sharing the original route key", async () => {
