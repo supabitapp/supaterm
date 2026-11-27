@@ -37,7 +37,8 @@ test(
       return null;
     });
 
-    await screen.getByRole("button", "Use Nyx One theme").tap();
+    await screen.getByRole("combobox", "Light theme", { exact: true }).tap();
+    await screen.getByRole("option", "Nyx One", { exact: true }).tap();
     await app.screenshot("renamed-batch-theme-selected");
     await expect
       .poll(() =>
