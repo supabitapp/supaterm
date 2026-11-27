@@ -580,9 +580,10 @@ function AdaptiveWorkspaceLayoutContent(
   const compactAndroidSettings =
     Platform.OS === "android" && androidSettingsOpen && !layout.usesSplitView;
   const handleStartNewTask = () => {
-    void readStartNewTaskDestination(uuidv4()).then((destination) =>
+    const requestId = uuidv4();
+    void readStartNewTaskDestination(requestId).then((destination) =>
       destination === null
-        ? navigation.navigate("NewTaskProject")
+        ? navigation.navigate("NewTaskProject", { requestId })
         : handleSelectThreadRoute(destination),
     );
   };

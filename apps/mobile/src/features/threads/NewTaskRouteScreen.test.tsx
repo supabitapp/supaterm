@@ -215,3 +215,29 @@ it("cancels the No project draft retarget when another project is picked", async
 
   expect(harness.selectDetail.mock.calls).toEqual(appDraftSelection);
 });
+
+it("starts a fresh draft from compose instead of retargeting the draft beneath", async () => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  harness.setProject.mockClear();
+  harness.selectDetail.mockClear();
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  using _root = { [Symbol.dispose]: () => act(() => root.unmount()) };
+  act(() =>
+    root.render(<NewTaskRouteScreen route={{ params: { requestId: "compose-1" } } as never} />),
+  );
+
+  await act(async () => container.querySelector<HTMLElement>('[aria-label="app"]')!.click());
+
+  expect(harness.setProject).not.toHaveBeenCalled();
+  expect(harness.selectDetail.mock.calls).toEqual([
+    [
+      {
+        name: "Thread",
+        params: {
+          draft: { requestId: "compose-1", environmentId, projectId: regular.id },
+        },
+      },
+    ],
+  ]);
+});

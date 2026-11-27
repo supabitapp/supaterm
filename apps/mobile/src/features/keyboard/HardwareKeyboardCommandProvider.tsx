@@ -250,8 +250,9 @@ export function HardwareKeyboardCommandProvider({
       }
 
       if (command === "newTask") {
-        void readStartNewTaskDestination(uuidv4()).then((destination) =>
-          navigation.dispatch(startNewTaskAction(destination)),
+        const requestId = uuidv4();
+        void readStartNewTaskDestination(requestId).then((destination) =>
+          navigation.dispatch(startNewTaskAction(requestId, destination)),
         );
         return;
       }

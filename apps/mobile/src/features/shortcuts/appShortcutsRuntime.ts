@@ -143,8 +143,11 @@ export function installAppShortcuts(navigate: (href: string) => void): () => voi
   const open = (action: QuickActions.Action) => {
     // "New task" goes through the compose action so it opens the last project.
     if (action.id === NEW_TASK_SHORTCUT_ID) {
-      void readStartNewTaskDestination(uuidv4()).then((destination) =>
-        whenRootNavigationReady(() => rootNavigationRef.dispatch(startNewTaskAction(destination))),
+      const requestId = uuidv4();
+      void readStartNewTaskDestination(requestId).then((destination) =>
+        whenRootNavigationReady(() =>
+          rootNavigationRef.dispatch(startNewTaskAction(requestId, destination)),
+        ),
       );
       return;
     }
