@@ -31,16 +31,18 @@ test(
         .getByRole("button", "Edit shortcut for Command Palette: Toggle: Enter")
         .waitFor();
 
-      await search.fill("Chat: New");
-      const unchanged = screen.getByRole("button", "Edit shortcut for Chat: New: Ctrl+N", {
-        exact: true,
-      });
+      const command = "Focus Next Workspace Area";
+      await search.fill(command);
+      const unchanged = screen.getByRole(
+        "button",
+        new RegExp(`^Edit shortcut for ${command}: (?:⌘F6|Ctrl\\+F6)$`),
+      );
       await unchanged.waitFor();
-      await screen.getByRole("button", "Edit shortcut for Chat: New: Ctrl+Shift+O").tap();
-      await screen.getByRole("textbox", "Keybinding for Chat: New", { exact: true }).press("F8");
+      await screen.getByRole("button", `Edit shortcut for ${command}: F6`, { exact: true }).tap();
+      await screen.getByRole("textbox", `Keybinding for ${command}`, { exact: true }).press("F8");
       await screen.getByRole("button", "Save", { exact: true }).tap();
       await screen
-        .getByRole("button", "Edit shortcut for Chat: New: F8", { exact: true })
+        .getByRole("button", `Edit shortcut for ${command}: F8`, { exact: true })
         .waitFor();
 
       try {
