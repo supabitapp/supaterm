@@ -85,6 +85,7 @@ import { SourceControlIcon } from "./SourceControlIcon";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { ThemedSwitch } from "../../components/ui/ThemedSwitch";
 import { uuidv4 } from "../../lib/uuid";
+import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import {
@@ -715,6 +716,7 @@ function getActiveRoute(navigation: {
 
 function useOpenNewTaskDraft() {
   const navigation = useNavigation();
+  const selectDetail = useSelectWorkspaceDetail();
   return (
     params: {
       environmentId: EnvironmentId;
@@ -736,11 +738,15 @@ function useOpenNewTaskDraft() {
       activeRoute.params !== originRoute.params
     )
       return;
+    const picker = state.routes.find((route) => route.name === "NewTaskProject");
+    const requestId = (picker?.params as { requestId?: string } | undefined)?.requestId;
+    if (requestId !== undefined) {
+      selectDetail({ name: "Thread", params: { draft: { requestId, ...params } } });
+      return;
+    }
     const threadIndex = state.routes.findLastIndex((route) => route.name === "Thread");
-    const pickerIndex = state.routes.findIndex((route) => route.name === "NewTaskProject");
-    const flowStart = [threadIndex, pickerIndex].find((index) => index >= 0) ?? state.index;
     const routes = [
-      ...state.routes.slice(0, flowStart),
+      ...state.routes.slice(0, threadIndex < 0 ? state.index : threadIndex),
       { key: uuidv4(), name: "Thread", params: { draft: params } },
     ];
     navigation.dispatch(CommonActions.reset({ ...state, index: routes.length - 1, routes }));
