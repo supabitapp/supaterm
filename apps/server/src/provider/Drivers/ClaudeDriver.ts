@@ -26,7 +26,6 @@ import { ProviderDriverError } from "../Errors.ts";
 import { claudeUsageReader } from "./claudeUsage.ts";
 import { makeClaudeScopedLimitNames } from "../claudeUsageLimits.ts";
 import * as ClaudeResetCredits from "../claudeResetCredits.ts";
-import { makeClaudeTranscription } from "../ClaudeTranscription.ts";
 import * as ResetCreditCoordinator from "../resetCreditCoordinator.ts";
 import {
   checkClaudeProviderStatus,
@@ -339,16 +338,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       ),
     );
 
-    const transcription = yield* makeClaudeTranscription({
-      environment: cliEnvironment,
-      configDir,
-      cliVersion: snapshot.getSnapshot.pipe(Effect.map((current) => current.version)),
-    }).pipe(
-      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-      Effect.provideService(FileSystem.FileSystem, fileSystem),
-      Effect.provideService(Path.Path, path),
-    );
-
     // Same rules as Codex: serialised on the config directory that holds the
     // login, one request id kept until Claude answers (a cooldown or rate
     // limit is an answer), then a re-probe.
@@ -439,7 +428,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       orchestrationAdapter,
       textGeneration,
       consumeResetCredit,
-      transcription,
     } satisfies ProviderInstance;
   }),
 };

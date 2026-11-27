@@ -133,8 +133,6 @@ import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewG
 import * as IssueService from "./issue/IssueService.ts";
 import * as ThreadIssueService from "./orchestration-v2/ThreadIssueService.ts";
 import * as IssueTrackerConnections from "./issue/IssueTrackerConnections.ts";
-import * as Transcription from "./transcription/Transcription.ts";
-import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
 import * as RemoteOpenTargets from "./environment/RemoteOpenTargets.ts";
@@ -893,8 +891,6 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(SecretRequests.SecretRequests)({}),
   Layer.mock(SecretResolver.SecretResolver)({}),
   Layer.mock(SecretCheck.SecretCheck)({}),
-  Layer.mock(Transcription.Transcription)({}),
-  Layer.mock(TranscriptionUploads.TranscriptionUploads)({}),
 
   Layer.mock(OrchestrationSkills.OrchestrationSkills)({}),
   Layer.mock(RelayAccess.RelayAccess)({

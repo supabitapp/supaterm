@@ -432,17 +432,6 @@ import {
   ProviderConsumeResetCreditInput,
   ProviderConsumeResetCreditResult,
 } from "./providerUsageLimits.ts";
-import {
-  TranscriptionCancelInput,
-  TranscriptionCancelUploadInput,
-  TranscriptionCancelUploadResult,
-  TranscriptionError,
-  TranscriptionPrepareStreamInput,
-  TranscriptionPrepareUploadInput,
-  TranscriptionPrepareUploadResult,
-  TranscriptionTranscribeInput,
-  TranscriptionTranscribeResult,
-} from "./transcription.ts";
 import { UsagePricing, UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
 import {
   StorageCleanupReport,
@@ -514,11 +503,6 @@ export const WS_METHODS = {
   assetsPersistChatAttachments: "assets.persistChatAttachments",
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
   attachmentsDelete: "attachments.delete",
-  transcriptionTranscribe: "transcription.transcribe",
-  transcriptionCancel: "transcription.cancel",
-  transcriptionPrepareUpload: "transcription.prepareUpload",
-  transcriptionCancelUpload: "transcription.cancelUpload",
-  transcriptionPrepareStream: "transcription.prepareStream",
 
   mcpAppsCallTool: "mcpApps.callTool",
   mcpAppsToolInfo: "mcpApps.toolInfo",
@@ -1717,43 +1701,6 @@ const WsAttachmentsDeleteRpc = Rpc.make(WS_METHODS.attachmentsDelete, {
   error: EnvironmentAuthorizationError,
 });
 
-const WsTranscriptionTranscribeRpc = Rpc.make(WS_METHODS.transcriptionTranscribe, {
-  payload: TranscriptionTranscribeInput,
-  success: TranscriptionTranscribeResult,
-  error: Schema.Union([TranscriptionError, EnvironmentAuthorizationError]),
-});
-
-const WsTranscriptionCancelRpc = Rpc.make(WS_METHODS.transcriptionCancel, {
-  payload: TranscriptionCancelInput,
-  error: EnvironmentAuthorizationError,
-});
-
-const WsTranscriptionPrepareUploadRpc = Rpc.make(WS_METHODS.transcriptionPrepareUpload, {
-  payload: TranscriptionPrepareUploadInput,
-  success: TranscriptionPrepareUploadResult,
-  error: Schema.Union([
-    TranscriptionError,
-    AttachmentUploadSigningKeyError,
-    EnvironmentAuthorizationError,
-  ]),
-});
-
-const WsTranscriptionPrepareStreamRpc = Rpc.make(WS_METHODS.transcriptionPrepareStream, {
-  payload: TranscriptionPrepareStreamInput,
-  success: TranscriptionPrepareUploadResult,
-  error: Schema.Union([
-    TranscriptionError,
-    AttachmentUploadSigningKeyError,
-    EnvironmentAuthorizationError,
-  ]),
-});
-
-const WsTranscriptionCancelUploadRpc = Rpc.make(WS_METHODS.transcriptionCancelUpload, {
-  payload: TranscriptionCancelUploadInput,
-  success: TranscriptionCancelUploadResult,
-  error: EnvironmentAuthorizationError,
-});
-
 const WsMcpAppsCallToolRpc = Rpc.make(WS_METHODS.mcpAppsCallTool, {
   payload: McpAppCallToolInput,
   success: McpAppCallToolResult,
@@ -2542,11 +2489,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,
   WsAttachmentsDeleteRpc,
-  WsTranscriptionTranscribeRpc,
-  WsTranscriptionCancelRpc,
-  WsTranscriptionPrepareUploadRpc,
-  WsTranscriptionPrepareStreamRpc,
-  WsTranscriptionCancelUploadRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,
   WsMcpAppsReadResourceRpc,

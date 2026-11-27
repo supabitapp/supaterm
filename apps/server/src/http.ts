@@ -1,13 +1,8 @@
-import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
 import * as Mime from "effect/http/Mime";
 import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
-  AuthSessionId,
   EnvironmentHttpApi,
-  TranscriptionError,
-  type TranscriptionErrorReason,
-  TranscriptionUploadResult,
 } from "@supaterm/contracts";
 import { isDevProxiedPath } from "@supaterm/shared/devProxy";
 import {
@@ -30,7 +25,6 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
-import * as Pull from "effect/Pull";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as Tracer from "effect/Tracer";
@@ -59,8 +53,6 @@ import {
   validateAttachmentUploadToken,
 } from "./assets/AttachmentUpload.ts";
 import * as BrowserTraceCollector from "./observability/BrowserTraceCollector.ts";
-import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
-import * as SessionStore from "./auth/SessionStore.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import {
   annotateEnvironmentRequest,
@@ -631,110 +623,6 @@ export const layerAttachmentUploadRoute = HttpRouter.add(
       : HttpServerResponse.text(stored.detail, { status: stored.status });
   }),
   SIGNED_URL_ROUTE_OPTIONS,
-);
-
-const transcriptionUploadStatus = (reason: TranscriptionErrorReason | undefined) => {
-  switch (reason) {
-    case "uploadExpired":
-      return 410;
-    case "requestConflict":
-      return 409;
-    case "rateLimited":
-      return 429;
-    default:
-      return 422;
-  }
-};
-const transcriptionUploadResponse = HttpServerResponse.schemaJson(TranscriptionUploadResult);
-const transcriptionErrorResponse = HttpServerResponse.schemaJson(TranscriptionError);
-
-export const layerTranscriptionUploadRoute = Layer.unwrap(
-  Effect.gen(function* () {
-    const uploads = yield* TranscriptionUploads.TranscriptionUploads;
-    return HttpRouter.add(
-      "POST",
-      `${TranscriptionUploads.TRANSCRIPTION_UPLOAD_ROUTE_PREFIX}/*`,
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest;
-        const url = requestUrl(request);
-        if (Option.isNone(url)) {
-          return HttpServerResponse.text("Bad Request", { status: 400 });
-        }
-        // Keep the request stream in the route scope until the response is sent.
-        const bodyPull = yield* Stream.toPull(request.stream);
-        // An empty body collects the outcome even when the transport sends no zero length.
-        const first = yield* bodyPull.pipe(
-          Effect.asSome,
-          Pull.catchDone(() => Effect.succeedNone),
-          Effect.orElseSucceed(() => Option.none()),
-        );
-        return yield* uploads
-          .receive(
-            url.value.pathname.slice(
-              `${TranscriptionUploads.TRANSCRIPTION_UPLOAD_ROUTE_PREFIX}/`.length,
-            ),
-            Option.isNone(first)
-              ? undefined
-              : Stream.concat(
-                  Stream.fromIterable(first.value),
-                  Stream.fromPull(Effect.succeed(bodyPull)),
-                ),
-          )
-          .pipe(
-            Effect.flatMap((result) => transcriptionUploadResponse(result)),
-            Effect.catchTags({
-              // Rebuilt without its cause, which can carry provider details.
-              TranscriptionError: (error) =>
-                transcriptionErrorResponse(
-                  new TranscriptionError({
-                    ...(error.reason === undefined ? {} : { reason: error.reason }),
-                    ...(error.retryAfterMs === undefined
-                      ? {}
-                      : { retryAfterMs: error.retryAfterMs }),
-                  }),
-                  { status: transcriptionUploadStatus(error.reason) },
-                ),
-            }),
-            Effect.orElseSucceed(() =>
-              HttpServerResponse.text("Internal Server Error", { status: 500 }),
-            ),
-          );
-      }),
-    );
-  }),
-);
-
-export const layerTranscriptionStreamRoute = Layer.unwrap(
-  Effect.gen(function* () {
-    const uploads = yield* TranscriptionUploads.TranscriptionUploads;
-    const sessions = yield* SessionStore.SessionStore;
-    const revoked = (sessionId: string) =>
-      sessions
-        .awaitInvalidation(AuthSessionId.make(sessionId))
-        .pipe(Effect.catch(() => Effect.never));
-    return HttpRouter.add(
-      "GET",
-      `${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/*`,
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest;
-        const url = requestUrl(request);
-        if (Option.isNone(url) || request.headers.upgrade?.toLowerCase() !== "websocket") {
-          return HttpServerResponse.text("Bad Request", { status: 400 });
-        }
-        // PCM doesn't compress, so negotiating permessage-deflate would only cost CPU.
-        delete NodeHttpServerRequest.toIncomingMessage(request).headers["sec-websocket-extensions"];
-        const socket = yield* request.upgrade;
-        yield* uploads.attachStream(
-          url.value.pathname.slice(
-            `${TranscriptionUploads.TRANSCRIPTION_STREAM_ROUTE_PREFIX}/`.length,
-          ),
-          socket,
-          revoked,
-        );
-        return HttpServerResponse.empty();
-      }).pipe(Effect.scoped),
-    );
-  }),
 );
 
 const decodeBuildManifest = Schema.decodeUnknownEffect(

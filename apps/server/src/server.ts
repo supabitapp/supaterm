@@ -53,8 +53,6 @@ import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as PullRequestFilesViewed from "./persistence/PullRequestFilesViewed.ts";
 import * as PullRequestReviewGuides from "./persistence/PullRequestReviewGuides.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
-import * as Transcription from "./transcription/Transcription.ts";
-import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ModelManifest from "./provider/ModelManifest.ts";
 import * as ResetCreditCoordinator from "./provider/resetCreditCoordinator.ts";
@@ -783,8 +781,6 @@ const layerMakeRoutes = Layer.mergeAll(
     ServerHttp.layerDesktopReadinessProofRoute,
     ServerHttp.layerAssetRoute,
     ServerHttp.layerAttachmentUploadRoute,
-    ServerHttp.layerTranscriptionUploadRoute,
-    ServerHttp.layerTranscriptionStreamRoute,
     LinkThreadHttp.layer,
     DeviceHubProxy.layer,
     DirectTunnelHttp.layer,
@@ -805,11 +801,6 @@ const layerMakeRoutes = Layer.mergeAll(
 ).pipe(
   Layer.provide(
     PullRequestReviewGuideService.layer.pipe(Layer.provide(PullRequestReviewGuides.layer)),
-  ),
-  Layer.provide(
-    TranscriptionUploads.layer.pipe(
-      Layer.provideMerge(Transcription.layer.pipe(Layer.provide(ProjectionStoreV2.layer))),
-    ),
   ),
   // delegate_task to a linked environment, from /mcp and the follower above.
   Layer.provide(RemoteDelegation.layer.pipe(Layer.provide(ProjectionStoreV2.layer))),

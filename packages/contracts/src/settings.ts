@@ -251,29 +251,6 @@ export const VoiceMicrophone = Schema.Struct({
 });
 export type VoiceMicrophone = typeof VoiceMicrophone.Type;
 
-export const TRANSCRIPTION_DICTIONARY_MAX_ENTRIES = 100;
-export const TRANSCRIPTION_DICTIONARY_MAX_ALIASES = 8;
-const TranscriptionDictionaryWord = TrimmedNonEmptyString.check(Schema.isMaxLength(50));
-
-/** `term` is how a word is spelled; `aliases` are what the speech model hears instead. */
-export const TranscriptionDictionaryEntry = Schema.Struct({
-  term: TranscriptionDictionaryWord,
-  aliases: Schema.Array(TranscriptionDictionaryWord)
-    .check(Schema.isMaxLength(TRANSCRIPTION_DICTIONARY_MAX_ALIASES))
-    .pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-});
-export type TranscriptionDictionaryEntry = typeof TranscriptionDictionaryEntry.Type;
-
-export type TranscriptionDictionary = typeof TranscriptionDictionary.Type;
-export const TranscriptionDictionary = Schema.Array(TranscriptionDictionaryEntry).check(
-  Schema.isMaxLength(TRANSCRIPTION_DICTIONARY_MAX_ENTRIES),
-);
-
-// Joined and hyphenated forms ("superterm", "super-term") match these without listing them.
-export const DEFAULT_TRANSCRIPTION_DICTIONARY: TranscriptionDictionary = [
-  { term: "Supaterm", aliases: ["super term", "supa term", "soup a term"] },
-];
-
 export const NotificationMode = Schema.Literals([
   "off",
   "notifications",
@@ -1403,14 +1380,6 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(true)),
   ),
   threadTitleInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-  /**
-   * Its login transcribes voice input sent to this environment, and is charged for it. Null
-   * picks automatically and stays off the wire, so older clients decode their own default.
-   */
-  transcriptionProviderInstanceId: OmittedWhenNull(ProviderInstanceId),
-  transcriptionDictionary: TranscriptionDictionary.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_TRANSCRIPTION_DICTIONARY)),
-  ),
   branchNamingMode: BranchNamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("static" as const)),
   ),
@@ -1712,8 +1681,6 @@ export const ServerSettingsPatch = Schema.Struct({
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
   nextPromptSuggestionsEnabled: Schema.optionalKey(Schema.Boolean),
   threadTitleInstructions: Schema.optionalKey(TrimmedString),
-  transcriptionProviderInstanceId: Schema.optionalKey(Schema.NullOr(ProviderInstanceId)),
-  transcriptionDictionary: Schema.optionalKey(TranscriptionDictionary),
   branchNamingMode: Schema.optionalKey(BranchNamingMode),
   branchNamePrefix: Schema.optionalKey(TrimmedString),
   branchNamePrefixFromRepository: Schema.optionalKey(Schema.Boolean),

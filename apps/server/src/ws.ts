@@ -267,8 +267,6 @@ import * as IssueService from "./issue/IssueService.ts";
 import * as ThreadIssueService from "./orchestration-v2/ThreadIssueService.ts";
 import * as IssueTrackerConnections from "./issue/IssueTrackerConnections.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
-import * as Transcription from "./transcription/Transcription.ts";
-import * as TranscriptionUploads from "./transcription/TranscriptionUploads.ts";
 import { listLinkedPullRequestThreads } from "./pullRequest/linkedThreads.ts";
 import { pullRequestSyncKey } from "./pullRequest/pullRequestSyncKey.ts";
 import * as SqlClient from "effect/sql/SqlClient";
@@ -1425,8 +1423,6 @@ export const layerWsRpc = (
       const threadIssues = yield* ThreadIssueService.ThreadIssueService;
       const issueTrackers = yield* IssueTrackerConnections.IssueTrackerConnections;
       const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
-      const transcription = yield* Transcription.Transcription;
-      const transcriptionUploads = yield* TranscriptionUploads.TranscriptionUploads;
       const pullRequestSync = yield* PullRequestSyncReactor.PullRequestSyncReactor;
       const deviceService = yield* DeviceService.DeviceService;
       const deviceHostContext =
@@ -1855,7 +1851,6 @@ export const layerWsRpc = (
           threadSnapshotPagination: true,
           threadFind: true,
           threadFindProgressive: true,
-          transcriptionStreams: true,
           secretProviderSettings: true,
           secretReferences: true,
           secretRequestReferences: true,
@@ -3003,20 +2998,6 @@ export const layerWsRpc = (
         [WS_METHODS.workspaceAddTaskFolderRepository]: (input) => taskFolders.addRepository(input),
         [WS_METHODS.attachmentsCreateUploadUrl]: (input) => issueAttachmentUploadUrl(input),
         [WS_METHODS.attachmentsDelete]: (input) => deletePendingAttachment(input.attachmentId),
-        [WS_METHODS.transcriptionTranscribe]: (input) =>
-          Effect.annotateCurrentSpan({ instanceId: input.providerInstanceId }).pipe(
-            Effect.andThen(transcription.transcribe(input)),
-          ),
-        [WS_METHODS.transcriptionCancel]: (input) => transcription.cancel(input),
-        [WS_METHODS.transcriptionPrepareUpload]: (input) =>
-          Effect.annotateCurrentSpan({ instanceId: input.providerInstanceId }).pipe(
-            Effect.andThen(transcriptionUploads.prepare(input)),
-          ),
-        [WS_METHODS.transcriptionCancelUpload]: (input) => transcriptionUploads.cancel(input),
-        [WS_METHODS.transcriptionPrepareStream]: (input) =>
-          Effect.annotateCurrentSpan({ instanceId: input.providerInstanceId }).pipe(
-            Effect.andThen(transcriptionUploads.prepareStream(input, currentSessionId)),
-          ),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
@@ -3579,8 +3560,6 @@ export const layer = Layer.unwrap(
     const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
     const peerLinks = yield* PeerLinks.PeerLinks;
     const peerLinkRequests = yield* PeerLinkRequests.PeerLinkRequests;
-    const transcription = yield* Transcription.Transcription;
-    const transcriptionUploads = yield* TranscriptionUploads.TranscriptionUploads;
     const peerThreadRelay = yield* PeerThreadRelay.PeerThreadRelay;
     const peerClientPairing = yield* PeerClientPairing.PeerClientPairing;
     const serverSettings = yield* ServerSettings.ServerSettingsService;
@@ -3671,12 +3650,8 @@ export const layer = Layer.unwrap(
               ),
               Layer.provide(Layer.succeed(PeerLinks.PeerLinks, peerLinks)),
               Layer.provide(Layer.succeed(PeerLinkRequests.PeerLinkRequests, peerLinkRequests)),
-              Layer.provide(Layer.succeed(Transcription.Transcription, transcription)),
               Layer.provide(Layer.succeed(PeerThreadRelay.PeerThreadRelay, peerThreadRelay)),
               Layer.provide(Layer.succeed(PeerClientPairing.PeerClientPairing, peerClientPairing)),
-              Layer.provide(
-                Layer.succeed(TranscriptionUploads.TranscriptionUploads, transcriptionUploads),
-              ),
               Layer.provide(SourceControlDiscovery.layer),
             ),
           ),

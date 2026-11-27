@@ -8,7 +8,6 @@ import {
   type ServerProvider,
   type ServerProviderModel,
   type ServerProviderSlashCommand,
-  type ServerProviderTranscription,
   type ServerProviderResetCredits,
 } from "@supaterm/contracts";
 import * as Cache from "effect/Cache";
@@ -228,34 +227,6 @@ function claudeAuthStatus(
   return hasApiKey(capabilities.apiKeySource) || capabilities.email || capabilities.subscriptionType
     ? "authenticated"
     : "unauthenticated";
-}
-
-// The CLI names a signed-in claude.ai login by its subscription and leaves the token source out;
-// it reports a source only for a token passed in through its variable. A token handed over a
-// file descriptor can't be read from outside the CLI.
-const CLAUDE_SUBSCRIPTION_TOKEN_SOURCES: ReadonlySet<string> = new Set([
-  "claude.ai",
-  "CLAUDE_CODE_OAUTH_TOKEN",
-]);
-
-function claudeTranscriptionStatus(
-  capabilities: Pick<
-    ClaudeCapabilitiesProbe,
-    "subscriptionType" | "tokenSource" | "apiKeySource" | "apiProvider"
-  >,
-  customApiEndpoint: boolean,
-): ServerProviderTranscription {
-  const firstParty =
-    capabilities.apiProvider === undefined || capabilities.apiProvider === "firstParty";
-  const subscriptionLogin =
-    capabilities.subscriptionType !== undefined ||
-    (capabilities.tokenSource !== undefined &&
-      CLAUDE_SUBSCRIPTION_TOKEN_SOURCES.has(capabilities.tokenSource));
-  // Turns follow an API key over a stored login, so that login would be another account.
-  const apiKey = capabilities.apiKeySource !== undefined && capabilities.apiKeySource !== "none";
-  return firstParty && !customApiEndpoint && subscriptionLogin && !apiKey
-    ? { status: "ready" }
-    : { status: "unavailable", reason: "unsupportedLogin" };
 }
 
 // Amazon Bedrock initializes far slower than first-party auth: the SDK boots the Bedrock
@@ -957,7 +928,6 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
           configDir === undefined
             ? "Claude Code is not authenticated. Run `claude auth login` and try again."
             : claudeSignedOutMessage({ configDir, cwd: path.resolve(cwd ?? ".") }),
-        transcription: { status: "unavailable", reason: "signedOut" },
       },
     });
   }
@@ -1010,7 +980,6 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
       },
       ...(versionUpgradeMessage ? { message: versionUpgradeMessage } : {}),
       usageLimits: resetCredits ? { ...usageLimits, resetCredits } : usageLimits,
-      transcription: claudeTranscriptionStatus(capabilities, customApiEndpoint),
     },
   });
 });

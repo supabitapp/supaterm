@@ -51,15 +51,6 @@ describe("RPC authorization scopes", () => {
     );
   });
 
-  it("keeps transcription uploads, which spend a provider account and can send a prompt, behind operate scope", () => {
-    expect(requiredScopeForRpcMethod(WS_METHODS.transcriptionPrepareUpload)).toBe(
-      AuthOrchestrationOperateScope,
-    );
-    expect(requiredScopeForRpcMethod(WS_METHODS.transcriptionCancelUpload)).toBe(
-      AuthOrchestrationOperateScope,
-    );
-  });
-
   it("keeps answering an agent's secret request, which hands the agent a credential, behind operate scope", () => {
     expect(requiredScopeForRpcMethod(WS_METHODS.secretsAnswerRequest)).toBe(
       AuthOrchestrationOperateScope,
