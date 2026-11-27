@@ -37,7 +37,10 @@ export function WelcomeExtras({
           )}
           control={
             skills.installed && skills.pending === null ? (
-              <Done label={gt("Installed")} />
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success-foreground">
+                <CheckIcon className="size-3.5" />
+                <T>Installed</T>
+              </span>
             ) : skills.pending === "Status" ? (
               <span className="text-xs text-muted-foreground">
                 <T>Checking…</T>
@@ -133,14 +136,5 @@ function ExtraRow({
       </div>
       <div className="shrink-0">{control}</div>
     </div>
-  );
-}
-
-function Done({ label }: { readonly label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success-foreground">
-      <CheckIcon className="size-3.5" />
-      {label}
-    </span>
   );
 }

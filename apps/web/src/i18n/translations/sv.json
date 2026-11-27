@@ -4949,11 +4949,11 @@
   "0d08c06bd9d89375": "Extra",
   "615a17789d50e503": "Kommitté och rådgivare",
   "27277df27a4b8498": "Skills som låter dina agenter be andra agenter om en andra åsikt eller en plan.",
-  "f84879ada73428c9": "Installerade",
   "5d973795984549fc": "Installera",
   "63e3b745dcad33e8": "Öppna iOS-simulatorer och Android-emulatorer här och låt agenter styra dem.",
   "7f5a8e4946d52c3c": "Öppna iOS-simulatorer här och låt agenter styra dem.",
   "8643cac879b947a1": "Öppna Android-emulatorer här och låt agenter styra dem.",
+  "5c174688fdb31c00": "Installerade",
   "fc05a3512bf05489": "Kontrollerar…",
   "d6c31ff9bb97570e": "Sökgränsen nåddes. Vissa projekt eller konversationer kan saknas.",
   "da6f86321113fb7b": "Den här anslutningen kan inte importera projekt eller trådhistorik.",
@@ -8396,6 +8396,7 @@
   "fed2d32de2b0c566": "Rensa sökningen i inställningar",
   "833639e235c97484": "Sökresultat i inställningar",
   "be82bbfef472ab44": "Inga inställningar hittades",
+  "f84879ada73428c9": "Installerade",
   "5a9233d122811283": "Avinstallerar…",
   "2c87759394b65c15": "Avinstallera",
   "1cdb320b3eb6c156": "Anslut till en miljö för att installera färdigheterna supaterm-commitee och supaterm-advisor.",
@@ -10243,6 +10244,5 @@
   "f7156ba86bf859f7": "Aktivera SidePulse",
   "25e724cc7db929e5": "Justerar ljusstyrkan för alla SidePulse-animationer",
   "11a22e13ce78c616": "Lampor",
-  "796a410d89b46def": "Visas nu",
-  "5c174688fdb31c00": "Installerade"
+  "796a410d89b46def": "Visas nu"
 }

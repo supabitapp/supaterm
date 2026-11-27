@@ -4948,11 +4948,11 @@
   "0d08c06bd9d89375": "Extras",
   "615a17789d50e503": "Comitê e consultor",
   "27277df27a4b8498": "Skills que permitem que seus agentes peçam a outros agentes uma segunda opinião ou um plano.",
-  "f84879ada73428c9": "Instaladas",
   "5d973795984549fc": "Instalar",
   "63e3b745dcad33e8": "Abra aqui simuladores iOS e emuladores Android e deixe os agentes controlá-los.",
   "7f5a8e4946d52c3c": "Abra aqui simuladores iOS e deixe os agentes controlá-los.",
   "8643cac879b947a1": "Abra aqui emuladores Android e deixe os agentes controlá-los.",
+  "5c174688fdb31c00": "Instaladas",
   "fc05a3512bf05489": "Verificando…",
   "d6c31ff9bb97570e": "Limite de varredura atingido. Alguns projetos ou conversas podem estar faltando.",
   "da6f86321113fb7b": "Esta conexão não pode importar projetos nem histórico de threads.",
@@ -8387,6 +8387,7 @@
   "fed2d32de2b0c566": "Limpar pesquisa de configurações",
   "833639e235c97484": "Resultados da pesquisa de configurações",
   "be82bbfef472ab44": "Nenhuma configuração encontrada",
+  "f84879ada73428c9": "Instaladas",
   "5a9233d122811283": "Desinstalando…",
   "2c87759394b65c15": "Desinstalar",
   "1cdb320b3eb6c156": "Conecte-se a um ambiente para instalar as skills supaterm-commitee e supaterm-advisor.",
@@ -10235,6 +10236,5 @@
   "f7156ba86bf859f7": "Ativar o SidePulse",
   "25e724cc7db929e5": "Ajusta o brilho de todas as animações do SidePulse",
   "11a22e13ce78c616": "Luzes",
-  "796a410d89b46def": "Exibindo agora",
-  "5c174688fdb31c00": "Instaladas"
+  "796a410d89b46def": "Exibindo agora"
 }

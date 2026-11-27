@@ -4947,11 +4947,11 @@
   "0d08c06bd9d89375": "Extras",
   "615a17789d50e503": "Comité y asesor",
   "27277df27a4b8498": "Skills que permiten a tus agentes pedir a otros agentes una segunda opinión o un plan.",
-  "f84879ada73428c9": "Instaladas",
   "5d973795984549fc": "Instalar",
   "63e3b745dcad33e8": "Abre aquí simuladores de iOS y emuladores de Android y deja que los agentes los controlen.",
   "7f5a8e4946d52c3c": "Abre aquí simuladores de iOS y deja que los agentes los controlen.",
   "8643cac879b947a1": "Abre aquí emuladores de Android y deja que los agentes los controlen.",
+  "5c174688fdb31c00": "Instaladas",
   "fc05a3512bf05489": "Comprobando…",
   "d6c31ff9bb97570e": "Se alcanzó el límite de escaneo. Puede que falten algunos proyectos o conversaciones.",
   "da6f86321113fb7b": "Esta conexión no puede importar proyectos ni historial de hilos.",
@@ -8385,6 +8385,7 @@
   "fed2d32de2b0c566": "Borrar búsqueda de ajustes",
   "833639e235c97484": "Resultados de búsqueda de ajustes",
   "be82bbfef472ab44": "No se encontraron ajustes",
+  "f84879ada73428c9": "Instaladas",
   "5a9233d122811283": "Desinstalando…",
   "2c87759394b65c15": "Desinstalar",
   "1cdb320b3eb6c156": "Conéctate a un entorno para instalar las skills supaterm-commitee y supaterm-advisor.",
@@ -10230,6 +10231,5 @@
   "f7156ba86bf859f7": "Activar SidePulse",
   "25e724cc7db929e5": "Ajusta el brillo de todas las animaciones de SidePulse",
   "11a22e13ce78c616": "Luces",
-  "796a410d89b46def": "Mostrando ahora",
-  "5c174688fdb31c00": "Instaladas"
+  "796a410d89b46def": "Mostrando ahora"
 }
