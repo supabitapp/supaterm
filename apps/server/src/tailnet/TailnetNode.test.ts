@@ -207,11 +207,38 @@ it.layer(NodeServices.layer)("TailnetNode", (it) => {
     }),
   );
 
+  it.effect("holds a sign-in made while the helper boots until it has started", () =>
+    Effect.gen(function* () {
+      const { node, spawned } = yield* setup({ tailnet: { enabled: true } });
+      yield* node.start;
+      const helper = yield* Queue.take(spawned);
+      const signingIn = yield* Effect.forkScoped(node.login);
+      yield* emit(helper, { version: 1, type: "hello", tailscaleVersion: "1.106.0" });
+      expect(yield* Queue.take(helper.commands)).toMatchObject({ type: "start" });
+      yield* emit(helper, {
+        version: 1,
+        type: "status",
+        status: { state: "needs-login", loginUrl: "https://login.tailscale.com/a/first" },
+      });
+      expect(yield* Queue.take(helper.commands)).toMatchObject({ type: "login" });
+      yield* emit(helper, {
+        version: 1,
+        type: "status",
+        status: { state: "needs-login", loginUrl: "https://login.tailscale.com/a/fresh" },
+      });
+      expect(yield* Fiber.join(signingIn)).toEqual({
+        loginUrl: "https://login.tailscale.com/a/fresh",
+      });
+    }),
+  );
+
   it.effect("fails sign-out when the helper exits instead of signing out", () =>
     Effect.gen(function* () {
       const { node, spawned, waitFor } = yield* setup({ tailnet: { enabled: true } });
       yield* node.start;
       const helper = yield* Queue.take(spawned);
+      yield* emit(helper, { version: 1, type: "hello", tailscaleVersion: "1.106.0" });
+      expect(yield* Queue.take(helper.commands)).toMatchObject({ type: "start" });
       yield* emit(helper, { version: 1, type: "status", status: running });
       yield* waitFor((status) => status.state === "running");
       const signingOut = yield* Effect.forkScoped(node.logout);

@@ -230,9 +230,7 @@ export const make = Effect.gen(function* () {
         Effect.mapError((cause) => new TailnetActionError({ reason: "failed", cause })),
         writeLock.withPermit,
       );
-    yield* Effect.acquireRelease(Ref.set(send, Option.some(write)), () =>
-      Ref.set(send, Option.none()),
-    );
+    yield* Effect.addFinalizer(() => Ref.set(send, Option.none()));
     yield* handle.stderr.pipe(
       Stream.decodeText(),
       Stream.splitLines,
@@ -257,7 +255,8 @@ export const make = Effect.gen(function* () {
             ingressAddress: endpoint.address,
             ingressSecret: endpoint.secret,
             verbose,
-          }).pipe(Effect.ignore);
+            // The helper refuses any command before `start`, so commands open only after it.
+          }).pipe(Effect.andThen(Ref.set(send, Option.some(write))), Effect.ignore);
         case "status":
           return SubscriptionRef.update(state, (previous) =>
             nodeStateFromSidecar(event.status, previous),
@@ -460,8 +459,11 @@ export const make = Effect.gen(function* () {
       ),
     );
 
+  const untilStarted = (timeout: Duration.Input) =>
+    replyAfter(-1, timeout, (status) => status.state === "starting");
+
   const login = Effect.gen(function* () {
-    const current = yield* SubscriptionRef.get(state);
+    const current = yield* untilStarted(LOGIN_TIMEOUT);
     if (
       current.status.state === "off" ||
       current.status.state === "unavailable" ||
@@ -482,7 +484,7 @@ export const make = Effect.gen(function* () {
   }).pipe(Effect.withSpan("TailnetNode.login"));
 
   const logout = Effect.gen(function* () {
-    const current = yield* SubscriptionRef.get(state);
+    const current = yield* untilStarted(LOGOUT_TIMEOUT);
     if (current.status.state === "off" || current.status.state === "unavailable") {
       return yield* failFor(current.status);
     }
