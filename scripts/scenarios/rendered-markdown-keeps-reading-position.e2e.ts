@@ -53,6 +53,16 @@ test(
     await expandMessage();
     await openFile("long.md");
     await screen.getByRole("button", "Show rendered markdown").tap();
+    // The explorer collapses on a thread switch, so start without it to keep the text width fixed.
+    await screen.getByRole("button", "Hide file explorer").tap();
+    await expect
+      .poll(() =>
+        browser.evaluate(
+          () =>
+            document.querySelector("[data-file-explorer]")?.getBoundingClientRect().width ?? null,
+        ),
+      )
+      .toBe(0);
     await expect.poll(reading).toBe("Long section 0");
     await scrollBy(3000);
     await expect.poll(reading).toMatch(/^Long section [1-9]/);
