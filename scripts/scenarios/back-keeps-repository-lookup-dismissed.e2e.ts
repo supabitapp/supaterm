@@ -10,9 +10,9 @@ test(
     const project = await supaterm.project("demo");
     const thread = await supaterm.thread({ project, title: "Current work", messages: ["Start"] });
 
-    await supaterm.open(thread);
-    await screen.getByText("Start", { exact: true }).waitFor({ timeout: 30_000 });
-    await browser.evaluate(() => {
+    // Installed before the app loads: it asks for source control once, at startup, and the
+    // answer must not depend on a GitHub CLI signed in on this machine.
+    await browser.addInitScript(() => {
       const send = WebSocket.prototype.send;
       WebSocket.prototype.send = function (data) {
         const request = typeof data === "string" ? JSON.parse(data) : null;
@@ -66,8 +66,9 @@ test(
         }
         return send.call(this, data);
       };
-      return null;
     });
+    await supaterm.open(thread);
+    await screen.getByText("Start", { exact: true }).waitFor({ timeout: 30_000 });
 
     await browser.keyboard.press("ControlOrMeta+k");
     const palette = screen.getByRole("dialog", "Command palette");

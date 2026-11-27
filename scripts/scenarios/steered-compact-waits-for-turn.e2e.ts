@@ -65,6 +65,8 @@ test(
         makeState(SCENARIO_HOME).cli(["thread", "send", waiting.threadId, "/compact"]),
       );
       await supaterm.open(waiting);
+      // The approval renders last and moves the queue; hover once it is in place.
+      await screen.getByRole("button", "Approve", { exact: true }).waitFor({ timeout: 30_000 });
       await screen.getByRole("button", "Send now").hover();
       await expect(
         screen.getByText("Move this command to the front of the queue", { exact: false }),
