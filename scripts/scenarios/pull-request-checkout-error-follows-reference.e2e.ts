@@ -66,10 +66,7 @@ test(
     });
 
     await supaterm.open("/");
-    await browser
-      .locator('[data-slot="combobox-trigger"][aria-label^="Branch:"]:visible')
-      .first()
-      .click();
+    await browser.locator('[role="combobox"][aria-label^="Branch:"]:visible').first().click();
     await screen.getByPlaceholder("Search refs...").fill("#42");
     const checkoutLabel = /Checkout (?:pull|change) request/i;
     await screen.getByRole("option", checkoutLabel).tap();
