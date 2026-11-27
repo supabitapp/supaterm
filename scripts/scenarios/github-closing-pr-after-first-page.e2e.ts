@@ -11,7 +11,7 @@ import { FetchHttpClient, HttpClient, HttpClientResponse } from "effect/http";
 
 import { APP_DIR, SCENARIO_HOME } from "../e2e.config.ts";
 import { run, ScenarioError } from "./shell.ts";
-import { prepareHome, start } from "./start-app.ts";
+import { prepareHome, SCENARIO_MACHINE_ENV, start } from "./start-app.ts";
 import { makeState, runPromise, test, WEB } from "./supaterm.ts";
 
 const HOST = "github.scenario.invalid";
@@ -133,6 +133,7 @@ function startFixtureServer(webOrigin: string) {
           GH_HOST: HOST,
           GH_ENTERPRISE_TOKEN: "scenario-only-token",
           SUPATERM_AUTO_BOOTSTRAP_PROJECT_FROM_CWD: "0",
+          ...SCENARIO_MACHINE_ENV,
         },
         onLine: (line) => {
           const value = /^Token:\s*(\S+)/.exec(line)?.[1];
@@ -195,7 +196,7 @@ test(
       await supaterm.open("/settings/connections");
       await screen.getByRole("button", "Add environment").tap();
       const dialog = screen.getByRole("dialog");
-      await dialog.getByPlaceholder("backend.example.com").fill(origin);
+      await dialog.getByRole("textbox", "Host", { exact: true }).fill(origin);
       await dialog.getByPlaceholder("PAIRCODE").fill(token);
       await dialog.getByRole("button", "Add environment").tap();
       await screen.getByRole("button", "More actions for Scenario").waitFor();
