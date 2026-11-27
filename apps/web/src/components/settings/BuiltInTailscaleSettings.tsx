@@ -73,7 +73,7 @@ export function BuiltInTailscaleSettings({
   const [signIn, setSignIn] = useState<SignIn>({ phase: "idle" });
   const [signingOut, setSigningOut] = useState(false);
   const { copyToClipboard, isCopied } = useCopyToClipboard({
-    target: gt("Tailscale address"),
+    target: "Tailscale address",
     onError: (error) =>
       toastManager.add({
         type: "error",

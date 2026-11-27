@@ -47,7 +47,7 @@ export function useCommandPaletteTailnetItems(): ReadonlyArray<CommandPaletteAct
       searchTerms: ["tailscale", "tailnet", "address", "url", "copy", "ts.net"],
       icon: <CopyIcon className={ITEM_ICON_CLASS} />,
       run: async () => {
-        await writeTextToClipboard(address, gt("Tailscale address"));
+        await writeTextToClipboard(address, "Tailscale address");
       },
     });
   }

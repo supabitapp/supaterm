@@ -1,5 +1,6 @@
 import {
   DEFAULT_SERVER_SETTINGS,
+  managedCapabilityDenial,
   type ManagedPolicySummary,
   ModelSelection,
   ProjectScript,
@@ -1002,6 +1003,19 @@ const make = Effect.gen(function* () {
             settingsPath,
             operation: "write-managed-setting",
             managedSetting: vetted.path,
+            managedBy: managedPolicy?.organization,
+          });
+        }
+        // Built-in Tailscale lets remote clients in, so a policy without them refuses turning it on.
+        if (
+          !current.tailnet.enabled &&
+          vetted.settings.tailnet.enabled &&
+          managedCapabilityDenial(managedPolicy, "remoteClients") !== undefined
+        ) {
+          return yield* new ServerSettingsError({
+            settingsPath,
+            operation: "write-managed-setting",
+            managedSetting: "tailnet.enabled",
             managedBy: managedPolicy?.organization,
           });
         }

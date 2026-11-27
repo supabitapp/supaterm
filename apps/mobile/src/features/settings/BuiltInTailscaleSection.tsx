@@ -171,7 +171,9 @@ export function BuiltInTailscaleSection({
       ) : null}
       {view.kind === "running" ? (
         <View className="gap-1 px-4 py-3">
-          <Text className="text-base text-foreground">{gt("Address")}</Text>
+          <Text className="text-base text-foreground">
+            {gt("Address", { $context: "network address of this machine" })}
+          </Text>
           <Text selectable className="text-sm text-foreground-muted">
             {view.address ?? view.dnsName}
           </Text>

@@ -33,6 +33,7 @@ import {
 } from "./PublicRelaySettings";
 import { BuiltInTailscaleSettings } from "./BuiltInTailscaleSettings";
 import { SettingsDisclosure } from "./SettingsDisclosure";
+import { useTailnetView } from "./useTailnetView";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { resolvePairingShareValue } from "./pairingUrls";
 import { PairingLinkCreatedDialog } from "./PairingLinkCreatedDialog";
@@ -763,12 +764,12 @@ function ConnectionsSettingsContent({
   const relayEndpointUrl =
     relayStatus?.state === "registered" ? relayStatus.relayEndpoint : undefined;
   const relayEndpoint = relayEndpointUrl ? createRelayPairingEndpoint(relayEndpointUrl) : null;
-  const builtInTailnetUrl = accessServerConfig?.directEndpoints?.find(
-    (endpoint) =>
-      endpoint.kind === "tailnet" &&
-      endpoint.httpBaseUrl.startsWith("https://") &&
-      endpoint.httpBaseUrl !== tailscaleHttpsEndpoint?.httpBaseUrl,
-  )?.httpBaseUrl;
+  // Tailscale Serve advertises the same endpoint kind, so the node's own status names its address.
+  const builtInTailnetView = useTailnetView(accessEnvironmentId)?.view;
+  const builtInTailnetUrl =
+    builtInTailnetView?.kind === "running" && builtInTailnetView.https === "ready"
+      ? `https://${builtInTailnetView.dnsName}/`
+      : undefined;
   const builtInTailnetEndpoint = builtInTailnetUrl
     ? createBuiltInTailnetPairingEndpoint(builtInTailnetUrl, m)
     : null;
