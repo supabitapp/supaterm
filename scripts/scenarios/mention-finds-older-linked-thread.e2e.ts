@@ -9,20 +9,20 @@ import { SCENARIO_HOME } from "../e2e.config.ts";
 import { SECOND_HOME, startSecondServer } from "./second-server.ts";
 import { makeState, rpcClient, runPromise, test, WEB } from "./supaterm.ts";
 
-// A shell keeps an environment's 25 newest settled threads; older ones come from search.
-const NEWER_SETTLED = 25;
+// A shell keeps an environment's 25 newest done threads; older ones come from search.
+const NEWER_DONE = 25;
 
 const uuid = Effect.flatMap(SecureRandom.SecureRandom, (random) => random.uuidV4());
 const decodePairing = Schema.decodeEffect(
   Schema.fromJsonString(Schema.Struct({ credential: Schema.String })),
 );
 
-const settle = Effect.fn("scenario.settle")(
+const markDone = Effect.fn("scenario.markDone")(
   function* (home: string, origin: string, threadIds: ReadonlyArray<string>) {
     const client = yield* rpcClient(home, origin);
     for (const threadId of threadIds) {
       yield* client["orchestration.dispatchCommand"]({
-        type: "thread.settle",
+        type: "thread.mark-done",
         commandId: CommandId.make(yield* uuid),
         threadId: ThreadId.make(threadId),
       });
@@ -52,7 +52,7 @@ const linkEnvironments = Effect.fn("scenario.linkEnvironments")(function* (
 }, Effect.scoped);
 
 test(
-  "The @ picker finds an older settled thread on a linked machine",
+  "The @ picker finds an older done thread on a linked machine",
   WEB,
   async ({ supaterm, app, screen }) => {
     const project = await supaterm.project("primary");
@@ -63,10 +63,10 @@ test(
       await runPromise(linkEnvironments(app.baseUrl ?? "", host));
       const second = makeState(SECOND_HOME).state;
       const linkedProject = await second.project("linked");
-      // Settled first, so the newer ones push it out of the linked machine's shell.
+      // Done first, so the newer ones push it out of the linked machine's shell.
       const titles = [
         "Ancient design notes",
-        ...Array.from({ length: NEWER_SETTLED }, (_, index) => `Newer ${index + 1}`),
+        ...Array.from({ length: NEWER_DONE }, (_, index) => `Newer ${index + 1}`),
       ];
       const threadIds: Array<string> = [];
       for (const title of titles) {
@@ -74,12 +74,12 @@ test(
           (await second.thread({ project: linkedProject, title, messages: ["first"] })).threadId,
         );
       }
-      await runPromise(settle(SECOND_HOME, host, threadIds));
+      await runPromise(markDone(SECOND_HOME, host, threadIds));
 
       await supaterm.open("/settings/connections");
       await screen.getByRole("button", "Add environment").tap();
       const dialog = screen.getByRole("dialog");
-      await dialog.getByPlaceholder("backend.example.com").fill(host);
+      await dialog.getByRole("textbox", "Host", { exact: true }).fill(host);
       await dialog.getByPlaceholder("PAIRCODE").fill(token);
       await dialog.getByRole("button", "Add environment").tap();
       await expect(screen.getByRole("button", "More actions for Scenario")).toBeVisible({
