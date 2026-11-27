@@ -15,8 +15,8 @@ import { usePrimaryEnvironmentId } from "../../state/environments";
 import { useRightPanelStore } from "~/rightPanelStore";
 import {
   importPastedComposerText,
-  readPastedComposerContext,
-  readPastedPlainText,
+  type PastedComposerClipboard,
+  readPastedComposerClipboard,
 } from "../composerInlineTokenPaste";
 import {
   questionAttachmentDraftId,
@@ -352,7 +352,7 @@ export interface ChatComposerHandle {
   hasPendingAttachments: () => boolean;
   insertTextAtEnd: (
     text: string,
-    options?: { ensureLeadingBoundary?: boolean; clipboardData?: DataTransfer },
+    options?: { ensureLeadingBoundary?: boolean; clipboardPaste?: PastedComposerClipboard },
   ) => boolean;
   pasteTextAtEnd: (
     clipboardData: DataTransfer,
@@ -2986,7 +2986,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     options?: {
       ensureLeadingBoundary?: boolean;
       citationComment?: { sourceAnchor: AssistantCitationSourceAnchor | undefined };
-      clipboardData?: DataTransfer;
+      clipboardPaste?: PastedComposerClipboard;
     },
   ): boolean => {
     if (
@@ -2996,8 +2996,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ) {
       return false;
     }
-    if (options?.clipboardData) {
-      text = importPastedComposerText(options.clipboardData, importContextFragment);
+    if (options?.clipboardPaste) {
+      text = importPastedComposerText(options.clipboardPaste, importContextFragment);
     }
     const prompt = promptRef.current;
     const cursor = position === "cursor" ? readComposerSnapshot().expandedCursor : prompt.length;
@@ -3174,13 +3174,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
   const addComposerFoldersStable = useStableCallback(addComposerFolders);
 
-  const onComposerPaste = (event: React.ClipboardEvent<HTMLElement>) => {
+  const onComposerPaste = (
+    event: React.ClipboardEvent<HTMLElement>,
+    readClipboard: (plainTextOnly: boolean) => PastedComposerClipboard,
+  ) => {
     const { files, folders } = splitTransferredFiles(event.clipboardData);
     const plainText = event.clipboardData.getData("text/plain");
     const bypassAutoAttachment = consumePasteAsTextShortcut(pasteAsTextShortcutUntilRef);
-    const pastedContext =
-      !isLiteralPendingAnswer &&
-      (readPastedComposerContext(event.clipboardData)?.records.length ?? 0) > 0;
+    const paste = readClipboard(bypassAutoAttachment);
+    const pastedContext = Boolean(paste.context?.records.length);
     const canAttachFiles = !pastedContext && activeThreadId !== null && files.length > 0;
     const htmlImageContent =
       canAttachFiles && plainText.length > 0
@@ -3213,7 +3215,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       htmlHasImageAndText: htmlImageContent === "image-and-text",
     });
     if (imagesBesideText.length > 0) void addComposerAttachments(imagesBesideText);
-    if (!foldPastedText(plainText, bypassAutoAttachment)) {
+    if (!foldPastedText(paste.text, bypassAutoAttachment)) {
       return;
     }
 
@@ -3499,13 +3501,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       const shortcutArmed = consumePasteAsTextShortcut(pasteAsTextShortcutUntilRef);
       const bypassAutoAttachment = options.bypassAutoAttachment || shortcutArmed;
       if (composerEditorRef.current?.pasteAtCodeBlockEnd(clipboardData)) return true;
-      const text = readPastedPlainText(clipboardData);
-      if (readPastedComposerContext(clipboardData)?.records.length) {
-        return insertComposerTextAtEndStable(text, { clipboardData });
+      const paste = readPastedComposerClipboard(
+        clipboardData,
+        bypassAutoAttachment || isLiteralPendingAnswer,
+      );
+      if (paste.context?.records.length) {
+        return insertComposerTextAtEndStable(paste.text, { clipboardPaste: paste });
       }
       const promptLength = promptRef.current.length;
       if (
-        foldPastedText(text, bypassAutoAttachment, {
+        foldPastedText(paste.text, bypassAutoAttachment, {
           start: promptLength,
           end: promptLength,
         })
@@ -3513,7 +3518,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         focusComposer();
         return true;
       }
-      return insertComposerTextAtEndStable(text, { clipboardData });
+      return insertComposerTextAtEndStable(paste.text);
     },
     citeAssistantText: (citation, sourceAnchor) =>
       insertComposerTextStable(

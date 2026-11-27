@@ -142,7 +142,8 @@ import { resolveAssistantCitationCommentDismissal } from "./chat/assistantCitati
 import { composerCodeBlockHighlight } from "./composerCodeBlockHighlight";
 import {
   importPastedComposerText,
-  readPastedComposerContext,
+  type PastedComposerClipboard,
+  readPastedComposerClipboard,
   readPastedPlainText,
 } from "./composerInlineTokenPaste";
 import { didComposerSelectionChangeVisibly } from "./composerSelection";
@@ -221,7 +222,10 @@ export interface ComposerPromptEditorProps {
    * `savedValue`, so the owner of `replacedValue` can keep it.
    */
   onCitationDraftSave?: (replacedValue: string, savedValue: string) => void;
-  onPaste: React.ClipboardEventHandler<HTMLElement>;
+  onPaste: (
+    event: React.ClipboardEvent<HTMLElement>,
+    readClipboard: (plainTextOnly: boolean) => PastedComposerClipboard,
+  ) => void;
   editorRef: React.RefObject<ComposerPromptEditorHandle | null>;
 }
 
@@ -1105,13 +1109,15 @@ function ComposerPromptEditorTiptapInner(
     "aria-placeholder": placeholder,
   };
 
+  const capturedPastes = useRef(new WeakMap<ClipboardEvent, PastedComposerClipboard>());
+
   /** `newLineAt` inserts on a fresh line created at that block boundary, in the same undo step. */
   const insertClipboardText = (
     view: EditorView,
-    clipboardData: DataTransfer,
+    paste: PastedComposerClipboard,
     newLineAt?: number,
   ): boolean => {
-    const pastedText = readPastedPlainText(clipboardData);
+    const { text: pastedText } = paste;
     if (!pastedText) return false;
     const onNewLine = newLineAt !== undefined;
     if (!onNewLine && isInCodeBlock(view)) {
@@ -1130,6 +1136,7 @@ function ComposerPromptEditorTiptapInner(
     if (
       !onNewLine &&
       sourceType?.isInSet($pasteFrom.marks()) &&
+      !paste.context?.records.length &&
       !pastedText.includes("\n") &&
       collectComposerPromptInlineTokens(`${pastedText}\n`).length === 0
     ) {
@@ -1141,11 +1148,7 @@ function ComposerPromptEditorTiptapInner(
       );
       return true;
     }
-    const importFragment = readCallbacks().importContextFragment;
-    let text =
-      !literalText && importFragment
-        ? importPastedComposerText(clipboardData, importFragment)
-        : pastedText;
+    let text = importPastedComposerText(paste, readCallbacks().importContextFragment);
     const tokens = literalText ? [] : collectComposerPromptInlineTokens(`${text}\n`);
     const isChip = (token: (typeof tokens)[number] | undefined) =>
       token?.type === "mention" || (token?.type === "skill" && skillLabelFor(token.value) !== null);
@@ -1506,12 +1509,14 @@ function ComposerPromptEditorTiptapInner(
         handlePaste: (view, event) => {
           const clipboardData = event.clipboardData;
           if (!clipboardData) return false;
-          if (
-            clipboardData.files.length > 0 &&
-            (literalText || !readPastedComposerContext(clipboardData)?.records.length)
-          )
+          const captured = capturedPastes.current.get(event);
+          capturedPastes.current.delete(event);
+          const paste =
+            captured ??
+            readPastedComposerClipboard(clipboardData, literalText || isInCodeBlock(view));
+          if (!captured && clipboardData.files.length > 0 && !paste.context?.records.length)
             return false;
-          if (!insertClipboardText(view, clipboardData)) return false;
+          if (!insertClipboardText(view, paste)) return false;
           event.preventDefault();
           return true;
         },
@@ -1536,13 +1541,16 @@ function ComposerPromptEditorTiptapInner(
               // Between list items a paragraph does not fit; ProseMirror's drop adds an item there.
               if (!$target.parent.canReplaceWith(index, index, paragraph)) return false;
               view.focus();
-              return insertClipboardText(view, data, pos);
+              return insertClipboardText(view, readPastedComposerClipboard(data, literalText), pos);
             }
           }
           view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)));
           // Handling the drop skips ProseMirror's own focus call.
           view.focus();
-          return insertClipboardText(view, data);
+          return insertClipboardText(
+            view,
+            readPastedComposerClipboard(data, literalText || isInCodeBlock(view)),
+          );
         },
       },
       onUpdate: ({ editor: updated, transaction }) => {
@@ -1564,6 +1572,18 @@ function ComposerPromptEditorTiptapInner(
     },
     [],
   );
+
+  const onClipboardPasteCapture = (event: React.ClipboardEvent<HTMLElement>) => {
+    onPaste(event, (plainTextOnly) => {
+      const paste = readPastedComposerClipboard(
+        event.clipboardData,
+        plainTextOnly || literalText || (editor !== null && isInCodeBlock(editor.view)),
+      );
+      capturedPastes.current.set(event.nativeEvent, paste);
+      return paste;
+    });
+  };
+  const onClipboardPasteCaptureStable = useStableCallback(onClipboardPasteCapture);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes the disabled prop into the imperative Tiptap editor via setEditable
   useEffect(() => {
@@ -1961,7 +1981,7 @@ function ComposerPromptEditorTiptapInner(
               }}
               onKeyUp={(event) => onPageScrollKeyUp?.(event.key)}
               onBlur={onPageScrollRelease}
-              onPasteCapture={onPaste}
+              onPasteCapture={onClipboardPasteCaptureStable}
               onCopyCapture={(event) => handleCopyCut(event, false)}
               onCutCapture={(event) => handleCopyCut(event, true)}
             />
