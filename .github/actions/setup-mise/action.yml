@@ -7,7 +7,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+    - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
       with:
         cache: ${{ inputs.cache }}
         install_args: --locked node pnpm github:voidzero-dev/vite-plus hk
