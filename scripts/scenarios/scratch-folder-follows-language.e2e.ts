@@ -35,14 +35,22 @@ test(
         if (type !== "message" || typeof listener !== "function") {
           return addEventListener.call(this, type, listener, options);
         }
+        let pending = "";
         return addEventListener.call(
           this,
           type,
           (event: Event) => {
             const data = (event as MessageEvent).data;
             if (typeof data !== "string") return listener.call(this, event);
-            const parsed = JSON.parse(data);
-            let changed = false;
+            // The server splits a large frame into parts; all but the last start with this mark.
+            if (data.startsWith("\u001e")) {
+              pending += data.slice(1);
+              return;
+            }
+            const joined = pending !== "";
+            const parsed = JSON.parse(pending + data);
+            pending = "";
+            let changed = joined;
             for (const message of [parsed].flat()) {
               if (
                 message?._tag !== "Chunk" ||
@@ -66,25 +74,30 @@ test(
       } as typeof WebSocket.prototype.addEventListener;
     }, project);
 
-    await supaterm.open("/settings/labs");
-    await screen.getByLabel("Boring sidebar (group by project)", { exact: true }).tap();
-    await screen.getByLabel("Two-line folder rows", { exact: true }).waitFor();
+    // The sidebar's project filter names each project group, the scratch one included.
+    const projectFilter = async () => {
+      await screen.getByRole("button", /^(?:Thread list options|スレッド一覧のオプション)$/).tap();
+      await screen.getByRole("menuitem").first().tap();
+      return screen.getByRole("menuitemradio").filter({ hasText: /No project|プロジェクトなし/ });
+    };
 
-    await supaterm.open("/settings/general");
-    const openFolder = screen.getByTestId("sidebar-project-folder");
-    await expect(openFolder).toContainText("No project", { timeout: 60_000 });
+    await supaterm.open(thread);
+    await expect(await projectFilter()).toContainText("No project", { timeout: 60_000 });
+    await browser.keyboard.press("Escape");
+    await browser.keyboard.press("Escape");
+    await screen.getByRole("menu").first().waitFor({ state: "hidden" });
+
+    // Settings opens over the mounted sidebar, which must follow the switch without a reload.
+    await screen.getByRole("button", "Settings", { exact: true }).tap();
     await screen.getByLabel("Language", { exact: true }).tap();
     await screen.getByText("日本語", { exact: true }).tap();
     await screen.getByLabel("言語", { exact: true }).waitFor();
-    // Settings leaves the sidebar mounted. Keep this failure through the capture after reopening.
-    await expect.soft(openFolder).toContainText("プロジェクトなし");
+    await browser.keyboard.press("Escape");
+    await screen.getByRole("dialog").waitFor({ state: "hidden" });
 
-    await supaterm.open(thread);
-    const folder = screen.getByTestId("sidebar-project-folder");
-    await folder.getByText(/^(?:No project|プロジェクトなし)$/, { exact: true }).waitFor({
-      timeout: 60_000,
-    });
+    const scratch = await projectFilter();
+    await scratch.waitFor({ timeout: 60_000 });
     await app.screenshot("scratch-folder-in-japanese");
-    await expect(folder).toContainText("プロジェクトなし");
+    await expect(scratch).toContainText("プロジェクトなし");
   },
 );
