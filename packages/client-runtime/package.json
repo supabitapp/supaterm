@@ -227,10 +227,6 @@
       "types": "./src/state/attachments.ts",
       "default": "./src/state/attachments.ts"
     },
-    "./state/transcription": {
-      "types": "./src/state/transcription.ts",
-      "default": "./src/state/transcription.ts"
-    },
     "./state/attachment-uploads": {
       "types": "./src/state/attachmentUploads.ts",
       "default": "./src/state/attachmentUploads.ts"
