@@ -59,6 +59,7 @@ import {
   CommonActions,
   StackActions,
   useNavigation,
+  useRoute,
   type NavigationState,
   type ParamListBase,
 } from "@react-navigation/native";
@@ -713,6 +714,20 @@ function getActiveRoute(navigation: {
   return state?.routes[state.index];
 }
 
+function isActiveRoute(
+  navigation: Parameters<typeof getActiveRoute>[0],
+  originRoute: ReturnType<typeof getActiveRoute>,
+): boolean {
+  const activeRoute = getActiveRoute(navigation);
+  // A warm link can change the task without replacing its native route key.
+  return (
+    originRoute !== undefined &&
+    activeRoute?.key === originRoute.key &&
+    activeRoute.name === originRoute.name &&
+    activeRoute.params === originRoute.params
+  );
+}
+
 function useOpenNewTaskDraft() {
   const navigation = useNavigation();
   return (
@@ -726,16 +741,7 @@ function useOpenNewTaskDraft() {
     originRoute: NavigationState<ParamListBase>["routes"][number] | undefined,
   ) => {
     const state = navigation.getState();
-    const activeRoute = state?.routes[state.index];
-    // A warm link can change the task without replacing its native route key.
-    if (
-      !state ||
-      !originRoute ||
-      activeRoute?.key !== originRoute.key ||
-      activeRoute.name !== originRoute.name ||
-      activeRoute.params !== originRoute.params
-    )
-      return;
+    if (!state || !isActiveRoute(navigation, originRoute)) return;
     const threadIndex = state.routes.findLastIndex((route) => route.name === "Thread");
     const routes = [
       ...state.routes.slice(0, threadIndex < 0 ? state.index : threadIndex),
@@ -909,14 +915,20 @@ export function AddProjectRepositoryScreen(props: {
     reportFailure: false,
   });
   const navigation = useNavigation();
+  const originRoute = useRoute();
   const environment = useEnvironmentFromParam(props.environmentId);
   const source = sourceFromParam(props.source);
   const [repositoryInput, setRepositoryInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pendingLookup = useRef<AbortController | null>(null);
+
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the repository lookup when its screen unmounts
+  useEffect(() => () => pendingLookup.current?.abort(), []);
 
   const lookupRepository = async () => {
-    if (!environment || repositoryInput.trim().length === 0 || isSubmitting) return;
+    if (!environment || repositoryInput.trim().length === 0 || pendingLookup.current) return;
+    if (!isActiveRoute(navigation, originRoute)) return;
     const incompleteOwnerMessage = githubIncompleteOwnerRepositoryMessage(
       source,
       repositoryInput,
@@ -944,13 +956,22 @@ export function AddProjectRepositoryScreen(props: {
       return;
     }
 
-    const result = await lookupRepositoryQuery({
-      environmentId: environment.environmentId,
-      input: {
-        provider,
-        repository: repositoryInput.trim(),
+    const lookup = new AbortController();
+    pendingLookup.current = lookup;
+    const result = await lookupRepositoryQuery(
+      {
+        environmentId: environment.environmentId,
+        input: {
+          provider,
+          repository: repositoryInput.trim(),
+        },
       },
-    });
+      { signal: lookup.signal },
+    );
+    if (lookup.signal.aborted) return;
+    pendingLookup.current = null;
+    setIsSubmitting(false);
+    if (!isActiveRoute(navigation, originRoute)) return;
     if (AsyncResult.isFailure(result)) {
       setError(errorMessage(Cause.squash(result.cause)));
     } else {
@@ -965,7 +986,6 @@ export function AddProjectRepositoryScreen(props: {
         }),
       );
     }
-    setIsSubmitting(false);
   };
 
   return (
