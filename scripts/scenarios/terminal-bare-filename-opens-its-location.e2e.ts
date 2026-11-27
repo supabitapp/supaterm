@@ -59,10 +59,10 @@ test(
     });
     if (!canvas) throw new Error("The terminal canvas is not on the page.");
     await browser.mouse.move(canvas.x + 16, canvas.y + canvas.height / 2);
-    await browser.keyboard.down("Control");
+    await browser.keyboard.down("ControlOrMeta");
     await browser.mouse.down();
     await browser.mouse.up();
-    await browser.keyboard.up("Control");
+    await browser.keyboard.up("ControlOrMeta");
     await app.screenshot("after-ctrl-click");
 
     await expect
