@@ -55,7 +55,8 @@ test(
 
     await composer.press("ControlOrMeta+a");
     await composer.press("Backspace");
-    await composer.pressSequentially("hi /m");
+    // Commands open only at the start of the prompt; later in it a slash offers skills.
+    await composer.pressSequentially("/m");
     await expect(screen.getByRole("option").first()).toBeVisible();
     await composer.press("Escape");
     await composer.pressSequentially("o");
