@@ -22,6 +22,7 @@ import {
   NodeSelection,
   Plugin,
   PluginKey,
+  Selection,
   TextSelection,
   type Transaction,
 } from "@tiptap/pm/state";
@@ -156,6 +157,7 @@ export interface ComposerPromptEditorHandle {
   focus: () => void;
   focusAt: (cursor: number) => void;
   focusAtEnd: () => void;
+  pasteAtCodeBlockEnd: (clipboardData: DataTransfer) => boolean;
   readSelectionRange: () => { start: number; end: number };
   captureAttachmentInsertion: () => ComposerAttachmentInsertion | undefined;
   requestCitationComment: (request: ComposerCitationCommentRequest) => void;
@@ -1800,6 +1802,22 @@ function ComposerPromptEditorTiptapInner(
                 snapshotRef.current.value.length,
               ),
         );
+      },
+      pasteAtCodeBlockEnd: (clipboardData) => {
+        if (!editor?.isEditable) return false;
+        const { view } = editor;
+        const end = Selection.atEnd(view.state.doc);
+        if (!end.$from.parent.type.spec.code) return false;
+        const text = readPastedPlainText(clipboardData);
+        if (!text) return false;
+        view.focus();
+        view.dispatch(
+          markAsClipboardEdit(
+            view.state.tr.setSelection(end).insertText(text),
+            "paste",
+          ).scrollIntoView(),
+        );
+        return true;
       },
       readSelectionRange: () => {
         readSnapshot();

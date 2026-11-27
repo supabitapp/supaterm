@@ -13,7 +13,11 @@ import {
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { usePrimaryEnvironmentId } from "../../state/environments";
 import { useRightPanelStore } from "~/rightPanelStore";
-import { importPastedComposerText, readPastedComposerContext } from "../composerInlineTokenPaste";
+import {
+  importPastedComposerText,
+  readPastedComposerContext,
+  readPastedPlainText,
+} from "../composerInlineTokenPaste";
 import {
   questionAttachmentDraftId,
   trackOpenQuestionAttachmentDraft,
@@ -350,7 +354,10 @@ export interface ChatComposerHandle {
     text: string,
     options?: { ensureLeadingBoundary?: boolean; clipboardData?: DataTransfer },
   ) => boolean;
-  pasteTextAtEnd: (text: string, options?: { bypassAutoAttachment?: boolean }) => boolean;
+  pasteTextAtEnd: (
+    clipboardData: DataTransfer,
+    options: { bypassAutoAttachment: boolean },
+  ) => boolean;
   citeAssistantText: (
     citation: AssistantCitation,
     sourceAnchor: AssistantCitationSourceAnchor | undefined,
@@ -2968,6 +2975,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const voiceBannerItem = composerVoiceBannerItem(voice, m);
   const bannerStackItems = voiceBannerItem ? [voiceBannerItem, ...bannerItems] : bannerItems;
 
+  const canInsertComposerText =
+    !activePendingIsResponding &&
+    (pendingUserInputs.length === 0 || Boolean(activePendingProgress?.activeQuestion)) &&
+    !projectSelectionRequired;
+
   const insertComposerText = (
     text: string,
     position: "cursor" | "end",
@@ -2979,9 +2991,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   ): boolean => {
     if (
       text.length === 0 ||
-      activePendingIsResponding ||
-      (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
-      projectSelectionRequired ||
+      !canInsertComposerText ||
       (options?.citationComment && !composerEditorRef.current)
     ) {
       return false;
@@ -3484,20 +3494,26 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       countPreparingComposerImages(attachmentTargetKey) > 0 ||
       pendingDraftWork.has(attachmentTargetKey),
     insertTextAtEnd: insertComposerTextAtEndStable,
-    pasteTextAtEnd: (text: string, options) => {
+    pasteTextAtEnd: (clipboardData, options) => {
+      if (!canInsertComposerText) return false;
       const shortcutArmed = consumePasteAsTextShortcut(pasteAsTextShortcutUntilRef);
-      const bypassAutoAttachment = options?.bypassAutoAttachment === true || shortcutArmed;
+      const bypassAutoAttachment = options.bypassAutoAttachment || shortcutArmed;
+      if (composerEditorRef.current?.pasteAtCodeBlockEnd(clipboardData)) return true;
+      const text = readPastedPlainText(clipboardData);
+      if (readPastedComposerContext(clipboardData)?.records.length) {
+        return insertComposerTextAtEndStable(text, { clipboardData });
+      }
       const promptLength = promptRef.current.length;
       if (
-        !foldPastedText(text, bypassAutoAttachment, {
+        foldPastedText(text, bypassAutoAttachment, {
           start: promptLength,
           end: promptLength,
         })
       ) {
-        return false;
+        focusComposer();
+        return true;
       }
-      focusComposer();
-      return true;
+      return insertComposerTextAtEndStable(text, { clipboardData });
     },
     citeAssistantText: (citation, sourceAnchor) =>
       insertComposerTextStable(

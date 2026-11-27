@@ -67,6 +67,8 @@ function Composer({
   onCommandKeyDown = () => false,
   importContextFragment,
   literalText = false,
+  disabled = false,
+  editorRef = createRef<ComposerPromptEditorHandle>(),
   placeholder = "",
   placeholderAction,
 }: {
@@ -77,19 +79,21 @@ function Composer({
   onCommandKeyDown?: ComposerPromptEditorProps["onCommandKeyDown"] | undefined;
   importContextFragment?: ComposerPromptEditorProps["importContextFragment"];
   literalText?: boolean;
+  disabled?: boolean;
+  editorRef?: ComposerPromptEditorProps["editorRef"];
   placeholder?: string;
   placeholderAction?: ComposerPromptEditorProps["placeholderAction"];
 }) {
   const [prompt, setPrompt] = useState({ value, cursor: value.length });
   return (
     <ComposerPromptEditor
-      editorRef={createRef<ComposerPromptEditorHandle>()}
+      editorRef={editorRef}
       value={prompt.value}
       cursor={prompt.cursor}
       richTextEnabled={richTextEnabled}
       contextRecords={new Map()}
       skills={skills}
-      disabled={false}
+      disabled={disabled}
       placeholder={placeholder}
       placeholderAction={placeholderAction}
       onChange={(...args) => {
@@ -586,6 +590,29 @@ it.each([
   expect(serializeEditorDoc(editor.state.doc).value).toBe(dropped);
   expect(editor.state.doc.textContent).toBe(shown);
   expect(editor.view.hasFocus()).toBe(true);
+});
+
+it.each([
+  { disabled: false, expected: "```text\nExisting answer should appear\n```" },
+  { disabled: true, expected: "```text\nExisting answer\n```" },
+])("pastes at the end of a code block unless disabled: $disabled", async (props) => {
+  const editorRef = createRef<ComposerPromptEditorHandle>();
+  await using screen = await render(
+    <Composer
+      value={"```text\nExisting answer\n```"}
+      richTextEnabled
+      skills={[]}
+      disabled={props.disabled}
+      editorRef={editorRef}
+    />,
+  );
+  const editor = editorIn(screen.container);
+  const clipboard = new DataTransfer();
+  clipboard.setData("text/plain", " should appear");
+  await act(async () => {
+    expect(editorRef.current?.pasteAtCodeBlockEnd(clipboard)).toBe(!props.disabled);
+  });
+  expect(serializeEditorDoc(editor.state.doc).value).toBe(props.expected);
 });
 
 it("parses markdown dropped below the first line of an empty composer", async () => {
