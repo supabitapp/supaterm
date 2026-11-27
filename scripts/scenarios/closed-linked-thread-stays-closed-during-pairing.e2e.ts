@@ -1,9 +1,9 @@
-/// <reference lib="dom" />
 import { expect } from "e2e";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { SCENARIO_HOME } from "../e2e.config.ts";
+import { linkedThreadTab, restoreLinkedThreadTab } from "./linked-thread-tab.ts";
 import { SECOND_HOME, startSecondServer } from "./second-server.ts";
 import { environmentId, makeState, rpcClient, runPromise, test, WEB } from "./supaterm.ts";
 
@@ -65,43 +65,14 @@ test(
 
       // Restore the same saved tab that opening the delegated thread in the panel would leave.
       await browser.addInitScript(
-        ({ via, linked, parentId, childId, title }) => {
-          if (location.pathname !== `/${via}/${parentId}`) return;
-          const id = `linked-thread:${encodeURIComponent(via)}:${encodeURIComponent(linked)}:${encodeURIComponent(childId)}`;
-          localStorage.setItem(
-            "supaterm:right-panel-state:v2",
-            JSON.stringify({
-              version: 16,
-              state: {
-                byThreadKey: {
-                  [`${via}:${parentId}`]: {
-                    isOpen: true,
-                    activeSurfaceId: id,
-                    surfaces: [
-                      {
-                        kind: "linked-thread",
-                        id,
-                        viaEnvironmentId: via,
-                        environmentId: linked,
-                        threadId: childId,
-                        label: "Scenario",
-                        title,
-                      },
-                    ],
-                  },
-                },
-                threadPanelVisibilityByThreadKey: {},
-              },
-            }),
-          );
-        },
-        {
+        restoreLinkedThreadTab,
+        linkedThreadTab({
           via,
           linked,
           parentId: parent.threadId,
           childId: remoteThread.threadId,
           title: linkedTitle,
-        },
+        }),
       );
 
       const tokenUrl = `${host}/oauth/token`;
