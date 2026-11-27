@@ -124,8 +124,9 @@ test(
         await loading.waitFor({ state: "hidden" });
       }
       await remove.tap();
-      const confirm = screen.getByRole("alertdialog");
-      await confirm.getByRole("button", "Confirm", { exact: true }).tap();
+      // A confirm pressed within 250 ms of arming is ignored as a double click.
+      await runPromise(Effect.sleep("300 millis"));
+      await screen.getByRole("button", "Confirm delete", { exact: true }).tap();
       await entry.waitFor({ state: "hidden" });
       expect(await loading.isVisible(), "The refresh is still pending after deletion").toBe(true);
 
