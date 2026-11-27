@@ -24,7 +24,10 @@ export function WelcomeExtras({
   const gt = useGT();
   const skills = useOrchestrationSkills([{ environmentId, label }], serverEnvironment);
   const devices = useWelcomeDevices(environmentId);
-  const showSkills = skills.pending !== null || skills.installed || skills.canInstall;
+  // Replacing a folder the user already has under a skill name is left to Settings.
+  const showSkills =
+    !skills.conflict &&
+    (skills.pending !== null || skills.installed || skills.canInstall || skills.error);
   if (!showSkills && devices === null) return null;
   return (
     <WelcomeSection title={gt("Extras")}>
@@ -35,12 +38,17 @@ export function WelcomeExtras({
           detail={gt(
             "Skills that let your agents ask other agents for a second opinion or a plan.",
           )}
+          alert={skills.error && skills.pending === null ? skills.notices[0] : undefined}
           control={
             skills.installed && skills.pending === null ? (
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success-foreground">
                 <CheckIcon className="size-3.5" />
                 <T>Installed</T>
               </span>
+            ) : skills.error && skills.pending === null ? (
+              <Button size="xs" variant="outline" onClick={() => void skills.request("Status")}>
+                <T>Retry</T>
+              </Button>
             ) : skills.pending === "Status" ? (
               <span className="text-xs text-muted-foreground">
                 <T>Checking…</T>
@@ -69,6 +77,7 @@ export function WelcomeExtras({
                 ? gt("Open iOS simulators here and let agents control them.")
                 : gt("Open Android emulators here and let agents control them.")
           }
+          alert={devices.failure}
           control={
             <span className="flex items-center gap-3">
               <DeviceHubSetupStatus state={devices.state} pending={devices.busy} compact />
@@ -112,6 +121,7 @@ function useWelcomeDevices(environmentId: EnvironmentId) {
     platforms: ios && android ? "both" : ios ? "ios" : "android",
     enabled: state.hostStatus !== "disabled",
     busy: saving || deviceHubReadiness(state).busy,
+    failure: state.hostStatus === "failed" ? state.hostStatusDetail : undefined,
     setEnabled,
   } as const;
 }
@@ -120,11 +130,13 @@ function ExtraRow({
   icon,
   title,
   detail,
+  alert,
   control,
 }: {
   readonly icon: ReactNode;
   readonly title: string;
   readonly detail: string;
+  readonly alert: string | undefined;
   readonly control: ReactNode;
 }) {
   return (
@@ -133,6 +145,11 @@ function ExtraRow({
       <div className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-foreground">{title}</span>
         <p className="text-xs leading-relaxed text-muted-foreground">{detail}</p>
+        {alert ? (
+          <p role="alert" className="text-xs leading-relaxed text-destructive">
+            {alert}
+          </p>
+        ) : null}
       </div>
       <div className="shrink-0">{control}</div>
     </div>

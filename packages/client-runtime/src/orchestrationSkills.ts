@@ -27,5 +27,6 @@ export function orchestrationSkillsView(status: OrchestrationSkillsStatus | null
     canInstall: skills.some((skill) => skill.state !== "installed"),
     canUninstall: skills.some((skill) => skill.managed && skill.state !== "conflict"),
     installed: skills.length > 0 && skills.every((skill) => skill.state === "installed"),
+    conflict: skills.some((skill) => skill.state === "conflict"),
   };
 }
