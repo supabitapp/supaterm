@@ -32,6 +32,7 @@ import {
   absoluteFilePathMatches,
   isWindowsDrivePathHref,
   normalizeMarkdownLinkDestination,
+  parseMarkdownSandboxFileLink,
 } from "./markdownLinks.ts";
 import { isWindowsAbsolutePath } from "./path.ts";
 import { THREAD_LINK_PROTOCOL } from "./threadLinks.ts";
@@ -187,18 +188,27 @@ function rehypePreserveImageSourceMeta() {
 
 const IMAGE_SRC_PROTOCOLS = [...(defaultSchema.protocols?.src ?? []), "file", "supaterm-context"];
 
-// The sanitizer compares schemes case-sensitively, so lowercase accepted editor links first.
-function rehypeNormalizeLocalEditorLinks() {
+// The sanitizer compares schemes case-sensitively, so lowercase accepted file link schemes first.
+function normalizeLocalFileHref(href: string): string {
+  if (/^sandbox:/i.test(href)) {
+    return parseMarkdownSandboxFileLink(href) ? href.replace(/^sandbox:/i, "sandbox:") : "";
+  }
+  try {
+    const url = new URL(href);
+    return isLocalEditorFileUrl(url) ? url.href : href;
+  } catch {
+    // Not an absolute URL; the sanitizer decides.
+    return href;
+  }
+}
+
+function rehypeNormalizeLocalFileLinks() {
   return (tree: MarkdownImageHastNode) => {
     const visit = (node: MarkdownImageHastNode) => {
       const href = node.properties?.href;
       if (node.type === "element" && node.tagName === "a" && typeof href === "string") {
-        try {
-          const url = new URL(href);
-          if (isLocalEditorFileUrl(url)) node.properties = { ...node.properties, href: url.href };
-        } catch {
-          // Not an absolute URL; the sanitizer decides.
-        }
+        const normalized = normalizeLocalFileHref(href);
+        if (normalized !== href) node.properties = { ...node.properties, href: normalized };
       }
       node.children?.forEach(visit);
     };
@@ -235,6 +245,7 @@ const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
     href: [
       ...(defaultSchema.protocols?.href ?? []),
       "file",
+      "sandbox",
       "supaterm-citation",
       "supaterm-context",
       THREAD_LINK_PROTOCOL,
@@ -362,7 +373,7 @@ export const CHAT_MARKDOWN_REHYPE_PLUGINS: PluggableList = [
   rehypePreserveBareAnchorPlaceholders,
   rehypeRawWhenPresent,
   rehypePreserveImageSourceMeta,
-  rehypeNormalizeLocalEditorLinks,
+  rehypeNormalizeLocalFileLinks,
   [rehypeSanitize, CHAT_MARKDOWN_SANITIZE_SCHEMA],
 ];
 
