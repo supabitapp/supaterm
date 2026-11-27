@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["SupatermVoiceTranscriptionModule"],
+    "podspecPath": "ios/SupatermVoiceTranscription.podspec"
+  },
+  "android": {
+    "modules": ["expo.modules.supatermvoicetranscription.SupatermVoiceTranscriptionModule"]
+  }
+}

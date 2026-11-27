@@ -302,16 +302,15 @@ describe("pending timeline messages", () => {
     expect(appendTurn(working, sending)).toBe(working);
   });
 
-  it("leaves a held voice message on its own status line", () => {
+  it("leaves a held message on its own status line", () => {
     const appendTurn = createPendingTurnAppender();
     const held = appendPendingThreadMessages(
       [],
       [],
       [
         {
-          ...pending("held-voice"),
-          voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
-          failure: "Sign in to this provider again to transcribe.",
+          ...pending("held"),
+          failure: "Voice messages are no longer transcribed by the environment.",
         },
       ],
     );

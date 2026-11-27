@@ -1,7 +1,15 @@
 export const COMPOSER_ATTACHMENT_DIRECTORY = "supaterm-composer-attachments";
+/** Recordings queued as voice messages before dictation moved on-device; outbox entries keep them as files. */
+export const LEGACY_VOICE_RECORDING_DIRECTORY = "thread-outbox-audio";
 
 const UUID_PATTERN = "[a-f\\d]{8}-[a-f\\d]{4}-[a-f\\d]{4}-[a-f\\d]{4}-[a-f\\d]{12}";
-const GENERATED_FILE_NAME = new RegExp(`^${UUID_PATTERN}-`, "i");
+const OWNED_DIRECTORIES = [
+  { directory: COMPOSER_ATTACHMENT_DIRECTORY, generatedName: new RegExp(`^${UUID_PATTERN}-`, "i") },
+  {
+    directory: LEGACY_VOICE_RECORDING_DIRECTORY,
+    generatedName: new RegExp(`^${UUID_PATTERN}\\.wav$`, "i"),
+  },
+] as const;
 const IOS_DOCUMENTS_PATH = new RegExp(
   `^(.*/Containers/Data/Application/)${UUID_PATTERN}/Documents$`,
   "i",
@@ -29,13 +37,17 @@ function ownedFileLocation(uri: string) {
   if (path === null) {
     return null;
   }
-  const separator = `/${COMPOSER_ATTACHMENT_DIRECTORY}/`;
-  const index = path.lastIndexOf(separator);
-  const name = index < 0 ? "" : path.slice(index + separator.length);
-  if (!name || name === "." || name.includes("/")) {
-    return null;
+  for (const owner of OWNED_DIRECTORIES) {
+    const separator = `/${owner.directory}/`;
+    const index = path.lastIndexOf(separator);
+    if (index < 0) continue;
+    const name = path.slice(index + separator.length);
+    if (!name || name === "." || name.includes("/")) {
+      return null;
+    }
+    return { documentPath: path.slice(0, index), owner, name };
   }
-  return { documentPath: path.slice(0, index), name };
+  return null;
 }
 
 export function composerAttachmentFileReferenceKey(uri: string): string {
@@ -43,13 +55,13 @@ export function composerAttachmentFileReferenceKey(uri: string): string {
   if (!location) {
     return uri;
   }
-  const containerPrefix = GENERATED_FILE_NAME.test(location.name)
+  const containerPrefix = location.owner.generatedName.test(location.name)
     ? IOS_DOCUMENTS_PATH.exec(location.documentPath)?.[1]
     : undefined;
   const documentPath = containerPrefix
     ? `${containerPrefix}<app>/Documents`
     : location.documentPath;
-  return `file://${documentPath}/${COMPOSER_ATTACHMENT_DIRECTORY}/${encodeURIComponent(location.name)}`;
+  return `file://${documentPath}/${location.owner.directory}/${encodeURIComponent(location.name)}`;
 }
 
 export function retainComposerAttachmentFile(uri: string, onLastRelease: () => void): () => void {
@@ -90,12 +102,12 @@ export function resolveOwnedComposerAttachmentFileUri(
     if (
       !currentContainerPrefix ||
       currentContainerPrefix !== IOS_DOCUMENTS_PATH.exec(location.documentPath)?.[1] ||
-      !GENERATED_FILE_NAME.test(location.name)
+      !location.owner.generatedName.test(location.name)
     ) {
       return null;
     }
   }
   const resolved = new URL(documentDirectoryUri);
-  resolved.pathname = `${resolved.pathname.replace(/\/+$/, "")}/${COMPOSER_ATTACHMENT_DIRECTORY}/${encodeURIComponent(location.name)}`;
+  resolved.pathname = `${resolved.pathname.replace(/\/+$/, "")}/${location.owner.directory}/${encodeURIComponent(location.name)}`;
   return resolved.href;
 }

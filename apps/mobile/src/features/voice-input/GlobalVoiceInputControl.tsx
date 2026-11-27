@@ -1,4 +1,5 @@
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
+import { useGT, useMessages } from "gt-react-native";
 import { useState, type ReactNode } from "react";
 import { Linking, Platform, Pressable, useWindowDimensions, View } from "react-native";
 import Animated, {
@@ -21,7 +22,6 @@ import { cn } from "../../lib/cn";
 import { CompactVoiceWaveform, DictationElapsedTime } from "./ComposerDictationControl";
 import { useGlobalVoiceInput } from "./VoiceInputProvider";
 import { resolveVoiceComposerPresentation } from "./voiceInputPresentation";
-import { useGT, useMessages } from "gt-react-native";
 
 const PILL_HEIGHT = 36;
 const COLLAPSED_WIDTH = 64;
@@ -35,13 +35,13 @@ const MORPH_TIMING = {
 const ENTERING = FadeIn.duration(180).reduceMotion(ReduceMotion.System);
 
 export function GlobalVoiceInputControl(props: { readonly children: ReactNode }) {
-  const messages = useMessages();
   const voice = useGlobalVoiceInput();
   const [expanded, setExpanded] = useState(false);
+  const resolveMessage = useMessages();
   const presentation = resolveVoiceComposerPresentation(
     voice.state,
     voice.elapsedSeconds,
-    messages,
+    resolveMessage,
   );
   const visible =
     presentation.statusLabel !== null &&
@@ -71,8 +71,6 @@ function EdgeDictationPill(props: {
   readonly expanded: boolean;
   readonly onExpandedChange: (expanded: boolean) => void;
 }) {
-  const messages = useMessages();
-  const gt = useGT();
   const voice = useGlobalVoiceInput();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -96,10 +94,12 @@ function EdgeDictationPill(props: {
       ? Math.max(insets.bottom, 16) + 16 + fabSize + 12
       : Math.max(insets.bottom, 12) + IOS_BOTTOM_CHROME_CLEARANCE;
 
+  const gt = useGT();
+  const resolveMessage = useMessages();
   const presentation = resolveVoiceComposerPresentation(
     voice.state,
     voice.elapsedSeconds,
-    messages,
+    resolveMessage,
   );
   const phase = voice.state.phase;
   const isError = phase === "error";

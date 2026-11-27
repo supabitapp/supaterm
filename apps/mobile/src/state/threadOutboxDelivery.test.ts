@@ -33,8 +33,6 @@ const harness = vi.hoisted(() => ({
   removeOutboxMessage: vi.fn(async (_message: QueuedThreadMessage) => undefined),
   writeOutboxMessage: vi.fn(async (_message: QueuedThreadMessage) => undefined),
   prepareTurnAttachments: vi.fn<typeof import("../lib/attachmentUpload").prepareTurnAttachments>(),
-  uploadVoice: vi.fn<typeof import("./transcription").uploadEnvironmentVoiceRecording>(),
-  audioExists: true,
   draftFile: (() => {
     let document = "";
     let writeError: Error | null = null;
@@ -92,16 +90,6 @@ vi.mock("../lib/attachmentUpload", () => ({
   prepareTurnAttachments: harness.prepareTurnAttachments,
 }));
 vi.mock("./composer-attachment-uploads", () => ({ uploadComposerAttachmentShared: vi.fn() }));
-
-vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: harness.uploadVoice }));
-
-vi.mock("./thread-outbox-audio", () => ({
-  queuedVoiceRecordingFile: async (messageId: string) => ({
-    exists: harness.audioExists,
-    uri: `file:///documents/thread-outbox-audio/${messageId}.wav`,
-  }),
-  releaseUnusedQueuedVoiceRecordings: vi.fn(async () => undefined),
-}));
 
 vi.mock("./projects", () => ({ environmentProjects: {} }));
 
@@ -192,7 +180,6 @@ import { editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 import {
   completeQueuedMessageDelivery,
   type DeliveryRetry,
-  deliverQueuedVoiceMessage,
   prepareQueuedMessageAttachments,
   recoverEditedCreationAfterDelivery,
   removeAcknowledgedExistingThreadMessage,
@@ -266,8 +253,6 @@ afterEach(() => {
   harness.removeOutboxMessage.mockClear();
   harness.writeOutboxMessage.mockReset();
   harness.prepareTurnAttachments.mockReset();
-  harness.uploadVoice.mockReset();
-  harness.audioExists = true;
 });
 
 /** True once a delivery step handled its message, false when it asks to retry. */
@@ -1436,99 +1421,6 @@ describe("thread outbox recovery rollback", () => {
 
       expect(composerDrafts.getComposerDraftSnapshot(draftKey).text).toBe("typed offline, again");
       expect(remainingMessages()).toEqual([message]);
-    }),
-  );
-});
-
-describe("queued voice message delivery", () => {
-  const modelSelection = { instanceId: ProviderInstanceId.make("claudeAgent"), model: "opus" };
-  const voiceMessage = (): QueuedThreadMessage => ({
-    ...queuedMessage({ messageId: "voice-1", text: "" }),
-    dispatchMode: "queue",
-    voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
-  });
-  const enqueue = async (message: QueuedThreadMessage) => {
-    await harness.manager.enqueue(message);
-    return message;
-  };
-
-  it.effect("has the environment send the recording under the message's own ids", () =>
-    Effect.gen(function* () {
-      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
-      harness.uploadVoice.mockResolvedValue({
-        text: "ship it",
-        submission: { status: "sent", sequence: 3 },
-      });
-
-      const delivery = yield* deliverQueuedVoiceMessage(message, modelSelection);
-
-      expect(harness.uploadVoice).toHaveBeenCalledWith({
-        environmentId: message.environmentId,
-        uri: "file:///documents/thread-outbox-audio/voice-1.wav",
-        request: {
-          sizeBytes: 96_044,
-          language: "en-US",
-          submit: {
-            threadId: message.threadId,
-            commandId: message.commandId,
-            messageId: message.messageId,
-            modelSelection,
-            delivery: "queue",
-            creationSource: "mobile",
-          },
-        },
-      });
-      const { voice: _, ...sent } = message;
-      expect(delivery).toMatchObject({
-        status: "delivered",
-        message: { ...sent, text: "ship it" },
-        sequence: 3,
-      });
-    }),
-  );
-
-  it.effect(
-    "collects a streamed recording without its audio only under the id it streamed with",
-    () =>
-      Effect.gen(function* () {
-        harness.uploadVoice.mockResolvedValue({
-          text: "ship it",
-          submission: { status: "sent", sequence: 3 },
-        });
-        const base = voiceMessage();
-        const streamed = yield* Effect.promise(() =>
-          enqueue({
-            ...base,
-            voice: { ...base.voice!, streamedUploadId: base.commandId },
-          }),
-        );
-        const renamed = yield* Effect.promise(() =>
-          enqueue({
-            ...queuedMessage({ messageId: "voice-2", text: "" }),
-            voice: { ...base.voice!, streamedUploadId: base.commandId },
-          }),
-        );
-
-        yield* deliverQueuedVoiceMessage(streamed, modelSelection);
-        yield* deliverQueuedVoiceMessage(renamed, modelSelection);
-
-        expect(harness.uploadVoice.mock.calls.map(([upload]) => upload.streamed)).toEqual([
-          true,
-          undefined,
-        ]);
-      }),
-  );
-
-  it.effect("holds a message whose recording is gone without uploading", () =>
-    Effect.gen(function* () {
-      harness.audioExists = false;
-      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
-
-      expect(yield* deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
-      expect(harness.uploadVoice).not.toHaveBeenCalled();
-      expect(remainingMessages()[0]?.failure).toBe(
-        "The recording is no longer available. Record it again.",
-      );
     }),
   );
 });

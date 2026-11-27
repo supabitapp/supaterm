@@ -2,7 +2,6 @@ import { useSidebarWorkspaceTabs } from "../layout/workspace/useSystemWorkspaceT
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
-import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { useSideChat } from "./useSideChat";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
 import { useDeviceType } from "../../native/native-layout-metrics";
@@ -118,13 +117,13 @@ import { useComposerCommandMenu } from "./use-composer-command-menu";
 import type { ComposerEnvironmentCandidate } from "@supaterm/client-runtime/composerThreadItems";
 import { supportsPeerLinks } from "@supaterm/client-runtime/link-request";
 import {
-  ComposerDictationConfirmAction,
-  ComposerDictationLeadingAction,
+  ComposerDictationCancelAction,
   ComposerDictationDraftContent,
+  ComposerDictationError,
+  ComposerDictationPrimaryAction,
+  ComposerDictationStartAction,
   ComposerDictationStatus,
   ComposerDictationToolbar,
-  ComposerDictationTrailingActions,
-  composerDictationToolbarHeight,
 } from "../voice-input/ComposerDictationControl";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
@@ -203,12 +202,6 @@ export interface ThreadComposerProps {
   readonly onStopThread: () => void;
   readonly onResumeQueue: (() => Promise<void>) | null;
   /** `stillSendable` reports whether the draft is unchanged after any wait before sending. */
-  /** Queues a recording from an empty draft as the message, for the environment to transcribe. */
-  readonly onSendVoiceMessage?: (
-    recordingUri: string,
-    language: string,
-    handOff: VoiceRecordingHandOff | undefined,
-  ) => Promise<void>;
   readonly onSendMessage: (
     followUp?: ActiveTurnComposerAction,
     stillSendable?: () => boolean,
@@ -501,7 +494,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       draftKey: composerDraftKey,
     });
   };
-  const { onSendMessage, onSendVoiceMessage, onChangeDraftMessage, onShowUsageLimits } = props;
+  const { onSendMessage, onChangeDraftMessage, onShowUsageLimits } = props;
   const usageLimitsOffered =
     selectedProviderStatus !== null &&
     hasProviderUsageLimits(selectedProviderStatus.driver, props.serverConfig?.providers ?? []);
@@ -577,31 +570,9 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     label: props.selectedThread.title || gt("Untitled thread"),
     readDraftMessage: () => getComposerDraftSnapshot(composerDraftKey).text,
     selection: composerMenu.selection,
+    hidden: props.hidden,
     onChangeDraftMessage: (text) => setComposerDraftText(composerDraftKey, text),
     onChangeSelection: composerMenu.onSelectionChange,
-    onSubmit: () => {
-      if (canSend) void handleSend();
-    },
-    onReviewTranscript: () => focusComposerEditor(inputRef),
-    environmentId: props.environmentId,
-    context: props.isDraft
-      ? { projectId: props.selectedThread.projectId }
-      : { threadId: props.selectedThread.id },
-    ...(onSendVoiceMessage && queuedEdit === null
-      ? {
-          voiceMessage: {
-            accepts: () => {
-              const draft = getComposerDraftSnapshot(composerDraftKey);
-              return (
-                draft.text.trim().length === 0 &&
-                draft.attachments.length === 0 &&
-                (draft.context?.records.length ?? 0) === 0
-              );
-            },
-            send: onSendVoiceMessage,
-          },
-        }
-      : {}),
   });
   const isSubmissionLocked =
     props.interactionLocked === true || queuedEdit?.saving === true || voiceInput.blocksSubmission;
@@ -610,7 +581,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     voiceInput.elapsedSeconds,
     messages,
   );
-  const isVoiceInputPresented = voicePresentation.statusLabel !== null;
+  const isVoiceInputPresented = voicePresentation.statusKind === "active";
   const isExpanded =
     !voiceInput.isBusy && (isFocused || settingsSheetPresentation.keepsComposerExpanded);
   // iPad workspace navigation is taller, so the collapsed row's controls grow to match.
@@ -818,15 +789,18 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     voiceInput.start();
   };
   const draftAction = (
-    <ComposerDictationTrailingActions
-      size={rowControlSize}
-      state={voiceInput.state}
-      isAvailable={voiceInput.isAvailable}
-      disabled={isSubmissionLocked}
-      reservesSendWidth={isExpanded}
-      onStart={startDictation}
-      onCancel={voiceInput.cancel}
+    <View
+      className="shrink-0 flex-row items-center justify-end"
+      style={isExpanded && voiceInput.isAvailable ? { minWidth: 88 } : undefined}
     >
+      <ComposerDictationStartAction
+        size={rowControlSize}
+        state={voiceInput.state}
+        isAvailable={voiceInput.isAvailable}
+        disabled={isSubmissionLocked}
+        onStart={startDictation}
+        onCancel={voiceInput.cancel}
+      />
       {showStopAction ? (
         <ComposerActionButton
           size={rowControlSize}
@@ -868,7 +842,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           onSend={handleSend}
         />
       ) : null}
-    </ComposerDictationTrailingActions>
+    </View>
   );
 
   return (
@@ -951,14 +925,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 }
               : {
                   borderRadius: usesLargeControls ? 31 : 27,
-                  minHeight:
-                    composerDictationToolbarHeight(voicePresentation.statusKind) +
-                    compactSurfaceInset * 2,
+                  minHeight: 44 + compactSurfaceInset * 2,
                   overflow: "hidden" as const,
                   paddingVertical: compactSurfaceInset,
                 }
           }
         >
+          <ComposerDictationError
+            error={voiceInput.state.phase === "error" ? voiceInput.state.error : null}
+            onDismiss={voiceInput.cancel}
+          />
           {attachmentBlockReason !== null ? (
             <View className="flex-row items-center gap-1.5 px-4 py-1.5">
               <SymbolView
@@ -1231,7 +1207,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
             }
           >
             <ComposerDictationToolbar
-              statusKind={voicePresentation.statusKind}
+              showsDictation={isVoiceInputPresented}
               visible={isToolbarVisible}
             >
               <ComposerToolbarRow
@@ -1240,9 +1216,9 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 paddingTop={0}
                 style={{ gap: voiceInput.isBusy ? 8 : 0, justifyContent: "space-between" }}
               >
-                <ComposerDictationLeadingAction
+                <ComposerDictationCancelAction
+                  size={rowControlSize}
                   presentation={voicePresentation}
-                  onStop={voiceInput.stop}
                   onCancel={voiceInput.cancel}
                 />
                 {isVoiceInputPresented ? (
@@ -1251,7 +1227,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                     elapsedSeconds={voiceInput.elapsedSeconds}
                     phase={voiceInput.state.phase}
                     presentation={voicePresentation}
-                    onDismissError={voiceInput.cancel}
                   />
                 ) : (
                   <>
@@ -1283,11 +1258,15 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 {voicePresentation.showsSend ? (
                   draftAction
                 ) : (
-                  <ComposerDictationConfirmAction
+                  <ComposerDictationPrimaryAction
+                    size={rowControlSize}
+                    state={voiceInput.state}
                     presentation={voicePresentation}
-                    disabled={!canSubmitDraft}
-                    onConfirm={voiceInput.stopAndSubmit}
-                    submitsMessage
+                    isAvailable={voiceInput.isAvailable}
+                    disabled={isSubmissionLocked}
+                    onStart={startDictation}
+                    onConfirm={voiceInput.stop}
+                    onCancel={voiceInput.cancel}
                   />
                 )}
               </ComposerToolbarRow>

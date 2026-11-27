@@ -246,7 +246,7 @@ overrides:
   micromark-extension-llm-math: 3.1.1-20250610
   micromark: 4.0.2
   mdast-util-to-hast: 13.2.1
-  expo-audio: 58.0.11
+  expo-audio: 58.0.12
   '@expo/ui': 58.0.27
   expo-network: 58.0.4
   '@cursor/sdk': 1.4.2
@@ -325,7 +325,7 @@ patchedDependencies:
   app-builder-lib@26.17.0: 65c8343198108861190501b3aca64068d687ad6cde497e1f5c9ca39516d9627c
   effect@4.1.5: 4efcfa75f4af910e670008caaea1aa2ce73194092a2bcc3e9be61658a6b88187
   electron-updater@6.8.9: 91b5648a7eed42761523ef542ebb7e548b037eda41d66533c8152ac65ac72155
-  expo-audio@58.0.11: cc6a3d9e1a8a119b163cfb66476abc2eef7c5dedab3cad0409d728fc6663385b
+  expo-audio@58.0.12: ba2ac6874680097b41e03051641696887cc84e875ca157075aa7aeb33e200cb2
   expo-modules-core@58.0.30: f0b0fd100550ed76e5c25b4d13eb7c9ff62825f8f197c53edf7bf447c50c9fb7
   expo-network@58.0.4: 159c2d760d1cd5102e95df51c20600111e7a72096ef0daea8215d50cae48bd98
   expo-sharing@58.0.22: 108f1b00debef8288e914da45657e5ccc84af9a26a5c0183b3c5593f8b4f2ce6
@@ -597,8 +597,8 @@ importers:
         specifier: ~58.0.20
         version: 58.0.20(@types/react@19.3.0)(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)(supports-color@8.1.1)(typescript@6.0.3)
       expo-audio:
-        specifier: 58.0.11
-        version: 58.0.11(patch_hash=cc6a3d9e1a8a119b163cfb66476abc2eef7c5dedab3cad0409d728fc6663385b)(@types/react@19.3.0)(expo-asset@58.0.20(@types/react@19.3.0)(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)(supports-color@8.1.1)(typescript@6.0.3))(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
+        specifier: 58.0.12
+        version: 58.0.12(patch_hash=ba2ac6874680097b41e03051641696887cc84e875ca157075aa7aeb33e200cb2)(@types/react@19.3.0)(expo-asset@58.0.20(@types/react@19.3.0)(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)(supports-color@8.1.1)(typescript@6.0.3))(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       expo-blur:
         specifier: 58.0.5
         version: 58.0.5(@types/react@19.3.0)(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
@@ -8433,8 +8433,8 @@ packages:
       react: '*'
       react-native: '*'
 
-  expo-audio@58.0.11:
-    resolution: {integrity: sha512-r/3QzCZ+rHUrjAFoZpczUaC1N3uuHhjKr9YfsOlT3tnXFF+AC6EVofOc8S4OYPdgveIljLpouFcNps6ynf0U2A==}
+  expo-audio@58.0.12:
+    resolution: {integrity: sha512-PNVqGyxZET+hSQ/JfX29VPzdj+W5qo7zRSQabN4T/0+EmnnMvyPf5u6FbaGWQuerXKMvKIy7RwSc13ldaye1RA==}
     peerDependencies:
       '@types/react': '*'
       expo: '*'
@@ -18284,7 +18284,7 @@ snapshots:
       - supports-color
       - typescript
 
-  expo-audio@58.0.11(patch_hash=cc6a3d9e1a8a119b163cfb66476abc2eef7c5dedab3cad0409d728fc6663385b)(@types/react@19.3.0)(expo-asset@58.0.20(@types/react@19.3.0)(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)(supports-color@8.1.1)(typescript@6.0.3))(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0):
+  expo-audio@58.0.12(patch_hash=ba2ac6874680097b41e03051641696887cc84e875ca157075aa7aeb33e200cb2)(@types/react@19.3.0)(expo-asset@58.0.20(@types/react@19.3.0)(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)(supports-color@8.1.1)(typescript@6.0.3))(expo@58.0.23)(react-native@0.88.1(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0):
     dependencies:
       '@types/react': 19.3.0
       expo: 58.0.23(8d2fb04cd047e28784dc6f74f0a96b14)

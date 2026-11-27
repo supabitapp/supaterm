@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Platform, View } from "react-native";
 import { useResolveClassNames } from "uniwind";
 
@@ -8,8 +9,10 @@ import { RadioIndicator } from "./RadioIndicator";
 import { RowPressable } from "./RowPressable";
 
 export function ListChoiceRow(props: {
+  readonly leading?: ReactNode;
   readonly label: string;
   readonly description?: string;
+  readonly meta?: ReactNode;
   readonly selected: boolean;
   readonly separated?: boolean;
   readonly disabled?: boolean;
@@ -32,8 +35,10 @@ export function ListChoiceRow(props: {
       )}
     >
       <ListRowLayout
+        leading={props.leading}
         label={props.label}
         description={props.description}
+        meta={props.meta}
         disabled={props.disabled}
         accessory={
           <View

@@ -1,12 +1,18 @@
+import { T, useGT, useMessages } from "gt-react-native";
 import { TextInput, View } from "react-native";
 
 import { AppText as Text } from "../../../components/ui/AppText";
 import type { ComposerEditorSelection } from "../../../components/ComposerEditor";
-import { ComposerDictationStartAction } from "../../voice-input/ComposerDictationControl";
-import { TextFieldDictationToolbar } from "../../voice-input/TextFieldDictationToolbar";
+import {
+  ComposerDictationCancelAction,
+  ComposerDictationError,
+  ComposerDictationPrimaryAction,
+  ComposerDictationStartAction,
+  ComposerDictationStatus,
+  ComposerDictationToolbar,
+} from "../../voice-input/ComposerDictationControl";
 import type { useVoiceInputController } from "../../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../../voice-input/voiceInputPresentation";
-import { T, useGT, useMessages } from "gt-react-native";
 
 export function ScheduledTaskPromptField(props: {
   readonly value: string;
@@ -16,15 +22,11 @@ export function ScheduledTaskPromptField(props: {
   readonly disabled: boolean;
   readonly voiceInput: ReturnType<typeof useVoiceInputController>;
 }) {
-  const messages = useMessages();
   const gt = useGT();
+  const m = useMessages();
   const voice = props.voiceInput;
-  const presentation = resolveVoiceComposerPresentation(
-    voice.state,
-    voice.elapsedSeconds,
-    messages,
-  );
-  const showsDictation = presentation.statusLabel !== null;
+  const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds, m);
+  const showsDictation = presentation.statusKind === "active";
   const showsIdleTrigger = voice.isAvailable && !showsDictation;
 
   return (
@@ -57,12 +59,31 @@ export function ScheduledTaskPromptField(props: {
           />
         ) : null}
       </View>
+      <ComposerDictationError
+        error={voice.state.phase === "error" ? voice.state.error : null}
+        onDismiss={voice.cancel}
+      />
       {showsDictation ? (
-        <TextFieldDictationToolbar
-          voiceInput={voice}
-          presentation={presentation}
-          disabled={props.disabled}
-        />
+        <ComposerDictationToolbar showsDictation>
+          <View className="h-11 flex-row items-center">
+            <ComposerDictationCancelAction presentation={presentation} onCancel={voice.cancel} />
+            <ComposerDictationStatus
+              audioLevels={voice.audioLevels}
+              elapsedSeconds={voice.elapsedSeconds}
+              phase={voice.state.phase}
+              presentation={presentation}
+            />
+            <ComposerDictationPrimaryAction
+              state={voice.state}
+              presentation={presentation}
+              isAvailable={voice.isAvailable}
+              disabled={props.disabled}
+              onStart={voice.start}
+              onConfirm={voice.stop}
+              onCancel={voice.cancel}
+            />
+          </View>
+        </ComposerDictationToolbar>
       ) : null}
     </View>
   );

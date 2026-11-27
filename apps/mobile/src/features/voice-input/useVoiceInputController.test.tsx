@@ -1,169 +1,49 @@
-import { act, useEffect, useLayoutEffect, useSyncExternalStore } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import type {
-  VoiceInputState,
-  VoiceRecordingHandOff,
-  VoiceTranscriber,
-} from "@supaterm/client-runtime/voice-input";
-import { EnvironmentId } from "@supaterm/contracts";
-import { resetVoiceInputGlobalsForTests } from "../../../../../packages/client-runtime/src/voice-input/controller";
+import { act, useEffect, useSyncExternalStore } from "react";
+import { createRoot } from "react-dom/client";
+import { expect, it, vi } from "vite-plus/test";
 
-import { VoiceInputSession } from "./voiceInputSession";
-
-const store = vi.hoisted(() => {
-  const listeners = new Set<() => void>();
-  let revision = 0;
-  return {
-    focused: true,
-    subscribe(listener: () => void) {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    snapshot: () => revision,
-    notify() {
-      revision += 1;
-      for (const listener of listeners) listener();
-    },
-  };
-});
-
-vi.mock("react-native", () => ({ Keyboard: { dismiss: vi.fn() } }));
-vi.mock("expo-haptics", () => ({ impactAsync: vi.fn(), ImpactFeedbackStyle: { Light: "light" } }));
-vi.mock("@react-navigation/native", () => ({
-  useFocusEffect: (callback: () => () => void) => {
-    useSyncExternalStore(store.subscribe, store.snapshot);
-    useEffect(() => (store.focused ? callback() : undefined), [callback, store.focused]);
-  },
+const harness = vi.hoisted(() => ({
+  session: null as import("./voiceInputSession").VoiceInputSession | null,
 }));
-vi.mock("./composerVoiceEngine", () => ({
-  resolveComposerVoiceEngine: () => ({
-    status: "ready",
-    engine: { transcriber, language: "en-US" },
-  }),
+
+vi.mock("@react-navigation/native", () => ({
+  useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]),
 }));
 vi.mock("./VoiceInputProvider", () => ({
   useGlobalVoiceInput: () => {
-    useSyncExternalStore(store.subscribe, store.snapshot);
-    return {
-      state,
-      session,
-      ownerKey: session.ownerKey,
-      isAvailable: true,
-      isBusy: state.phase === "recording" || state.phase === "transcribing",
-      stop: () => session.controller.stop(),
-      cancel: () => session.controller.cancel(),
-    };
+    const session = harness.session!;
+    const snapshot = useSyncExternalStore(session.subscribe, session.getSnapshot);
+    return { ...snapshot, isAvailable: true, isBusy: false, session };
   },
 }));
 
 import { useVoiceInputController } from "./useVoiceInputController";
+import { VoiceInputSession } from "./voiceInputSession";
 
-let state: VoiceInputState;
-let session: VoiceInputSession;
-let transcriber: VoiceTranscriber;
-const voiceSends =
-  vi.fn<
-    (uri: string, language: string, handOff: VoiceRecordingHandOff | undefined) => Promise<void>
-  >();
-let control: ReturnType<typeof useVoiceInputController>;
-let root: Root;
-let ownerKey: string;
-let allowed: boolean;
-const drafts = new Map<string, string>();
-const sends = vi.fn<(text: string) => void>();
-const reviews = vi.fn<() => void>();
-let recording: ReturnType<typeof Promise.withResolvers<void>>;
-let transcribing: ReturnType<typeof Promise.withResolvers<void>>;
-let settled: ReturnType<typeof Promise.withResolvers<void>>;
-let transcript: ReturnType<typeof Promise.withResolvers<string>>;
-
-function Probe() {
-  useSyncExternalStore(store.subscribe, store.snapshot);
-  const key = ownerKey;
-  const text = drafts.get(key) ?? "";
-  const voice = useVoiceInputController({
-    ownerKey: key,
-    label: key,
-    readDraftMessage: () => drafts.get(key) ?? null,
-    selection: { start: text.length, end: text.length },
-    onChangeDraftMessage: (value) => {
-      drafts.set(key, value);
-      store.notify();
-    },
+function Composer(props: { readonly hidden: boolean }) {
+  useVoiceInputController({
+    ownerKey: "thread-1",
+    label: "Thread",
+    readDraftMessage: () => "",
+    selection: { start: 0, end: 0 },
+    hidden: props.hidden,
+    onChangeDraftMessage: () => {},
     onChangeSelection: () => {},
-    onSubmit: () => {
-      if (allowed && !control.blocksSubmission) sends(text);
-    },
-    onReviewTranscript: reviews,
-    environmentId: EnvironmentId.make("environment-1"),
-    voiceMessage: {
-      accepts: () => (drafts.get(key) ?? "") === "",
-      send: voiceSends,
-    },
-  });
-  useLayoutEffect(() => {
-    control = voice;
   });
   return null;
 }
 
-async function start() {
-  await act(async () => {
-    control.start();
-    await recording.promise;
-  });
-}
-
-async function send() {
-  await act(async () => {
-    control.stopAndSubmit();
-    await transcribing.promise;
-  });
-}
-
-async function finish(text = "spoken words") {
-  await act(async () => {
-    transcript.resolve(text);
-    await settled.promise;
-  });
-}
-
-beforeEach(() => {
-  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  resetVoiceInputGlobalsForTests();
-  sends.mockClear();
-  reviews.mockClear();
-  drafts.clear();
-  drafts.set("first", "Draft");
-  drafts.set("second", "Other");
-  ownerKey = "first";
-  allowed = true;
-  store.focused = true;
-  state = { phase: "idle", error: null, errorAction: null };
-  recording = Promise.withResolvers<void>();
-  transcribing = Promise.withResolvers<void>();
-  settled = Promise.withResolvers<void>();
-  transcript = Promise.withResolvers<string>();
-  voiceSends.mockReset();
-  voiceSends.mockResolvedValue(undefined);
-  transcriber = {
-    prepare: async () => ({
-      locale: "en-US",
-      transcribe: () => {
-        transcribing.resolve();
-        return transcript.promise;
-      },
-      handOff: () => ({ uploadId: "dictation-1", streamed: true }),
-    }),
-  };
-  session = new VoiceInputSession({
+function setup() {
+  const session = new VoiceInputSession({
     recorder: {
-      uri: "file:///recording.wav",
+      uri: "file:///voice.m4a",
       prepareToRecordAsync: async () => {},
       record: () => {},
       stop: async () => {},
     },
+    getTranscriber: () => ({
+      prepare: async () => ({ locale: "en-US", transcribe: async () => "" }),
+    }),
     requestPermission: async () => ({ granted: true, canAskAgain: true }),
     configureRecording: async () => {},
     releaseRecording: async () => {},
@@ -172,117 +52,29 @@ beforeEach(() => {
     publishAudioLevels: () => {},
     keepAwake: () => () => {},
   });
-  session.subscribe(() => {
-    const next = session.getSnapshot().state;
-    if (next === state) return;
-    state = next;
-    store.notify();
-    if (next.phase === "recording") recording.resolve();
-    if (next.phase === "idle" || next.phase === "error") settled.resolve();
-  });
-  root = createRoot(document.createElement("div"));
-  act(() => root.render(<Probe />));
-});
-
-afterEach(() => {
-  act(() => root.unmount());
-  session.dispose();
-});
-
-describe("dictation submission", () => {
-  it("sends the committed transcript once, after the composer can submit again", async () => {
-    await start();
-    await send();
-    act(() => control.stopAndSubmit());
-    expect(sends).not.toHaveBeenCalled();
-    await finish();
-    expect(sends.mock.calls).toEqual([["Draft spoken words"]]);
-    expect(reviews).not.toHaveBeenCalled();
-  });
-
-  it("sends an empty draft's recording as the message for the environment to transcribe", async () => {
-    drafts.set("first", "");
-    await start();
-    await act(async () => {
-      control.stopAndSubmit();
-      await settled.promise;
-    });
-    expect(voiceSends.mock.calls).toEqual([
-      ["file:///recording.wav", "en-US", { uploadId: "dictation-1", streamed: true }],
-    ]);
-    expect(sends).not.toHaveBeenCalled();
-    expect(state.phase).toBe("idle");
-  });
-
-  it.each(["same", "remounted"] as const)(
-    "stops for review without sending in the %s composer",
-    async (composer) => {
-      await start();
-      if (composer === "remounted") {
-        act(() => root.render(null));
-        act(() => root.render(<Probe />));
-      }
-      await act(async () => {
-        void control.stop();
-        await transcribing.promise;
-      });
-      await finish();
-      expect(drafts.get("first")).toBe("Draft spoken words");
-      expect(sends).not.toHaveBeenCalled();
-      expect(reviews).toHaveBeenCalledTimes(1);
+  harness.session = session;
+  const root = createRoot(document.createElement("div"));
+  return {
+    isFocused: () => session.getSnapshot().focusedOwners.has("thread-1"),
+    render: (hidden: boolean) => act(() => root.render(<Composer hidden={hidden} />)),
+    [Symbol.dispose]: () => {
+      act(() => root.unmount());
+      session.dispose();
     },
-  );
+  };
+}
 
-  it("can send after returning to a recording in a remounted composer", async () => {
-    await start();
-    act(() => root.render(null));
-    act(() => root.render(<Probe />));
-    await send();
-    await finish();
-    expect(sends.mock.calls).toEqual([["Draft spoken words"]]);
-  });
+// GlobalVoiceInputControl hides its dictation pill while the recording owner is focused, so a
+// composer that stays mounted under display: none (e.g. behind an agent question) must unfocus.
+it("unfocuses a hidden composer so the global dictation controls can show", () => {
+  using voice = setup();
 
-  it.each(["blur", "owner", "permission"] as const)(
-    "preserves the transcript without sending after a %s change",
-    async (change) => {
-      await start();
-      await send();
-      act(() => {
-        if (change === "blur") store.focused = false;
-        if (change === "owner") ownerKey = "second";
-        if (change === "permission") allowed = false;
-        store.notify();
-      });
-      await finish();
-      expect(drafts.get("first")).toBe("Draft spoken words");
-      expect(drafts.get("second")).toBe("Other");
-      expect(sends).not.toHaveBeenCalled();
-      expect(reviews).not.toHaveBeenCalled();
-    },
-  );
+  voice.render(false);
+  expect(voice.isFocused()).toBe(true);
 
-  it.each(["cancel", "empty", "error", "edited"] as const)(
-    "does not send after %s transcription",
-    async (outcome) => {
-      await start();
-      await send();
-      act(() => {
-        if (outcome === "cancel") control.cancel();
-        if (outcome === "edited") {
-          drafts.set("first", "Changed draft");
-          store.notify();
-        }
-      });
-      if (outcome === "error") {
-        await act(async () => {
-          transcript.reject(new Error("Transcription failed"));
-          await settled.promise;
-        });
-      } else {
-        await finish(outcome === "empty" ? " " : "spoken words");
-      }
-      expect(sends).not.toHaveBeenCalled();
-      expect(drafts.get("first")).toBe(outcome === "edited" ? "Changed draft" : "Draft");
-    },
-  );
+  voice.render(true);
+  expect(voice.isFocused()).toBe(false);
+
+  voice.render(false);
+  expect(voice.isFocused()).toBe(true);
 });

@@ -785,8 +785,6 @@ function IssueRoute({ params }: { readonly params: IssueParams }) {
                 }}
               >
                 <IssueCommentComposer
-                  environmentId={target.environmentId}
-                  projectId={target.input.projectId}
                   ownerKey={`issue-comment:${issueParamsKey(params)}`}
                   label={issue?.displayKey ?? params.issueKey}
                   blocked={commentBlocked}

@@ -13,7 +13,6 @@ import {
   ProviderInstanceId,
   ThreadId,
 } from "@supaterm/contracts";
-import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { AtomRegistry } from "effect/reactivity";
 import * as RpcClientError from "effect/rpc/RpcClientError";
 import * as Socket from "effect/socket/Socket";
@@ -77,10 +76,9 @@ vi.mock("expo-file-system", () => {
 });
 
 import {
-  decodeQueuedThreadMessage,
+  decodeQueuedThreadMessage as decodeStoredMessage,
   encodeQueuedThreadMessage,
   groupQueuedThreadMessages,
-  resolveVoiceDeliveryStep,
   isQueuedThreadCreationSendable,
   modelSelectionsEqual,
   resolveThreadOutboxDeliveryAction,
@@ -89,7 +87,6 @@ import {
   resolveQueuedThreadSettings,
   shouldRetryThreadOutboxDelivery,
   threadOutboxRetryDelayMs,
-  voiceThreadMessage,
   type QueuedThreadMessage,
 } from "./thread-outbox-model";
 import { createThreadOutboxManager, ThreadOutboxManagerError } from "./thread-outbox-manager";
@@ -99,6 +96,11 @@ import {
   type ThreadOutboxLoadResult,
   type ThreadOutboxStorage,
 } from "./thread-outbox-storage";
+
+const legacyVoiceRecordingUri = (messageId: MessageId) =>
+  `file:///documents/thread-outbox-audio/${messageId}.wav`;
+const decodeQueuedThreadMessage = (value: unknown) =>
+  decodeStoredMessage(value, legacyVoiceRecordingUri);
 
 function queuedMessage(input: {
   readonly environmentId?: string;
@@ -353,22 +355,37 @@ describe("thread outbox", () => {
     expect(() => decodeQueuedThreadMessage({ schemaVersion: 6, ...message })).toThrow();
   });
 
-  it("persists a voice message and the failure that holds it", () => {
-    const message = {
-      ...queuedMessage({ messageId: "message-voice", createdAt: "2026-10-30T10:00:01.000Z" }),
+  it("holds a legacy voice message as text carrying its recording", () => {
+    const { attachments: _, ...message } = queuedMessage({
+      messageId: "message-voice",
+      createdAt: "2026-10-30T10:00:01.000Z",
+    });
+    const legacy = {
+      schemaVersion: 5,
+      ...message,
       text: "",
-      voice: {
-        durationMs: 4_200,
-        sizeBytes: 134_444,
-        language: "en-US",
-        streamedUploadId: CommandId.make("dictation-1"),
-      },
-      failure: "No speech was detected.",
-    } satisfies QueuedThreadMessage;
+      attachments: [],
+      voice: { durationMs: 4_200, sizeBytes: 134_444, language: "en-US" },
+    };
 
-    const stored = JSON.parse(JSON.stringify(encodeQueuedThreadMessage(message)));
-    expect(stored).toMatchObject({ schemaVersion: 5 });
-    expect(decodeQueuedThreadMessage(stored)).toEqual(message);
+    const migrated = decodeQueuedThreadMessage(JSON.parse(JSON.stringify(legacy)));
+    expect(migrated).toEqual({
+      ...message,
+      text: "",
+      attachments: [
+        {
+          id: "voice-message-voice",
+          type: "file",
+          name: "Voice message.wav",
+          mimeType: "audio/wav",
+          sizeBytes: 134_444,
+          fileUri: "file:///documents/thread-outbox-audio/message-voice.wav",
+        },
+      ],
+      failure:
+        "Voice messages are no longer transcribed by the environment. Type what you said or discard.",
+    });
+    expect(decodeQueuedThreadMessage(encodeQueuedThreadMessage(migrated))).toEqual(migrated);
   });
 
   it("loads a schema v3 file without rewriting it eagerly", async () => {
@@ -1696,89 +1713,5 @@ describe("thread outbox", () => {
         interrupted: false,
       }),
     ).toBe("restore");
-  });
-});
-
-describe("voice message delivery", () => {
-  const voiceMessage = {
-    ...queuedMessage({ messageId: "voice-1", createdAt: "2026-10-30T10:00:00.000Z" }),
-    text: "",
-    voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
-  } satisfies QueuedThreadMessage;
-  const rotated = CommandId.make("command-rotated");
-  const step = (outcome: Parameters<typeof resolveVoiceDeliveryStep>[1]) =>
-    resolveVoiceDeliveryStep(voiceMessage, outcome, () => rotated);
-
-  it("retires a sent message with the transcript the server sent", () => {
-    expect(
-      step({ result: { text: "ship it", submission: { status: "sent", sequence: 7 } } }),
-    ).toEqual({ step: "delivered", transcript: "ship it" });
-  });
-
-  it("holds a recording without speech under a fresh command id", () => {
-    expect(step({ result: { text: "", submission: { status: "noSpeech" } } })).toEqual({
-      step: "hold",
-      message: { ...voiceMessage, commandId: rotated, failure: "No speech was detected." },
-    });
-  });
-
-  it("turns a transcript the thread refused into text the user can edit, never sent again", () => {
-    const { voice: _, ...textMessage } = voiceMessage;
-    expect(step({ result: { text: "ship it", submission: { status: "failed" } } })).toEqual({
-      step: "hold",
-      message: {
-        ...textMessage,
-        text: "ship it",
-        commandId: rotated,
-        failure: expect.stringContaining("couldn't be sent"),
-      },
-    });
-  });
-
-  it("holds a refused recording with the reason, keeping it for a retry", () => {
-    const refusal = new VoiceUploadError({
-      reason: "signedOut",
-      message: "Sign in to this provider again to transcribe.",
-      retryable: false,
-    });
-    expect(step({ error: refusal })).toEqual({
-      step: "hold",
-      message: {
-        ...voiceMessage,
-        commandId: rotated,
-        failure: "Sign in to this provider again to transcribe.",
-      },
-    });
-  });
-
-  it("queues a streamed recording under its dictation's id, so the environment joins it", () => {
-    const { voice, ...draft } = voiceMessage;
-    expect(voiceThreadMessage(draft, voice, { uploadId: "dictation-1", streamed: true })).toEqual({
-      ...voiceMessage,
-      commandId: "dictation-1",
-      voice: { ...voice, streamedUploadId: "dictation-1" },
-    });
-    expect(voiceThreadMessage(draft, voice, undefined)).toEqual(voiceMessage);
-  });
-
-  it("retries a dropped upload or a rate limit under the same ids", () => {
-    expect(
-      step({
-        error: new VoiceUploadError({
-          reason: "disconnected",
-          message: "The recording couldn't reach.",
-          retryable: true,
-        }),
-      }),
-    ).toEqual({ step: "retry" });
-    expect(
-      step({
-        error: new VoiceUploadError({
-          reason: "rateLimited",
-          message: "Transcription is rate limited.",
-          retryable: true,
-        }),
-      }),
-    ).toEqual({ step: "retry" });
   });
 });

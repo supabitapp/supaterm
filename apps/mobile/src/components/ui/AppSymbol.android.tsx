@@ -152,6 +152,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "textformat.size": IconNodes.FontStyle,
   "textformat.size.larger": IconNodes.ZoomIn,
   "textformat.size.smaller": IconNodes.ZoomOut,
+  "tray.and.arrow.down": IconNodes.Download,
   "tray.and.arrow.up": IconNodes.Upload,
   trash: IconNodes.Trash,
   wifi: IconNodes.Wifi,

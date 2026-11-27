@@ -337,26 +337,26 @@ provider, but it has already heard what you said up to then.
 
 ### On iPhone and Android
 
-Use the composer's microphone to record. Stop to transcribe and review the text, or tap
-the up arrow to send. Text is inserted where your selection was when recording started.
-In scheduled-task prompts, voice input only updates the draft; save the schedule
+Voice input transcribes on your phone by default. That needs iOS 26 or later, or Android 12
+or later with compatible Google speech services; the first recording may download a speech
+model, then dictation works offline. To transcribe on a paired environment or a cloud provider
+instead, choose it under **Settings → Voice → Transcribe on**. Keep Supaterm open while
+dictating on Android.
+
+Tap the composer's microphone to record, the checkmark to transcribe, or the X to cancel. Text
+is inserted where your selection was when recording started and stays in the draft until you
+send it. In scheduled-task prompts, voice input only updates the draft; save the schedule
 separately.
 
-With an empty draft in a thread that has already started, the up arrow sends the
-recording itself as your message. It waits in the thread like a queued message, even
-offline, and the environment transcribes and sends it once connected. If no speech is
-found or the environment refuses it, the message stays in the thread with the reason so
-you can retry or discard it. A transcript the thread couldn't accept stays as text to
-edit or retry. With text in the draft, the up arrow transcribes, adds the text, and
-sends.
-
 Canceling or an audio interruption discards the recording and preserves your existing
-draft. Leaving the screen keeps voice input available in the floating control, but
-cancels a pending send. While recording, the screen stays awake; it can sleep normally
-once recording stops.
+draft. Leaving the screen keeps voice input available in the floating control. While
+recording, the screen stays awake; it can sleep normally once recording stops.
 
-On iPhone, voice input records from a connected wired microphone first, then Bluetooth,
-then the built-in microphone, then CarPlay.
+Rank your microphones under **Settings → Voice**. Supaterm records from the first one in the
+list that is connected.
+
+A voice message queued by an earlier version of the app stays in its thread as **Not sent**,
+with its recording attached. Edit it to type what you said, or discard it.
 
 ## Queued messages
 

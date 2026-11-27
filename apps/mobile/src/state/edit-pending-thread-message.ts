@@ -30,7 +30,6 @@ import { m } from "../i18n/messages";
 export async function editPendingThreadMessage(message: QueuedThreadMessage): Promise<boolean> {
   if (
     message.creation ||
-    message.voice ||
     appAtomRegistry.get(dispatchingQueuedMessageIdsAtom)[message.messageId] ||
     appAtomRegistry.get(editingQueuedMessageIdsAtom)[message.messageId]
   ) {

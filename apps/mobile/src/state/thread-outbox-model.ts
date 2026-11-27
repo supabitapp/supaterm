@@ -1,7 +1,6 @@
 import {
   groupThreadOutboxMessages,
   flattenThreadOutboxMessages,
-  shouldRetryThreadOutboxDelivery,
 } from "@supaterm/client-runtime/thread-outbox";
 export {
   shouldRetryThreadOutboxDelivery,
@@ -34,9 +33,6 @@ import {
   type ServerProviderModel,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
-import { isVoiceUploadError } from "@supaterm/client-runtime/state/transcription";
-import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
-import type { TranscriptionUploadResult } from "@supaterm/contracts";
 
 import { DraftComposerAttachmentSchema } from "../lib/composer-image-schema";
 import { withImplicitFastModeSelection } from "../lib/providerOptions";
@@ -62,12 +58,7 @@ const QueuedThreadCreationSchema = Schema.Struct({
   startsFromRepositoryDefaults: Schema.optional(Schema.Boolean),
 });
 
-const QueuedVoiceRecordingSchema = Schema.Struct({
-  durationMs: NonNegativeInt,
-  sizeBytes: NonNegativeInt,
-  language: Schema.String,
-  streamedUploadId: Schema.optional(CommandId),
-});
+const LegacyVoiceRecordingSchema = Schema.Struct({ sizeBytes: NonNegativeInt });
 
 const QueuedThreadMessageSchema = Schema.Struct({
   schemaVersion: Schema.Literals([1, 2, 3, 4, THREAD_OUTBOX_SCHEMA_VERSION]),
@@ -85,7 +76,7 @@ const QueuedThreadMessageSchema = Schema.Struct({
   runtimeMode: Schema.optional(RuntimeMode),
   interactionMode: Schema.optional(ProviderInteractionMode),
   creation: Schema.optional(QueuedThreadCreationSchema),
-  voice: Schema.optional(QueuedVoiceRecordingSchema),
+  voice: Schema.optional(LegacyVoiceRecordingSchema),
   failure: Schema.optional(Schema.String),
   createdAt: IsoDateTime,
 });
@@ -109,19 +100,6 @@ export interface QueuedThreadCreation {
   readonly startsFromRepositoryDefaults?: boolean;
 }
 
-/** A recording the environment transcribes and sends as the message; its text stays empty. */
-export interface QueuedVoiceRecording {
-  readonly durationMs: number;
-  readonly sizeBytes: number;
-  /** BCP 47, captured when recorded. */
-  readonly language: string;
-  /**
-   * The environment heard the recording while it was made, under this id. Only a message still
-   * sent under it can collect that audio; a hold's fresh command id starts over with the file.
-   */
-  readonly streamedUploadId?: CommandId;
-}
-
 export interface QueuedThreadMessage {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
@@ -141,8 +119,6 @@ export interface QueuedThreadMessage {
   /** Starts a new provider session (`/clear`). */
   readonly freshContext?: boolean;
   readonly creation?: QueuedThreadCreation;
-  /** Its audio lives in `thread-outbox-audio/<messageId>.wav` until delivery or discard. */
-  readonly voice?: QueuedVoiceRecording;
   /**
    * Why delivery stopped where only the user can continue it. The entry holds its thread's
    * queue until they retry or discard it.
@@ -198,9 +174,36 @@ export function encodeQueuedThreadMessage(message: QueuedThreadMessage): unknown
   });
 }
 
-export function decodeQueuedThreadMessage(value: unknown): QueuedThreadMessage {
-  const { schemaVersion: _, ...message } = decodeStoredQueuedThreadMessage(value);
-  return message;
+/**
+ * A legacy voice message waited for its environment to transcribe it. It becomes a held text
+ * message carrying its recording as a file, so the user types what they said or discards it.
+ */
+export function decodeQueuedThreadMessage(
+  value: unknown,
+  legacyVoiceRecordingUri: (messageId: MessageId) => string,
+): QueuedThreadMessage {
+  const { schemaVersion: _, voice, ...message } = decodeStoredQueuedThreadMessage(value);
+  if (voice === undefined) return message;
+  return {
+    ...message,
+    text: "",
+    attachments: [
+      ...message.attachments,
+      {
+        id: `voice-${message.messageId}`,
+        type: "file",
+        name: "Voice message.wav",
+        mimeType: "audio/wav",
+        sizeBytes: voice.sizeBytes,
+        fileUri: legacyVoiceRecordingUri(message.messageId),
+      },
+    ],
+    failure: m(
+      msg(
+        "Voice messages are no longer transcribed by the environment. Type what you said or discard.",
+      ),
+    ),
+  };
 }
 
 export function groupQueuedThreadMessages(
@@ -240,65 +243,7 @@ export function isQueuedThreadCreationSendable(message: QueuedThreadMessage): bo
   );
 }
 
-/** A recording that streamed is sent under its dictation's id, so the environment joins what it heard. */
-export function voiceThreadMessage(
-  draft: Omit<QueuedThreadMessage, "voice">,
-  voice: Omit<QueuedVoiceRecording, "streamedUploadId">,
-  handOff: VoiceRecordingHandOff | undefined,
-): QueuedThreadMessage {
-  if (!handOff) return { ...draft, voice };
-  const commandId = CommandId.make(handOff.uploadId);
-  return {
-    ...draft,
-    commandId,
-    voice: handOff.streamed ? { ...voice, streamedUploadId: commandId } : voice,
-  };
-}
-
 export type AcknowledgedThreadMessage = QueuedThreadMessage & {
   /** The server sequence that committed the message; older servers do not report it. */
   readonly sequence?: number;
 };
-
-export type VoiceDeliveryStep =
-  | { readonly step: "delivered"; readonly transcript: string }
-  /** Waits for the user. `message` replaces the queued entry. */
-  | { readonly step: "hold"; readonly message: QueuedThreadMessage }
-  | { readonly step: "retry" };
-
-/**
- * Every hold takes a fresh command id: nothing was dispatched under the old one, and the
- * server keeps that id's failed outcome, so a retry under it would only replay the failure.
- * Failures that may pass keep the ids, so the next attempt joins the server's work.
- */
-export function resolveVoiceDeliveryStep(
-  message: QueuedThreadMessage,
-  outcome: { readonly result: TranscriptionUploadResult } | { readonly error: unknown },
-  nextCommandId: () => CommandId,
-): VoiceDeliveryStep {
-  const hold = (failure: string, transcript?: string): VoiceDeliveryStep => {
-    if (transcript === undefined) {
-      return { step: "hold", message: { ...message, commandId: nextCommandId(), failure } };
-    }
-    const { voice: _, ...text } = message;
-    return {
-      step: "hold",
-      message: { ...text, text: transcript, commandId: nextCommandId(), failure },
-    };
-  };
-  if ("error" in outcome) {
-    const { error } = outcome;
-    if (isVoiceUploadError(error)) {
-      return error.retryable ? { step: "retry" } : hold(error.message);
-    }
-    return shouldRetryThreadOutboxDelivery(error)
-      ? { step: "retry" }
-      : hold(error instanceof Error ? error.message : m(msg("The recording couldn't be sent.")));
-  }
-  const { text, submission } = outcome.result;
-  if (submission?.status === "sent") return { step: "delivered", transcript: text };
-  if (submission?.status === "noSpeech" || text.trim().length === 0) {
-    return hold(m(msg("No speech was detected.")));
-  }
-  return hold(m(msg("Transcribed, but the message couldn't be sent. Edit it or try again.")), text);
-}

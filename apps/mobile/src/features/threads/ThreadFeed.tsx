@@ -287,7 +287,7 @@ import {
   type GroupedThreadFeedRow,
   type ThreadFeedRow,
 } from "./pending-thread-feed";
-import { PendingMessageActions, PendingVoiceMessageBody } from "./PendingVoiceMessage";
+import { PendingMessageActions } from "./PendingMessageActions";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import {
   resolveThreadFeedFixedItemSize,
@@ -2352,7 +2352,6 @@ function renderFeedEntry(
       const hasBubble =
         fileCards === null &&
         (foldRowId !== null ||
-          entry.pendingMessage?.voice !== undefined ||
           presentation.text.trim().length > 0 ||
           visibleAttachments.length + pendingBubbleAttachments.length > 0);
       return (
@@ -2444,9 +2443,6 @@ function renderFeedEntry(
               ) : null}
               {bubbleBodyVisible ? (
                 <View className={cn("gap-2 px-3.5 pb-2.5", foldRowId === null && "pt-2.5")}>
-                  {entry.pendingMessage?.voice ? (
-                    <PendingVoiceMessageBody voice={entry.pendingMessage.voice} />
-                  ) : null}
                   {pendingBubbleAttachments.map((attachment) =>
                     attachment.type === "image" && attachment.uploadedAttachmentId ? (
                       <MessageAttachmentImage
@@ -2578,7 +2574,6 @@ function renderFeedEntry(
               ) : null}
               {props.onEditPendingMessage !== null &&
               entry.pendingMessage &&
-              !entry.pendingMessage.voice &&
               !entry.acknowledged &&
               entry.pendingMessage.messageId !== props.dispatchingMessageId ? (
                 <Pressable

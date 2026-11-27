@@ -43,9 +43,6 @@ const state = vi.hoisted(() => ({
       ),
   }),
   modelUnavailable: vi.fn(() => false),
-  uploadVoice: vi.fn(),
-  audioExists: true,
-  releaseRecordings: vi.fn(async () => {}),
   familyMount: vi.fn(() => () => {}),
   threadShells: null as unknown as Atom.Writable<ReadonlyArray<unknown>>,
   manager: null as unknown as ReturnType<
@@ -100,14 +97,6 @@ vi.mock("./server", async () => {
     environmentServerConfigsAtom: Atom.make(new Map([["secondary", state.config]])),
   };
 });
-vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: state.uploadVoice }));
-vi.mock("./thread-outbox-audio", () => ({
-  queuedVoiceRecordingFile: async (messageId: string) => ({
-    exists: state.audioExists,
-    uri: `file:///documents/thread-outbox-audio/${messageId}.wav`,
-  }),
-  releaseUnusedQueuedVoiceRecordings: state.releaseRecordings,
-}));
 vi.mock("./threads", async () => {
   const { Atom, AsyncResult } = await import("effect/reactivity");
   const Effect = await import("effect/Effect");
@@ -209,11 +198,7 @@ vi.mock("./use-composer-drafts", async () => {
 import { appAtomRegistry } from "./atom-registry";
 import { environmentSession } from "./session";
 import { threadComposerErrorsAtom } from "./thread-composer-error";
-import {
-  dispatchingQueuedMessageIdsAtom,
-  editingQueuedMessageIdsAtom,
-  retryingQueuedMessageIdsAtom,
-} from "./use-thread-outbox";
+import { dispatchingQueuedMessageIdsAtom, editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 
 const sendingMessageIds = () => Object.keys(appAtomRegistry.get(dispatchingQueuedMessageIdsAtom));
 import { createThreadOutboxDelivery } from "./threadOutboxDelivery";
@@ -268,9 +253,6 @@ beforeEach(() => {
   state.config.shellThreadFamilies = false;
   state.config.managedPolicy = undefined;
   state.modelUnavailable.mockReset().mockReturnValue(false);
-  state.uploadVoice.mockReset();
-  state.audioExists = true;
-  state.releaseRecordings.mockReset().mockResolvedValue(undefined);
   state.familyMount.mockReset().mockReturnValue(() => {});
   appAtomRegistry.set(state.threadShells, [state.thread]);
   appAtomRegistry.set(state.manager.queuedMessagesByThreadKeyAtom, {});
@@ -824,99 +806,23 @@ describe("queued messages above the managed runtime ceiling", () => {
       { message: "Example Corp limits threads to Auto.", messageId: "message" },
     ]);
   });
-
-  it("holds a recording instead of restoring it to the draft", async () => {
-    setOperateGrant("secondary", true);
-    capAtAuto();
-    await state.manager.enqueue(
-      message({ text: "", voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" } }),
-    );
-    await runDrain();
-    expect(state.uploadVoice).not.toHaveBeenCalled();
-    expect(state.runtime).not.toHaveBeenCalled();
-    expect(remaining()[0]).toMatchObject({
-      failure: "Example Corp limits threads to Auto.",
-      voice: { sizeBytes: 96_044 },
-    });
-    expect(state.draftText).toBe("Keep this draft separate");
-  });
 });
 
-describe("queued voice messages in the delivery fiber", () => {
-  const voiceMessage = (overrides: Partial<QueuedThreadMessage> = {}) =>
-    message({
-      messageId: MessageId.make("voice"),
-      commandId: CommandId.make("voice-command"),
+describe("held queued messages in the delivery fiber", () => {
+  it("keeps a held message and the thread's later messages waiting", async () => {
+    setOperateGrant("secondary", true);
+    const held = message({
+      messageId: MessageId.make("held"),
+      commandId: CommandId.make("held-command"),
       text: "",
-      dispatchMode: "queue",
-      voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
-      ...overrides,
+      failure: "Voice messages are no longer transcribed by the environment.",
     });
-  const sent = { text: "ship it", submission: { status: "sent", sequence: 4 } };
-
-  it("uploads a queued recording for the environment to send, then retires the message", async () => {
-    setOperateGrant("secondary", true);
-    const uploadStarted = Promise.withResolvers<void>();
-    const finishUpload = Promise.withResolvers<typeof sent>();
-    state.uploadVoice.mockImplementationOnce(async () => {
-      uploadStarted.resolve();
-      return finishUpload.promise;
-    });
-    const queued = voiceMessage();
-    await state.manager.enqueue(queued);
-    const delivered = runDrain();
-    await uploadStarted.promise;
-    expect(sendingMessageIds()).toEqual(["voice"]);
-    finishUpload.resolve(sent);
-    await delivered;
-
-    expect(state.uploadVoice).toHaveBeenCalledExactlyOnceWith({
-      environmentId: queued.environmentId,
-      uri: "file:///documents/thread-outbox-audio/voice.wav",
-      request: {
-        sizeBytes: 96_044,
-        language: "en-US",
-        submit: {
-          threadId: queued.threadId,
-          commandId: queued.commandId,
-          messageId: queued.messageId,
-          modelSelection: state.thread.modelSelection,
-          delivery: "queue",
-          creationSource: "mobile",
-        },
-      },
-    });
-    expect(state.start).not.toHaveBeenCalled();
-    expect(remaining()).toEqual([]);
-  });
-
-  it("starts a fresh session for a recording queued while /clear was armed", async () => {
-    setOperateGrant("secondary", true);
-    state.uploadVoice.mockResolvedValueOnce(sent);
-    await state.manager.enqueue(voiceMessage({ freshContext: true }));
-    await runDrain();
-    expect(state.uploadVoice.mock.calls[0]?.[0].request.submit.freshContext).toBe(true);
-    expect(remaining()).toEqual([]);
-  });
-
-  it("holds a refused recording and keeps the thread's later messages waiting", async () => {
-    setOperateGrant("secondary", true);
-    const { VoiceUploadError } = await import("@supaterm/client-runtime/state/transcription");
-    state.uploadVoice.mockRejectedValueOnce(
-      new VoiceUploadError({
-        reason: "signedOut",
-        message: "Sign in to this provider again to transcribe.",
-        retryable: false,
-      }),
-    );
-    const queued = voiceMessage();
-    await state.manager.enqueue(queued);
-    await runDrain();
     const later = message({
       messageId: MessageId.make("later"),
       commandId: CommandId.make("later-command"),
       createdAt: "2026-09-05T00:00:01.000Z",
     });
+    await state.manager.enqueue(held);
     await state.manager.enqueue(later);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setImmediate", "Date"] });
     state.cleanups.push(() => vi.useRealTimers());
@@ -924,73 +830,8 @@ describe("queued voice messages in the delivery fiber", () => {
     // The fiber resumes on Effect's scheduler; running it dry shows what it dispatched.
     await vi.runAllTimersAsync();
 
-    const [held, waiting] = remaining();
-    expect(held).toMatchObject({
-      messageId: queued.messageId,
-      voice: queued.voice,
-      failure: "Sign in to this provider again to transcribe.",
-    });
-    expect(held?.commandId).not.toBe(queued.commandId);
-    expect(waiting).toEqual(later);
-    expect(state.uploadVoice).toHaveBeenCalledOnce();
+    expect(remaining()).toEqual([held, later]);
     expect(state.start).not.toHaveBeenCalled();
     expect(sendingMessageIds()).toEqual([]);
-    expect(state.releaseRecordings).not.toHaveBeenCalled();
-  });
-
-  it("holds a recording whose model is unavailable instead of restoring it to the draft", async () => {
-    setOperateGrant("secondary", true);
-    state.modelUnavailable.mockReturnValue(true);
-    await state.manager.enqueue(voiceMessage());
-    await runDrain();
-    expect(state.uploadVoice).not.toHaveBeenCalled();
-    expect(remaining()[0]).toMatchObject({
-      failure: "Model unavailable. Pick another.",
-      voice: { sizeBytes: 96_044 },
-    });
-    expect(state.draftText).toBe("Keep this draft separate");
-  });
-
-  it("backs off after a dropped upload and sends the same recording on the retry", async () => {
-    setOperateGrant("secondary", true);
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-    state.cleanups.push(() => vi.useRealTimers());
-    const { VoiceUploadError } = await import("@supaterm/client-runtime/state/transcription");
-    state.uploadVoice
-      .mockRejectedValueOnce(
-        new VoiceUploadError({
-          reason: "disconnected",
-          message: "The recording couldn't reach the environment.",
-          retryable: true,
-        }),
-      )
-      .mockResolvedValueOnce(sent);
-    const queued = voiceMessage();
-    await state.manager.enqueue(queued);
-    await runDrain();
-    expect(remaining()).toEqual([queued]);
-    expect(appAtomRegistry.get(retryingQueuedMessageIdsAtom)).toEqual({ voice: true });
-
-    const settled = Promise.withResolvers<void>();
-    const release = appAtomRegistry.subscribe(dispatchingQueuedMessageIdsAtom, (ids) => {
-      if (Object.keys(ids).length === 0) settled.resolve();
-    });
-    vi.advanceTimersByTime(threadOutboxRetryDelayMs(1));
-    await settled.promise.finally(release);
-    expect(state.uploadVoice).toHaveBeenCalledTimes(2);
-    expect(state.uploadVoice.mock.calls[1]?.[0].request.submit.commandId).toBe(queued.commandId);
-    expect(remaining()).toEqual([]);
-  });
-
-  it("keeps a transcript the thread refused as held text and releases the recording", async () => {
-    setOperateGrant("secondary", true);
-    state.uploadVoice.mockResolvedValueOnce({ text: "ship it", submission: { status: "failed" } });
-    await state.manager.enqueue(voiceMessage());
-    await runDrain();
-    const [held] = remaining();
-    expect(held).toMatchObject({ messageId: "voice", text: "ship it" });
-    expect(held?.voice).toBeUndefined();
-    expect(held?.failure).toBeDefined();
-    expect(state.releaseRecordings).toHaveBeenCalledOnce();
   });
 });
