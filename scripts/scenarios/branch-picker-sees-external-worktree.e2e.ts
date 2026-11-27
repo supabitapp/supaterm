@@ -48,7 +48,7 @@ test(
 
     await supaterm.open("/");
     const branchPicker = browser
-      .locator('[data-slot="combobox-trigger"][aria-label^="Branch:"]:visible')
+      .locator('[role="combobox"][aria-label^="Branch:"]:visible')
       .first();
     await branchPicker.click();
     await screen.getByRole("option", /^feature\b/).waitFor();
