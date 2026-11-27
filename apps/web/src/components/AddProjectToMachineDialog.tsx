@@ -37,6 +37,7 @@ import { seedDraftModelSelection } from "../lib/seedDraftModelSelection";
 import { newProjectId } from "../lib/utils";
 import { readProject, subscribeProject, useProject } from "../state/entities";
 import { useEnvironments } from "../state/environments";
+import { holdProjectCloneToasts, silenceProjectCloneToasts } from "../state/projectClones";
 import { projectEnvironment } from "../state/projects";
 import { useDebouncedValue } from "../state/queries";
 import { useEnvironmentQuery } from "../state/query";
@@ -221,6 +222,11 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
     }
     setSubmitting(true);
     setError(null);
+    const requestedId = newProjectId();
+    // The clone list can arrive before the start reply.
+    const releaseToastHold = holdProjectCloneToasts(
+      scopeProjectRef(target.environmentId, requestedId),
+    );
     try {
       const projectId = await addProjectToMachine({
         source: { environmentId: project.environmentId, cwd: project.workspaceRoot },
@@ -229,18 +235,23 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
           project.workspaceRoot,
         ),
         target: { environmentId: target.environmentId, label: target.label },
-        projectId: newProjectId(),
+        projectId: requestedId,
         title: project.title,
         remoteUrl,
         destinationPath: destinationPath.trim(),
         files: [...selectedFiles.keys()],
       });
-      close();
-      openClonedProject(scopeProjectRef(target.environmentId, projectId));
+      if (useRequest.getState().request === request) {
+        const targetRef = scopeProjectRef(target.environmentId, projectId);
+        silenceProjectCloneToasts(targetRef);
+        close();
+        openClonedProject(targetRef);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : gt("Could not start the clone."));
       setSubmitting(false);
     }
+    releaseToastHold();
   };
 
   return (

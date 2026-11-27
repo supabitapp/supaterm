@@ -52,7 +52,14 @@ test(
             type,
             (event: Event) => {
               const { data } = event as MessageEvent;
-              const wire = typeof data === "string" ? [JSON.parse(data)].flat() : [];
+              // The server splits a large frame into parts that are not JSON on their own.
+              const wire = (() => {
+                try {
+                  return typeof data === "string" ? [JSON.parse(data)].flat() : [];
+                } catch {
+                  return [];
+                }
+              })();
               if (
                 wire.some(
                   (message) =>
@@ -83,10 +90,9 @@ test(
       await supaterm.open("/settings/connections");
       await screen.getByRole("button", "Add environment").tap();
       const pairing = screen.getByRole("dialog");
-      await pairing.getByPlaceholder("backend.example.com").fill(host);
+      await pairing.getByRole("textbox", "Host", { exact: true }).fill(host);
       await pairing.getByPlaceholder("PAIRCODE").fill(token);
       await pairing.getByRole("button", "Add environment").tap();
-      await screen.getByRole("button", "List", { exact: true }).tap();
       await screen.getByRole("button", "More actions for Scenario").waitFor();
 
       await app.open("/");
