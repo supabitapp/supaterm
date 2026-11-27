@@ -104,6 +104,8 @@ import { toastManager } from "../ui/toast";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { formatRelativeTime } from "../../timestampFormat";
 import { msg, T, useGT, Var, useMessages } from "gt-react";
+import { WelcomeExtras } from "./WelcomeExtras";
+import { RowIcon, WelcomeSection } from "./WelcomeSection";
 
 const AGENT_ONBOARDING_THREAD_ID = ThreadId.make("onboarding-agent-setup");
 const SCAN_LIMIT_MESSAGE = msg(
@@ -267,6 +269,7 @@ export function WelcomePage({
           onImportSourceEnabled={() => scans[0]?.refresh()}
         />
         <ProjectsSection scan={scans[0]} projectImport={projectImport} isImporting={isImporting} />
+        <WelcomeExtras environmentId={environmentId} label={label} />
       </div>
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         {agentReady ? (
@@ -351,31 +354,6 @@ function TelemetryNotice() {
         .
       </T>
     </p>
-  );
-}
-
-// Each part of the page is one band: its label on the left, its rows on the right.
-export function WelcomeSection({
-  title,
-  children,
-}: {
-  readonly title: string;
-  readonly children: ReactNode;
-}) {
-  return (
-    <section className="grid gap-x-10 border-b border-border/60 py-4 sm:grid-cols-[6rem_minmax(0,1fr)]">
-      <h2 className="text-sm leading-10 text-muted-foreground">{title}</h2>
-      <div className="min-w-0">{children}</div>
-    </section>
-  );
-}
-
-// Rows share one icon column, so names, checkboxes, and steps line up down the page.
-function RowIcon({ children }: { readonly children: ReactNode }) {
-  return (
-    <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
-      {children}
-    </span>
   );
 }
 
