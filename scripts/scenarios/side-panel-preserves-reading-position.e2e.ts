@@ -52,6 +52,13 @@ test(
             scroller.scrollTop +=
               range.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 48;
           }
+          // Panels open and close with a width transition; the text is read once it settles.
+          await Promise.allSettled(
+            document
+              .getAnimations()
+              .filter((animation) => animation instanceof CSSTransition)
+              .map((animation) => animation.finished),
+          );
           await new Promise<void>((resolve) =>
             requestAnimationFrame(() =>
               requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
