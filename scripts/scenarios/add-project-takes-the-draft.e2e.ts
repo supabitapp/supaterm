@@ -19,7 +19,7 @@ test(
     await screen.getByRole("combobox").fill(`${workspace}/next`);
     await browser.keyboard.press("Enter");
 
-    await expect(projectPicker).toHaveText("next");
+    await expect(projectPicker).toHaveAccessibleName("Project: next");
     await app.screenshot("after-add");
     await expect(composer).toContainText("Plan the next project");
     await expect(

@@ -9,6 +9,7 @@ import { resolveNewThreadEnvMode, resolveProjectSettings } from "@supaterm/share
 import { flushSync } from "react-dom";
 
 import {
+  composerDraftHasUserContent,
   type DraftId,
   type DraftSessionState,
   type DraftThreadEnvMode,
@@ -198,12 +199,12 @@ export function moveDraftToProject(input: {
   readonly project: Project;
   readonly logicalProjectKey: string;
   readonly workspace: NewDraftWorkspace;
-}): void {
+}): boolean {
   const { draftId, project } = input;
   const store = useComposerDraftStore.getState();
   const draft = store.getDraftSession(draftId);
   if (!draft || draft.promotedTo) {
-    return;
+    return false;
   }
   const projectRef = scopeProjectRef(project.environmentId, project.id);
   store.setLogicalProjectDraftThreadId(
@@ -213,4 +214,24 @@ export function moveDraftToProject(input: {
     input.workspace,
   );
   seedDraftModelSelection(draftId, projectRef);
+  return true;
+}
+
+/**
+ * Moves a draft the user wrote in to a project added for it. An empty draft stays: moving it
+ * would replace the project's own draft and strand browser tabs on it.
+ */
+export async function moveWrittenDraftToProject(input: {
+  readonly draftId: DraftId;
+  readonly project: Project;
+  readonly logicalProjectKey: string;
+  readonly serverConfig: DraftServerConfig;
+}): Promise<boolean> {
+  const draft = useComposerDraftStore.getState().getComposerDraft(input.draftId);
+  if (!composerDraftHasUserContent(draft)) return false;
+  const workspace = await resolveNewDraftWorkspace(
+    scopeProjectRef(input.project.environmentId, input.project.id),
+    input.serverConfig,
+  );
+  return moveDraftToProject({ ...input, workspace });
 }

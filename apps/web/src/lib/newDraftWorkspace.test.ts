@@ -47,6 +47,7 @@ vi.mock("./supatermProjectFileDefaults", () => ({
 import { DraftId, useComposerDraftStore } from "../composerDraftStore";
 import {
   moveDraftToProject,
+  moveWrittenDraftToProject,
   openNewDraftWorkspace,
   readPendingWorkspaceDefault,
   resolveNewDraftWorkspace,
@@ -168,6 +169,27 @@ describe("moveDraftToProject", () => {
     });
     expect(draft?.environmentSelection).toBeUndefined();
     expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
+  });
+
+  it("moves a draft the user wrote in to an added project and leaves an empty one", async () => {
+    testState.projects = [from, to];
+    openDraftInWorktreeOnPinnedBranch();
+    const moveTo = (project: Project) =>
+      moveWrittenDraftToProject({
+        draftId,
+        project,
+        logicalProjectKey: project.id,
+        serverConfig: serverConfigWith({ defaultThreadEnvMode: "local" }),
+      });
+
+    await expect(moveTo(to)).resolves.toBe(true);
+    const store = useComposerDraftStore.getState();
+    expect(store.getDraftSession(draftId)).toMatchObject({ projectId: to.id, envMode: "local" });
+    expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
+
+    store.setPrompt(draftId, "");
+    await expect(moveTo(from)).resolves.toBe(false);
+    expect(useComposerDraftStore.getState().getDraftSession(draftId)?.projectId).toBe(to.id);
   });
 
   it("leaves a draft that is already being sent where it is", () => {
