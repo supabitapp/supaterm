@@ -79,8 +79,19 @@ export const prepareDevClient = Effect.fn("startApp.prepareDevClient")(function*
     : path.join(artifacts, `android/development-${abi}`, fingerprint, "app-debug.apk");
 });
 
+/** Git without the developer's config (merge.ff=only and the like) and with a fixed identity. */
+export const SCENARIO_GIT_ENV = {
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_AUTHOR_NAME: "Scenario",
+  GIT_AUTHOR_EMAIL: "scenario@example.invalid",
+  GIT_COMMITTER_NAME: "Scenario",
+  GIT_COMMITTER_EMAIL: "scenario@example.invalid",
+};
+
 /** Captures must not depend on, or show, the machine that made them. */
 export const SCENARIO_MACHINE_ENV = {
+  ...SCENARIO_GIT_ENV,
   SUPATERM_ENVIRONMENT_LABEL: "Scenario",
   SUPATERM_ENVIRONMENT_MACHINE_KIND: "laptop",
   SUPATERM_LINEAR_API_URL: `http://127.0.0.1:${SCENARIO_LINEAR_PORT}/graphql`,
@@ -284,6 +295,9 @@ const startApp = Effect.fn("startApp")(function* (input: {
       ...env,
       APP_VARIANT: "development",
       CI: "1",
+      // Otherwise every manifest request asks expo.dev to validate versions, and a bad answer from
+      // it fails the dev client's load.
+      EXPO_OFFLINE: "1",
       // Lazily fetched chunks sometimes arrive broken on simulators.
       EXPO_NO_METRO_LAZY: "1",
       REACT_NATIVE_PACKAGER_HOSTNAME: deviceHost,

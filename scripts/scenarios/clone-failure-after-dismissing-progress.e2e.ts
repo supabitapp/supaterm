@@ -1,7 +1,7 @@
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- The fixture holds Git's HTTP request open.
 import * as NodeHttp from "node:http";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
-import { ProjectId } from "@supaterm/contracts";
+import { CommandId, ProjectId } from "@supaterm/contracts";
 import { expect } from "e2e";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -21,21 +21,18 @@ test(
     const remote = NodeHttp.createServer((_request, response) => {
       gitRequest.resolve(response);
     });
+    const uuid = SecureRandom.SecureRandom.pipe(
+      Effect.flatMap((random) => random.uuidV4()),
+      Effect.provide(NodeCrypto.layer),
+    );
+    const projectId = ProjectId.make(await runPromise(uuid));
+    const origin = app.baseUrl ?? "";
 
     try {
       await new Promise<void>((resolve) => remote.listen(0, "127.0.0.1", resolve));
       const address = remote.address();
       if (!address || typeof address === "string") throw new Error("No Git fixture port");
-      const projectId = ProjectId.make(
-        await runPromise(
-          SecureRandom.SecureRandom.pipe(
-            Effect.flatMap((random) => random.uuidV4()),
-            Effect.provide(NodeCrypto.layer),
-          ),
-        ),
-      );
       const name = "pending-clone";
-      const origin = app.baseUrl ?? "";
       await supaterm.open(thread);
       await screen.getByText("Start", { exact: true }).waitFor();
 
@@ -108,6 +105,18 @@ test(
     } finally {
       remote.close();
       remote.closeAllConnections();
+      // A failed clone outlives the test until its project goes, and every later page shows it.
+      await runPromise(
+        Effect.gen(function* () {
+          const client = yield* rpcClient(SCENARIO_HOME, origin);
+          yield* client["projects.mutate"]({
+            type: "project.delete",
+            commandId: CommandId.make(yield* uuid),
+            projectId,
+            force: true,
+          });
+        }).pipe(Effect.scoped),
+      );
     }
   },
 );

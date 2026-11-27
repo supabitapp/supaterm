@@ -32,6 +32,8 @@ test(
       await project.waitFor({ state: "hidden" });
     }
     await composer.fill(PROMPT);
+    // Send appears once the app holds the prompt; leaving before then can drop the draft.
+    await screen.getByRole("button", "Send").waitFor();
     await (
       supaterm.platform === "ios"
         ? screen.getByTestId("BackButton")

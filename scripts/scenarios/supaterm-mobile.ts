@@ -72,8 +72,13 @@ export const test = base.extend<{ supaterm: MobileSupaterm }>({
           autoConnect: "1",
         });
         await openLink(`${SCHEME}://connections/new?${query.toString()}`);
-        // Connected once the empty state gives way to the environment's threads.
+        // Paired once the empty state goes, connected once no placeholder or row says Connecting:
+        // the app ignores taps on a thread whose environment is still connecting.
         await expect(screen.getByRole("button", "Add environment")).toBeHidden({ timeout: 60_000 });
+        await expect(screen.getByText("Connecting to environment")).toBeHidden({ timeout: 60_000 });
+        await expect(screen.getByText("Connecting", { exact: true })).toBeHidden({
+          timeout: 60_000,
+        });
         paired.add(platform);
       },
     });

@@ -17,7 +17,9 @@ test(
     await supaterm.open();
 
     await screen.getByText("Branch work", { exact: false }).first().tap({ timeout: 120_000 });
-    await screen.getByRole("button", "Git controls").first().tap({ timeout: 60_000 });
+    // The header adds its Terminal menu last, which moves Git controls; aim once it is in place.
+    await screen.getByRole("button", "Terminal").first().waitFor({ timeout: 60_000 });
+    await screen.getByRole("button", "Git controls").first().tap();
     const title = screen.getByText("feature/abc", { exact: false }).first();
     await title.waitFor({ timeout: 30_000 });
     await app.screenshot("git-menu");

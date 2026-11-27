@@ -35,6 +35,10 @@ import { Socket } from "effect/socket";
 
 import { APP_DIR, SCENARIO_HOME } from "../e2e.config.ts";
 import { run, ScenarioError } from "./shell.ts";
+import { SCENARIO_GIT_ENV } from "./start-app.ts";
+
+// The scenario's own git commands read no developer config either.
+Object.assign(Effect.runSync(HostProcess.Environment), SCENARIO_GIT_ENV);
 
 export interface SupatermState {
   /** Creates a git repository holding `files` and adds it as a project. Returns its path. */
