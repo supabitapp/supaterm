@@ -9,18 +9,18 @@ import {
 } from "./requestLatencyState";
 
 describe("slow request warnings", () => {
-  it("warns about slow cancellation but not transcription", async () => {
+  it("warns about a slow request but not a background report", async () => {
     using _clock = fakeTimers();
     let tags = "";
     const unsubscribe = subscribeSlowRpcAckRequests((requests) => {
       tags = requests.map((request) => request.tag).join(",");
     });
-    const pending = [WS_METHODS.transcriptionTranscribe, WS_METHODS.transcriptionCancel];
+    const pending = [WS_METHODS.serverReportClientActivity, WS_METHODS.projectsListEntries];
     try {
       for (const method of pending) trackRpcRequestSent(method, method);
       await act(() => vi.advanceTimersByTime(15_000));
       await vi.waitFor(() => {
-        expect(tags).toBe(WS_METHODS.transcriptionCancel);
+        expect(tags).toBe(WS_METHODS.projectsListEntries);
       });
     } finally {
       await act(() => {

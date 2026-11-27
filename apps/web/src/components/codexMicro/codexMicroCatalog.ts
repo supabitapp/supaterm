@@ -93,7 +93,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
     label: "MIC1",
     icon: MicIcon,
     size: "single",
-    defaultAction: command("composer.voice"),
+    defaultAction: command("composer.dictation"),
   },
   {
     id: "CODEX",
@@ -243,7 +243,7 @@ export const CODEX_MICRO_KEYCAPS: ReadonlyArray<CodexMicroKeycap> = [
     label: "MIC",
     icon: MicIcon,
     size: "double",
-    defaultAction: command("composer.voice"),
+    defaultAction: command("composer.dictation"),
   },
   { id: "EMPT5", label: "EMPT5", icon: CircleDashedIcon, size: "double", defaultAction: null },
 ];
@@ -351,7 +351,7 @@ export const CODEX_MICRO_COMMAND_GROUPS: ReadonlyArray<CodexMicroCommandGroup> =
     label: msg("Chat"),
     options: [
       option("composer.submit", msg("Send message")),
-      option("composer.voice", msg("Start or stop voice input")),
+      option("composer.dictation", msg("Start or stop voice input")),
       option("composer.toggleFastMode", msg("Toggle fast mode")),
       option("thread.approve", msg("Approve")),
       option("thread.decline", msg("Decline")),

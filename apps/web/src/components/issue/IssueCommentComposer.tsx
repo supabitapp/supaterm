@@ -4,12 +4,12 @@ import { ArrowUpIcon } from "@supaterm/icons";
 import { useRef, useState } from "react";
 
 import { isImeComposing } from "~/lib/imeComposition";
+import { TextFieldSpeechControls, useTextFieldSpeech } from "~/speech/useTextFieldSpeech";
 
 import { issueEnvironment } from "~/state/issues";
 import { useAtomCommand } from "~/state/use-atom-command";
 
 import { ComposerSurface } from "../chat/ComposerSurface";
-import { TextFieldVoiceInput } from "../chat/TextFieldVoiceInput";
 import { readableFailure } from "../pullRequest/pullRequestDetail.logic";
 import { Spinner } from "../ui/spinner";
 import { toastManager } from "../ui/toast";
@@ -30,10 +30,18 @@ export function IssueCommentComposer({
   const gt = useGT();
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [voiceBusy, setVoiceBusy] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const comment = useAtomCommand(issueEnvironment.comment, { reportFailure: false });
   const locked = blocked !== null || submitting;
+  const speech = useTextFieldSpeech({
+    environmentId,
+    projectId: reference.projectId,
+    ownerKey: JSON.stringify(["issue-comment", environmentId, reference]),
+    text: body,
+    textareaRef,
+    onTextChange: setBody,
+    disabled: locked,
+  });
 
   const submit = async (text: string) => {
     if (text.trim().length === 0 || locked) return;
@@ -53,7 +61,9 @@ export function IssueCommentComposer({
     }
     setBody("");
   };
-  const submitDisabled = voiceBusy || body.trim().length === 0 || locked;
+  const submitAfterDictation = () => speech.submitAfterDictation((text) => void submit(text));
+  const submitDisabled =
+    speech.preparing || (body.trim().length === 0 && !speech.blocksSubmission) || locked;
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-3">
@@ -63,7 +73,7 @@ export function IssueCommentComposer({
             className="relative z-10 flex flex-col"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!voiceBusy) void submit(body);
+              submitAfterDictation();
             }}
           >
             <textarea
@@ -75,25 +85,18 @@ export function IssueCommentComposer({
               value={body}
               // Lock while posting because success clears the draft.
               disabled={locked}
-              readOnly={voiceBusy}
+              readOnly={speech.freezesEditor}
               onChange={(event) => setBody(event.target.value)}
               onKeyDown={(event) => {
                 if (isImeComposing(event)) return;
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
                   event.preventDefault();
-                  if (!event.repeat && !voiceBusy) void submit(body);
+                  if (!event.repeat) submitAfterDictation();
                 }
               }}
             />
             <div className="flex flex-wrap items-center justify-end gap-2 px-2.5 pb-2.5">
-              <TextFieldVoiceInput
-                environmentId={environmentId}
-                projectId={reference.projectId}
-                disabled={locked}
-                fieldRef={textareaRef}
-                onChange={setBody}
-                onBusyChange={setVoiceBusy}
-              />
+              <TextFieldSpeechControls speech={speech} disabled={locked} />
               <button
                 type="submit"
                 className="flex size-8 items-center justify-center rounded-full bg-message-action text-message-action-foreground shadow-xs transition-[scale,background-color] duration-150 enabled:cursor-pointer enabled:shadow-message-action/24 enabled:inset-shadow-control-highlight hover:scale-105 hover:bg-message-action-hover active:shadow-none active:inset-shadow-control-pressed disabled:pointer-events-none disabled:bg-foreground/12 disabled:text-muted-foreground disabled:shadow-none"

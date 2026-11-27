@@ -2,9 +2,15 @@ import { CommandId, EnvironmentId, MessageId, ThreadId } from "@supaterm/contrac
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
-import { OutboxTurn, StoredOutboxEntry, encodeStoredOutboxEntry } from "./threadOutboxSchema";
+import {
+  OutboxTurn,
+  StoredOutboxEntry,
+  encodeStoredOutboxEntry,
+  migrateLegacyVoiceEntry,
+} from "./threadOutboxSchema";
 
 const decodeStored = Schema.decodeSync(StoredOutboxEntry);
+const decodeUnknownStored = Schema.decodeUnknownSync(StoredOutboxEntry);
 const { pendingWorktree: _, ...legacyPayloadFields } = OutboxTurn.fields;
 const decodeLegacy = Schema.decodeUnknownSync(
   Schema.Struct({
@@ -99,4 +105,38 @@ describe("stored thread outbox compatibility", () => {
       expect(restored.payload).toEqual(saved.payload);
     },
   );
+
+  it("keeps a queued voice message as a failed, paused message holding its recording", async () => {
+    const { pendingWorktree: _, ...payload } = queuedWorktree().payload;
+    const legacy = {
+      ...queuedWorktree(),
+      schemaVersion: 3,
+      payload: {
+        ...payload,
+        input: { ...payload.input, message: { ...payload.input.message, text: "" } },
+        voice: { audio: new Blob(["wav"], { type: "audio/wav" }), durationMs: 4_200 },
+      },
+    };
+    const restored = decodeUnknownStored(migrateLegacyVoiceEntry(legacy, "Type what you said."));
+    expect(restored).toMatchObject({
+      schemaVersion: 2,
+      status: "failed",
+      paused: true,
+      error: "Type what you said.",
+      payload: { input: { commandId: "command", message: { messageId: "message", text: "" } } },
+    });
+    expect(restored.payload).not.toHaveProperty("voice");
+    const recording = restored.payload.localAttachments.at(-1);
+    expect(recording).toMatchObject({
+      id: "message:voice",
+      type: "file",
+      name: "Voice message.wav",
+      mimeType: "audio/wav",
+      sizeBytes: 3,
+    });
+    expect(await recording?.bytes?.text()).toBe("wav");
+    expect(migrateLegacyVoiceEntry(encodeStoredOutboxEntry(queuedWorktree()), "")).toEqual(
+      encodeStoredOutboxEntry(queuedWorktree()),
+    );
+  });
 });

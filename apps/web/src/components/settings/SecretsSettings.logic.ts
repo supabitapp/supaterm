@@ -1,4 +1,6 @@
 import {
+  CLOUD_SPEECH_LABELS,
+  CloudSpeechProvider,
   EasDeviceHostConfig,
   isSecretReference,
   secretReferencesInSettings,
@@ -6,12 +8,15 @@ import {
 } from "@supaterm/contracts";
 import { getProviderClient } from "@supaterm/client-runtime/provider-clients";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 import { deriveProviderSettingsFields, type SettingsFormDefinition } from "./ProviderSettingsForm";
 
 type SecretUseSettings = Pick<
   ServerSettings,
-  "providerInstances" | "sourceControlHosts" | "easDeviceHosts"
+  "providerInstances" | "sourceControlHosts" | "easDeviceHosts" | "cloudSpeechCredentials"
 >;
 
 interface SecretProviderUse {
@@ -23,6 +28,7 @@ interface SecretProviderUse {
 export function secretProviderUses(
   settings: SecretUseSettings,
   providerId: string,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<SecretProviderUse> {
   const uses = (
     definition: SettingsFormDefinition,
@@ -77,5 +83,18 @@ export function secretProviderUses(
     ...settings.easDeviceHosts.flatMap((host) =>
       uses({ settingsSchema: EasDeviceHostConfig }, `eas:${host.id}`, host.label, host),
     ),
+    ...CloudSpeechProvider.literals.flatMap((provider) => {
+      const credential = settings.cloudSpeechCredentials[provider];
+      return isSecretReference(credential) && credential.provider === providerId
+        ? [
+            {
+              id: `voice:${provider}`,
+              label: resolve(
+                msg("Voice · {provider}", { provider: CLOUD_SPEECH_LABELS[provider] }),
+              ),
+            },
+          ]
+        : [];
+    }),
   ];
 }

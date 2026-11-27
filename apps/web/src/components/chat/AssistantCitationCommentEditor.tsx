@@ -1,12 +1,27 @@
 import { ASSISTANT_CITATION_MAX_COMMENT_LENGTH, type AssistantCitation } from "@supaterm/contracts";
-import { useState, type RefObject } from "react";
-import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
+import { T, useGT, Var } from "gt-react";
+import {
+  use,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type Ref,
+  type RefObject,
+} from "react";
+
+import { isImeComposing } from "~/lib/imeComposition";
+import { TextFieldSpeechControls, useTextFieldSpeech } from "~/speech/useTextFieldSpeech";
 import { textDirection } from "~/textDirection";
 
+import { ComposerContextActionsContext } from "../composerContextPresentation";
 import { Button } from "../ui/button";
-import { TextFieldVoiceInput } from "./TextFieldVoiceInput";
-import { isImeComposing } from "~/lib/imeComposition";
-import { T, useGT, Var } from "gt-react";
+
+/** Lets the popover finish a running dictation, instead of discarding it, when it is dismissed. */
+export type AssistantCitationCommentDictation = {
+  /** False when nothing is being dictated; otherwise `settle` gets the comment once it is transcribed. */
+  finish: (settle: (comment: string) => void) => boolean;
+};
 
 export function AssistantCitationCommentEditor({
   citation,
@@ -15,33 +30,66 @@ export function AssistantCitationCommentEditor({
   onSubmitAndSend,
   onCancel,
   onDraftChange,
+  onVoiceSetupOpenChange,
+  dictationRef,
 }: {
   citation: AssistantCitation;
-  inputRef: RefObject<HTMLTextAreaElement | null>;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
   onSubmit: (comment: string) => boolean;
   onSubmitAndSend?: (comment: string) => boolean;
   onCancel: () => void;
   onDraftChange?: (comment: string) => void;
+  onVoiceSetupOpenChange?: (open: boolean) => void;
+  dictationRef?: Ref<AssistantCitationCommentDictation>;
 }) {
   const gt = useGT();
   const [comment, setComment] = useState(citation.comment ?? "");
-  const threadRef = useThreadRouteRef();
-  const [voiceBusy, setVoiceBusy] = useState(false);
-  const commentTooLong = comment.length > ASSISTANT_CITATION_MAX_COMMENT_LENGTH;
-  const changeComment = (next: string) => {
-    setComment(next);
-    onDraftChange?.(next);
+  const localInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const textareaRef = inputRef ?? localInputRef;
+  const { environmentId, projectId } = use(ComposerContextActionsContext);
+  const updateComment = (text: string) => {
+    setComment(text);
+    onDraftChange?.(text);
   };
+  const speech = useTextFieldSpeech({
+    environmentId: environmentId ?? citation.environmentId,
+    projectId,
+    ownerKey: JSON.stringify([
+      "citation",
+      environmentId,
+      citation.threadId,
+      citation.messageId,
+      citation.start,
+      citation.end,
+    ]),
+    text: comment,
+    textareaRef,
+    onTextChange: updateComment,
+  });
+  const setupOpen = speech.setup.open;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the citation popover open while the voice setup dialog owns focus
+  useEffect(() => {
+    // oxlint-disable-next-line react-doctor/no-prop-callback-in-effect, react-doctor/no-pass-live-state-to-parent -- the popover must stay open while the setup dialog it cannot see holds focus
+    onVoiceSetupOpenChange?.(setupOpen);
+    return () => onVoiceSetupOpenChange?.(false);
+  }, [onVoiceSetupOpenChange, setupOpen]);
+  useImperativeHandle(dictationRef, () => ({
+    finish: (settle) => {
+      if (!speech.blocksSubmission || speech.preparing) return false;
+      speech.submitAfterDictation(settle);
+      return true;
+    },
+  }));
+  const commentTooLong = comment.length > ASSISTANT_CITATION_MAX_COMMENT_LENGTH;
   const submit = () => {
-    if (!commentTooLong && !voiceBusy) onSubmit(comment);
+    speech.submitAfterDictation((text) => {
+      if (text.length <= ASSISTANT_CITATION_MAX_COMMENT_LENGTH) onSubmit(text);
+    });
   };
   const submitAndSend = () => {
-    if (commentTooLong || voiceBusy) return;
-    if (onSubmitAndSend) {
-      onSubmitAndSend(comment);
-    } else {
-      onSubmit(comment);
-    }
+    speech.submitAfterDictation((text) => {
+      if (text.length <= ASSISTANT_CITATION_MAX_COMMENT_LENGTH) (onSubmitAndSend ?? onSubmit)(text);
+    });
   };
 
   return (
@@ -52,12 +100,14 @@ export function AssistantCitationCommentEditor({
         if (isImeComposing(event)) return;
         if (event.key === "Escape") {
           event.preventDefault();
-          onCancel();
+          if (speech.state.phase !== "idle") speech.cancel();
+          else onCancel();
         }
       }}
     >
       <textarea
-        ref={inputRef}
+        ref={textareaRef}
+        readOnly={speech.freezesEditor}
         aria-label={gt("Comment on selected text")}
         aria-description={gt(
           "Enter to save the citation comment; Command/Ctrl+Enter to save and send; Shift+Enter for a new line.",
@@ -67,9 +117,8 @@ export function AssistantCitationCommentEditor({
         rows={2}
         dir={textDirection(comment)}
         className="field-sizing-content block max-h-40 min-h-16 w-full resize-none bg-transparent px-1 py-1.5 text-base outline-none placeholder:text-muted-foreground sm:text-sm"
-        readOnly={voiceBusy}
         value={comment}
-        onChange={(event) => changeComment(event.currentTarget.value)}
+        onChange={(event) => updateComment(event.currentTarget.value)}
         onKeyDown={(event) => {
           if (
             event.key === "Enter" &&
@@ -94,38 +143,31 @@ export function AssistantCitationCommentEditor({
           </T>
         </p>
       ) : null}
-      <div className="mt-2 flex items-center justify-end gap-2">
-        {threadRef ? (
-          <span className="mr-auto">
-            <TextFieldVoiceInput
-              environmentId={threadRef.environmentId}
-              threadId={threadRef.threadId}
-              fieldRef={inputRef}
-              onChange={changeComment}
-              onBusyChange={setVoiceBusy}
-            />
-          </span>
-        ) : null}
-        <Button
-          variant="outline"
-          size="xs"
-          // Escape cancels; keep Tab from the comment on Save so Enter cannot discard a new citation.
-          tabIndex={-1}
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={onCancel}
-        >
-          <T>Cancel</T>
-        </Button>
-        <Button
-          size="xs"
-          disabled={commentTooLong || voiceBusy}
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={submit}
-        >
-          {commentTooLong
-            ? gt("Shorten comment")
-            : gt("Save", { $context: "verb, saves the comment" })}
-        </Button>
+      <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+        <TextFieldSpeechControls speech={speech} />
+        {/* Wrap as a pair so the recording pill never pushes Save alone onto a new row under Cancel. */}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="xs"
+            // Escape cancels; keep Tab from the comment on Save so Enter cannot discard a new citation.
+            tabIndex={-1}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={onCancel}
+          >
+            <T>Cancel</T>
+          </Button>
+          <Button
+            size="xs"
+            disabled={speech.preparing || (commentTooLong && !speech.blocksSubmission)}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={submit}
+          >
+            {commentTooLong
+              ? gt("Shorten comment")
+              : gt("Save", { $context: "verb, saves the comment" })}
+          </Button>
+        </div>
       </div>
     </div>
   );

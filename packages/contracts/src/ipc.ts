@@ -1146,6 +1146,8 @@ export interface DesktopBridge {
    * regardless of OS settings.
    */
   getSystemLocale: () => string | null;
+  /** The OS's preferred languages, most preferred first; `navigator.languages` is pinned like the locale. */
+  getPreferredSystemLanguages: () => readonly string[];
   /** False when the OS turned off middle-click PRIMARY paste (`gtk-enable-primary-paste`). */
   getPrimaryPasteEnabled?: () => boolean;
   getLocalEnvironmentBootstraps: () => readonly DesktopEnvironmentBootstrap[];

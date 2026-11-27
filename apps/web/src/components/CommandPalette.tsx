@@ -1412,7 +1412,7 @@ function OpenCommandPaletteDialog(props: {
       searchTerms: ["voice", "dictate", "dictation", "microphone", "speak", "record", "transcribe"],
       title: gt("Start voice input"),
       icon: <MicIcon className={ITEM_ICON_CLASS} />,
-      shortcutCommand: "composer.voice",
+      shortcutCommand: "composer.dictation",
       run: async () => toggleVoiceInput(),
     });
   }

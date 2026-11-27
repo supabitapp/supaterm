@@ -299,7 +299,7 @@ describe("useComposerSend during worktree setup", () => {
     [false, "queue"],
     [true, "steer"],
   ] as const)(
-    "sends a typed or voice steer with deferredSteering %s as %s",
+    "sends a typed steer with deferredSteering %s as %s",
     async (deferredSteering, dispatchMode) => {
       send.events = [];
       send.enqueued = [];
@@ -321,16 +321,9 @@ describe("useComposerSend during worktree setup", () => {
       await using _screen = await render(<Probe />);
       await act(async () => {
         await composerSend?.onSend(undefined, "steer");
-        await composerSend?.prepareVoiceSend("steer", "en")(
-          { audio: new Blob(), durationMs: 1000 },
-          undefined,
-        );
       });
 
-      expect(send.enqueued).toMatchObject([
-        { input: { message: { text: prompt }, dispatchMode } },
-        { input: { message: { text: "" }, dispatchMode }, voice: { language: "en" } },
-      ]);
+      expect(send.enqueued).toMatchObject([{ input: { message: { text: prompt }, dispatchMode } }]);
     },
   );
 });

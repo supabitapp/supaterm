@@ -1,6 +1,7 @@
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 
 import { ChatPaneWorkspace } from "../components/chatPanes/ChatPaneWorkspace";
+import { GlobalVoiceInputIndicator } from "../components/chat/GlobalVoiceInputIndicator";
 import { SidebarInset } from "../components/ui/sidebar";
 import { ThreadLinkPrompt } from "../components/promptLinks/ThreadLinkPrompt";
 import { useShownThreadRouteTarget } from "../hooks/useShownThreadRouteTarget";
@@ -21,6 +22,7 @@ function ChatRouteLayout() {
         <Outlet />
       )}
       {modalOpen ? <Outlet /> : null}
+      <GlobalVoiceInputIndicator hidden={modalOpen} />
     </>
   );
 }

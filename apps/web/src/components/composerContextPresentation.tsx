@@ -9,7 +9,7 @@ import type {
   PreviewAnnotationPayload,
   ThreadContextRecord,
 } from "@supaterm/contracts";
-import type { EnvironmentId } from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
 import { videoMimeType } from "@supaterm/shared/video";
 import { MessageCircleIcon, MousePointerClickIcon } from "@supaterm/icons";
@@ -94,6 +94,7 @@ export type ComposerDraftContextRecord =
 export interface ComposerContextActions {
   environmentId: EnvironmentId | null;
   cwd?: string | undefined;
+  projectId?: ProjectId | undefined;
   expandImage: (imageId: string) => void;
   expandVideo: (fileId: string) => void;
   openFile: (fileId: string) => void;

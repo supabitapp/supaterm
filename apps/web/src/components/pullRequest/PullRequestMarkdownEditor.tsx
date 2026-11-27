@@ -8,7 +8,7 @@ import {
 import { cn } from "~/lib/utils";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 
-import { TextFieldVoiceInput } from "../chat/TextFieldVoiceInput";
+import { TextFieldSpeechControls, useTextFieldSpeech } from "~/speech/useTextFieldSpeech";
 import { Button } from "../ui/button";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
@@ -52,13 +52,24 @@ export function PullRequestMarkdownEditor({
   const [preview, setPreview] = useState(false);
   const [seed, setSeed] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [voiceBusy, setVoiceBusy] = useState(false);
+  const speech = useTextFieldSpeech({
+    environmentId,
+    ownerKey: JSON.stringify(["pr-markdown", environmentId, cwd, label]),
+    text: draft,
+    textareaRef,
+    onTextChange: setDraft,
+    disabled: saving || preview,
+  });
   if (seed !== value) {
     setSeed(value);
     setDraft(value);
   }
   const empty = draft.trim().length === 0;
-  const saveDisabled = !canWriteSourceControl || saving || voiceBusy || (empty && !allowEmpty);
+  const saveDisabled =
+    !canWriteSourceControl ||
+    saving ||
+    speech.preparing ||
+    (empty && !allowEmpty && !speech.blocksSubmission);
 
   return (
     <div
@@ -78,7 +89,7 @@ export function PullRequestMarkdownEditor({
             !event.repeat &&
             readEnvironmentScope(environmentId, AuthSourceControlWriteScope)
           )
-            onSave(draft);
+            speech.submitAfterDictation(onSave);
           return;
         }
         if (event.key !== "Escape" || saving) return;
@@ -123,7 +134,7 @@ export function PullRequestMarkdownEditor({
           ref={textareaRef}
           autoFocus
           disabled={saving}
-          readOnly={voiceBusy}
+          readOnly={speech.freezesEditor}
           completionScope={completionScope}
           value={draft}
           rows={6}
@@ -132,19 +143,8 @@ export function PullRequestMarkdownEditor({
           onValueChange={setDraft}
         />
       )}
-      <div className="flex justify-end gap-2">
-        {preview ? null : (
-          <span className="mr-auto">
-            <TextFieldVoiceInput
-              environmentId={environmentId}
-              threadId={threadRef?.environmentId === environmentId ? threadRef.threadId : null}
-              disabled={saving}
-              fieldRef={textareaRef}
-              onChange={setDraft}
-              onBusyChange={setVoiceBusy}
-            />
-          </span>
-        )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {preview ? null : <TextFieldSpeechControls speech={speech} disabled={saving} />}
         <Button size="xs" variant="ghost" disabled={saving} onClick={onCancel}>
           <T>Cancel</T>
         </Button>

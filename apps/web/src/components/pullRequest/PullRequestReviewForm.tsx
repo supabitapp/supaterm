@@ -1,12 +1,12 @@
 import { useAtomCommand } from "~/state/use-atom-command";
 import type { EnvironmentId, PullRequestRef, PullRequestReviewVerdict } from "@supaterm/contracts";
 import { CheckIcon, CircleXIcon, MessageSquareIcon } from "@supaterm/icons";
-import { useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useState, type ReactNode, type RefObject } from "react";
 
+import { TextFieldSpeechControls, useTextFieldSpeech } from "~/speech/useTextFieldSpeech";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 
-import { TextFieldVoiceInput } from "../chat/TextFieldVoiceInput";
 import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "../ui/select";
 import { toastManager } from "../ui/toast";
@@ -58,6 +58,7 @@ const VERDICTS: ReadonlyArray<{
 
 export function PullRequestReviewForm({
   environmentId,
+  active,
   reference,
   headSha,
   completionScope,
@@ -71,6 +72,8 @@ export function PullRequestReviewForm({
   onRefused,
 }: {
   environmentId: EnvironmentId;
+  /** False while the form stays mounted but hidden; dictation is cancelled then. */
+  active: boolean;
   reference: PullRequestRef;
   /** The head on screen, which the review is pinned to. */
   headSha: string | undefined;
@@ -87,7 +90,6 @@ export function PullRequestReviewForm({
   const gt = useGT();
   const resolve = useMessages();
   const [requestedVerdict, setRequestedVerdict] = useState<PullRequestReviewVerdict>("comment");
-  const [voiceBusy, setVoiceBusy] = useState(false);
   const comments = usePendingReviewComments(reference);
   const reviewKey = pullRequestReviewKey(reference);
   const body = usePullRequestReviewStore((store) => store.summaries[reviewKey] ?? "");
@@ -97,14 +99,28 @@ export function PullRequestReviewForm({
   const submitReview = useAtomCommand(pullRequestEnvironment.submitReview, {
     reportFailure: false,
   });
+  const speech = useTextFieldSpeech({
+    environmentId,
+    projectId: reference.projectId,
+    ownerKey: JSON.stringify(["pr-review", environmentId, reviewKey]),
+    text: body,
+    textareaRef,
+    onTextChange: (text) => setSummary(reviewKey, text),
+    disabled: !active || pending,
+  });
+  const { cancel } = speech;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- discards a recording when the hidden form can no longer be submitted
+  useEffect(() => {
+    if (!active) cancel();
+  }, [active, cancel]);
 
   const offered = VERDICTS.filter((verdict) => verdicts.includes(verdict.value));
   const selectedVerdict =
     offered.find((verdict) => verdict.value === requestedVerdict) ?? offered[0];
 
-  const submit = async (verdict: (typeof VERDICTS)[number]) => {
-    if (pending || voiceBusy) return;
-    const submittedBody = body;
+  const submit = async (verdict: (typeof VERDICTS)[number], text: string) => {
+    if (pending || !canSubmit(verdict.value, text)) return;
+    const submittedBody = text;
     const submittedComments = comments;
     onPendingChange(true);
     const result = await submitReview({
@@ -158,20 +174,14 @@ export function PullRequestReviewForm({
         ref={textareaRef}
         completionScope={completionScope}
         rows={3}
-        readOnly={voiceBusy}
+        readOnly={speech.freezesEditor}
         value={body}
         placeholder={placeholder}
         aria-label={gt("Review summary")}
         onValueChange={(next) => setSummary(reviewKey, next)}
       />
-      <div className="mt-2 flex justify-end gap-2">
-        <TextFieldVoiceInput
-          environmentId={environmentId}
-          disabled={pending}
-          fieldRef={textareaRef}
-          onChange={(text) => setSummary(reviewKey, text)}
-          onBusyChange={setVoiceBusy}
-        />
+      <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+        <TextFieldSpeechControls speech={speech} disabled={pending} />
         {offered.length > 1 ? (
           <Select
             value={selectedVerdict?.value ?? null}
@@ -206,12 +216,13 @@ export function PullRequestReviewForm({
           size="xs"
           disabled={
             pending ||
-            voiceBusy ||
+            speech.preparing ||
             selectedVerdict === undefined ||
-            !canSubmit(selectedVerdict.value, body)
+            (!canSubmit(selectedVerdict.value, body) && !speech.blocksSubmission)
           }
           onClick={() => {
-            if (selectedVerdict !== undefined) void submit(selectedVerdict);
+            if (selectedVerdict !== undefined)
+              speech.submitAfterDictation((text) => void submit(selectedVerdict, text));
           }}
         >
           {pending ? gt("Submitting...") : gt("Submit review")}

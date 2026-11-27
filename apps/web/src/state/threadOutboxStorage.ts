@@ -2,7 +2,12 @@ import type { BrowserThreadOutboxStorage } from "./threadOutboxDelivery";
 import * as Schema from "effect/Schema";
 import { msg } from "gt-react";
 
-import { OutboxTurn, StoredOutboxEntry, encodeStoredOutboxEntry } from "./threadOutboxSchema";
+import {
+  OutboxTurn,
+  StoredOutboxEntry,
+  encodeStoredOutboxEntry,
+  migrateLegacyVoiceEntry,
+} from "./threadOutboxSchema";
 import { randomUUID } from "../lib/utils";
 import { createIndexedDbTransaction } from "../lib/indexedDb";
 import { m } from "../i18n/messages";
@@ -66,8 +71,13 @@ export const browserThreadOutboxStorage: BrowserThreadOutboxStorage<OutboxTurn> 
       const request = store.getAll();
       request.onsuccess = () => complete(request.result);
     });
+    const voiceError = m(
+      msg(
+        "Voice messages are no longer transcribed by the environment. Type what you said or discard.",
+      ),
+    );
     return values.map((value) => {
-      const { schemaVersion: _, ...entry } = decode(value);
+      const { schemaVersion: _, ...entry } = decode(migrateLegacyVoiceEntry(value, voiceError));
       return entry;
     });
   },
