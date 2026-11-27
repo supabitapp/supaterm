@@ -92,9 +92,7 @@ test(
     await picker.tap();
     await screen.getByRole("option", "other-project", { exact: true }).tap();
     await picker.filter({ hasText: "other-project" }).waitFor();
-    const branch = browser
-      .locator('[data-slot="combobox-trigger"][aria-label^="Branch:"]:visible')
-      .first();
+    const branch = browser.locator('[role="combobox"][aria-label^="Branch:"]:visible').first();
     await branch.filter({ hasText: "main" }).waitFor();
     await browser.evaluate(() => {
       window.movedPrCheckout?.finish();
