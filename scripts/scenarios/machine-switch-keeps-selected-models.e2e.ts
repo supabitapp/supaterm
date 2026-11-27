@@ -54,9 +54,8 @@ test(
       await dialog.getByRole("textbox", "Host", { exact: true }).fill(host);
       await dialog.getByPlaceholder("PAIRCODE").fill(token);
       await dialog.getByRole("button", "Add environment").tap();
-      await expect(screen.getByRole("button", "More actions for Scenario")).toBeVisible({
-        timeout: 60_000,
-      });
+      // Setup, so waitFor: a proof reads only a failed expectation as the bug.
+      await screen.getByRole("button", "More actions for Scenario").waitFor({ timeout: 60_000 });
       await app.open("/");
       // Shift adds a model to the draft instead of replacing it.
       await screen.getByRole("button", "Showcase", { exact: false }).first().tap();

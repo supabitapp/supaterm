@@ -5,6 +5,7 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { fromJsonStringPretty } from "@supaterm/shared/schemaJson";
+import * as Clock from "effect/Clock";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -209,20 +210,13 @@ const withCheckout = Effect.fn("prove.withCheckout")(function* <A, E, R>(
   const { repo } = yield* roots;
   const clean = (yield* git(["status", "--porcelain", "--untracked-files=no"])).length === 0;
   if (clean && (yield* git(["rev-parse", "HEAD"])) === sha) return yield* use(repo);
-  // Beside this checkout, not in the temp directory, so tooling resolves as it does here.
-  const worktree = `${repo}-scenario-${short(sha)}`;
-  // A run that was killed left its worktree behind, and git refuses to add over it.
-  const discard = git(["worktree", "remove", "--force", worktree]).pipe(
-    Effect.ignore,
-    Effect.andThen(git(["worktree", "prune"])),
-    Effect.ignore,
-  );
+  // Beside this checkout, not in the temp directory, so tooling resolves as it does here. Its own
+  // path each run, so removing it never touches a checkout an earlier run left for inspection.
+  const worktree = `${repo}-scenario-${short(sha)}-${yield* Clock.currentTimeMillis}`;
   return yield* Effect.acquireUseRelease(
-    discard.pipe(
-      Effect.andThen(git(["worktree", "add", "--quiet", "--detach", "--force", worktree, sha])),
-    ),
+    git(["worktree", "add", "--quiet", "--detach", worktree, sha]),
     () => run("vp", ["i"], { cwd: worktree, echo: true }).pipe(Effect.andThen(use(worktree))),
-    () => discard,
+    () => git(["worktree", "remove", "--force", worktree]).pipe(Effect.ignore),
   );
 });
 

@@ -81,8 +81,16 @@ function carryFanoutSelections(
 }
 
 // A send waits on this; a read stuck on a reconnecting machine falls back to no project file.
-function readDestinationWorkspace(draft: DraftSessionState, projectRef: ScopedProjectRef) {
-  return retargetDraftWorkspace(draft, projectRef, AbortSignal.timeout(5_000));
+function readDestinationWorkspace(
+  draft: DraftSessionState,
+  projectRef: ScopedProjectRef,
+  ...signals: ReadonlyArray<AbortSignal>
+) {
+  return retargetDraftWorkspace(
+    draft,
+    projectRef,
+    AbortSignal.any([AbortSignal.timeout(5_000), ...signals]),
+  );
 }
 
 function changesProject(draft: DraftSessionState, projectRef: ScopedProjectRef) {
@@ -450,10 +458,11 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       const workspaceRead =
         workspaceRoot === undefined
           ? Promise.resolve({})
-          : retargetDraftWorkspace(
+          : readDestinationWorkspace(
               draft,
               projectRef,
-              AbortSignal.any([request.controller.signal, controller.signal]),
+              request.controller.signal,
+              controller.signal,
             );
       const defaultWorkspace = await workspaceRead.finally(unsubscribe);
       const currentDraft = readSwitchingDraft();
