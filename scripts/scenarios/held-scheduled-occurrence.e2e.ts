@@ -42,8 +42,8 @@ test(
         model: "approval",
       });
 
-      await supaterm.open("/settings/scheduled-tasks");
-      await screen.getByRole("button", "New task").tap();
+      await supaterm.open("/automations");
+      await screen.getByRole("button", "New automation").tap();
       await screen.getByRole("textbox", "Name").fill("Held recurring task");
       await screen.getByRole("combobox", "Destination").tap();
       await screen.getByRole("option", "One thread, continuing the conversation").tap();
@@ -52,7 +52,7 @@ test(
       await screen.getByRole("textbox", "Prompt").fill("Scheduled check prompt");
       await screen.getByRole("button", "Every interval").tap();
       await screen.getByRole("spinbutton", "Run every").fill("1");
-      await screen.getByRole("button", "Create task").tap();
+      await screen.getByRole("button", "Create automation").tap();
 
       await supaterm.open(thread);
       await screen.getByRole("button", "Approve", { exact: true }).waitFor();
@@ -64,7 +64,7 @@ test(
       await screen.getByRole("button", "Resume thread").waitFor();
       await screen.getByRole("button", "Edit queued message").waitFor();
 
-      await app.open("/settings/scheduled-tasks");
+      await app.open("/automations");
       await expect(
         screen.getByText(
           "A previous occurrence is held in the thread queue. Resume or remove it to run this task again.",
