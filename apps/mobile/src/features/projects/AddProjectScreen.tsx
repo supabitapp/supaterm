@@ -97,12 +97,15 @@ import { environmentStatusText } from "../connection/environmentStatusText";
 import {
   type AddProjectPaths,
   addProjectPathFor,
+  chooserDraftKey,
   isMissingCloneParentBrowseFailure,
   resolveAddProjectEnvironment,
   withAddProjectPath,
 } from "./AddProjectScreen.logic";
+import { readNewTaskFlowState } from "../threads/new-task-flow-state";
 import {
   createNewTaskDraft,
+  retargetSavedNewTaskDraft,
   setComposerDraftText,
   waitForComposerDraftsLoaded,
 } from "../../state/use-composer-drafts";
@@ -730,7 +733,7 @@ function isActiveRoute(
 
 function useOpenNewTaskDraft() {
   const navigation = useNavigation();
-  return (
+  return async (
     params: {
       environmentId: EnvironmentId;
       projectId: ProjectId;
@@ -740,12 +743,27 @@ function useOpenNewTaskDraft() {
     },
     originRoute: NavigationState<ParamListBase>["routes"][number] | undefined,
   ) => {
+    if (!isActiveRoute(navigation, originRoute)) return;
+    const chooserDraft =
+      params.draftId === undefined
+        ? chooserDraftKey(
+            navigation.getState()?.routes ?? [],
+            (flowKey) => readNewTaskFlowState(flowKey).draftKey,
+          )
+        : null;
+    const carried =
+      chooserDraft !== null &&
+      (await retargetSavedNewTaskDraft(chooserDraft, {
+        environmentId: params.environmentId,
+        projectId: params.projectId,
+      }).catch(() => false));
     const state = navigation.getState();
     if (!state || !isActiveRoute(navigation, originRoute)) return;
+    const draft = carried ? { ...params, draftId: chooserDraft } : params;
     const threadIndex = state.routes.findLastIndex((route) => route.name === "Thread");
     const routes = [
       ...state.routes.slice(0, threadIndex < 0 ? state.index : threadIndex),
-      { key: uuidv4(), name: "Thread", params: { draft: params } },
+      { key: uuidv4(), name: "Thread", params: { draft } },
     ];
     navigation.dispatch(CommonActions.reset({ ...state, index: routes.length - 1, routes }));
   };
@@ -805,7 +823,7 @@ function useOpenExistingProject(environment: EnvironmentOption | null) {
         ? existing.title
         : m(msg("{title} is still archived. Try again later.", { title: existing.title })),
     );
-    openNewTaskDraft(
+    void openNewTaskDraft(
       {
         environmentId: existing.environmentId,
         projectId: existing.id,
@@ -885,7 +903,7 @@ function useCreateProject(environment: EnvironmentOption | null) {
       );
       return result;
     }
-    openNewTaskDraft(
+    void openNewTaskDraft(
       {
         environmentId: environment.environmentId,
         projectId,
@@ -1284,7 +1302,7 @@ export function AddProjectNewScreen(props: { readonly environmentId?: string | s
       );
       return;
     }
-    openNewTaskDraft(
+    void openNewTaskDraft(
       {
         environmentId: environment.environmentId,
         projectId,
@@ -1594,7 +1612,7 @@ export function AddProjectDestinationScreen(props: {
           ),
         );
       } else {
-        openNewTaskDraft(
+        void openNewTaskDraft(
           {
             environmentId: environment.environmentId,
             projectId,

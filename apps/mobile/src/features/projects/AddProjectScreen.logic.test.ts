@@ -2,9 +2,11 @@ import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connec
 import { EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
+import { newTaskFlowKey } from "../threads/new-task-flow-state";
 import {
   type AddProjectPaths,
   addProjectPathFor,
+  chooserDraftKey,
   resolveAddProjectEnvironment,
   withAddProjectPath,
 } from "./AddProjectScreen.logic";
@@ -46,5 +48,37 @@ describe("Add project path per host", () => {
     const paths = withAddProjectPath(initial, ENVIRONMENT_A, "~/code/app");
     expect(addProjectPathFor(paths, null, "/work/")).toBe("~/code/app");
     expect(addProjectPathFor(paths, ENVIRONMENT_A, "~/")).toBe("~/code/app");
+  });
+});
+
+describe("chooserDraftKey", () => {
+  const home = { key: "home", name: "Home" };
+  const draftRoute = { key: "thread", name: "Thread", params: { draft: { requestId: "r1" } } };
+  const chooser = { key: "chooser", name: "NewTaskProject" };
+  const addProject = [
+    { key: "add", name: "AddProject" },
+    { key: "local", name: "AddProjectLocal" },
+  ];
+  const flowDraftKeys = new Map([[newTaskFlowKey(draftRoute), "new-task:typed"]]);
+  const readFlowDraftKey = (flowKey: string) => flowDraftKeys.get(flowKey) ?? null;
+
+  it("picks the added project for the draft whose chooser opened Add project", () => {
+    expect(chooserDraftKey([home, draftRoute, chooser, ...addProject], readFlowDraftKey)).toBe(
+      "new-task:typed",
+    );
+    const savedChooser = { ...chooser, params: { draftId: "new-task:saved" } };
+    expect(chooserDraftKey([home, savedChooser, ...addProject], readFlowDraftKey)).toBe(
+      "new-task:saved",
+    );
+  });
+
+  it("picks no draft when Add project opened outside the chooser", () => {
+    expect(chooserDraftKey([home, draftRoute, ...addProject], readFlowDraftKey)).toBeNull();
+  });
+
+  it("leaves an edited pending task's draft with its task", () => {
+    expect(
+      chooserDraftKey([home, draftRoute, chooser, ...addProject], () => "pending-task:message"),
+    ).toBeNull();
   });
 });
