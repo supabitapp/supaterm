@@ -49,8 +49,14 @@ test(
       );
 
       await supaterm.open("/settings/maintenance");
-      const runCleanup = screen.getByRole("button", "Delete now", { exact: true });
-      await runCleanup.tap();
+      const deleteNow = screen.getByRole("button", "Delete now", { exact: true });
+      const runCleanup = async () => {
+        await deleteNow.tap();
+        // A confirm pressed within 250 ms of arming is ignored as a double click.
+        await runPromise(Effect.sleep("300 millis"));
+        await screen.getByRole("button", "Confirm delete", { exact: true }).tap();
+      };
+      await runCleanup();
       await screen.getByRole("button", /^Last run/).tap();
       await screen.getByText(/^8\.\d{2} MB$/).waitFor();
       const orphanRow = browser
@@ -64,8 +70,8 @@ test(
           yield* fs.remove(`${build}/bundle.js`);
         }),
       );
-      await runCleanup.tap();
-      await runCleanup.waitFor();
+      await runCleanup();
+      await deleteNow.waitFor();
       await screen.getByText("No thread uses this worktree", { exact: true }).scrollIntoView();
       try {
         await expect(orphanRow.getByText(/^\d+(?:\.\d+)? KB$/)).toBeVisible();
