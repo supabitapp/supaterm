@@ -269,94 +269,9 @@ and use **Attach again** or remove the missing file before sending.
 
 ## Voice input
 
-Press the microphone in the composer, or `ctrl+m` on web and desktop, to record a
-prompt of up to five minutes. Hold `ctrl+m` instead to talk only while it is down; letting
-go stops and reviews. Holding Option (Alt off macOS) in the composer or a comment field does the same. Pressing
-another key or clicking while you hold it treats it as a shortcut and drops the recording.
-**Settings → Voice transcription → Hold to talk** can switch the key to Space, which records when held with no
-text selected while a tap still types a space, or turn it off. On web and desktop, the
-recording stays in the composer while you speak:
+Dictate into the composer with the microphone button or `ctrl+m` (web and desktop). Audio stays on-device or goes only to an environment or provider you explicitly choose in **Settings → Voice**. See [Voice input](./voice-input.md) for setup, mobile dictation, and microphone priority.
 
-- **Stop and review**, or `ctrl+m` again, transcribes the recording into the
-  draft where your cursor was, so you can edit it before sending. Changes that reach the
-  draft meanwhile, such as a cited message, are kept; the text then goes after your
-  selection instead of replacing it.
-- **Send**, or your send shortcut, sends the recording as your next message. With an empty draft in a
-  thread that has started, it waits in the [queue](#queued-messages) like a typed message,
-  even while you are offline, and the environment transcribes and sends it once it is
-  reachable. With text or attachments in the draft, Send transcribes the recording, adds
-  it, and sends everything together.
-- **Discard**, or `Escape`, throws the recording away and keeps your draft.
-
-Comment fields have a microphone too: pull request descriptions, comments and review
-summaries, diff comments, and comments on cited text. While one of them has focus, `ctrl+m`
-dictates into it instead of the composer. The field stays locked until the transcript is in,
-so it can't be sent half-dictated.
-
-The environment transcribes with the provider chosen under **Settings → Voice
-transcription**, and that login is charged
-for it. Claude needs a Claude subscription login and Codex a ChatGPT login. **Automatic**,
-the default, picks the first login ready to transcribe for each new recording, trying the
-default Claude instance, then other Claude instances, then the rest, so a later recording can
-be charged to a different account. A
-recording that fails isn't retried with another account. Choose a provider to pin one
-account: if it can't transcribe, the microphone says why and Supaterm never switches. A Claude instance that runs on an API key, a gateway's `ANTHROPIC_BASE_URL` and
-token, or Amazon Bedrock can't transcribe; choose Codex, or add a Claude instance with its own
-[config directory](./providers-claude.md#separate-accounts-or-configurations) signed in to
-your subscription. Choose the language you speak under **Settings → Voice transcription →
-Voice language**; it follows your system language by default and lists only the languages the chosen
-provider transcribes, which for Codex is many more than for Claude. On iPhone and Android,
-voice input always uses your phone's language.
-
-Under **Dictionary**, add names and jargon to spell your way, and what the transcript gets
-instead. It starts with Supaterm, heard as "super term", which you can remove. It is saved on the environment that
-transcribes and applies to everything it transcribes, including voice messages and
-`supaterm transcribe`. With Claude, dictionary words also tell the speech model what to
-listen for.
-
-Recording in a browser needs HTTPS or `localhost`. A remote browser on a plain `http://`
-address can't use the microphone. The first time you record, allow microphone access; on
-macOS you can change it later in System Settings → Privacy & Security → Microphone.
-
-Choose the input you record from under **Settings → Voice transcription → Microphone**. The
-choice is saved on that device, and while the chosen microphone isn't connected, voice input
-uses the system default. On a Mac, **Use the Mac's microphone instead of Bluetooth**, on by
-default, records from the Mac's own microphone when AirPods or another Bluetooth headset is
-the system default, so the headset doesn't drop into call-quality audio. It works in the
-desktop app and Chromium browsers such as Chrome, and a Bluetooth microphone you choose is
-always used.
-
-If no speech is heard, the message isn't sent. If the thread refuses a transcribed message,
-the transcript stays in the queue as text so you can edit or retry it.
-
-While you record, the audio goes to the environment and on to the provider as you speak, so
-the text is ready almost as soon as you stop. A copy stays on your device until the
-recording is sent or discarded, so a dropped connection, or an environment that doesn't
-stream, still gets the whole recording after you stop. Discarding a recording stops the
-provider, but it has already heard what you said up to then.
-
-### On iPhone and Android
-
-Voice input transcribes on your phone by default. That needs iOS 26 or later, or Android 12
-or later with compatible Google speech services; the first recording may download a speech
-model, then dictation works offline. To transcribe on a paired environment or a cloud provider
-instead, choose it under **Settings → Voice → Transcribe on**. Keep Supaterm open while
-dictating on Android.
-
-Tap the composer's microphone to record, the checkmark to transcribe, or the X to cancel. Text
-is inserted where your selection was when recording started and stays in the draft until you
-send it. In scheduled-task prompts, voice input only updates the draft; save the schedule
-separately.
-
-Canceling or an audio interruption discards the recording and preserves your existing
-draft. Leaving the screen keeps voice input available in the floating control. While
-recording, the screen stays awake; it can sleep normally once recording stops.
-
-Rank your microphones under **Settings → Voice**. Supaterm records from the first one in the
-list that is connected.
-
-A voice message queued by an earlier version of the app stays in its thread as **Not sent**,
-with its recording attached. Edit it to type what you said, or discard it.
+A voice message queued by an earlier version of Supaterm stays in its thread as **Not sent**, with its recording attached. Edit it to type what you said, or discard it.
 
 ## Queued messages
 

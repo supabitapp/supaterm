@@ -49,7 +49,7 @@ comes back when you use the keyboard or a thread changes state.
 ## Keys, stick, and knob
 
 By default the keys toggle Fast mode, approve, decline, fork the thread, start and stop
-[voice input](./composer.md#voice-input), and send the message. Approve, decline, voice input,
+[dictation](./voice-input.md), and send the message. Approve, decline, voice input,
 send, and Fast mode act on the focused thread. The analog stick opens the
 right panel, moves back and forward, and toggles the sidebar. Turning the knob scrolls the
 conversation, and clicking it jumps to the latest message. Choose **Reasoning effort** under
@@ -62,7 +62,7 @@ already on another key swaps the two. **Reset layout** restores the keys, stick,
 changing your agent keys.
 
 The microphone key works like `ctrl+m`: press it to start recording, and press it again
-to stop and review the transcript in the draft. With **Use separate microphone keys** on, the
+to finish and put the transcript in the draft. With **Use separate microphone keys** on, the
 **MIC1** keycap does the same.
 
 Whenever you record in the composer, the underglow pulses sea-green while recording and stays
