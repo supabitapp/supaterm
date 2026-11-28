@@ -3141,10 +3141,6 @@ export default function ChatView(props: ChatViewProps) {
         if (!composerRef.current) return false;
         if (!repeat) composerRef.current.submit();
       },
-      "composer.voice": ({ repeat, event }) => {
-        if (!composerRef.current) return false;
-        if (!repeat) composerRef.current.toggleVoiceInput(event ? { code: event.code } : undefined);
-      },
       "composer.toggleFastMode": ({ repeat }) => {
         if (repeat) return;
         const level = composerRef.current?.toggleFastMode() ?? null;
@@ -3191,7 +3187,7 @@ export default function ChatView(props: ChatViewProps) {
     scrollToEnd,
     setThreadError,
   });
-  const { onSend, prepareVoiceSend } = useComposerSend({
+  const { onSend } = useComposerSend({
     environmentId,
     routeThreadKey,
     currentRouteThreadKeyRef,
@@ -3262,7 +3258,6 @@ export default function ChatView(props: ChatViewProps) {
   };
   const onWorktreeSetupWorkLocallyStable = useStableCallback(onWorktreeSetupWorkLocally);
   const onComposerSendStable = useStableCallback(onSend);
-  const onComposerPrepareVoiceSendStable = useStableCallback(prepareVoiceSend);
   const sendPreviewAnnotation = (
     annotation: PreviewAnnotationPayload,
     image: ComposerImageAttachment | null,
@@ -4010,7 +4005,6 @@ export default function ChatView(props: ChatViewProps) {
                                   activeThreadShell={activeThreadShell}
                                   activeThreadRuns={serverProjection?.runs ?? EMPTY_RUNS}
                                   promptHistoryEntries={timelineEntries}
-                                  isServerThread={isServerThread}
                                   isLocalDraftThread={isLocalDraftThread}
                                   forceExpandedOnMobile={
                                     forceExpandedMobileComposer && isDraftHeroState
@@ -4126,7 +4120,6 @@ export default function ChatView(props: ChatViewProps) {
                                   onPageScrollRelease={onComposerPageScrollReleaseStable}
                                   onCompactContext={onComposerCompactContextStable}
                                   onSend={onComposerSendStable}
-                                  onPrepareVoiceSend={onComposerPrepareVoiceSendStable}
                                   onResume={onComposerResumeStable}
                                   onInterrupt={onInterruptStable}
                                   onSelectActivePendingUserInputOption={

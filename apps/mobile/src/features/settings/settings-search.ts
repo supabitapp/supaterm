@@ -49,11 +49,20 @@ const SETTINGS_SEARCH_TERMS = {
     msg("new line", { $context: "settings search keyword" }),
     msg("hardware keyboard", { $context: "settings search keyword" }),
   ],
-  SettingsEnvironmentVoiceTranscription: [
-    msg("voice", { $context: "settings search keyword" }),
+  SettingsVoice: [
+    msg("microphone", { $context: "settings search keyword" }),
     msg("dictation", { $context: "settings search keyword" }),
     msg("speech to text", { $context: "settings search keyword" }),
-    msg("microphone", { $context: "settings search keyword" }),
+    msg("transcription", { $context: "settings search keyword" }),
+    msg("transcribe on", { $context: "settings search keyword" }),
+    msg("transcription model", { $context: "settings search keyword" }),
+    msg("this device", { $context: "settings search keyword" }),
+    msg("environment", { $context: "settings search keyword" }),
+    msg("on-device", { $context: "settings search keyword" }),
+    msg("audio input", { $context: "settings search keyword" }),
+    msg("preferred microphone", { $context: "settings search keyword" }),
+    msg("microphone order", { $context: "settings search keyword" }),
+    msg("bluetooth", { $context: "settings search keyword" }),
   ],
   SettingsScheduledTasks: [
     msg("automations", { $context: "settings search keyword" }),

@@ -15,6 +15,7 @@ import * as Schema from "effect/Schema";
 
 import packageJson from "../../package.json" with { type: "json" };
 import { resolveServerInstallation } from "../cli/invocation.ts";
+import { isSpeechPlatformSupported } from "../speech/platform.ts";
 import { resolveServerSelfUpdateCapability } from "../service/selfUpdate.ts";
 import { resolveServiceLauncherMode } from "../service/serviceLauncherClient.ts";
 import * as ServerConfig from "../config.ts";
@@ -186,6 +187,7 @@ export const make = Effect.gen(function* () {
   const identity = yield* ServerEnvironmentIdentity;
   const hostPlatform = yield* HostProcess.Platform;
   const hostArchitecture = yield* HostProcess.Architecture;
+  const hostLibc = hostPlatform === "linux" ? yield* HostProcess.LinuxLibc : undefined;
   const environmentId = yield* identity.getEnvironmentId;
   const cwdBaseName = path.basename(serverConfig.cwd).trim();
   const label = yield* resolveServerEnvironmentLabel({ cwdBaseName });
@@ -241,6 +243,8 @@ export const make = Effect.gen(function* () {
       pullRequestReviewHeadPin: true,
       draftFileDownloads: true,
       queuedRunModelEdit: true,
+      voiceTranscription: isSpeechPlatformSupported(hostPlatform, hostArchitecture, hostLibc),
+      cloudVoiceTranscription: true,
       npmReleaseLookup: true,
       secretSourceCheck: true,
       tailnet: true,

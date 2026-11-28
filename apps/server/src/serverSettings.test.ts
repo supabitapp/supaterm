@@ -1758,6 +1758,9 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
     Effect.sync(() => {
       // Shipped clients decode these as strings. Each must be covered by the older-client case above.
       assert.deepEqual(strictSecretReferencePaths(ServerSettings.ast), [
+        "cloudSpeechCredentials.openai",
+        "cloudSpeechCredentials.xai",
+        "cloudSpeechCredentials.openrouter",
         "easDeviceHosts.[].accessToken",
       ]);
     }),

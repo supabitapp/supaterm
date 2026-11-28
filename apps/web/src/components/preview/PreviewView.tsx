@@ -1,3 +1,4 @@
+import { useAtomValue } from "@effect/atom-react";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { previewStreamDownloadUrl } from "@supaterm/client-runtime/preview/server-browser-stream";
@@ -15,6 +16,7 @@ import {
   DEFAULT_PREVIEW_ZOOM_FACTOR,
   PREVIEW_ZOOM_LEVELS,
   type PreviewAdjustInput,
+  type DesktopPreviewAnnotationVoiceConfig,
 } from "@supaterm/contracts";
 import {
   normalizePreviewUrl,
@@ -67,6 +69,10 @@ import { useRightPanelStore } from "~/rightPanelStore";
 
 import { useShortcutLabel } from "~/hooks/useShortcutLabel";
 import { previewBridge } from "./previewBridge";
+import { PreviewAnnotationSpeech } from "./PreviewAnnotationSpeech";
+import { effectiveShortcutsForCommand } from "~/keybindings";
+import { randomUUID } from "~/lib/utils";
+import { primaryServerKeybindingsAtom } from "~/state/server";
 import { subscribePreviewAction } from "./previewActionBus";
 import { closePreviewSession } from "./closePreviewSession";
 import { openPreviewSession } from "./openPreviewSession";
@@ -182,6 +188,9 @@ export function PreviewView({
   const urlInputRef = useRef<HTMLInputElement | null>(null);
   const [find, setFind] = useState<{ tabId: string; requestId: number } | null>(null);
   const [pickActive, setPickActive] = useState(false);
+  const [annotationVoice, setAnnotationVoice] =
+    useState<DesktopPreviewAnnotationVoiceConfig | null>(null);
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const canSendAnnotation =
     useEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope) &&
     Boolean(onSendAnnotation);
@@ -847,11 +856,20 @@ export function PreviewView({
     let submitted = false;
     pickActiveRef.current = pickRequest;
     setPickActive(true);
+    // The guest learns only the dictation chords, never the whole keybinding config.
+    const voice: DesktopPreviewAnnotationVoiceConfig = {
+      sessionId: randomUUID(),
+      shortcuts: effectiveShortcutsForCommand(keybindings, "composer.dictation", {
+        context: { previewFocus: true, previewOpen: true, editableFocus: true },
+      }),
+    };
+    setAnnotationVoice(voice);
     const finishPick = () => {
       const isCurrentPick = pickActiveRef.current === pickRequest;
       if (isCurrentPick) {
         pickActiveRef.current = null;
         setPickActive(false);
+        setAnnotationVoice(null);
       }
       if (
         (isCurrentPick || submitted) &&
@@ -876,7 +894,7 @@ export function PreviewView({
       // Main's WebContents.focus() cannot move the embedder's DOM focus into a guest, so key
       // presses would stay in the app; only focusing the <webview> element hands them to the page.
       focusPreviewWebview(runtimeTabId);
-      const result = await bridge.pickElement(runtimeTabId);
+      const result = await bridge.pickElement(runtimeTabId, voice);
       if (!result || pickRequest.cancelled) return;
       // Nothing that happens after this point (a second picker click, a tab
       // change, unmount) may discard it, so the pick stops being cancellable
@@ -884,6 +902,7 @@ export function PreviewView({
       if (pickActiveRef.current === pickRequest) {
         pickActiveRef.current = null;
         setPickActive(false);
+        setAnnotationVoice(null);
         submitted = true;
       }
       const { annotation: picked, submission, screenshotFailed = false } = result;
@@ -947,6 +966,7 @@ export function PreviewView({
         void previewBridge.cancelPickElement(runtimeTabId).catch(() => undefined);
       }
       setPickActive(false);
+      setAnnotationVoice(null);
     };
   }, [runtimeTabId]);
 
@@ -998,6 +1018,15 @@ export function PreviewView({
       data-thread-key={scopedThreadKey(threadRef)}
       data-preview-view
     >
+      {pickActive && runtimeTabId && annotationVoice ? (
+        <PreviewAnnotationSpeech
+          key={annotationVoice.sessionId}
+          threadRef={threadRef}
+          tabId={runtimeTabId}
+          config={annotationVoice}
+          keybindings={keybindings}
+        />
+      ) : null}
       <PreviewChromeRow
         url={url}
         loading={loading || serverStreamPending}

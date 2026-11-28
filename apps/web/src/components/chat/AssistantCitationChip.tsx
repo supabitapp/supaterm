@@ -29,7 +29,10 @@ import { ContextChipPopover } from "../contextChipParts";
 import { Button } from "../ui/button";
 import { Popover, PopoverClose, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { getVirtualizedScrollFadeClassName } from "../ui/scroll-area";
-import { AssistantCitationCommentEditor } from "./AssistantCitationCommentEditor";
+import {
+  AssistantCitationCommentEditor,
+  type AssistantCitationCommentDictation,
+} from "./AssistantCitationCommentEditor";
 import { resolveAssistantCitationCommentDismissal } from "./assistantCitationCommentDismissal";
 import { observeAssistantCitationCommentSource } from "./AssistantCitationSource";
 import { composerFloatingLayerProps } from "./composerEventScope";
@@ -120,6 +123,8 @@ export function AssistantCitationChip({
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const commentPopupRef = useRef<HTMLDivElement>(null);
   const draftCommentRef = useRef<string | null>(null);
+  const dictationRef = useRef<AssistantCitationCommentDictation>(null);
+  const [voiceSetupOpen, setVoiceSetupOpen] = useState(false);
   const [unavailableSourceAnchor, setUnavailableSourceAnchor] =
     useState<AssistantCitationSourceAnchor | null>(null);
   const commentOpen = commentEditor?.open ?? false;
@@ -129,7 +134,7 @@ export function AssistantCitationChip({
   useEffect(() => {
     if (!commentOpen) draftCommentRef.current = null;
   }, [commentOpen]);
-  const settleDraftOnClose = (reason: string): boolean => {
+  const settleDraft = (reason: string): boolean => {
     const dismissal = resolveAssistantCitationCommentDismissal({
       reason,
       draft: draftCommentRef.current,
@@ -137,6 +142,16 @@ export function AssistantCitationChip({
     });
     if (dismissal.kind === "commit") return commentEditor?.onSave(dismissal.comment) ?? true;
     return dismissal.kind !== "keep-open";
+  };
+  // Closing unmounts the editor, which would discard its dictation, so it stays open until that lands.
+  const settleDraftOnClose = (reason: string): boolean => {
+    const finishing =
+      reason !== "escape-key" &&
+      dictationRef.current?.finish((comment) => {
+        draftCommentRef.current = comment;
+        if (settleDraft(reason)) commentEditor?.onOpenChange(false);
+      });
+    return !finishing && settleDraft(reason);
   };
   const onSourceUnavailable = useEffectEvent(() => {
     if (!sourceAnchor) return;
@@ -243,7 +258,7 @@ export function AssistantCitationChip({
       {composerSourceLink}
       {commentEditor ? (
         <Popover
-          open={commentEditor.open}
+          open={commentEditor.open && !voiceSetupOpen}
           onOpenChange={(open, eventDetails) => {
             if (!open && !settleDraftOnClose(eventDetails.reason)) {
               eventDetails.cancel();
@@ -263,6 +278,8 @@ export function AssistantCitationChip({
           </PopoverTrigger>
           {commentEditor.open ? (
             <PopoverPopup
+              // The editor stays mounted while its voice setup dialog replaces the popover.
+              keepMounted
               {...composerFloatingLayerProps}
               side={activeSourceAnchor ? "bottom" : "top"}
               align="end"
@@ -301,6 +318,8 @@ export function AssistantCitationChip({
                 key={serializeAssistantCitation(citation)}
                 citation={citation}
                 inputRef={commentInputRef}
+                dictationRef={dictationRef}
+                onVoiceSetupOpenChange={setVoiceSetupOpen}
                 onDraftChange={(comment) => {
                   draftCommentRef.current = comment;
                   commentEditor.onDraftChange?.(comment);

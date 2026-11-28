@@ -36,6 +36,7 @@ const settings = Schema.decodeSync(ServerSettings)({
       accessTokenSecret: personal("op://expo"),
     },
   ],
+  cloudSpeechCredentials: { openai: personal("op://voice"), xai: "" },
 });
 
 it.each([
@@ -48,6 +49,7 @@ it.each([
       "GitHub · github.com",
       "Bitbucket · Access token",
       "Expo Simulators · Access Token",
+      "Voice · OpenAI",
     ],
   ],
   ["work", ["Antigravity Work · OTHER_TOKEN", "GitHub · ghe.acme.test"]],

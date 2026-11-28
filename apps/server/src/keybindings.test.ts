@@ -270,7 +270,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       const previousDefaults: Partial<Record<KeybindingRule["command"], string>> = {
         "thread.mark-done": "mod+shift+s",
-        "composer.voice": "mod+shift+space",
+        "composer.dictation": "mod+shift+space",
       };
       yield* writeKeybindingsConfig(
         keybindingsConfigPath,
@@ -293,7 +293,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         "d",
       );
       assert.deepInclude(
-        snapshot.keybindings.find((rule) => rule.command === "composer.voice")?.shortcut,
+        snapshot.keybindings.find((rule) => rule.command === "composer.dictation")?.shortcut,
         { key: "m", ctrlKey: true, modKey: false, shiftKey: false },
       );
 
@@ -341,7 +341,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     ]),
     // Off macOS, mod+m is Ctrl+M.
     ...["ctrl+m", "mod+m"].map((key): readonly KeybindingRule[] => [
-      { key: "mod+shift+space", command: "composer.voice", when: "!terminalFocus" },
+      { key: "mod+shift+space", command: "composer.dictation", when: "!terminalFocus" },
       { key, command: "script.custom-action.run" },
     ]),
   ])("preserves customized or conflicting moved default shortcuts on startup %#", (rules) =>

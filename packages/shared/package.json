@@ -247,6 +247,10 @@
       "types": "./src/path.ts",
       "import": "./src/path.ts"
     },
+    "./keybindingMatching": {
+      "types": "./src/keybindingMatching.ts",
+      "import": "./src/keybindingMatching.ts"
+    },
     "./keybindings": {
       "types": "./src/keybindings.ts",
       "import": "./src/keybindings.ts"
@@ -606,6 +610,14 @@
     "./cloneUrl": {
       "types": "./src/cloneUrl.ts",
       "import": "./src/cloneUrl.ts"
+    },
+    "./speech": {
+      "types": "./src/speech.ts",
+      "import": "./src/speech.ts"
+    },
+    "./speechCopy": {
+      "types": "./src/speechCopy.ts",
+      "import": "./src/speechCopy.ts"
     },
     "./pinOrderKey": {
       "types": "./src/pinOrderKey.ts",

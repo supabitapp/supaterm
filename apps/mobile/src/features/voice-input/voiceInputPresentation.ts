@@ -4,7 +4,7 @@ import { msg } from "gt-react-native";
 import { m, type MessageResolver } from "../../i18n/messages";
 
 export type VoiceComposerPresentation = {
-  readonly leadingAction: "cancel" | "stop" | null;
+  readonly leadingAction: "cancel" | null;
   readonly trailingAction: "mic" | "confirm";
   readonly showsSend: boolean;
   readonly statusKind: "active" | "error" | null;
@@ -48,7 +48,7 @@ export function resolveVoiceComposerPresentation(
     case "recording": {
       const seconds = Math.max(0, Math.floor(elapsedSeconds));
       return {
-        leadingAction: "stop",
+        leadingAction: "cancel",
         trailingAction: "confirm",
         showsSend: false,
         statusKind: "active",
@@ -61,21 +61,13 @@ export function resolveVoiceComposerPresentation(
       };
     }
     case "transcribing":
+    case "post-processing":
       return {
         leadingAction: "cancel",
         trailingAction: "confirm",
         showsSend: false,
         statusKind: "active",
         statusLabel: resolve(msg("Transcribing", { $context: "voice input status" })),
-        confirmationEnabled: false,
-      };
-    case "sending":
-      return {
-        leadingAction: null,
-        trailingAction: "confirm",
-        showsSend: false,
-        statusKind: "active",
-        statusLabel: resolve(msg("Saving", { $context: "voice input status" })),
         confirmationEnabled: false,
       };
   }

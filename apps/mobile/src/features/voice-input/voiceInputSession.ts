@@ -6,28 +6,18 @@ import {
   type VoiceInputControllerDependencies,
   type VoiceInputPhase,
   type VoiceInputState,
-  type VoiceRecordingDelivery,
-  type VoiceTranscriber,
-  voiceLevelFromDecibels,
 } from "@supaterm/client-runtime/voice-input";
 
-import { VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
+import { m } from "../../i18n/messages";
+import { normalizeVoiceInputDecibels, VOICE_WAVEFORM_SAMPLE_COUNT } from "./voiceInputMetering";
 
 const VOICE_METERING_INTERVAL_MS = 80;
 const IDLE_STATE: VoiceInputState = { phase: "idle", error: null, errorAction: null };
 const SILENT_LEVELS: ReadonlyArray<number> = Array<number>(VOICE_WAVEFORM_SAMPLE_COUNT).fill(0);
 
-export type VoiceInputEngine = {
-  readonly transcriber: VoiceTranscriber;
-  /** BCP 47, what an environment is asked to transcribe in. */
-  readonly language: string;
-};
-
 export type VoiceInputTarget = {
   readonly ownerKey: string;
   readonly label?: string;
-  /** Chosen when recording starts, so a settings change never moves a recording elsewhere. */
-  readonly engine?: VoiceInputEngine;
   readonly readDraft: () => VoiceDraftSnapshot | null;
   readonly commitDraft: VoiceInputControllerDependencies["commitDraft"];
 };
@@ -47,7 +37,7 @@ export type VoiceRecordingSample = {
 
 export type VoiceInputSessionDependencies = Omit<
   VoiceInputControllerDependencies,
-  "readDraft" | "commitDraft" | "onStateChange" | "getTranscriber"
+  "readDraft" | "commitDraft" | "onStateChange"
 > & {
   /** Reads the live recorder, or null when it is not capturing. */
   readonly sampleRecording: () => VoiceRecordingSample | null;
@@ -82,7 +72,6 @@ export class VoiceInputSession {
   private readonly dependencies: VoiceInputSessionDependencies;
   private target: VoiceInputTarget | null = null;
   private startText: string | null = null;
-  private onCommit: VoiceInputTarget["commitDraft"] | undefined;
   private snapshot: VoiceInputSnapshot = {
     state: IDLE_STATE,
     ownerKey: null,
@@ -98,18 +87,15 @@ export class VoiceInputSession {
   constructor(dependencies: VoiceInputSessionDependencies) {
     this.dependencies = dependencies;
     this.controller = new VoiceInputController({
+      resolve: m,
       ...dependencies,
       onStateChange: (state) => this.handleStateChange(state),
-      getTranscriber: () => this.target?.engine?.transcriber ?? null,
       // The target's selection is fixed at start, so a draft changed since refuses the transcript.
       readDraft: () => {
         const draft = this.target?.readDraft() ?? null;
         return draft?.text === this.startText ? draft : null;
       },
-      commitDraft: (text, selection) => {
-        this.target?.commitDraft(text, selection);
-        this.onCommit?.(text, selection);
-      },
+      commitDraft: (text, selection) => this.target?.commitDraft(text, selection),
     });
   }
 
@@ -119,10 +105,6 @@ export class VoiceInputSession {
 
   get label(): string | null {
     return this.target?.label ?? null;
-  }
-
-  get engine(): VoiceInputEngine | null {
-    return this.target?.engine ?? null;
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -148,17 +130,6 @@ export class VoiceInputSession {
     return this.target ? this.start(this.target) : Promise.resolve();
   }
 
-  stop(onCommit?: VoiceInputTarget["commitDraft"]): Promise<void> {
-    if (this.controller.currentState.phase !== "recording") return Promise.resolve();
-    this.onCommit = onCommit;
-    return this.controller.stop();
-  }
-
-  /** Hands the finished recording to `deliver` as the user's message, untranscribed. */
-  send(deliver: VoiceRecordingDelivery): Promise<void> {
-    return this.controller.send(deliver);
-  }
-
   start(target: VoiceInputTarget): Promise<void> {
     if (voiceInputBlocksSubmission(this.controller.currentState)) return Promise.resolve();
     this.target = target;
@@ -173,7 +144,6 @@ export class VoiceInputSession {
   }
 
   private handleStateChange(state: VoiceInputState): void {
-    if (!voiceInputBlocksSubmission(state)) this.onCommit = undefined;
     const previousPhase = this.snapshot.state.phase;
     let elapsedSeconds = this.snapshot.elapsedSeconds;
     if (state.phase !== previousPhase) {
@@ -213,7 +183,7 @@ export class VoiceInputSession {
     const sample = this.dependencies.sampleRecording();
     if (!sample) return;
 
-    const level = voiceLevelFromDecibels(sample.metering);
+    const level = normalizeVoiceInputDecibels(sample.metering);
     if (level !== 0 || this.audioLevels.some((sample) => sample !== 0)) {
       this.setAudioLevels([...this.audioLevels.slice(1), level]);
     }

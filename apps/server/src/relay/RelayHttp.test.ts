@@ -4,6 +4,7 @@ import {
   EnvironmentAuthenticatedAuth,
   EnvironmentAuthenticatedPrincipal,
   EnvironmentHttpApi,
+  EnvironmentVoiceBodyLimit,
   RelayPreparationError,
 } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
@@ -16,13 +17,16 @@ import * as RelayHttp from "./RelayHttp.ts";
 
 const relayInfo = { relayEndpoint: "https://relay.invalid/", relayUrl: "wss://relay.invalid" };
 const layerAuth = (allowed: boolean) =>
-  Layer.succeed(EnvironmentAuthenticatedAuth, (next) =>
-    Effect.provideService(next, EnvironmentAuthenticatedPrincipal, {
-      sessionId: AuthSessionId.make("relay-test-session"),
-      subject: "relay-test",
-      method: "bearer-access-token",
-      scopes: new Set(allowed ? [AuthAccessWriteScope] : []),
-    }),
+  Layer.merge(
+    Layer.succeed(EnvironmentAuthenticatedAuth, (next) =>
+      Effect.provideService(next, EnvironmentAuthenticatedPrincipal, {
+        sessionId: AuthSessionId.make("relay-test-session"),
+        subject: "relay-test",
+        method: "bearer-access-token",
+        scopes: new Set(allowed ? [AuthAccessWriteScope] : []),
+      }),
+    ),
+    Layer.succeed(EnvironmentVoiceBodyLimit, (effect) => effect),
   );
 const makeClient = HttpApiTest.groups(EnvironmentHttpApi, ["relay"]);
 

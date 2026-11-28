@@ -732,6 +732,26 @@ function serverWelcomeStateChanges(environmentId: EnvironmentId) {
   );
 }
 
+// Upstream names server features by flag; this build advertises them as config capabilities.
+const FEATURE_FLAG_CAPABILITIES = {
+  secretProviders: "secretProviderSettings",
+} as const satisfies Record<string, keyof ServerConfig>;
+
+export function hasFeatureFlag(
+  config:
+    | Partial<
+        Pick<
+          ServerConfig,
+          (typeof FEATURE_FLAG_CAPABILITIES)[keyof typeof FEATURE_FLAG_CAPABILITIES]
+        >
+      >
+    | null
+    | undefined,
+  flag: keyof typeof FEATURE_FLAG_CAPABILITIES,
+): boolean {
+  return config?.[FEATURE_FLAG_CAPABILITIES[flag]] === true;
+}
+
 export function resolveServerConfigValue(
   projection: ServerConfigProjection | null,
   initialConfig: ServerConfig | null,

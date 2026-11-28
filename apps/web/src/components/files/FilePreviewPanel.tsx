@@ -1163,6 +1163,7 @@ function EditableFileSurface({
                   {entries.map((entry) => (
                     <DiffCommentAnnotation
                       key={entry.id}
+                      speechOwnerKey={JSON.stringify(["file-comment", relativePath, entry.id])}
                       kind={entry.kind}
                       rangeLabel={formatFileCommentRange(entry.startLine, entry.endLine, messages)}
                       text={entry.text}

@@ -448,6 +448,7 @@ export function commandLabel(command: KeybindingCommand, resolve: MessageResolve
   if (command === "composer.sendBackground") return resolve(msg("Composer: Start in Background"));
   if (command === "composer.sendAndNewThread")
     return resolve(msg("Composer: Send and Start New Thread"));
+  if (command === "composer.dictation") return resolve(msg("Composer: Start or Finish Dictation"));
   if (command === "thread.steerQueuedMessage")
     return resolve(msg("Queue: Send First Queued Message"));
   if (command === "thread.editQueuedMessage")

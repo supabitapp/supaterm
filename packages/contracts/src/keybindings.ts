@@ -152,7 +152,7 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "composer.stash",
   "composer.submit",
   "composer.toggleFastMode",
-  "composer.voice",
+  "composer.dictation",
   "composer.sendAlternate",
   "composer.sendBackground",
   "composer.sendAndNewThread",

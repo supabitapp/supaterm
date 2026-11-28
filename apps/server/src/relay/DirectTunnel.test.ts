@@ -77,6 +77,7 @@ const layerRoutes = Layer.mergeAll(
       );
     }),
   ),
+  HttpRouter.add("GET", "/ws/voice", Effect.succeed(HttpServerResponse.empty({ status: 200 }))),
   HttpRouter.add(
     "GET",
     "/api/test/shared-socket",
@@ -332,6 +333,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
 
       expect((yield* direct(host.port, "/")).status).toBe(200);
       expect((yield* tunneled(tunnel, "/")).status).toBe(404);
+      expect((yield* tunneled(tunnel, "/ws/voice")).status).toBe(200);
       const nested = `/v1/connect?endpointId=${identity.endpointId}`;
       expect((yield* tunneled(tunnel, nested, upgradeHeaders)).status).toBe(404);
       expect(tunnel.sockets).toHaveLength(1);

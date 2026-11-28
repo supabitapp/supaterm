@@ -66,9 +66,14 @@ export const browserThreadOutboxStorage: BrowserThreadOutboxStorage<OutboxTurn> 
       const request = store.getAll();
       request.onsuccess = () => complete(request.result);
     });
-    return values.map((value) => {
-      const { schemaVersion: _, ...entry } = decode(value);
-      return entry;
+    return values.flatMap((value) => {
+      try {
+        const { schemaVersion: _, ...entry } = decode(value);
+        return [entry];
+      } catch (cause) {
+        console.warn("[thread-outbox] skipped an unreadable queued message", cause);
+        return [];
+      }
     });
   },
   write: async (entry) => {

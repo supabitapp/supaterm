@@ -18,10 +18,11 @@ import { useClientSettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
+import { useVoiceTranscriptionDestination } from "../../speech/useEnvironmentSpeechInput";
 import {
-  readVoiceInputActivity,
-  subscribeVoiceInputActivity,
-} from "../../voice/voiceInputActivity";
+  useRetainedVoiceInputSession,
+  useVoiceInputSessionSnapshot,
+} from "../../speech/voiceInputSession";
 import { useSidebarThreadShells } from "../../state/entities";
 import { useThreadJumpTargets } from "../sidebar/threadJumpTargets";
 import { environmentPresentations } from "../../state/presentation";
@@ -85,7 +86,15 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
   const routeThreadKey = routeThreadRef === null ? null : scopedThreadKey(routeThreadRef);
   const windowFocused = useSyncExternalStore(subscribeWindowFocus, readWindowFocus);
   const nowMinute = useNowMinute();
-  const voiceActivity = useSyncExternalStore(subscribeVoiceInputActivity, readVoiceInputActivity);
+  const voicePhase = useVoiceInputSessionSnapshot(
+    useRetainedVoiceInputSession(useVoiceTranscriptionDestination()),
+  ).state.phase;
+  const voiceActivity =
+    voicePhase === "recording"
+      ? "recording"
+      : voicePhase === "transcribing" || voicePhase === "post-processing"
+        ? "transcribing"
+        : "idle";
 
   const views = buildCodexMicroSlotViews({
     bindings: selectCodexMicroSlotBindings({
@@ -125,6 +134,11 @@ function ActiveCodexMicroCoordinator({ bridge }: { readonly bridge: DesktopCodex
     if (action === null) return;
     switch (action.type) {
       case "command":
+        // Dictation listens for its own chord, so the device toggles it through the composer.
+        if (action.command === "composer.dictation") {
+          composerHandleRef?.current?.toggleVoiceInput();
+          return;
+        }
         runCommand(action.command, "device");
         return;
       case "composer-text":

@@ -26,7 +26,6 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { ComposerBanner, type ComposerBannerVariant } from "./ComposerBanner";
 import { resolveThreadOutboxStatus, type ThreadOutboxStatus } from "./ThreadOutboxControl.logic";
-import { formatVoiceDuration } from "../../voice/formatVoiceDuration";
 import { useThreadOutboxVisibility } from "./useThreadOutboxVisibility";
 
 const STATUS_HEADERS = {
@@ -102,7 +101,7 @@ export function ThreadOutboxControl({
     editLatest(repeat) {
       const latest = pending.at(-1);
       if (!latest) return false;
-      if (!repeat && !busy && canEditEntry(latest)) void act(() => props.onEditMessage(latest));
+      if (!repeat && !busy && canChangeEntry(latest)) void act(() => props.onEditMessage(latest));
       return true;
     },
   }));
@@ -150,14 +149,10 @@ export function ThreadOutboxControl({
                             <T>Editing:</T>{" "}
                           </span>
                         ) : null}
-                        {entry.payload.voice
-                          ? gt("Voice message · {duration}", {
-                              duration: formatVoiceDuration(entry.payload.voice.durationMs),
-                            })
-                          : replaceComposerContextReferences(
-                              entry.payload.input.message.text,
-                              (reference) => reference.label,
-                            ) || gt("Attachment")}
+                        {replaceComposerContextReferences(
+                          entry.payload.input.message.text,
+                          (reference) => reference.label,
+                        ) || gt("Attachment")}
                       </span>
                       {deliveryError ? (
                         <span className="block text-muted-foreground">{deliveryError}</span>
@@ -202,12 +197,12 @@ export function ThreadOutboxControl({
                       >
                         <T>Cancel</T>
                       </Button>
-                    ) : entry.payload.voice ? null : (
+                    ) : (
                       <Button
                         size="icon-xs"
                         variant="ghost-muted"
                         aria-label={gt("Edit pending message")}
-                        disabled={busy || !canEditEntry(entry) || props.editingMessageId !== null}
+                        disabled={busy || !canChangeEntry(entry) || props.editingMessageId !== null}
                         onClick={() => {
                           void act(() => props.onEditMessage(entry));
                         }}
@@ -263,9 +258,4 @@ export function ThreadOutboxControl({
 
 function canChangeEntry(entry: PendingThreadTurn) {
   return !entry.attempted || entry.status === "failed";
-}
-
-// A voice message has no text to edit until the environment transcribes it.
-function canEditEntry(entry: PendingThreadTurn) {
-  return canChangeEntry(entry) && entry.payload.voice === undefined;
 }

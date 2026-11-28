@@ -64,6 +64,11 @@ NodeChildProcess.execFileSync(
   [NodePath.join(desktopDir, "scripts/build-sd-eject-guard.mjs")],
   { stdio: "inherit" },
 );
+NodeChildProcess.execFileSync(
+  process.execPath,
+  [NodePath.join(desktopDir, "scripts/build-apple-speech.mjs")],
+  { stdio: "inherit" },
+);
 
 await waitForResources({
   baseDir: desktopDir,

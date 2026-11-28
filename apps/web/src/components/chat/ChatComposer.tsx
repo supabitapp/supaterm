@@ -1,5 +1,4 @@
 import { copySnapshot } from "./copySnapshot";
-import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { readCanQueueComposerMessage } from "../../state/composerQueue";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
@@ -79,17 +78,14 @@ import {
   clampCollapsedComposerCursor,
   type ComposerSubmissionIntent,
   collapseExpandedComposerCursor,
+  composerSubmissionIntentForKey,
   isPathSuggestionCurrent,
   composerStateAtPromptEnd,
   expandCollapsedComposerCursor,
   formatAssistantCitationForComposer,
 } from "../../composer-logic";
 import { DISCONNECTED_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
-import {
-  deriveComposerSendState,
-  isComposerDraftEmpty,
-  getAntigravitySendBlockReason,
-} from "../ChatView.logic";
+import { deriveComposerSendState, getAntigravitySendBlockReason } from "../ChatView.logic";
 import { threadHasStarted } from "../../lib/chatThreadActions";
 import {
   dataTransferHasComposerMention,
@@ -146,15 +142,12 @@ import { ComposerBanner } from "./ComposerBanner";
 import { ComposerSurface } from "./ComposerSurface";
 import { CollapsedComposerPromptPreview } from "./CollapsedComposerPromptPreview";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./ComposerBannerStack";
-import {
-  ComposerVoiceButton,
-  ComposerVoiceSession,
-  composerVoiceBannerItem,
-} from "./ComposerVoiceInput";
-import { useComposerVoiceInput } from "../../voice/useComposerVoiceInput";
-import { holdToTalkKeyLabel } from "../../voice/useHoldToTalk";
-import { resolveVoiceLanguage } from "../../voice/voiceLanguage";
-import type { VoiceRecording } from "../../voice/webVoiceRecorder";
+import { useDictationShortcut } from "../../speech/useDictationShortcut";
+import { useDictationSubmissionShortcut } from "../../speech/useDictationSubmissionShortcut";
+import { useEnvironmentSpeechInput } from "../../speech/useEnvironmentSpeechInput";
+import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
+import { ComposerSpeechButton, ComposerSpeechRecordingPill } from "./ComposerSpeechButton";
+import { VoiceInputSetup } from "./VoiceInputSetup";
 import {
   attachmentsToReleaseOnUploadCapabilityLoss,
   composerOtherFilesForPresentation,
@@ -362,8 +355,8 @@ export interface ChatComposerHandle {
   toggleFastMode: () => SpeedToggleLevel | null;
   /** Sends the draft as the send button would; does nothing when sending isn't possible. */
   submit: () => void;
-  /** Starts voice input, or finishes the recording in progress; a key held past a tap finishes it on release. */
-  toggleVoiceInput: (press?: { readonly code: string }) => void;
+  /** Starts dictation, or finishes the recording in progress. */
+  toggleVoiceInput: () => void;
   toggleModelPicker: () => void;
   openControl: (command: KeybindingCommand) => void;
   isModelPickerOpen: () => boolean;
@@ -428,7 +421,6 @@ export interface ChatComposerProps {
   activeThreadShell: ThreadShell | null;
   activeThreadRuns: ReadonlyArray<OrchestrationV2Run>;
   promptHistoryEntries: ReadonlyArray<TimelineEntry>;
-  isServerThread: boolean;
   isLocalDraftThread: boolean;
   forceExpandedOnMobile: boolean;
   projectSelectionRequired: boolean;
@@ -524,10 +516,6 @@ export interface ChatComposerProps {
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
   ) => Promise<void>;
-  onPrepareVoiceSend: (
-    dispatchMode: ComposerDispatchMode,
-    language: string,
-  ) => (recording: VoiceRecording, handOff: VoiceRecordingHandOff | undefined) => Promise<void>;
   onResume: () => void;
   onInterrupt: () => void;
   onSelectActivePendingUserInputOption: (questionId: string, optionValue: string) => void;
@@ -585,7 +573,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThreadShell,
     activeThreadRuns,
     promptHistoryEntries,
-    isServerThread,
     isLocalDraftThread: _isLocalDraftThread,
     forceExpandedOnMobile,
     projectSelectionRequired,
@@ -642,7 +629,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onPageScrollRelease,
     onCompactContext,
     onSend,
-    onPrepareVoiceSend,
     onResume,
     onInterrupt,
     onSelectActivePendingUserInputOption,
@@ -828,6 +814,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerContextActions = {
     environmentId,
     cwd: gitCwd ?? undefined,
+    projectId: activeProjectId ?? undefined,
     expandImage: (imageId: string) => {
       const preview =
         buildExpandedImagePreview(composerImages, imageId, copyComposerSnapshotStable) ??
@@ -1183,8 +1170,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const [composerMenuAnchor, setComposerMenuAnchor] = useState<HTMLDivElement | null>(null);
   const [hasWrappedPrompt, observeWrappedPrompt] = useComposerMultilinePrompt();
   const hasMultilinePrompt = prompt.includes("\n") || hasWrappedPrompt;
-  // Set by the voice session, which starts later in this component, so its controls in the
-  // footer stay on screen while recording.
+  // Mirrors the dictation session, which starts later in this component, so its controls stay
+  // on screen while a recording owes the draft its transcript.
   const [voiceSessionOpen, setVoiceSessionOpen] = useState(false);
   const isComposerCollapsedMobile =
     isMobileViewport &&
@@ -1446,7 +1433,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isProjectSelectionRequired: projectSelectionRequired,
     isPreparingWorktree,
     isSendHeld: composerSendHeld,
-    hasSendableContent: hasMessageToSend,
+    hasSendableContent: hasMessageToSend || voiceSessionOpen,
     canResume: showResumeAction,
     isEditingQueuedMessage,
   } satisfies Omit<ComposerPrimaryActionInput, "alternateModifier" | "stopPhase">;
@@ -2085,53 +2072,56 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
   const applyPromptReplacementStable = useStableCallback(applyPromptReplacement);
 
-  const voiceLanguage = resolveVoiceLanguage(settings.voiceLanguage);
-  const voiceDispatchMode = () =>
-    resolveComposerDispatchMode({
-      running: phase === "running",
-      alternateModifier: false,
-      activeTurnDefault: followUpBehavior,
-      canSteer,
-    });
-  const voice = useComposerVoiceInput({
-    ownerKey: composerDraftTargetKey,
+  const navigateToThread = usePaneThreadNavigation();
+  const dictationDisabled =
+    !canOperateThread ||
+    environmentUnavailable !== null ||
+    projectSelectionRequired ||
+    isComposerApprovalState ||
+    activePendingIsResponding ||
+    activePendingProgress?.activeQuestion?.allowCustomAnswer === false;
+  const speechInput = useEnvironmentSpeechInput({
     environmentId,
-    threadId: isServerThread && activeThread ? activeThread.id : null,
     projectId: activeProjectId,
-    language: voiceLanguage.tag,
-    languageLabel: voiceLanguage.label,
-    readPrompt: () => promptRef.current,
-    readSelection: () =>
-      composerEditorRef.current?.readSelectionRange() ?? {
+    ownerKey: questionAttachmentTarget ?? composerDraftTargetKey,
+    disabled: dictationDisabled,
+    label: activeThread?.title ?? null,
+    // A question's answer lives only in this composer, so only the thread draft outlives it.
+    persistentDraft: questionAttachmentTarget
+      ? undefined
+      : {
+          readStoredText: () =>
+            useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.prompt ?? "",
+          commitStoredText: (text) => setComposerDraftPrompt(composerDraftTarget, text),
+          open: () =>
+            void navigateToThread(
+              routeKind === "draft" && typeof composerDraftTarget === "string"
+                ? { kind: "draft", draftId: composerDraftTarget }
+                : { kind: "server", threadRef: routeThreadRef },
+            ),
+        },
+    readDraft: () => ({
+      text: promptRef.current,
+      selection: composerEditorRef.current?.readSelectionRange() ?? {
         start: promptRef.current.length,
         end: promptRef.current.length,
       },
-    commitPrompt: (text, selection) =>
+    }),
+    commitDraft: (text, selection) =>
       applyPromptReplacementStable(0, promptRef.current.length, text, {
         expandedCursorAfterReplace: selection.start,
       }),
-    canSendVoice:
-      isServerThread &&
-      activeThread !== undefined &&
-      multipleModelSelections === null &&
-      !isEditingQueuedMessage &&
-      activePendingProgress === null &&
-      pendingUserInputs.length === 0 &&
-      replyTo === null &&
-      isComposerDraftEmpty({
-        prompt,
-        attachmentCount:
-          composerImages.length + composerFiles.length + composerDraft.persistedAttachments.length,
-        terminalContextCount: composerTerminalContexts.length,
-        elementContextCount: composerPreviewAnnotations.length + composerReviewComments.length,
-      }),
-    prepareVoiceSend: (submission) =>
-      onPrepareVoiceSend(submission.dispatchMode ?? voiceDispatchMode(), voiceLanguage.tag),
-    submit: (submission) =>
-      void submitComposerStable(undefined, submission.dispatchMode, submission.intent),
-    onBusyChange: setVoiceSessionOpen,
-    holdToTalkKey: settings.voiceHoldToTalkKey,
-    holdToTalkTarget: composerFormRef,
+  });
+  const { blocksSubmission: voiceInputActive, submitAfterDictation } = speechInput;
+  const speechSessionOpen = speechInput.state.phase !== "idle";
+  if (voiceSessionOpen !== voiceInputActive) setVoiceSessionOpen(voiceInputActive);
+  const dictationShortcutLabel = useDictationShortcut({
+    keybindings,
+    speech: speechInput,
+    disabled: dictationDisabled,
+    terminalOpen,
+    modelPickerOpen: isComposerModelPickerOpen,
+    ...(backgroundThread ? { targetRef: composerFormRef } : {}),
   });
 
   const readComposerSnapshot = (): {
@@ -2363,20 +2353,30 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
 
   const submitComposerRef = useRef<
-    (dispatchMode?: ComposerDispatchMode, submissionIntent?: ComposerSubmissionIntent) => void
+    (
+      dispatchMode?: ComposerDispatchMode,
+      submissionIntent?: ComposerSubmissionIntent,
+      options?: { readonly afterDictation?: boolean },
+    ) => void
   >(() => {});
   const submitComposer = (
     event?: { preventDefault: () => void },
     dispatchMode?: ComposerDispatchMode,
     submissionIntent?: ComposerSubmissionIntent,
+    options?: { readonly afterDictation?: boolean },
   ): Promise<void> | null => {
-    if (voice.state.phase === "recording") {
+    if (voiceInputActive && !options?.afterDictation) {
       event?.preventDefault();
-      void voice.send({ dispatchMode, intent: submissionIntent });
+      const queuedOwnerKey = attachmentTargetKey;
+      submitAfterDictation(() => {
+        if (composerMountedRef.current && attachmentTargetKeyRef.current === queuedOwnerKey) {
+          submitComposerRef.current(dispatchMode, submissionIntent, { afterDictation: true });
+        }
+      });
       return null;
     }
     if (
-      voice.busy ||
+      speechInput.preparing ||
       submissionBlocked ||
       !(activePendingProgress
         ? readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)
@@ -2445,9 +2445,38 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const submitComposerStable = useStableCallback(submitComposer);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed submission handler to the send held for compressing images
   useLayoutEffect(() => {
-    submitComposerRef.current = (mode, intent) =>
-      void submitComposerStable(undefined, mode, intent);
+    submitComposerRef.current = (mode, intent, options) =>
+      void submitComposerStable(undefined, mode, intent, options);
   }, [submitComposerStable]);
+  useDictationSubmissionShortcut({
+    enabled: voiceInputActive && !speechInput.preparing,
+    formRef: composerFormRef,
+    onKeyDown: (event) => {
+      const intent = composerSubmissionIntentForKey({
+        event,
+        keybindings,
+        context: getShortcutContext(event.target),
+        isSoftwareKeyboardOpen,
+        isDraftThread: routeKind === "draft",
+        isRunning: turnRunning,
+        sendShortcut: settings.sendShortcut,
+        prompt: promptRef.current,
+      });
+      if (!intent) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      submitComposer(
+        undefined,
+        resolveComposerDispatchMode({
+          running: turnRunning,
+          alternateModifier: intent === "alternate",
+          canSteer,
+          activeTurnDefault: followUpBehavior,
+        }),
+        intent,
+      );
+    },
+  });
   const handleSubmitMessage = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     const alternateModifier = event.metaKey || event.ctrlKey;
@@ -2533,6 +2562,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const promptSuggestion =
     nextPrompt.suggestion !== null &&
     prompt === "" &&
+    !speechInput.freezesEditor &&
     composerContextRecords.size === 0 &&
     !isComposerApprovalState &&
     activePendingProgress === null &&
@@ -2965,8 +2995,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       getModelDisabledReason={getModelDisabledReason}
     />
   );
-  const voiceBannerItem = composerVoiceBannerItem(voice, m);
-  const bannerStackItems = voiceBannerItem ? [voiceBannerItem, ...bannerItems] : bannerItems;
+  const bannerStackItems = bannerItems;
 
   const insertComposerText = (
     text: string,
@@ -3569,7 +3598,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       return change.level;
     },
     submit: () => submitComposerStable(),
-    toggleVoiceInput: voice.toggle,
+    toggleVoiceInput: () =>
+      void (speechInput.state.phase === "recording" ? speechInput.stop() : speechInput.start()),
     toggleModelPicker: () => {
       if (isComposerModelPickerOpen) {
         setIsComposerModelPickerOpen(false);
@@ -4275,7 +4305,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     disabled={
                       projectSelectionRequired ||
                       isChoiceOnlyPendingQuestion ||
-                      activePendingIsResponding
+                      activePendingIsResponding ||
+                      speechInput.freezesEditor
                     }
                   />
                 </ComposerContextActionsContext>
@@ -4301,6 +4332,19 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             <ComposerPromptLengthValidation
               message={providerInputSubmissionError ?? composerSubmissionError}
             />
+
+            {speechInput.preview ? (
+              // column-reverse pins the scroll to the bottom; the single inner div keeps the text in normal order.
+              <div
+                aria-label={gt("Live transcription")}
+                className="mx-3 mb-3 flex max-h-32 flex-col-reverse overflow-y-auto rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm leading-relaxed break-words whitespace-pre-wrap sm:mx-4"
+              >
+                <div>
+                  <span>{speechInput.preview.committed}</span>
+                  <span className="text-muted-foreground">{speechInput.preview.tentative}</span>
+                </div>
+              </div>
+            ) : null}
 
             {isComposerCollapsedMobile ? null : (
               <div
@@ -4338,39 +4382,63 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   }
                   className="flex shrink-0 flex-nowrap items-center justify-end gap-2"
                 >
-                  {voice.busy ? (
-                    <ComposerVoiceSession
-                      voice={voice}
-                      shortcutLabel={shortcutLabelForCommand(keybindings, "composer.voice")}
-                    />
-                  ) : (
+                  {speechSessionOpen ? null : composerAttachButton}
+                  {speechInput.available ? (
                     <>
-                      {composerAttachButton}
+                      <ComposerSpeechRecordingPill
+                        state={speechInput.state}
+                        progress={null}
+                        finishShortcutLabel={dictationShortcutLabel}
+                        cancelShortcutLabel="Esc"
+                        level={speechInput.level}
+                        recordingStartedAt={speechInput.recordingStartedAt}
+                        disabled={dictationDisabled}
+                        onStart={() => void speechInput.start()}
+                        onStop={() => void speechInput.stop()}
+                        onCancel={() => speechInput.cancel()}
+                        onSkipPostProcessing={() => speechInput.skipPostProcessing()}
+                      />
                       {showComposerAttachAction ? (
-                        <ComposerVoiceButton
-                          voice={voice}
-                          disabled={!canOperateThread}
-                          shortcutLabel={shortcutLabelForCommand(keybindings, "composer.voice")}
-                          holdKeyLabel={holdToTalkKeyLabel(settings.voiceHoldToTalkKey)}
+                        <ComposerSpeechButton
+                          state={speechInput.state}
+                          shortcutLabel={dictationShortcutLabel}
+                          disabled={dictationDisabled}
+                          onStart={() => void speechInput.start()}
                         />
                       ) : null}
-                      <ComposerPrimaryActions
-                        // Stop state belongs to one thread; the composer stays mounted across threads.
-                        key={`${environmentId}:${activeThreadId ?? "new"}`}
-                        compact={isComposerResting || isComposerPrimaryActionsCompact}
-                        keybindings={keybindings}
-                        {...composerPrimaryActionFacts}
-                        runId={activeThread?.runtime?.activeRunId ?? null}
-                        sendShortcut={settings.sendShortcut}
-                        isDraftThread={_isLocalDraftThread}
-                        hasMultilinePrompt={hasMultilinePrompt}
-                        preserveComposerFocusOnPointerDown={isMobileViewport || isComposerResting}
-                        onSubmitMessage={handleSubmitMessageStable}
-                        onResume={onResume}
-                        onInterrupt={handleInterruptPrimaryActionStable}
-                      />
                     </>
-                  )}
+                  ) : null}
+                  <VoiceInputSetup
+                    environmentId={speechInput.transcriptionEnvironmentId}
+                    open={speechInput.setup.open}
+                    step={speechInput.setup.step}
+                    status={speechInput.status}
+                    model={speechInput.setup.model}
+                    language={speechInput.setup.language}
+                    downloading={speechInput.setup.downloading}
+                    error={speechInput.setup.error}
+                    onOpenChange={speechInput.setup.setOpen}
+                    onRetryCatalog={speechInput.setup.retryCatalog}
+                    onDownload={() => void speechInput.setup.download()}
+                    onCancelDownload={() => void speechInput.setup.cancelDownload()}
+                    onStartRecording={() => void speechInput.setup.startRecording()}
+                  />
+
+                  <ComposerPrimaryActions
+                    // Stop state belongs to one thread; the composer stays mounted across threads.
+                    key={`${environmentId}:${activeThreadId ?? "new"}`}
+                    compact={isComposerResting || isComposerPrimaryActionsCompact}
+                    keybindings={keybindings}
+                    {...composerPrimaryActionFacts}
+                    runId={activeThread?.runtime?.activeRunId ?? null}
+                    sendShortcut={settings.sendShortcut}
+                    isDraftThread={_isLocalDraftThread}
+                    hasMultilinePrompt={hasMultilinePrompt}
+                    preserveComposerFocusOnPointerDown={isMobileViewport || isComposerResting}
+                    onSubmitMessage={handleSubmitMessageStable}
+                    onResume={onResume}
+                    onInterrupt={handleInterruptPrimaryActionStable}
+                  />
                 </div>
               </div>
             )}

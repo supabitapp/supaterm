@@ -20,7 +20,6 @@ import { sharedServerCommandFlags } from "./cli/config.ts";
 import { projectCommand } from "./cli/project.ts";
 import { reportCliFailure } from "./cli/reportFailure.ts";
 import { threadCommand } from "./cli/thread.ts";
-import { transcribeCommand } from "./cli/transcribe.ts";
 import { runDefaultServerCommand, serveCommand, startCommand } from "./cli/server.ts";
 import { updateCommand } from "./cli/update.ts";
 import {
@@ -41,6 +40,7 @@ import { relayClientCommand } from "./cli/relayClient.ts";
 import { settingsCommand } from "./cli/settings.ts";
 import { tailscaleCommand } from "./cli/tailscale.ts";
 import { triageCommand } from "./cli/triage.ts";
+import { speechWorkerCommand } from "./cli/speechWorker.ts";
 
 const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer);
 
@@ -66,7 +66,6 @@ export const makeCli = () =>
       browserCommand,
       projectCommand,
       threadCommand,
-      transcribeCommand,
       serviceCommand,
       updateCommand,
       installCommand,
@@ -86,6 +85,7 @@ export const makeCli = () =>
       doctorCommand,
       policyCommand,
       triageCommand,
+      speechWorkerCommand,
       relayClientCommand,
       settingsCommand,
       tailscaleCommand,

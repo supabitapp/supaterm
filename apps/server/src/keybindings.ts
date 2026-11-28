@@ -121,7 +121,12 @@ const SAVED_DEFAULT_MOVES = [
     from: "mod+shift+s",
     to: "mod+shift+d",
   },
-  { marker: "voice-shortcut-v1", command: "composer.voice", from: "mod+shift+space", to: "ctrl+m" },
+  {
+    marker: "voice-shortcut-v1",
+    command: "composer.dictation",
+    from: "mod+shift+space",
+    to: "ctrl+m",
+  },
 ] as const satisfies ReadonlyArray<{
   readonly marker: string;
   readonly command: KeybindingRule["command"];

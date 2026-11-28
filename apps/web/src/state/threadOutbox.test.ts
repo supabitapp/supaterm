@@ -17,7 +17,6 @@ const harness = vi.hoisted(() => ({
   records: new Map<string, ThreadOutboxEntry<OutboxTurn>>(),
   run: vi.fn(),
   verify: vi.fn(),
-  voice: vi.fn(),
   marked: vi.fn(),
   finalized: vi.fn(),
   online: false,
@@ -105,9 +104,6 @@ vi.mock("./attachments", async () => {
 });
 vi.mock("./assets", () => ({ assetEnvironment: { createUrl: { label: "verify" } } }));
 vi.mock("./vcs", () => ({ fetchVcsRefs: { label: "refs" } }));
-vi.mock("./transcription", () => ({
-  uploadVoiceAudio: (...args: unknown[]) => harness.voice(...args),
-}));
 vi.mock("./session", () => ({
   readPreparedConnection: () => ({ httpBaseUrl: "https://environment.example" }),
 }));
@@ -868,121 +864,4 @@ describe("web thread outbox delivery", () => {
       expect(harness.run).toHaveBeenCalledTimes(1);
     },
   );
-});
-
-describe("web thread outbox voice messages", () => {
-  function voiceTarget() {
-    const original = target();
-    return {
-      ...original,
-      input: {
-        ...original.input,
-        message: { ...original.input.message, text: "" },
-        dispatchMode: "queue" as const,
-      },
-      voice: { audio: new Blob(["wav"], { type: "audio/wav" }), durationMs: 4_200, language: "en" },
-    };
-  }
-
-  it.each([
-    { name: "", fresh: {} },
-    { name: " in a fresh session after /clear", fresh: { freshContext: true } },
-  ])(
-    "lets the environment transcribe and send it under the turn's own identifiers$name",
-    async ({ fresh }) => {
-      const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
-      const turn = voiceTarget();
-      await enqueueThreadOutboxTurn({ ...turn, input: { ...turn.input, ...fresh } });
-      harness.online = true;
-      harness.voice.mockResolvedValue({
-        text: "fix the build",
-        submission: { status: "sent", sequence: 3 },
-      });
-      await webThreadOutbox.drain();
-
-      expect(harness.voice).toHaveBeenCalledWith(
-        expect.objectContaining({
-          environmentId: "environment",
-          request: {
-            language: "en",
-            submit: {
-              threadId: "thread",
-              commandId: "stable-command",
-              messageId: "message",
-              modelSelection: { instanceId: "codex", model: "test-model" },
-              delivery: "queue",
-              creationSource: "web",
-              ...fresh,
-            },
-          },
-        }),
-      );
-      expect(harness.run).not.toHaveBeenCalled();
-      expect(webThreadOutbox.getSnapshot()).toEqual([]);
-    },
-  );
-
-  it("applies the composer's thread settings before the environment sends it", async () => {
-    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
-    await enqueueThreadOutboxTurn({ ...voiceTarget(), branch: "main" });
-    harness.existingThread = true;
-    harness.online = true;
-    harness.voice.mockResolvedValue({
-      text: "fix the build",
-      submission: { status: "sent", sequence: 3 },
-    });
-    await webThreadOutbox.drain();
-
-    expect(harness.run.mock.calls.map((call) => call[1].label)).toEqual([
-      "branch",
-      "runtime",
-      "interaction",
-    ]);
-    expect(harness.voice).toHaveBeenCalledOnce();
-  });
-
-  it("fails without speech, and keeps a refused transcript as text to edit or retry", async () => {
-    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
-    await enqueueThreadOutboxTurn(voiceTarget());
-    harness.online = true;
-    harness.voice.mockResolvedValueOnce({ text: "", submission: { status: "noSpeech" } });
-    await webThreadOutbox.drain();
-    expect(harness.records.get("message")).toMatchObject({
-      status: "failed",
-      error: "No speech was detected in this recording.",
-      payload: { voice: { durationMs: 4_200 } },
-    });
-
-    harness.records.clear();
-    vi.resetModules();
-    const reloaded = await import("./threadOutbox");
-    await reloaded.enqueueThreadOutboxTurn(voiceTarget());
-    harness.voice.mockResolvedValueOnce({ text: "deploy", submission: { status: "failed" } });
-    await reloaded.webThreadOutbox.drain();
-    const refused = harness.records.get("message")!;
-    expect(refused.status).toBe("failed");
-    expect(refused.error).toBe("The transcript couldn't be sent. Edit or retry it.");
-    expect(refused.payload.voice).toBeUndefined();
-    expect(refused.payload.input.commandId).toBe("generated-command");
-    expect(refused.payload.input.message.text).toBe("deploy");
-  });
-
-  it("keeps waiting after a dropped upload instead of failing", async () => {
-    const { VoiceUploadError } = await import("@supaterm/client-runtime/state/transcription");
-    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
-    await enqueueThreadOutboxTurn(voiceTarget());
-    harness.online = true;
-    harness.voice.mockRejectedValueOnce(
-      new VoiceUploadError({
-        reason: "disconnected",
-        message: "The recording couldn't reach the environment.",
-        retryable: true,
-      }),
-    );
-    await webThreadOutbox.drain();
-    expect(harness.records.get("message")).toMatchObject({
-      status: "pending",
-      payload: { input: { commandId: "stable-command" }, voice: { durationMs: 4_200 } },
-    });
-  });
 });

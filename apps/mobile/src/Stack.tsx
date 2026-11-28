@@ -122,7 +122,8 @@ import {
 } from "./features/settings/ScheduledTaskPickerScreens";
 import { SettingsKeyboardRouteScreen } from "./features/settings/SettingsKeyboardRouteScreen";
 import { SettingsLegalRouteScreen } from "./features/settings/SettingsLegalRouteScreen";
-import { SettingsVoiceTranscriptionRouteScreen } from "./features/settings/SettingsVoiceTranscriptionRouteScreen";
+import { SettingsVoiceRouteScreen } from "./features/settings/SettingsVoiceRouteScreen";
+import { SettingsVoiceModelsRouteScreen } from "./features/settings/SettingsVoiceModelsRouteScreen";
 import {
   SettingsOpenSourceLicenseRouteScreen,
   SettingsOpenSourceLicensesRouteScreen,
@@ -164,7 +165,6 @@ const ROUTE_TITLES: Readonly<Record<string, string>> = {
   SettingsEnvironmentAgentBehavior: msg("Threads"),
   SettingsWorktrees: msg("Worktrees"),
   SettingsProviderAccounts: msg("Providers"),
-  SettingsEnvironmentVoiceTranscription: msg("Voice transcription"),
   SettingsEnvironmentMaintenance: msg("Maintenance"),
   SettingsThreads: msg("Threads"),
   SettingsAbout: msg("About"),
@@ -177,6 +177,7 @@ const ROUTE_TITLES: Readonly<Record<string, string>> = {
   SettingsLanguage: msg("Language"),
   SettingsProjectOverview: msg("Projects"),
   SettingsKeyboard: msg("Keyboard"),
+  SettingsVoice: msg("Voice"),
   SettingsFollowUp: msg("Chat", { $context: "noun, settings page title" }),
   SettingsScheduledTasks: msg("Scheduled tasks"),
   SettingsScheduledTaskNew: msg("New scheduled task"),
@@ -265,11 +266,6 @@ const SETTINGS_SCREENS = {
     linking: "settings/provider-accounts",
     options: settingsPage(),
   }),
-  SettingsEnvironmentVoiceTranscription: createNativeStackScreen({
-    screen: SettingsVoiceTranscriptionRouteScreen,
-    linking: "settings/voice-transcription",
-    options: settingsPage(),
-  }),
   SettingsEnvironmentMaintenance: createNativeStackScreen({
     screen: SettingsEnvironmentMaintenanceRouteScreen,
     linking: "settings/maintenance",
@@ -329,6 +325,15 @@ const SETTINGS_SCREENS = {
     screen: SettingsKeyboardRouteScreen,
     linking: "settings/keyboard",
     options: settingsPage(),
+  }),
+  SettingsVoice: createNativeStackScreen({
+    screen: SettingsVoiceRouteScreen,
+    linking: { path: "settings/voice", alias: ["settings/voice-transcription"] },
+    options: settingsPage(),
+  }),
+  SettingsVoiceModels: createNativeStackScreen({
+    screen: SettingsVoiceModelsRouteScreen,
+    options: SEARCH_SHEET_ROUTE,
   }),
   SettingsFollowUp: createNativeStackScreen({
     screen: SettingsFollowUpRouteScreen,

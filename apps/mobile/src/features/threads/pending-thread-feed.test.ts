@@ -301,20 +301,4 @@ describe("pending timeline messages", () => {
     const working = appendPendingThreadMessages([thinking], [], [pending("queued")]);
     expect(appendTurn(working, sending)).toBe(working);
   });
-
-  it("leaves a held voice message on its own status line", () => {
-    const appendTurn = createPendingTurnAppender();
-    const held = appendPendingThreadMessages(
-      [],
-      [],
-      [
-        {
-          ...pending("held-voice"),
-          voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
-          failure: "Sign in to this provider again to transcribe.",
-        },
-      ],
-    );
-    expect(appendTurn(held, { zen: false, dispatchingMessageId: null })).toBe(held);
-  });
 });

@@ -31,7 +31,6 @@ import { type EnvironmentConnectionPhase } from "@supaterm/client-runtime/connec
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import type { HandoffEndpoints } from "@supaterm/client-runtime/handoff";
 import { queuedRunEditBlockedReason } from "@supaterm/client-runtime/queued-run-edit";
-import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import {
   childThreadInputsTitle,
   type CodexFeedbackSubmission,
@@ -312,11 +311,6 @@ export interface ThreadDetailScreenProps {
       hasAttachmentsOrContext: boolean,
     ) => Promise<boolean | "responded">,
     onWillEnqueue?: () => void,
-  ) => Promise<MessageId | null>;
-  readonly onSendVoiceMessage?: (
-    recordingUri: string,
-    language: string,
-    handOff: VoiceRecordingHandOff | undefined,
   ) => Promise<MessageId | null>;
   /** Queues a standalone text command, such as `/goal clear`, without touching the draft. */
   readonly onSendCommand: (text: string) => Promise<MessageId | null>;
@@ -1503,26 +1497,6 @@ function ThreadDetailBody(
       });
     }
   };
-  const { onSendVoiceMessage } = props;
-  // Declining approvals to redirect the agent is the text send path's job.
-  const handleSendVoiceMessage =
-    onSendVoiceMessage && clientCreation === null && props.activePendingApprovals.length === 0
-      ? async (
-          recordingUri: string,
-          language: string,
-          handOff: VoiceRecordingHandOff | undefined,
-        ) => {
-          const scope = threadScope.current.signal;
-          const targetThreadKey = selectedThreadKey;
-          const hasUserMessage = selectedThreadFeed.some(
-            (entry) => entry.type === "message" && entry.message.role === "user",
-          );
-          const messageId = await onSendVoiceMessage(recordingUri, language, handOff);
-          if (messageId !== null && !scope.aborted) {
-            revealSubmittedMessage(scope, targetThreadKey, messageId, hasUserMessage);
-          }
-        }
-      : undefined;
 
   const handleEditPendingMessage = async (message: QueuedThreadMessage) => {
     if (pendingMessageEditBlocked) return;
@@ -2115,7 +2089,6 @@ function ThreadDetailBody(
                         onStopThread={props.onStopThread}
                         onResumeQueue={props.onResumeQueue}
                         onSendMessage={handleSendMessage}
-                        onSendVoiceMessage={props.draftMode ? undefined : handleSendVoiceMessage}
                         onShowUsageLimits={showUsageLimits}
                         canSwitchProvider={props.canSwitchThreadProvider}
                         onUpdateModelSelection={props.onUpdateThreadModelSelection}

@@ -81,13 +81,6 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.secretsAnswerRequest]: AuthOrchestrationOperateScope,
   [WS_METHODS.orchestrationSkillsInstall]: AuthProvidersManageScope,
   [WS_METHODS.orchestrationSkillsUninstall]: AuthProvidersManageScope,
-  // Transcribing spends the named provider account, like running a model does.
-  [WS_METHODS.transcriptionTranscribe]: AuthOrchestrationOperateScope,
-  [WS_METHODS.transcriptionCancel]: AuthOrchestrationOperateScope,
-  // A prepared upload can also send its transcript to a thread as the user's prompt.
-  [WS_METHODS.transcriptionPrepareUpload]: AuthOrchestrationOperateScope,
-  [WS_METHODS.transcriptionCancelUpload]: AuthOrchestrationOperateScope,
-  [WS_METHODS.transcriptionPrepareStream]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsCallTool]: AuthOrchestrationOperateScope,
   [WS_METHODS.mcpAppsUpdateModelContext]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewReportProfiles]: AuthPreviewOperateScope,

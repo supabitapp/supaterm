@@ -9,7 +9,6 @@
     "dev:built": "vp build --watch",
     "build": "vp build",
     "preview": "vp preview",
-    "render:voice-cues": "node scripts/render-voice-input-cues.ts",
     "test": "vp test run --passWithNoTests --project unit --project browser",
     "bench": "vp test bench --passWithNoTests --project \"unit (bench)\"",
     "i18n:generate": "gt generate"
@@ -59,7 +58,6 @@
     "@tiptap/starter-kit": "^3.31.3",
     "allo-font": "1.0.0",
     "class-variance-authority": "^0.7.1",
-    "cuelume": "0.2.8",
     "culori": "^4.0.2",
     "dompurify": "^3.4.17",
     "effect": "catalog:",

@@ -5,15 +5,10 @@ import {
 } from "@supaterm/shared/composerContextReferences";
 import {
   AuthOrchestrationOperateScope,
-  CommandId,
   type ComposerContextRecord,
   type PreviewAnnotationPayload,
 } from "@supaterm/contracts";
-import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
-import {
-  outboxDispatchMode,
-  type ComposerDispatchMode,
-} from "@supaterm/client-runtime/state/composer-dispatch";
+import { type ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
   type ComposerImageAttachment,
   checkoutPullRequestUrlToLink,
@@ -32,7 +27,6 @@ import {
   buildExpiredTerminalContextToastCopy,
   deriveComposerSendState,
   formatOutgoingPrompt,
-  freshTurnDispatchMode,
   mergeDirectPreviewAnnotation,
   planComposerTurn,
   sendTitleFallbackLabels,
@@ -54,8 +48,7 @@ import {
   sendApprovalFeedback,
 } from "@supaterm/client-runtime/state/thread-requests";
 import { deriveThreadTitleSeed } from "@supaterm/client-runtime/operations";
-import { enqueueThreadOutboxTurn, enqueueThreadOutboxTurns } from "../../state/threadOutbox";
-import type { VoiceRecording } from "../../voice/webVoiceRecorder";
+import { enqueueThreadOutboxTurns } from "../../state/threadOutbox";
 import { ensureInlineContextReferences } from "../../lib/composerContextReferences";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
@@ -1181,48 +1174,6 @@ export function useComposerSend(input: ComposerSendInput) {
     sendInFlightRef.current = false;
   };
 
-  /**
-   * Snapshots this thread's next turn when Send is pressed, so the recording keeps that
-   * destination; the environment transcribes it and sends the text.
-   */
-  const prepareVoiceSend = (dispatchMode: ComposerDispatchMode, language: string) => {
-    const sendCtx = composerRef.current?.getSendContext();
-    if (!activeThread || !isServerThread || isLocalDraftThread || !sendCtx) {
-      throw new Error("Voice messages need a thread that has started.");
-    }
-    const freshArm = freshSessionAvailable ? readFreshSessionArm(routeThreadKey) : undefined;
-    const input = {
-      threadId: activeThread.id,
-      message: { messageId: newMessageId(), role: "user" as const, text: "", attachments: [] },
-      modelSelection: sendCtx.selectedModelSelection,
-      runtimeMode,
-      interactionMode: sendCtx.interactionMode,
-      dispatchMode: outboxDispatchMode({
-        dispatchMode: freshTurnDispatchMode(dispatchMode, freshArm !== undefined),
-        setupRunning: sendQueuesBehindSetup,
-        deferredSteering,
-      }),
-      ...(freshArm === undefined ? {} : { freshContext: true }),
-      createdAt: new Date().toISOString(),
-    };
-    const branch = localCheckoutBranchMismatch?.currentBranch;
-    return async (recording: VoiceRecording, handOff: VoiceRecordingHandOff | undefined) => {
-      await enqueueThreadOutboxTurn({
-        environmentId,
-        // A streamed recording is sent under its dictation's id, so the environment joins it.
-        input: handOff ? { ...input, commandId: CommandId.make(handOff.uploadId) } : input,
-        voice: {
-          audio: recording.audio,
-          durationMs: recording.durationMs,
-          language,
-          ...(handOff?.streamed ? { streamed: true } : {}),
-        },
-        ...(branch === undefined ? {} : { branch }),
-      });
-      if (freshArm !== undefined) disarmFreshSession(routeThreadKey, freshArm);
-    };
-  };
-
   const onSendLatest = useStableCallback(onSend);
   const sendWithEnvironmentRefresh = async (...args: Parameters<typeof onSend>) => {
     const refresh =
@@ -1248,5 +1199,5 @@ export function useComposerSend(input: ComposerSendInput) {
     });
     return sendWithEnvironmentRefreshLatest(...args);
   };
-  return { onSend: onSendWithRouting, prepareVoiceSend };
+  return { onSend: onSendWithRouting };
 }

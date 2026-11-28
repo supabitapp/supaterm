@@ -388,20 +388,6 @@ export function summarizeSupatermToolCalls(
         quantity(countEntities(entityIds("attachmentId")), "pending attachment"),
       );
       break;
-    case "transcription-transcribe":
-      label = phrase(
-        "Transcribed",
-        "transcribe",
-        quantity(countEntities(entityIds("audioAttachmentId")), "recording"),
-      );
-      break;
-    case "transcription-cancel":
-      label = phrase(
-        "Cancelled",
-        "cancel",
-        quantity(countEntities(entityIds("audioAttachmentId")), "transcription"),
-      );
-      break;
     case "attachment-send": {
       const messages = new Map<string, (typeof selected)[number]>();
       selected.forEach((call, index) =>

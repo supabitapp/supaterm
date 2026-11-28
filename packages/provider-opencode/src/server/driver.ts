@@ -424,6 +424,11 @@ export const OpenCodeDriver: ProviderDriver<
           "generateReviewGuide",
           openCode2TextGeneration.generateReviewGuide(input),
         ),
+      generateTranscriptionPostProcessing: (input) =>
+        generateOnOpenCode2(
+          "generateTranscriptionPostProcessing",
+          openCode2TextGeneration.generateTranscriptionPostProcessing(input),
+        ),
     };
 
     const legacyUsageLimits = readOpenCodeGoUsageLimits({

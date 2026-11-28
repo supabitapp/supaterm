@@ -18,14 +18,11 @@ import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
-  TranscriptionError,
   type EnvironmentId,
   type MessageId,
-  type ModelSelection,
 } from "@supaterm/contracts";
 import { managedRuntimeModeDenial } from "@supaterm/client-runtime/contract-labels";
 import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
-import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { buildTemporaryWorktreeBranchName } from "@supaterm/shared/git";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -43,7 +40,6 @@ import { buildProjectThreadStartTurnInput } from "../lib/projectThreadStartTurn"
 import { serializeComposerMessageForServer, uploadedComposerContext } from "../lib/composerContext";
 import { prepareTurnAttachments } from "../lib/attachmentUpload";
 import { randomHex } from "../lib/uuid";
-import { makeQueuedMessageMetadata } from "../lib/commandMetadata";
 import {
   describeUnavailableModelSelection,
   isModelSelectionUnavailable,
@@ -71,21 +67,14 @@ import {
   confirmThreadOutboxMessageQueued,
   threadOutboxManager,
   threadOutboxRevision,
-  updateThreadOutboxMessage,
 } from "./thread-outbox";
 import { removeThreadOutboxMessage } from "./thread-outbox-removal";
-import {
-  queuedVoiceRecordingFile,
-  releaseUnusedQueuedVoiceRecordings,
-} from "./thread-outbox-audio";
-import { uploadEnvironmentVoiceRecording } from "./transcription";
 import {
   isQueuedThreadCreationSendable,
   resolveThreadOutboxDeliveryAction,
   resolveThreadOutboxDispatchStep,
   resolveThreadOutboxFailureAction,
   resolveQueuedThreadSettings,
-  resolveVoiceDeliveryStep,
   shouldRetryThreadOutboxDelivery,
   threadOutboxRetryDelayMs,
   type QueuedThreadCreation,
@@ -272,7 +261,7 @@ const storage = <A>(
 
 class OutboxDeliveryStepError extends Schema.TaggedError<OutboxDeliveryStepError>()(
   "OutboxDeliveryStepError",
-  { step: Schema.Literals(["voice-upload", "branch-resolution"]), cause: Schema.Defect() },
+  { step: Schema.Literals(["branch-resolution"]), cause: Schema.Defect() },
 ) {
   override get message(): string {
     return `Queued message ${this.step} failed.`;
@@ -702,120 +691,6 @@ const preserveUploadedAttachmentsForEditor = Effect.fn(
   yield* Effect.promise(() => flushComposerDrafts());
 });
 
-function releaseVoiceRecordingsQuietly(): void {
-  void releaseUnusedQueuedVoiceRecordings().catch((error: unknown) => {
-    console.warn("[thread-outbox] failed to delete unused voice recordings", error);
-  });
-}
-
-const freshCommandId = () => CommandId.make(makeQueuedMessageMetadata().commandId);
-
-/** Stops delivering a message that only the user can continue; its thread's queue waits. */
-const holdQueuedMessage = Effect.fn("ThreadOutbox.holdQueuedMessage")(function* (
-  queuedMessage: QueuedThreadMessage,
-  failure: string,
-) {
-  const revision = threadOutboxRevision(queuedMessage.messageId);
-  if (!isQueuedMessagePayloadCurrent(queuedMessage, revision)) return;
-  yield* storage("hold", queuedMessage.messageId, () =>
-    updateThreadOutboxMessage(
-      { ...queuedMessage, commandId: freshCommandId(), failure },
-      revision,
-      () => !isEditingQueuedMessage(queuedMessage.messageId),
-    ),
-  ).pipe(Effect.catch(() => retryDelivery));
-});
-
-type VoiceDelivery =
-  | {
-      readonly status: "delivered";
-      readonly message: QueuedThreadMessage;
-      readonly revision: number;
-      readonly sequence: number | undefined;
-    }
-  | { readonly status: "held" | "retry" | "abandoned" };
-
-/**
- * Uploads a queued recording for the environment to transcribe and send. Re-preparing under
- * the same command id joins the server's work, so a retry after a dropped connection never
- * sends twice. A delivered message comes back with its transcript for the caller to retire.
- */
-export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMessage")(function* (
-  queuedMessage: QueuedThreadMessage,
-  modelSelection: ModelSelection,
-): Effect.fn.Return<VoiceDelivery> {
-  const voice = queuedMessage.voice;
-  if (!voice || !(yield* confirmQueued(queuedMessage))) {
-    return { status: "abandoned" };
-  }
-  const revision = threadOutboxRevision(queuedMessage.messageId);
-  if (!isQueuedMessagePayloadCurrent(queuedMessage, revision)) {
-    return { status: "abandoned" };
-  }
-  const file = yield* Effect.promise(() => queuedVoiceRecordingFile(queuedMessage.messageId));
-  const outcome: Parameters<typeof resolveVoiceDeliveryStep>[1] = !file.exists
-    ? {
-        error: new VoiceUploadError({
-          reason: "audioMissing",
-          message: new TranscriptionError({ reason: "audioMissing" }).message,
-          retryable: false,
-        }),
-      }
-    : yield* Effect.tryPromise({
-        try: () =>
-          uploadEnvironmentVoiceRecording({
-            environmentId: queuedMessage.environmentId,
-            uri: file.uri,
-            request: {
-              sizeBytes: voice.sizeBytes,
-              language: voice.language,
-              submit: {
-                threadId: queuedMessage.threadId,
-                commandId: queuedMessage.commandId,
-                messageId: queuedMessage.messageId,
-                modelSelection,
-                delivery: queuedMessage.dispatchMode ?? "auto",
-                creationSource: "mobile",
-                ...(queuedMessage.freshContext ? { freshContext: true } : {}),
-              },
-            },
-            ...(voice.streamedUploadId === queuedMessage.commandId ? { streamed: true } : {}),
-          }),
-        catch: (cause) => new OutboxDeliveryStepError({ step: "voice-upload", cause }),
-      }).pipe(
-        Effect.map((result) => ({ result })),
-        Effect.catch((error) => Effect.succeed({ error: error.cause })),
-      );
-  const step = resolveVoiceDeliveryStep(queuedMessage, outcome, freshCommandId);
-  if (step.step === "retry") {
-    threadOutboxDebug.log("voice message delivery failed; retrying", {
-      environmentId: queuedMessage.environmentId,
-      messageId: queuedMessage.messageId,
-      error: "error" in outcome ? outcome.error : null,
-    });
-    return { status: "retry" };
-  }
-  if (step.step === "hold") {
-    const held = yield* Effect.promise(() =>
-      updateThreadOutboxMessage(
-        step.message,
-        revision,
-        () => !isEditingQueuedMessage(queuedMessage.messageId),
-      ),
-    );
-    if (held && step.message.voice === undefined) releaseVoiceRecordingsQuietly();
-    return { status: "held" };
-  }
-  const { voice: _, ...delivered } = queuedMessage;
-  const submission = "result" in outcome ? outcome.result.submission : undefined;
-  return {
-    status: "delivered",
-    message: { ...delivered, text: step.transcript },
-    revision,
-    sequence: submission?.status === "sent" ? submission.sequence : undefined,
-  };
-});
-
 // Everything delivery decides from. Each queued environment's session is read
 // here so a granted or revoked operate scope wakes delivery.
 
@@ -1037,10 +912,6 @@ export function createThreadOutboxDelivery(): {
         settings.modelSelection,
         thread.projectId,
       );
-      // A recording has no text to put back in the composer.
-      if (queuedMessage.voice) {
-        return yield* holdQueuedMessage(queuedMessage, `${title}. ${detail}`);
-      }
       return yield* restoreQueuedMessage(queuedMessage, `${title}. ${detail}`);
     }
     // The server would refuse this mode in settings sync, which retries forever; stop first.
@@ -1050,9 +921,6 @@ export function createThreadOutboxDelivery(): {
       m,
     );
     if (runtimeModeDenial !== undefined) {
-      if (queuedMessage.voice) {
-        return yield* holdQueuedMessage(queuedMessage, runtimeModeDenial);
-      }
       return yield* restoreQueuedMessage(queuedMessage, runtimeModeDenial);
     }
 
@@ -1088,25 +956,6 @@ export function createThreadOutboxDelivery(): {
         reportCommandFailure(queuedMessage, interactionResult, "settings-sync");
         return yield* retryDelivery;
       }
-    }
-
-    if (queuedMessage.voice) {
-      if (!hasAccess()) return;
-      const voiceDelivery = yield* deliverQueuedVoiceMessage(
-        queuedMessage,
-        settings.modelSelection,
-      );
-      if (voiceDelivery.status === "retry") return yield* retryDelivery;
-      if (voiceDelivery.status !== "delivered") return;
-      acknowledgedExistingThreadMessageIds.add(queuedMessage.messageId);
-      const voiceOutcome = yield* completeQueuedMessageDelivery(
-        voiceDelivery.message,
-        voiceDelivery.revision,
-        voiceDelivery.sequence,
-      );
-      if (voiceOutcome !== "removed") return yield* retryDelivery;
-      acknowledgedExistingThreadMessageIds.delete(queuedMessage.messageId);
-      return;
     }
 
     if (!hasAccess()) return;
@@ -1446,7 +1295,7 @@ export function createThreadOutboxDelivery(): {
         ),
       };
     }
-    if (nextQueuedMessage.failure !== undefined || editingQueuedMessageIds[messageId]) {
+    if (editingQueuedMessageIds[messageId]) {
       return { _tag: "Wait" };
     }
     const blockedRecovery = blockedRecoveries.get(messageId);
@@ -1784,11 +1633,7 @@ export function createThreadOutboxDelivery(): {
 
 function loadThreadOutbox(isActive: () => boolean): void {
   void threadOutboxManager.load().then((loaded) => {
-    if (loaded) {
-      releaseVoiceRecordingsQuietly();
-      return;
-    }
-    if (!isActive()) return;
+    if (loaded || !isActive()) return;
     Dialog.alert(
       m(msg("Some queued messages could not be loaded")),
       m(

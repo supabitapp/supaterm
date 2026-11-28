@@ -5,8 +5,6 @@ import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import { readEnvironmentScope } from "./session";
 import { useAtomValue } from "@effect/atom-react";
 import { threadRuntimeIsUnsettled } from "@supaterm/client-runtime/state/shell";
-import { isVoiceUploadError } from "@supaterm/client-runtime/state/transcription";
-import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { threadSteersDuringCompaction } from "@supaterm/client-runtime/state/thread-workflows";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import {
@@ -121,7 +119,6 @@ import {
 } from "./use-thread-detail";
 import { useThreadSelection } from "./use-thread-selection";
 import { enqueueThreadOutboxMessage } from "./thread-outbox";
-import { enqueueVoiceThreadOutboxMessage } from "./thread-outbox-audio";
 import { dispatchingQueuedMessageIdsAtom, useThreadOutboxMessages } from "./use-thread-outbox";
 import { threadEnvironment } from "./threads";
 import { useAtomCommand } from "./use-atom-command";
@@ -581,61 +578,6 @@ export function useThreadComposerState() {
     return outboxFollowUpDispatchMode({ followUpAction, setupRunning, deferredSteering });
   };
 
-  /** Queues a recording as the message; it is moved into the outbox before it shows as queued. */
-  const onSendVoiceMessage = async (
-    recordingUri: string,
-    language: string,
-    handOff: VoiceRecordingHandOff | undefined,
-  ): Promise<MessageId | null> => {
-    const thread = selectedThreadShell;
-    if (!thread) return null;
-    const threadKey = scopedThreadKey(thread.environmentId, thread.id);
-    if (
-      selectedEnvironmentRuntime?.connectionState === "connected" &&
-      !readEnvironmentScope(thread.environmentId, AuthOrchestrationOperateScope)
-    ) {
-      setThreadComposerError(threadKey, m(msg("This connection cannot control this task.")));
-      return null;
-    }
-    const draft = getComposerDraftSnapshot(threadKey);
-    const dispatchMode = resolveFollowUpDispatchMode(followUpBehavior);
-    const freshContext = isFreshSessionPending(threadKey);
-    const metadata = makeQueuedMessageMetadata();
-    const messageId = MessageId.make(metadata.messageId);
-    clearThreadComposerError(threadKey);
-    if (freshContext) setFreshSessionPending(threadKey, false);
-    return enqueueVoiceThreadOutboxMessage(
-      recordingUri,
-      {
-        environmentId: thread.environmentId,
-        threadId: thread.id,
-        messageId,
-        commandId: CommandId.make(metadata.commandId),
-        text: "",
-        attachments: [],
-        modelSelection: draft.modelSelection ?? thread.modelSelection,
-        runtimeMode: draft.runtimeMode ?? thread.runtimeMode,
-        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
-        ...(dispatchMode === null ? {} : { dispatchMode }),
-        ...(freshContext ? { freshContext: true } : {}),
-        createdAt: metadata.createdAt,
-      },
-      language,
-      handOff,
-    ).then(
-      () => messageId,
-      (error: unknown) => {
-        if (freshContext) setFreshSessionPending(threadKey, true);
-        if (isVoiceUploadError(error) && error.reason === "audioTooShort") return null;
-        setThreadComposerError(
-          threadKey,
-          error instanceof Error ? error.message : m(msg("The recording couldn't be queued.")),
-        );
-        return null;
-      },
-    );
-  };
-
   const onSendMessage = async (
     followUpOverride?: ActiveTurnComposerAction,
     beforeDispatch?: (
@@ -977,7 +919,6 @@ export function useThreadComposerState() {
     onNativePasteText,
     onRemoveDraftImage,
     onSendMessage,
-    onSendVoiceMessage,
     onUpdateModelSelection,
     onSendCommand,
   };

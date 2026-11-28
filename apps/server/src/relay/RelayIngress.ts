@@ -8,6 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Headers from "effect/http/Headers";
 import * as Layer from "effect/Layer";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
+import { SPEECH_STREAM_PATH } from "@supaterm/contracts";
 
 export class RelayIngress extends Context.Service<
   RelayIngress,
@@ -44,6 +45,7 @@ const PEER_LINK_PATHS = new Set([
 
 export const isRelayPath = (pathname: string) =>
   pathname === "/ws" ||
+  pathname === SPEECH_STREAM_PATH ||
   pathname.startsWith("/api/") ||
   pathname === "/oauth/token" ||
   pathname === "/.well-known/supaterm/environment" ||

@@ -1421,7 +1421,7 @@ export function snapshotComposerSend(contents: ComposerSendContents) {
 export type ComposerSendSnapshot = ReturnType<typeof snapshotComposerSend>;
 
 /** A turn that starts a new provider session cannot steer into or restart the running one. */
-export function freshTurnDispatchMode(dispatchMode: ComposerDispatchMode, freshContext: boolean) {
+function freshTurnDispatchMode(dispatchMode: ComposerDispatchMode, freshContext: boolean) {
   return freshContext && (dispatchMode === "steer" || dispatchMode === "restart")
     ? "queue"
     : dispatchMode;

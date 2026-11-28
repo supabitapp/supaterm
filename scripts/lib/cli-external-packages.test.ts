@@ -22,6 +22,9 @@ describe("shouldBundleCliDependency", () => {
       "@yuuang/ffi-rs-win32-x64-msvc",
       "@ff-labs/fff-node",
       "@napi-rs/keyring",
+      "transcribe-cpp",
+      "@transcribe-cpp/win32-x64-cpu-vulkan",
+      "koffi",
       "node-addon-api",
     ]) {
       assert.strictEqual(shouldBundleCliDependency(id), false, id);

@@ -1,12 +1,17 @@
-import type { EnvironmentId, ProjectId } from "@supaterm/contracts";
 import { useRef, useState } from "react";
 import { TextInput, View } from "react-native";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { ComposerActionButton } from "../../components/ComposerToolbar";
 import { AppText as Text } from "../../components/ui/AppText";
-import { ComposerDictationStartAction } from "../voice-input/ComposerDictationControl";
-import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
+import {
+  ComposerDictationCancelAction,
+  ComposerDictationError,
+  ComposerDictationPrimaryAction,
+  ComposerDictationStartAction,
+  ComposerDictationStatus,
+  ComposerDictationToolbar,
+} from "../voice-input/ComposerDictationControl";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import { useGT, useMessages } from "gt-react-native";
@@ -18,8 +23,6 @@ const COMPOSER_BOTTOM_GUTTER = 8;
  * round send button. `blocked` replaces the field with the reason.
  */
 export function IssueCommentComposer(props: {
-  readonly environmentId: EnvironmentId;
-  readonly projectId: ProjectId;
   /** Names this draft to dictation, so a recording started here lands here. */
   readonly ownerKey: string;
   readonly label: string;
@@ -48,17 +51,16 @@ export function IssueCommentComposer(props: {
     readDraftMessage: () => latestDraft.current,
     selection,
     disabled: props.blocked !== null,
+    hidden: props.blocked !== null,
     onChangeDraftMessage: changeDraft,
     onChangeSelection: setSelection,
-    environmentId: props.environmentId,
-    context: { projectId: props.projectId },
   });
   const presentation = resolveVoiceComposerPresentation(
     voice.state,
     voice.elapsedSeconds,
     messages,
   );
-  const showsDictation = presentation.statusLabel !== null;
+  const showsDictation = presentation.statusKind === "active";
   const canSend =
     props.blocked === null && !props.posting && !voice.blocksSubmission && draft.trim().length > 0;
 
@@ -125,12 +127,33 @@ export function IssueCommentComposer(props: {
             />
           </View>
         )}
-        {showsDictation ? (
-          <TextFieldDictationToolbar
-            voiceInput={voice}
-            presentation={presentation}
-            disabled={props.blocked !== null}
+        {props.blocked === null ? (
+          <ComposerDictationError
+            error={voice.state.phase === "error" ? voice.state.error : null}
+            onDismiss={voice.cancel}
           />
+        ) : null}
+        {showsDictation ? (
+          <ComposerDictationToolbar showsDictation>
+            <View className="h-11 flex-row items-center">
+              <ComposerDictationCancelAction presentation={presentation} onCancel={voice.cancel} />
+              <ComposerDictationStatus
+                audioLevels={voice.audioLevels}
+                elapsedSeconds={voice.elapsedSeconds}
+                phase={voice.state.phase}
+                presentation={presentation}
+              />
+              <ComposerDictationPrimaryAction
+                state={voice.state}
+                presentation={presentation}
+                isAvailable={voice.isAvailable}
+                disabled={props.blocked !== null}
+                onStart={voice.start}
+                onConfirm={voice.stop}
+                onCancel={voice.cancel}
+              />
+            </View>
+          </ComposerDictationToolbar>
         ) : null}
       </View>
     </View>

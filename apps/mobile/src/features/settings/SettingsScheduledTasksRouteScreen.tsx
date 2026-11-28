@@ -476,8 +476,6 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
       if (readEditor()?.environmentId === editor?.environmentId) setPrompt(text);
     },
     disabled: saving,
-    environmentId: editor?.environmentId ?? null,
-    ...(editor?.draft.projectId ? { context: { projectId: editor.draft.projectId } } : {}),
   });
   const preventRemove = hasChanges || saving;
   usePreventRemove(preventRemove, ({ data }) => {

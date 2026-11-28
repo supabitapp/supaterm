@@ -80,7 +80,7 @@ describe("resolveCodexMicroSlotAction", () => {
   });
 
   it("starts and stops voice input from either microphone keycap", () => {
-    const voice = { type: "command", command: "composer.voice" };
+    const voice = { type: "command", command: "composer.dictation" };
     expect(resolveCodexMicroSlotAction(DEFAULT_CODEX_MICRO_LAYOUT.slots.ACT10_ACT11)).toEqual(
       voice,
     );

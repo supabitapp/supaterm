@@ -111,26 +111,28 @@ function defaultTextGenerationModel(driver: ProviderDriverKind): string {
   );
 }
 
+function isTextGenerationTargetUsable(
+  providers: ReadonlyArray<ServerProvider> | undefined,
+  instanceId: ProviderInstanceId,
+): boolean {
+  if (providers === undefined) return true;
+  const provider = providers.find((candidate) => candidate.instanceId === instanceId);
+  return (
+    provider?.enabled === true &&
+    isProviderAvailable(provider) &&
+    isProviderTextGenerationCapable(provider)
+  );
+}
+
 export function resolveSourceControlWriterModelSelection(
   settings: ServerSettings,
   providers: ReadonlyArray<ServerProvider> | undefined,
   projectId: ProjectId | null,
 ): ModelSelection {
   const selection = settings.sourceControlWriterModelSelection;
-  if (
-    !selection ||
-    !resolveProjectProviderInstanceEnabled(settings, projectId, selection.instanceId)
-  ) {
-    return settings.textGenerationModelSelection;
-  }
-  if (providers === undefined) {
-    return selection;
-  }
-
-  const provider = providers.find((candidate) => candidate.instanceId === selection.instanceId);
-  return provider?.enabled === true &&
-    isProviderAvailable(provider) &&
-    isProviderTextGenerationCapable(provider)
+  return selection &&
+    resolveProjectProviderInstanceEnabled(settings, projectId, selection.instanceId) &&
+    isTextGenerationTargetUsable(providers, selection.instanceId)
     ? selection
     : settings.textGenerationModelSelection;
 }
@@ -170,6 +172,19 @@ export function resolveReviewGuideModelSelection(
     return createModelSelection(fallback.instanceId, model.slug);
   }
   return resolveSourceControlWriterModelSelection(settings, providers, projectId);
+}
+
+/** Transcript cleanup follows the text generation model unless its own usable model is set. */
+export function resolveSpeechPostProcessingModelSelection(
+  settings: ServerSettings,
+  providers?: ReadonlyArray<ServerProvider>,
+): ModelSelection {
+  const selection = settings.speechPostProcessingModelSelection;
+  return selection &&
+    isModelSelectionProviderEnabled(settings, selection) &&
+    isTextGenerationTargetUsable(providers, selection.instanceId)
+    ? selection
+    : settings.textGenerationModelSelection;
 }
 
 export interface PersistedServerObservabilitySettings {
@@ -272,6 +287,7 @@ const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "reviewGuideInstructions",
   "threadTitleInstructions",
   "sidebarAutoMarkDoneKeepPullRequests",
+  "speechProjectCustomWords",
 ] as const;
 
 function withStoredWorktreeRules(
@@ -533,6 +549,9 @@ export function applyServerSettingsPatch(
       : {}),
     ...(patch.fallbackModelSelection !== undefined
       ? { fallbackModelSelection: patch.fallbackModelSelection }
+      : {}),
+    ...(patch.speechPostProcessingModelSelection !== undefined
+      ? { speechPostProcessingModelSelection: patch.speechPostProcessingModelSelection }
       : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }

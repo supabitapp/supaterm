@@ -3,12 +3,16 @@ import { MessageCircleIcon, TrashIcon } from "@supaterm/icons";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
-import { TextFieldVoiceInput } from "~/components/chat/TextFieldVoiceInput";
 import {
   PullRequestMarkdownTextarea,
   type PullRequestCompletionScope,
 } from "~/components/pullRequest/PullRequestMarkdownTextarea";
 import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
+import {
+  SpeechTextField,
+  TextFieldSpeechControls,
+  type TextFieldSpeech,
+} from "~/speech/useTextFieldSpeech";
 import { textDirection } from "~/textDirection";
 
 import { isCommentSubmitShortcut } from "./commentSubmitShortcut";
@@ -36,6 +40,8 @@ interface DiffCommentAnnotationProps {
   focusOnMount?: boolean;
   /** Where dictation goes outside a thread route, as on a pull request page. */
   voiceEnvironmentId?: EnvironmentId | undefined;
+  /** Names the draft to dictation, so a recording started here lands here after a remount. */
+  speechOwnerKey?: string | undefined;
   /** Set only for pull request comments, where `@` completes the repository's users. */
   completionScope?: PullRequestCompletionScope | null;
 }
@@ -54,6 +60,7 @@ export function DiffCommentAnnotation({
   secondaryAction,
   focusOnMount = true,
   voiceEnvironmentId,
+  speechOwnerKey,
   completionScope = null,
 }: DiffCommentAnnotationProps) {
   const gt = useGT();
@@ -62,12 +69,8 @@ export function DiffCommentAnnotation({
   const trimmedText = displayedText.trim();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const threadRef = useThreadRouteRef();
-  const voiceTarget = voiceEnvironmentId
-    ? { environmentId: voiceEnvironmentId, threadId: null }
-    : threadRef;
-  const [voiceBusy, setVoiceBusy] = useState(false);
+  const speechEnvironmentId = voiceEnvironmentId ?? threadRef?.environmentId;
   const changeText = onTextChange ?? setLocalDraftText;
-  const canComment = !pending && !voiceBusy && trimmedText.length > 0;
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the draft textarea on the next animation frame after mount
   useLayoutEffect(() => {
@@ -109,7 +112,19 @@ export function DiffCommentAnnotation({
     );
   }
 
-  return (
+  const submit = (
+    speech: TextFieldSpeech | undefined,
+    action: (text: string) => void,
+    allowEmpty = false,
+  ) => {
+    const finish = (value: string) => {
+      if (!pending && (allowEmpty || value.trim())) action(value.trim());
+    };
+    if (speech) speech.submitAfterDictation(finish);
+    else finish(displayedText);
+  };
+
+  const renderDraft = (speech?: TextFieldSpeech) => (
     <div
       data-diff-comment-annotation
       className="px-3 py-2 font-sans text-foreground caret-foreground selection:bg-primary selection:text-primary-foreground"
@@ -121,7 +136,7 @@ export function DiffCommentAnnotation({
         completionScope={completionScope}
         autoFocus={focusOnMount}
         size="sm"
-        readOnly={voiceBusy}
+        readOnly={speech?.freezesEditor}
         value={displayedText}
         dir={textDirection(displayedText)}
         placeholder={placeholder ?? gt("Add a comment…")}
@@ -139,25 +154,17 @@ export function DiffCommentAnnotation({
           }
           if (event.key === "Escape") {
             event.preventDefault();
-            onCancel();
+            if (speech && speech.state.phase !== "idle") speech.cancel();
+            else onCancel();
           }
-          if (isCommentSubmitShortcut(event, trimmedText, pending || voiceBusy)) {
+          if (isCommentSubmitShortcut(event, trimmedText, pending, speech?.blocksSubmission)) {
             event.preventDefault();
-            onComment(trimmedText);
+            submit(speech, onComment);
           }
         }}
       />
-      <div className="mt-1.5 flex items-center gap-1">
-        {voiceTarget ? (
-          <TextFieldVoiceInput
-            environmentId={voiceTarget.environmentId}
-            threadId={voiceTarget.threadId}
-            disabled={pending}
-            fieldRef={textareaRef}
-            onChange={changeText}
-            onBusyChange={setVoiceBusy}
-          />
-        ) : null}
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        {speech ? <TextFieldSpeechControls speech={speech} disabled={pending} /> : null}
         <span className="mr-auto text-3xs text-muted-foreground/70">
           <T>⌘/Ctrl Enter to send</T>
         </span>
@@ -168,17 +175,43 @@ export function DiffCommentAnnotation({
           <Button
             size="xs"
             variant="outline"
-            disabled={voiceBusy || (!secondaryAction.allowEmpty && !trimmedText)}
-            onClick={() => secondaryAction.onAction(trimmedText)}
+            disabled={
+              pending ||
+              speech?.preparing === true ||
+              (!secondaryAction.allowEmpty && !trimmedText && !speech?.blocksSubmission)
+            }
+            onClick={() => submit(speech, secondaryAction.onAction, secondaryAction.allowEmpty)}
           >
             {secondaryAction.icon}
             {secondaryAction.label}
           </Button>
         ) : null}
-        <Button size="xs" disabled={!canComment} onClick={() => onComment(trimmedText)}>
+        <Button
+          size="xs"
+          disabled={
+            pending ||
+            speech?.preparing === true ||
+            (trimmedText.length === 0 && !speech?.blocksSubmission)
+          }
+          onClick={() => submit(speech, onComment)}
+        >
           {submitLabel ?? gt("Comment", { $context: "verb, submit button" })}
         </Button>
       </div>
     </div>
+  );
+
+  if (!speechEnvironmentId) return renderDraft();
+  return (
+    <SpeechTextField
+      environmentId={speechEnvironmentId}
+      ownerKey={speechOwnerKey ?? JSON.stringify(["diff-comment", speechEnvironmentId, rangeLabel])}
+      text={displayedText}
+      textareaRef={textareaRef}
+      onTextChange={changeText}
+      disabled={pending}
+    >
+      {renderDraft}
+    </SpeechTextField>
   );
 }

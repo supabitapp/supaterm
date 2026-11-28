@@ -250,7 +250,7 @@ describe("search", () => {
     const options = filterCodexMicroCommandGroups("voice").flatMap((group) => group.options);
     expect(options.map((option) => option.action)).toContainEqual({
       type: "command",
-      command: "composer.voice",
+      command: "composer.dictation",
     });
   });
 });

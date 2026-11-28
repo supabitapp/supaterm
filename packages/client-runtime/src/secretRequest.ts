@@ -189,6 +189,14 @@ export function secretRequestSources(
   providers: ServerSettings["secretProviders"],
 ): ReadonlyArray<SecretRequestSource> {
   if (config?.secretRequestReferences !== true) return NO_SOURCES;
+  return configuredSecretSources(providers);
+}
+
+/** The configured providers this build can read, whatever the server accepts as an answer. */
+export function configuredSecretSources(
+  providers: ServerSettings["secretProviders"],
+  _messages?: unknown,
+): ReadonlyArray<SecretRequestSource> {
   return (Object.keys(providers) as Array<SecretProviderId>).flatMap((id) => {
     const provider = providers[id];
     const definition =

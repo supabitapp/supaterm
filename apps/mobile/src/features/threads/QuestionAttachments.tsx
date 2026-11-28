@@ -36,8 +36,14 @@ import {
   startQuestionImagePreparation,
 } from "../../state/question-attachment-preparation";
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
-import { ComposerDictationStartAction } from "../voice-input/ComposerDictationControl";
-import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
+import {
+  ComposerDictationCancelAction,
+  ComposerDictationError,
+  ComposerDictationPrimaryAction,
+  ComposerDictationStartAction,
+  ComposerDictationStatus,
+  ComposerDictationToolbar,
+} from "../voice-input/ComposerDictationControl";
 import { useVoiceInputController } from "../voice-input/useVoiceInputController";
 import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 import { msg, useGT, useMessages } from "gt-react-native";
@@ -109,8 +115,6 @@ export function QuestionAttachments(props: {
       props.onChangeText(text);
     },
     disabled: props.disabled,
-    environmentId: selectedThread?.environmentId ?? null,
-    ...(selectedThread ? { context: { threadId: selectedThread.id } } : {}),
   });
   const voiceBusy = voice.isBusy;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds submit and paging, like a converting paste, while dictation records or transcribes into this answer
@@ -182,7 +186,7 @@ export function QuestionAttachments(props: {
     voice.elapsedSeconds,
     messages,
   );
-  const showsDictation = presentation.statusLabel !== null;
+  const showsDictation = presentation.statusKind === "active";
   const attachments = drafts[key]?.attachments ?? [];
   const pick = async (kind: "media" | "files") => {
     const scope = pickerScope.current;
@@ -290,12 +294,31 @@ export function QuestionAttachments(props: {
           </View>
         ) : null}
       </View>
+      <ComposerDictationError
+        error={voice.state.phase === "error" ? voice.state.error : null}
+        onDismiss={voice.cancel}
+      />
       {showsDictation ? (
-        <TextFieldDictationToolbar
-          voiceInput={voice}
-          presentation={presentation}
-          disabled={props.disabled}
-        />
+        <ComposerDictationToolbar showsDictation>
+          <View className="h-11 flex-row items-center">
+            <ComposerDictationCancelAction presentation={presentation} onCancel={voice.cancel} />
+            <ComposerDictationStatus
+              audioLevels={voice.audioLevels}
+              elapsedSeconds={voice.elapsedSeconds}
+              phase={voice.state.phase}
+              presentation={presentation}
+            />
+            <ComposerDictationPrimaryAction
+              state={voice.state}
+              presentation={presentation}
+              isAvailable={voice.isAvailable}
+              disabled={props.disabled}
+              onStart={voice.start}
+              onConfirm={voice.stop}
+              onCancel={voice.cancel}
+            />
+          </View>
+        </ComposerDictationToolbar>
       ) : null}
     </View>
   );

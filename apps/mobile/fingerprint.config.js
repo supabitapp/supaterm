@@ -32,5 +32,11 @@ module.exports = {
   extraSources: [
     { type: "contents", id: "appMajorVersion", contents: majorVersion },
     ...nativePatchSources,
+    // Expo skips symlinks when hashing local modules.
+    {
+      type: "file",
+      filePath: "../../native/apple-speech/AppleSpeechEngine.swift",
+      reasons: ["appleSpeech"],
+    },
   ],
 };

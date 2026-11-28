@@ -15,6 +15,7 @@ import {
   ClientServerSettingsPatch,
   ClaudeSettings,
   DEFAULT_SERVER_SETTINGS,
+  PROJECT_SCOPED_SERVER_SETTING_KEYS,
   requiredScopesForProjectMutation,
   resolveProjectProviderInstanceEnabled,
   resolveProviderInstanceEnabled,
@@ -613,6 +614,37 @@ describe("requiredScopesForProjectMutation", () => {
         scripts: [],
       }),
     ).toEqual(["orchestration:operate", "settings:write"]);
+  });
+});
+
+describe("voice settings", () => {
+  it("does not import voice consent from ordinary device preferences", () => {
+    const imported = {
+      voiceTranscriptionEnvironmentId: "env-1",
+      voiceTranscriptionDestination: { kind: "environment", environmentId: "env-1" },
+      speechPostProcessingEnabled: true,
+    };
+    expect(decodeClientSettings({}).speechSilenceFiltering).toBe(true);
+    expect(decodeClientSettings({}).speechStreaming).toBe(true);
+    expect(decodeClientSettings({ speechStreaming: false }).speechStreaming).toBe(false);
+    for (const key of Object.keys(imported)) {
+      expect(decodeClientSettings(imported)).not.toHaveProperty(key);
+    }
+  });
+
+  it.each([null, { deviceId: "usb", label: "USB" }])(
+    "ignores an unreadable saved microphone %j and keeps the rest",
+    (voiceMicrophone) => {
+      const decoded = decodeClientSettings({ voiceMicrophone, confirmThreadDelete: false });
+      expect(decoded.voiceMicrophone).toBe("");
+      expect(decoded.confirmThreadDelete).toBe(false);
+    },
+  );
+
+  it("keeps the correction cue personal and project vocabulary on the environment", () => {
+    expect(decodeClientSettings({}).speechCorrectionWord).toBe("");
+    expect(DEFAULT_SERVER_SETTINGS.speechProjectCustomWords).toEqual([]);
+    expect(PROJECT_SCOPED_SERVER_SETTING_KEYS).toContain("speechProjectCustomWords");
   });
 });
 

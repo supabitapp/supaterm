@@ -18,6 +18,7 @@ import { ToolCallVisibility } from "@supaterm/contracts/settings";
 import type { AndroidNavigationStyle } from "../lib/androidNavigationStyle";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
+import { isMicrophoneKind, type MicrophoneEntry } from "../lib/microphonePriority";
 import { MOBILE_THEME_IDS, type MobileThemeId, type MobileThemeMode } from "../lib/mobileTheme";
 import * as MobileDatabase from "./mobile-database";
 import * as MobileSecureStorage from "./mobile-secure-storage";
@@ -127,6 +128,7 @@ export interface Preferences {
   readonly followUpBehavior?: FollowUpBehavior;
   /** The client `language` setting: a locale code or "system". Unset means English. */
   readonly language?: string;
+  readonly microphones?: ReadonlyArray<MicrophoneEntry>;
   readonly toolCallVisibility?: ToolCallVisibility;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly threadGrouping?: SidebarThreadGrouping;
@@ -208,6 +210,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     showSkillsInSlashMenu?: boolean;
     followUpBehavior?: FollowUpBehavior;
     language?: string;
+    microphones?: ReadonlyArray<MicrophoneEntry>;
     toolCallVisibility?: ToolCallVisibility;
     projectGroupingMode?: SidebarProjectGroupingMode;
     threadGrouping?: SidebarThreadGrouping;
@@ -304,6 +307,15 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     preferences.followUpBehavior = parsed.followUpBehavior;
   }
   if (typeof parsed.language === "string") preferences.language = parsed.language;
+  if (Array.isArray(parsed.microphones)) {
+    preferences.microphones = parsed.microphones.flatMap((entry): MicrophoneEntry[] => {
+      if (typeof entry !== "object" || entry === null || !isMicrophoneKind(entry.kind)) return [];
+      if (!("uid" in entry)) return [{ kind: entry.kind }];
+      return typeof entry.uid === "string" && typeof entry.name === "string"
+        ? [{ kind: entry.kind, uid: entry.uid, name: entry.name }]
+        : [];
+    });
+  }
   if (isToolCallVisibility(parsed.toolCallVisibility)) {
     preferences.toolCallVisibility = parsed.toolCallVisibility;
   }

@@ -297,6 +297,7 @@ export function AnnotatableCodeView({
             {annotation.metadata.entries.map((entry) => (
               <DiffCommentAnnotation
                 key={entry.id}
+                speechOwnerKey={JSON.stringify(["diff-comment", codeViewKey, entry.id])}
                 kind={entry.kind}
                 rangeLabel={entry.rangeLabel}
                 text={entry.kind === "draft" ? draftText : entry.text}

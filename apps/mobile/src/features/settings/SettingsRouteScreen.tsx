@@ -227,6 +227,7 @@ function useSettingsIndexSections(): SettingsListSection[] {
           ? [page("SettingsNavigation", "line.3.horizontal", gt("Navigation tabs"))]
           : []),
         page("SettingsKeyboard", "keyboard", gt("Keyboard")),
+        page("SettingsVoice", "mic", gt("Voice")),
       ],
     },
     {
@@ -256,7 +257,6 @@ function useSettingsIndexSections(): SettingsListSection[] {
     },
     {
       rows: [
-        serverPage("SettingsEnvironmentVoiceTranscription", "mic", gt("Voice transcription")),
         serverPage("SettingsEnvironmentMaintenance", "arrow.clockwise", gt("Maintenance")),
         page("SettingsAbout", "info.circle", gt("About")),
         page(

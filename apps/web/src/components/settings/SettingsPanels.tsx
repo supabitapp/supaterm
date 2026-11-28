@@ -529,19 +529,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sendShortcut !== DEFAULT_UNIFIED_SETTINGS.sendShortcut
       ? [gt("Send shortcut")]
       : []),
-    ...(settings.voiceLanguage !== DEFAULT_UNIFIED_SETTINGS.voiceLanguage
-      ? [gt("Voice language")]
-      : []),
-    ...(settings.voiceHoldToTalkKey !== DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey
-      ? [gt("Hold to talk")]
-      : []),
-    ...(settings.voiceMicrophone !== DEFAULT_UNIFIED_SETTINGS.voiceMicrophone
-      ? [gt("Microphone")]
-      : []),
-    ...(settings.voiceAvoidBluetoothMicrophone !==
-    DEFAULT_UNIFIED_SETTINGS.voiceAvoidBluetoothMicrophone
-      ? [gt("Use the Mac's microphone instead of Bluetooth")]
-      : []),
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? [gt("Follow-up behavior")]
       : []),
@@ -677,10 +664,6 @@ export function useSettingsRestore(onRestored?: () => void) {
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
-      voiceLanguage: DEFAULT_UNIFIED_SETTINGS.voiceLanguage,
-      voiceHoldToTalkKey: DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey,
-      voiceMicrophone: DEFAULT_UNIFIED_SETTINGS.voiceMicrophone,
-      voiceAvoidBluetoothMicrophone: DEFAULT_UNIFIED_SETTINGS.voiceAvoidBluetoothMicrophone,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       toolCallVisibility: DEFAULT_UNIFIED_SETTINGS.toolCallVisibility,
       screenReaderAnnouncements: DEFAULT_UNIFIED_SETTINGS.screenReaderAnnouncements,

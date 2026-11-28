@@ -82,7 +82,8 @@ export const expoThreadOutboxStorage: ThreadOutboxStorage = {
           continue;
         }
         try {
-          messages.push(decodeQueuedThreadMessage(JSON.parse(await entry.text()) as unknown));
+          const message = decodeQueuedThreadMessage(JSON.parse(await entry.text()) as unknown);
+          if (message !== null) messages.push(message);
         } catch (cause) {
           errors.push(
             new ThreadOutboxStorageError({

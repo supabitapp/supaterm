@@ -1,28 +1,27 @@
-import * as Schema from "effect/Schema";
 import { msg } from "gt-i18n";
-import { translatableMessage } from "../errors/translatable.ts";
+import { MarkedText, translatableMessage } from "../errors/translatable.ts";
+import * as Schema from "effect/Schema";
 
 /** Cancellation is cooperative: settle only after the underlying work has stopped. */
 export type VoiceTranscriptionOptions = {
   readonly signal: AbortSignal;
 };
 
-export type PreparedVoiceTranscription = {
-  readonly locale: string;
-  readonly transcribe: (uri: string, options: VoiceTranscriptionOptions) => Promise<string>;
-  /**
-   * Ends a recording that becomes a voice message instead of a transcript. Returns the id the
-   * message must be sent under, so the environment joins audio it already has.
-   */
-  readonly handOff?: () => VoiceRecordingHandOff;
-  /** Stops work the recording never got to use; safe to call more than once. */
-  readonly dispose?: () => void;
+export type VoiceStreamingSession = {
+  readonly finish: (options: VoiceTranscriptionOptions) => Promise<string>;
 };
 
-export type VoiceRecordingHandOff = {
-  readonly uploadId: string;
-  /** The audio already went to the environment while it was recorded. */
-  readonly streamed: boolean;
+export type PreparedVoiceTranscription = {
+  readonly locale: string;
+  /**
+   * Runs alongside capture once recording starts. Resolves with the transcript when it
+   * transcribed live, or null when `transcribe` still runs after the recording stops.
+   * A rejection stops the recording.
+   */
+  readonly start?: (uri: string, options: VoiceTranscriptionOptions) => Promise<string | null>;
+  readonly transcribe: (uri: string, options: VoiceTranscriptionOptions) => Promise<string>;
+  /** Present when audio streams during capture; `finish` then replaces `transcribe`. */
+  readonly streaming?: VoiceStreamingSession | undefined;
 };
 
 export type VoiceTranscriber = {
@@ -30,10 +29,10 @@ export type VoiceTranscriber = {
 };
 
 const VoiceTranscriptionErrorCode = Schema.Literals([
-  /** The environment declined with a reason the user can act on, carried in the message. */
-  "refused",
-  /** Too little audio to transcribe, as from a tap; the recording is dropped without a word. */
-  "tooShort",
+  "unavailable",
+  "unsupported-locale",
+  "preparation-failed",
+  "transcription-failed",
   "cancelled",
 ]);
 export type VoiceTranscriptionErrorCode = typeof VoiceTranscriptionErrorCode.Type;
@@ -43,6 +42,7 @@ export class VoiceTranscriptionError extends Schema.TaggedError<VoiceTranscripti
   {
     code: VoiceTranscriptionErrorCode,
     message: Schema.String,
+    i18nMessage: Schema.optionalKey(MarkedText),
     cause: Schema.optional(Schema.Defect()),
   },
 ) {}

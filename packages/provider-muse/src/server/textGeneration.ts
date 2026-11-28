@@ -26,6 +26,7 @@ import type { ProviderTextGeneration } from "@supaterm/provider-core/server/text
 import {
   generatedThreadTitle,
   investigationUnsupported,
+  TranscriptionPostProcessingOutput,
 } from "@supaterm/provider-core/server/textGenerationOperations";
 import {
   buildBranchNamePrompt,
@@ -382,6 +383,15 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     });
     return { title: yield* generatedThreadTitle(generated.title) };
   });
+  const generateTranscriptionPostProcessing: ProviderTextGeneration["generateTranscriptionPostProcessing"] =
+    Effect.fn("MuseTextGeneration.generateTranscriptionPostProcessing")(function* (input) {
+      return yield* runMuseJson({
+        operation: "generateTranscriptionPostProcessing",
+        prompt: input.prompt,
+        outputSchema: TranscriptionPostProcessingOutput,
+        modelSelection: input.modelSelection,
+      });
+    });
   const generateReviewGuide: ProviderTextGeneration["generateReviewGuide"] = () =>
     Effect.fail(investigationUnsupported("generateReviewGuide", "Muse Code"));
   return {
@@ -391,5 +401,6 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     generateBranchName,
     generateThreadTitle,
     generateReviewGuide,
+    generateTranscriptionPostProcessing,
   } satisfies ProviderTextGeneration;
 });
