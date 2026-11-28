@@ -271,7 +271,7 @@ and use **Attach again** or remove the missing file before sending.
 
 Dictate into the composer with the microphone button or `ctrl+m` (web and desktop). Audio stays on-device or goes only to an environment or provider you explicitly choose in **Settings → Voice**. See [Voice input](./voice-input.md) for setup, mobile dictation, and microphone priority.
 
-A voice message queued by an earlier version of Supaterm stays in its thread as **Not sent**, with its recording attached. Edit it to type what you said, or discard it.
+A voice message queued by an earlier version of Supaterm stays in its thread as **Not sent**, with its recording attached. Edit it to type what you said, or discard it. On mobile, type the message again, then discard the recording.
 
 ## Queued messages
 

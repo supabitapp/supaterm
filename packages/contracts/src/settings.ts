@@ -530,8 +530,8 @@ export const ClientSettingsSchema = Schema.Struct({
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
-  // Superseded by voiceMicrophones; read only to seed an empty order.
-  voiceMicrophone: Schema.Union([Schema.String, LegacyVoiceMicrophone]).pipe(
+  // Superseded by voiceMicrophones; read only to seed an empty order. Saved in the legacy shape for downgrades.
+  voiceMicrophone: Schema.Union([LegacyVoiceMicrophone, Schema.String]).pipe(
     Schema.withDecodingDefault(Effect.succeed("")),
   ),
   // Device-local microphone order. Recording uses the first connected entry.

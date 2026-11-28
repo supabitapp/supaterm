@@ -71,6 +71,20 @@ describe("CodexMicroLayout", () => {
     expect(decodeClientSettings(encoded)).toEqual(settings);
   });
 
+  it("saves a dictation action under the command name older builds read", () => {
+    const dictation = { type: "command", command: "composer.dictation" } as const;
+    const settings = decodeClientSettings({
+      codexMicro: { layout: { slots: { ACT06: { keycapId: "FAST", action: dictation } } } },
+    });
+
+    const encoded = encodeClientSettings(settings);
+    expect(encoded.codexMicro?.layout?.slots?.ACT06?.action).toEqual({
+      type: "command",
+      command: "composer.voice",
+    });
+    expect(decodeClientSettings(encoded).codexMicro.layout.slots.ACT06.action).toEqual(dictation);
+  });
+
   it("still rejects malformed supported actions", () => {
     expect(() =>
       decodeLayout({

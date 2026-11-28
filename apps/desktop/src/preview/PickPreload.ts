@@ -1631,11 +1631,11 @@ function startAnnotation(
     if (event.relatedTarget === null) clearHoverOutline();
   };
 
-  const onWindowFocus = (): void => {
-    if (editor.style.display !== "none") sendVoice("focus");
+  const onWindowFocus = (event: FocusEvent): void => {
+    if (event.isTrusted && editor.style.display !== "none") sendVoice("focus");
   };
-  const onWindowBlur = (): void => {
-    sendVoice("blur");
+  const onWindowBlur = (event: FocusEvent): void => {
+    if (event.isTrusted) sendVoice("blur");
     clearHoverOutline();
   };
 

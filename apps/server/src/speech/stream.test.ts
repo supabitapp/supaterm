@@ -8,9 +8,16 @@ import * as Schema from "effect/Schema";
 import * as Socket from "effect/socket/Socket";
 import * as TestClock from "effect/testing/TestClock";
 import { HttpRouter, HttpServer, HttpServerRequest, HttpServerResponse } from "effect/http";
-import { SpeechStreamEvent, DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS } from "@supaterm/contracts";
-import type { SpeechService, SpeechStream } from "./SpeechService.ts";
-import { runSpeechSocket } from "./stream.ts";
+import {
+  AuthOrchestrationOperateScope,
+  AuthSessionId,
+  SpeechStreamEvent,
+  DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS,
+} from "@supaterm/contracts";
+import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
+import * as SessionStore from "../auth/SessionStore.ts";
+import { SpeechService, type SpeechStream } from "./SpeechService.ts";
+import { runSpeechSocket, speechStreamRouteLayer } from "./stream.ts";
 import type * as NetAddress from "effect/net/NetAddress";
 
 const decodeEvent = Schema.decodeUnknownSync(Schema.fromJsonString(SpeechStreamEvent));
@@ -56,6 +63,13 @@ const withServer = Effect.fn("test.speech.withServer")(function* (
       return HttpServerResponse.empty();
     }),
   );
+  yield* serve(routes, run);
+});
+
+const serve = Effect.fn("test.speech.serve")(function* <R>(
+  routes: Layer.Layer<never, never, R>,
+  run: (url: string) => Promise<void>,
+) {
   yield* Layer.build(HttpRouter.serve(routes, { disableLogger: true, disableListenLog: true }));
   const server = yield* HttpServer.HttpServer;
   const address = server.address as NetAddress.InetAddress;
@@ -125,6 +139,52 @@ it.live("releases in-flight inference after disconnect", () => {
       }
     },
   ).pipe(Effect.scoped, Effect.provide(NodeHttpServer.layerTest));
+});
+
+it.effect("ends the stream when its session is revoked", () => {
+  const ready = Promise.withResolvers<void>();
+  const closed = Promise.withResolvers<void>();
+  const stream: SpeechStream = { feed: () => Effect.never, finish: Effect.never };
+  return Effect.gen(function* () {
+    const revoked = yield* Deferred.make<void>();
+    const routes = speechStreamRouteLayer.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.mock(EnvironmentAuth.EnvironmentAuth, {
+            authenticateWebSocketUpgrade: () =>
+              Effect.succeed({
+                sessionId: AuthSessionId.make("voice"),
+                subject: "voice",
+                method: "bearer-access-token",
+                scopes: [AuthOrchestrationOperateScope],
+              }),
+          }),
+          Layer.mock(SessionStore.SessionStore, {
+            cookieName: "test",
+            awaitInvalidation: () => Deferred.await(revoked),
+          }),
+          Layer.mock(SpeechService, {
+            startStream: () =>
+              Effect.acquireRelease(Effect.succeed(stream), () =>
+                Effect.sync(() => closed.resolve()),
+              ),
+          }),
+        ),
+      ),
+    );
+    yield* Effect.forkScoped(
+      serve(routes, async (url) => {
+        const connection = client(url);
+        expect(await connection.next()).toEqual({ type: "ready" });
+        ready.resolve();
+        await closed.promise;
+        connection.socket.close();
+      }),
+    );
+    yield* Effect.promise(() => ready.promise);
+    yield* Deferred.succeed(revoked, undefined);
+    yield* Effect.promise(() => closed.promise);
+  }).pipe(Effect.scoped, Effect.provide(NodeHttpServer.layerTest));
 });
 
 it.live("processes pipelined audio before the finish command", () => {

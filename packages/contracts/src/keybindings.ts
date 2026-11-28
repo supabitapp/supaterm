@@ -200,7 +200,7 @@ export const SCRIPT_RUN_COMMAND_PATTERN = Schema.TemplateLiteral([
 ]);
 
 // Saved keybindings and Codex Micro configs name dictation by its old command.
-const LegacyDictationCommand = Schema.Literal("composer.voice").pipe(
+export const LegacyDictationCommand = Schema.Literal("composer.voice").pipe(
   Schema.decodeTo(
     Schema.Literal("composer.dictation"),
     SchemaTransformation.transform({

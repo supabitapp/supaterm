@@ -3,7 +3,6 @@ import { Pressable, type ColorValue } from "react-native";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
 import * as Dialog from "../../components/ui/Dialog";
-import { retryHeldThreadOutboxMessage } from "../../state/thread-outbox";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import { removeThreadOutboxMessage } from "../../state/thread-outbox-removal";
 import { m } from "../../i18n/messages";
@@ -25,7 +24,7 @@ function discard(message: QueuedThreadMessage) {
   });
 }
 
-/** Retry or discard for a message whose delivery stopped; only legacy voice messages stop. */
+/** Only a legacy voice message stops, and its bare recording is not worth sending. */
 export function PendingMessageActions(props: {
   readonly message: QueuedThreadMessage;
   readonly iconColor: ColorValue;
@@ -34,25 +33,14 @@ export function PendingMessageActions(props: {
   const { message } = props;
   if (message.failure === undefined) return null;
   return (
-    <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={gt("Try sending again")}
-        hitSlop={8}
-        className="size-7 items-center justify-center"
-        onPress={() => void retryHeldThreadOutboxMessage(message)}
-      >
-        <SymbolView name="arrow.clockwise" size={14} tintColor={props.iconColor} />
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={gt("Discard voice message")}
-        hitSlop={8}
-        className="size-7 items-center justify-center"
-        onPress={() => discard(message)}
-      >
-        <SymbolView name="trash" size={14} tintColor={props.iconColor} />
-      </Pressable>
-    </>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={gt("Discard voice message")}
+      hitSlop={8}
+      className="size-7 items-center justify-center"
+      onPress={() => discard(message)}
+    >
+      <SymbolView name="trash" size={14} tintColor={props.iconColor} />
+    </Pressable>
   );
 }

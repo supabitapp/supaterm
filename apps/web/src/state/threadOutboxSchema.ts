@@ -119,6 +119,21 @@ export function encodeStoredOutboxEntry(
   return { schemaVersion: 2 as const, ...entry };
 }
 
+const legacyVoiceRecordingId = (entryId: string) => `${entryId}:voice`;
+
+/** Retrying would send the recovered recording with no words for the agent to read. */
+export function holdsOnlyLegacyVoiceRecording(entry: {
+  readonly id: string;
+  readonly payload: OutboxTurn;
+}): boolean {
+  return (
+    entry.payload.input.message.text.trim() === "" &&
+    entry.payload.localAttachments.some(
+      (attachment) => attachment.id === legacyVoiceRecordingId(entry.id),
+    )
+  );
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -136,7 +151,7 @@ export function migrateLegacyVoiceEntry(value: unknown, error: string): unknown 
     voice.audio instanceof Blob
       ? [
           {
-            id: `${String(value.id)}:voice`,
+            id: legacyVoiceRecordingId(String(value.id)),
             type: "file",
             name: "Voice message.wav",
             mimeType: "audio/wav",

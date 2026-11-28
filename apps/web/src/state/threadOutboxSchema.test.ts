@@ -6,6 +6,7 @@ import {
   OutboxTurn,
   StoredOutboxEntry,
   encodeStoredOutboxEntry,
+  holdsOnlyLegacyVoiceRecording,
   migrateLegacyVoiceEntry,
 } from "./threadOutboxSchema";
 
@@ -135,6 +136,17 @@ describe("stored thread outbox compatibility", () => {
       sizeBytes: 3,
     });
     expect(await recording?.bytes?.text()).toBe("wav");
+    expect(holdsOnlyLegacyVoiceRecording(restored)).toBe(true);
+    const typed = {
+      ...restored.payload.input,
+      message: { ...restored.payload.input.message, text: "Ship it" },
+    };
+    expect(
+      holdsOnlyLegacyVoiceRecording({
+        ...restored,
+        payload: { ...restored.payload, input: typed },
+      }),
+    ).toBe(false);
     expect(migrateLegacyVoiceEntry(encodeStoredOutboxEntry(queuedWorktree()), "")).toEqual(
       encodeStoredOutboxEntry(queuedWorktree()),
     );

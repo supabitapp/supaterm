@@ -647,6 +647,14 @@ describe("voice settings", () => {
     expect(decoded.voiceMicrophone).toBe(expected);
     expect(decoded.confirmThreadDelete).toBe(false);
   });
+
+  it.each([
+    ["usb-2", { deviceId: "usb-2", label: "" }],
+    ["", null],
+  ])("saves the microphone %j in the shape older builds read", (voiceMicrophone, expected) => {
+    const decoded = decodeClientSettings({ voiceMicrophone });
+    expect(encodeClientSettings(decoded).voiceMicrophone).toEqual(expected);
+  });
 });
 
 describe("server model preferences", () => {
