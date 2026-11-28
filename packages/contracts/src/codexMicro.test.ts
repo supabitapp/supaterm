@@ -71,21 +71,30 @@ describe("CodexMicroLayout", () => {
     expect(decodeClientSettings(encoded)).toEqual(settings);
   });
 
-  it("falls back to the default layout when a saved action is unreadable", () => {
+  it("clears a saved command this build does not know and keeps the rest", () => {
+    const unknown = { type: "command", command: "composer.voice" };
     const settings = decodeClientSettings({
-      confirmThreadDelete: false,
       codexMicro: {
         enabled: true,
+        brightness: 35,
         layout: {
           slots: {
-            ACT06: { keycapId: "FAST", action: { type: "command", command: "composer.unknown" } },
+            ACT07: { keycapId: "TERM", action: { type: "open-settings" } },
+            ACT06: { keycapId: "FAST", action: unknown },
           },
         },
+        customAgentKeys: { AG00: { type: "action", action: unknown } },
       },
     });
 
-    expect(settings.codexMicro).toEqual(decodeClientSettings({}).codexMicro);
-    expect(settings.confirmThreadDelete).toBe(false);
+    expect(settings.codexMicro.enabled).toBe(true);
+    expect(settings.codexMicro.brightness).toBe(35);
+    expect(settings.codexMicro.layout.slots.ACT07).toEqual({
+      keycapId: "TERM",
+      action: { type: "open-settings" },
+    });
+    expect(settings.codexMicro.layout.slots.ACT06).toEqual({ keycapId: "FAST", action: null });
+    expect(settings.codexMicro.customAgentKeys.AG00).toBeNull();
   });
 
   it("still rejects malformed supported actions", () => {

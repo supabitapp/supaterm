@@ -144,6 +144,7 @@ it.live("releases in-flight inference after disconnect", () => {
 it.effect("ends the stream when its session is revoked", () => {
   const ready = Promise.withResolvers<void>();
   const closed = Promise.withResolvers<void>();
+  const socketClosed = Promise.withResolvers<void>();
   const stream: SpeechStream = { feed: () => Effect.never, finish: Effect.never };
   return Effect.gen(function* () {
     const revoked = yield* Deferred.make<void>();
@@ -161,7 +162,8 @@ it.effect("ends the stream when its session is revoked", () => {
           }),
           Layer.mock(SessionStore.SessionStore, {
             cookieName: "test",
-            awaitInvalidation: () => Deferred.await(revoked),
+            awaitInvalidation: (sessionId) =>
+              sessionId === "voice" ? Deferred.await(revoked) : Effect.never,
           }),
           Layer.mock(SpeechService, {
             startStream: () =>
@@ -175,15 +177,15 @@ it.effect("ends the stream when its session is revoked", () => {
     yield* Effect.forkScoped(
       serve(routes, async (url) => {
         const connection = client(url);
+        connection.socket.addEventListener("close", () => socketClosed.resolve());
         expect(await connection.next()).toEqual({ type: "ready" });
         ready.resolve();
-        await closed.promise;
-        connection.socket.close();
+        await socketClosed.promise;
       }),
     );
     yield* Effect.promise(() => ready.promise);
     yield* Deferred.succeed(revoked, undefined);
-    yield* Effect.promise(() => closed.promise);
+    yield* Effect.promise(() => Promise.all([closed.promise, socketClosed.promise]));
   }).pipe(Effect.scoped, Effect.provide(NodeHttpServer.layerTest));
 });
 

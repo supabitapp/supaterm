@@ -350,7 +350,7 @@ describe("thread outbox", () => {
     expect(() => decodeQueuedThreadMessage({ schemaVersion: 6, ...message })).toThrow();
   });
 
-  it("skips a voice message queued by a build that transcribed on the environment", () => {
+  it("skips voice and held messages queued by a build that transcribed on the environment", () => {
     const message = queuedMessage({
       messageId: "message-voice",
       createdAt: "2026-10-30T10:00:01.000Z",
@@ -360,6 +360,7 @@ describe("thread outbox", () => {
 
     expect(decodeQueuedThreadMessage(stored)).toEqual(message);
     expect(decodeQueuedThreadMessage({ ...stored, text: "", voice })).toBeNull();
+    expect(decodeQueuedThreadMessage({ ...stored, failure: "Not sent." })).toBeNull();
   });
 
   it("loads a schema v3 file without rewriting it eagerly", async () => {

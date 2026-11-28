@@ -66,7 +66,6 @@ export const browserThreadOutboxStorage: BrowserThreadOutboxStorage<OutboxTurn> 
       const request = store.getAll();
       request.onsuccess = () => complete(request.result);
     });
-    // A row this build cannot read stays stored but is skipped, so it cannot block the rest.
     return values.flatMap((value) => {
       try {
         const { schemaVersion: _, ...entry } = decode(value);

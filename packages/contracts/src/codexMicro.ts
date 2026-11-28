@@ -78,16 +78,19 @@ export const CodexMicroAction = Schema.Union([
 ]);
 export type CodexMicroAction = typeof CodexMicroAction.Type;
 
-const LegacyVoiceAction = Schema.Struct({ type: Schema.Literal("push-to-talk") });
-const discardVoiceAction = <S extends Schema.Top>(schema: S) =>
+const RemovedAction = Schema.Union([
+  Schema.Struct({ type: Schema.Literal("push-to-talk") }),
+  Schema.Struct({ type: Schema.Literal("command"), command: Schema.String }),
+]);
+const discardRemovedAction = <S extends Schema.Top>(schema: S) =>
   schema.pipe(
     Schema.decodeTo(Schema.Null, {
       decode: SchemaGetter.transform(() => null),
-      encode: SchemaGetter.forbidden(() => "Removed voice actions cannot be encoded."),
+      encode: SchemaGetter.forbidden(() => "Removed actions cannot be encoded."),
     }),
   );
 const SavedAction = Schema.NullOr(
-  Schema.Union([CodexMicroAction, LegacyVoiceAction.pipe(discardVoiceAction)]),
+  Schema.Union([CodexMicroAction, RemovedAction.pipe(discardRemovedAction)]),
 );
 
 /** An absent action means the keycap's own default action. */
@@ -199,8 +202,8 @@ export type CodexMicroAgentAssignment = typeof CodexMicroAgentAssignment.Type;
 const assignmentWithDefault = Schema.NullOr(
   Schema.Union([
     CodexMicroAgentAssignment,
-    Schema.Struct({ type: Schema.Literal("action"), action: LegacyVoiceAction }).pipe(
-      discardVoiceAction,
+    Schema.Struct({ type: Schema.Literal("action"), action: RemovedAction }).pipe(
+      discardRemovedAction,
     ),
   ]),
 ).pipe(Schema.withDecodingDefault(Effect.succeed(null)));

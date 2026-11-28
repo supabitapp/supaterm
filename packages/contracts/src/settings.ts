@@ -372,8 +372,6 @@ export type ModelPreferences = {
   readonly providerModelPreferences: typeof ProviderModelPreferences.Type;
 };
 
-const DEFAULT_CODEX_MICRO_SETTINGS = Schema.decodeSync(CodexMicroSettings)({});
-
 export const ClientSettingsSchema = Schema.Struct({
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
@@ -518,7 +516,7 @@ export const ClientSettingsSchema = Schema.Struct({
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
-  // Superseded by voiceMicrophones; read only to seed an empty order. An unreadable value is ignored.
+  // Superseded by voiceMicrophones; read only to seed an empty order.
   voiceMicrophone: Schema.String.pipe(
     Schema.catchDecoding(() => Effect.succeedSome("")),
     Schema.withDecodingDefault(Effect.succeed("")),
@@ -555,11 +553,7 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   snapShotFlash: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   snapShotAnimations: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  // An unreadable layout falls back to the defaults instead of failing the whole settings document.
-  codexMicro: CodexMicroSettings.pipe(
-    Schema.catchDecoding(() => Effect.succeedSome(DEFAULT_CODEX_MICRO_SETTINGS)),
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
+  codexMicro: CodexMicroSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   sidePulse: SidePulseSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   wordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Opt-in TeX typesetting in rendered Markdown. Off keeps math parsing and

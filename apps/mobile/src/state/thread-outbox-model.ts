@@ -71,8 +71,10 @@ const QueuedThreadMessageSchema = Schema.Struct({
   runtimeMode: Schema.optional(RuntimeMode),
   interactionMode: Schema.optional(ProviderInteractionMode),
   creation: Schema.optional(QueuedThreadCreationSchema),
-  // Voice rows from builds that transcribed on the environment cannot be delivered; they are skipped.
+  // Builds that transcribed on the environment queued voice rows and held refused transcripts;
+  // neither is sent without the user, so both are skipped.
   voice: Schema.optional(Schema.Unknown),
+  failure: Schema.optional(Schema.Unknown),
   createdAt: IsoDateTime,
 });
 
@@ -165,8 +167,8 @@ export function encodeQueuedThreadMessage(message: QueuedThreadMessage): unknown
 }
 
 export function decodeQueuedThreadMessage(value: unknown): QueuedThreadMessage | null {
-  const { schemaVersion: _, voice, ...message } = decodeStoredQueuedThreadMessage(value);
-  return voice === undefined ? message : null;
+  const { schemaVersion: _, voice, failure, ...message } = decodeStoredQueuedThreadMessage(value);
+  return voice === undefined && failure === undefined ? message : null;
 }
 
 export function groupQueuedThreadMessages(
