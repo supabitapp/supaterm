@@ -26,9 +26,10 @@ export function MediaActionsMenu(props: {
       style={props.style}
       shouldOpenOnLongPress={props.children !== undefined}
       preservesKeyboard={props.preservesKeyboard}
-      actions={props.media.actions.map(({ id, title, disabled }) => ({
+      actions={props.media.actions.map(({ id, title, icon, disabled }) => ({
         id,
         title,
+        image: icon,
         attributes: { disabled: disabled ?? false },
       }))}
       onPressAction={({ nativeEvent }) => {

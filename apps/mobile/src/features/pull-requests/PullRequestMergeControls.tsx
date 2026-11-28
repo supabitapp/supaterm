@@ -367,7 +367,6 @@ export function PullRequestMergeControls(props: {
                         title: pr.autoMergeEnabled
                           ? gt("Disable auto-merge")
                           : gt("Enable auto-merge"),
-                        image: "clock",
                       },
                     ]
                   : []),

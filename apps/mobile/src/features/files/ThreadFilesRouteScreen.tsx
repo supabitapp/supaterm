@@ -910,8 +910,7 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
             .map((action) => ({
               id: action.id,
               title: action.title,
-              icon:
-                action.id === "save" ? ("square.and.arrow.up" as const) : ("doc.on.doc" as const),
+              icon: action.icon,
               inline: false,
               onPress: action.run,
             }))

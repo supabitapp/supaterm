@@ -411,7 +411,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
             {
               id: "copy",
               title: gt("Copy line"),
-              icon: "document.on.document",
+              icon: "doc.on.doc",
               onPress: () => void Clipboard.setStringAsync(selectedRow.content ?? ""),
             },
           ]

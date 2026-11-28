@@ -152,78 +152,89 @@ export function useMediaActions(
   const reference = source?.reference;
   const relativePath = reference?.kind === "file" ? reference.relativePath : undefined;
   const threadId = source && "threadId" in source ? source.threadId : undefined;
-  const actions: { id: MediaActionId; title: string; run: () => void; disabled?: boolean }[] =
-    source
-      ? [
-          ...(reference?.kind === "file"
-            ? [
-                {
-                  id: "copy-full-path" as const,
-                  title: gt("Copy full path"),
-                  run: () => copyTextWithHaptic(formatFilePathForClipboard(reference.path)),
+  const actions: {
+    id: MediaActionId;
+    title: string;
+    icon: string;
+    run: () => void;
+    disabled?: boolean;
+  }[] = source
+    ? [
+        ...(reference?.kind === "file"
+          ? [
+              {
+                id: "copy-full-path" as const,
+                icon: "doc.on.doc",
+                title: gt("Copy full path"),
+                run: () => copyTextWithHaptic(formatFilePathForClipboard(reference.path)),
+              },
+            ]
+          : []),
+        ...(relativePath && reference?.kind === "file"
+          ? [
+              {
+                id: "copy-relative-path" as const,
+                icon: "doc.on.doc",
+                title: gt("Copy relative path"),
+                run: () =>
+                  copyTextWithHaptic(formatFilePathForClipboard(relativePath, reference.path)),
+              },
+            ]
+          : []),
+        ...(reference?.kind === "url"
+          ? [
+              {
+                id: "copy-url" as const,
+                icon: "link",
+                title: gt("Copy URL"),
+                run: () => copyTextWithHaptic(reference.url),
+              },
+            ]
+          : []),
+        ...(relativePath && "environmentId" in source && threadId !== undefined
+          ? [
+              {
+                id: "open-file" as const,
+                icon: "doc.text",
+                title: gt("Open in file viewer"),
+                disabled: !canReadMedia,
+                run: () => {
+                  if (!canReadHostMedia(hostEnvironmentId)) return;
+                  onOpenFile?.();
+                  navigation.navigate("ThreadFile", {
+                    environmentId: String(source.environmentId),
+                    threadId: String(threadId),
+                    path: relativePath.split("/"),
+                  });
                 },
-              ]
-            : []),
-          ...(relativePath && reference?.kind === "file"
-            ? [
-                {
-                  id: "copy-relative-path" as const,
-                  title: gt("Copy relative path"),
-                  run: () =>
-                    copyTextWithHaptic(formatFilePathForClipboard(relativePath, reference.path)),
-                },
-              ]
-            : []),
-          ...(reference?.kind === "url"
-            ? [
-                {
-                  id: "copy-url" as const,
-                  title: gt("Copy URL"),
-                  run: () => copyTextWithHaptic(reference.url),
-                },
-              ]
-            : []),
-          ...(relativePath && "environmentId" in source && threadId !== undefined
-            ? [
-                {
-                  id: "open-file" as const,
-                  title: gt("Open in file viewer"),
-                  disabled: !canReadMedia,
-                  run: () => {
-                    if (!canReadHostMedia(hostEnvironmentId)) return;
-                    onOpenFile?.();
-                    navigation.navigate("ThreadFile", {
-                      environmentId: String(source.environmentId),
-                      threadId: String(threadId),
-                      path: relativePath.split("/"),
-                    });
-                  },
-                },
-              ]
-            : []),
-          ...(canSaveImageToLibrary(source.mimeType)
-            ? [
-                {
-                  id: "save-image" as const,
-                  title: busy === "save-image" ? gt("Saving image…") : gt("Save image"),
-                  run: saveImage,
-                  disabled: busy !== null || !canReadMedia,
-                },
-              ]
-            : []),
-          {
-            id: "save" as const,
-            title:
-              busy === "share"
-                ? gt("Opening share sheet…")
-                : canSaveImageToLibrary(source.mimeType)
-                  ? gt("Share", { $context: "verb, opens the system share sheet" })
-                  : gt("Save or share"),
-            run: share,
-            disabled: busy !== null || !canReadMedia,
-          },
-        ]
-      : [];
+              },
+            ]
+          : []),
+        ...(canSaveImageToLibrary(source.mimeType)
+          ? [
+              {
+                id: "save-image" as const,
+                icon: "photo",
+                title: busy === "save-image" ? gt("Saving image…") : gt("Save image"),
+                run: saveImage,
+                disabled: busy !== null || !canReadMedia,
+              },
+            ]
+          : []),
+        {
+          id: "save" as const,
+          icon: "square.and.arrow.up",
+          title:
+            busy === "share"
+              ? gt("Opening share sheet…")
+              : canSaveImageToLibrary(source.mimeType)
+                ? gt("Share", { $context: "verb, opens the system share sheet" })
+                : gt("Save or share"),
+          run: share,
+          disabled: busy !== null || !canReadMedia,
+        },
+      ]
+    : [];
   return {
     title: reference?.kind === "file" ? reference.path : reference?.url,
     actions,
