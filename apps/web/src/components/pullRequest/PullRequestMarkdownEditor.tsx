@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   AuthSourceControlWriteScope,
   type EnvironmentId,
@@ -52,9 +52,11 @@ export function PullRequestMarkdownEditor({
   const [preview, setPreview] = useState(false);
   const [seed, setSeed] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Several of these editors can be open at once in one checkout, and none outlives its mount.
+  const editorId = useId();
   const speech = useTextFieldSpeech({
     environmentId,
-    ownerKey: JSON.stringify(["pr-markdown", environmentId, cwd, label]),
+    ownerKey: JSON.stringify(["pr-markdown", environmentId, editorId]),
     text: draft,
     textareaRef,
     onTextChange: setDraft,
@@ -70,6 +72,11 @@ export function PullRequestMarkdownEditor({
     saving ||
     speech.preparing ||
     (empty && !allowEmpty && !speech.blocksSubmission);
+  const save = () => {
+    if (saveDisabled || !readEnvironmentScope(environmentId, AuthSourceControlWriteScope)) return;
+    if (preview) onSave(draft);
+    else speech.submitAfterDictation(onSave);
+  };
 
   return (
     <div
@@ -84,12 +91,7 @@ export function PullRequestMarkdownEditor({
         ) {
           event.preventDefault();
           event.stopPropagation();
-          if (
-            !saveDisabled &&
-            !event.repeat &&
-            readEnvironmentScope(environmentId, AuthSourceControlWriteScope)
-          )
-            speech.submitAfterDictation(onSave);
+          if (!event.repeat) save();
           return;
         }
         if (event.key !== "Escape" || saving) return;
@@ -148,16 +150,7 @@ export function PullRequestMarkdownEditor({
         <Button size="xs" variant="ghost" disabled={saving} onClick={onCancel}>
           <T>Cancel</T>
         </Button>
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={saveDisabled}
-          onClick={() => {
-            if (saveDisabled || !readEnvironmentScope(environmentId, AuthSourceControlWriteScope))
-              return;
-            onSave(draft);
-          }}
-        >
+        <Button size="xs" variant="outline" disabled={saveDisabled} onClick={save}>
           {saving ? gt("Saving...") : gt("Save")}
         </Button>
       </div>

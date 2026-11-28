@@ -138,5 +138,10 @@ describe("stored thread outbox compatibility", () => {
     expect(migrateLegacyVoiceEntry(encodeStoredOutboxEntry(queuedWorktree()), "")).toEqual(
       encodeStoredOutboxEntry(queuedWorktree()),
     );
+    const delivered = decodeUnknownStored(
+      migrateLegacyVoiceEntry({ ...legacy, status: "delivered", attempted: true }, "unused"),
+    );
+    expect(delivered).toMatchObject({ status: "delivered", error: null, paused: false });
+    expect(delivered.payload.localAttachments).toEqual(legacy.payload.localAttachments);
   });
 });

@@ -1170,8 +1170,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const [composerMenuAnchor, setComposerMenuAnchor] = useState<HTMLDivElement | null>(null);
   const [hasWrappedPrompt, observeWrappedPrompt] = useComposerMultilinePrompt();
   const hasMultilinePrompt = prompt.includes("\n") || hasWrappedPrompt;
-  // Mirrors the dictation session, which starts later in this component, so its controls in the
-  // footer stay on screen while recording.
+  // Mirrors the dictation session, which starts later in this component, so its controls stay
+  // on screen while a recording owes the draft its transcript.
   const [voiceSessionOpen, setVoiceSessionOpen] = useState(false);
   const isComposerCollapsedMobile =
     isMobileViewport &&
@@ -2114,7 +2114,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   });
   const { blocksSubmission: voiceInputActive, submitAfterDictation } = speechInput;
   const speechSessionOpen = speechInput.state.phase !== "idle";
-  if (voiceSessionOpen !== speechSessionOpen) setVoiceSessionOpen(speechSessionOpen);
+  if (voiceSessionOpen !== voiceInputActive) setVoiceSessionOpen(voiceInputActive);
   const dictationShortcutLabel = useDictationShortcut({
     keybindings,
     speech: speechInput,

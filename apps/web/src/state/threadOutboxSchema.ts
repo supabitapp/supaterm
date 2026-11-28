@@ -129,6 +129,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export function migrateLegacyVoiceEntry(value: unknown, error: string): unknown {
   if (!isRecord(value) || !isRecord(value.payload) || !isRecord(value.payload.voice)) return value;
   const { voice, ...payload } = value.payload;
+  // An acknowledged turn only waits for its row to be removed; cleanup finishes it.
+  if (value.status === "delivered") return { ...value, schemaVersion: 2, payload };
   const attachments = Array.isArray(payload.localAttachments) ? payload.localAttachments : [];
   const recording =
     voice.audio instanceof Blob
