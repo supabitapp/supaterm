@@ -13,6 +13,7 @@ export function useReviewHeaderPresentation(
     refreshAction: {
       id: "refresh",
       title: gt("Refresh current diff"),
+      icon: "arrow.clockwise",
       disabled: !props.selectedSection || props.selectedSection.isLoading,
       onPress: () => {
         void props.onRefresh();

@@ -39,6 +39,7 @@ export function useSettingsEnvironmentMenu(): AppBarMenu {
           {
             id: "all",
             title: gt("All connected environments"),
+            icon: "square.grid.2x2",
             selected: selectedIds === null,
             onPress: selectAll,
           },

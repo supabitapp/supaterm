@@ -57,6 +57,7 @@ export function ThreadQueueMessage(props: {
       id: "remove",
       title: gt("Remove", { $context: "verb, removes the queued message" }),
       attributes: { disabled: !props.controls.canDismiss, destructive: true },
+      image: "trash",
     },
   ];
   const accessibilityProps = {

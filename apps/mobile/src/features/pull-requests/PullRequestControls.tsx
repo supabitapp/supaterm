@@ -17,7 +17,7 @@ import { Menu } from "../../components/ui/Menu";
 import type { AppBarMenu, AppBarMenuItem } from "../../components/ui/AppBar.types";
 import { createNativeHeaderMenu } from "../../components/ui/nativeHeaderMenu.ios";
 
-import { useNativeLayoutMetrics } from "../../native/native-layout-metrics";
+import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 import { type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
@@ -115,6 +115,18 @@ export function usePullRequestVerticalControls() {
   return nativeMetrics !== null && nativeMetrics.verticalBarEdge !== "none";
 }
 
+/** The folded Duo held landscape fits only back and one menu above the workspace tabs. */
+function useShortPullRequestRail() {
+  const nativeMetrics = useNativeLayoutMetrics();
+  const deviceType = useDeviceType();
+  return (
+    deviceType === "duo-folded" &&
+    nativeMetrics !== null &&
+    nativeMetrics.verticalBarEdge !== "none" &&
+    nativeMetrics.width > nativeMetrics.height
+  );
+}
+
 export function PullRequestActionToolbar(props: {
   readonly pr: PullRequestDetail | null;
   readonly params: PullRequestParams;
@@ -132,6 +144,7 @@ export function PullRequestActionToolbar(props: {
   const { themeVariables: colors } = useAppearancePreferences();
   const insets = useSafeAreaInsets();
   const verticalControls = usePullRequestVerticalControls();
+  const shortRail = useShortPullRequestRail();
   const permissions = usePullRequestPermissions(props.params, props.pr);
   const agent = usePullRequestAgentActions(props.params, props.pr, props.filePath);
   const canReview = permissions.verdicts.length > 0;
@@ -303,15 +316,32 @@ export function PullRequestActionToolbar(props: {
       separateBackground
     />
   );
+  const threadMenuItem = (): AppBarMenuItem =>
+    chooseThread && !primaryDisabled
+      ? {
+          id: "primary-action",
+          title: threadLabel,
+          icon: "bubble.left.and.bubble.right",
+          items: appBarThreadMenuItems(threadMenuItems, agent.select),
+        }
+      : {
+          id: "primary-action",
+          title: threadLabel,
+          icon: "bubble.left.and.bubble.right",
+          disabled: primaryDisabled,
+          onPress: primaryPress,
+        };
   // The vertical bar never overflows into a menu, and with a Live Activity it fits about three
-  // buttons above the workspace tabs: back, the primary action and one menu.
+  // buttons above the workspace tabs: back, the primary action and one menu. A short rail moves
+  // the primary action into the menu, where a pending review is already Submit review.
   if (verticalControls)
     return (
       <Toolbar placement="bottom">
-        {primaryControl}
+        {shortRail ? null : primaryControl}
         {createNativeHeaderMenu({
           ...props.menu,
           items: [
+            ...(shortRail && canOpenThread && !pendingReview ? [threadMenuItem()] : []),
             {
               id: "changed-files",
               title: gt("Changed files"),

@@ -49,7 +49,14 @@ export function pullRequestAgentThreadActions(
       : []),
     ...active,
     ...(done.length
-      ? [{ id: `${task}:done`, title: resolve(msg("Done threads")), subactions: done }]
+      ? [
+          {
+            id: `${task}:done`,
+            title: resolve(msg("Done threads")),
+            image: "checkmark.circle",
+            subactions: done,
+          },
+        ]
       : []),
   ];
 }

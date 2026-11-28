@@ -26,9 +26,11 @@ export function MediaActionsMenu(props: {
       style={props.style}
       shouldOpenOnLongPress={props.children !== undefined}
       preservesKeyboard={props.preservesKeyboard}
-      actions={props.media.actions.map(({ id, title, disabled }) => ({
+      actions={props.media.actions.map(({ id, title, icon, disabled }) => ({
         id,
         title,
+        // The native Android menu resolves drawables by name, not SF Symbols.
+        image: nativeAndroidMenu ? undefined : icon,
         attributes: { disabled: disabled ?? false },
       }))}
       onPressAction={({ nativeEvent }) => {

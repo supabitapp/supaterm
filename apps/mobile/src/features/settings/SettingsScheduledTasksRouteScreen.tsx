@@ -1377,19 +1377,26 @@ function EnvironmentTasks({
                 </Pressable>
                 <Menu
                   actions={[
-                    { id: "edit", title: gt("Edit") },
+                    { id: "edit", title: gt("Edit"), image: "pencil" },
                     ...(task.threadId !== null && scheduledTaskThreadMode(task) !== "new_thread"
-                      ? [{ id: "thread", title: gt("Open thread") }]
+                      ? [{ id: "thread", title: gt("Open thread"), image: "bubble.left" }]
                       : []),
                     {
                       id: "toggle",
                       title: task.enabled ? gt("Pause") : gt("Resume"),
+                      image: task.enabled ? "pause" : "play",
                       attributes: { disabled: !canOperate },
                     },
-                    { id: "run", title: gt("Run now"), attributes: { disabled: !canOperate } },
+                    {
+                      id: "run",
+                      title: gt("Run now"),
+                      image: "arrow.right.circle",
+                      attributes: { disabled: !canOperate },
+                    },
                     {
                       id: "delete",
-                      title: "Delete",
+                      title: gt("Delete", { $context: "verb, deletes the scheduled task" }),
+                      image: "trash",
                       attributes: { destructive: true, disabled: !canOperate },
                     },
                   ]}
@@ -1410,7 +1417,7 @@ function EnvironmentTasks({
                       Dialog.alert(gt("Delete task?"), task.title, [
                         { text: gt("Cancel"), style: "cancel" },
                         {
-                          text: "Delete",
+                          text: gt("Delete", { $context: "verb, deletes the scheduled task" }),
                           style: "destructive",
                           onPress: () => void act(task, "delete"),
                         },

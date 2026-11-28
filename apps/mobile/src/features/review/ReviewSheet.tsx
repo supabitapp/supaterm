@@ -75,9 +75,14 @@ function ReviewHeader(
   const { toggleAuxiliaryPane } = useAdaptiveWorkspaceLayout();
   const { panes } = useWorkspacePaneState();
   const presentation = useReviewHeaderPresentation(props);
-  const sectionAction = (section: ReviewSectionItem | null, title: string): AppBarMenuItem => ({
+  const sectionAction = (
+    section: ReviewSectionItem | null,
+    title: string,
+    icon: string,
+  ): AppBarMenuItem => ({
     id: section ? `section:${section.id}` : `unavailable:${title}`,
     title,
+    icon,
     disabled: section === null,
     selected: section !== null && section.id === props.selectedSection?.id,
     onPress: () => {
@@ -120,12 +125,14 @@ function ReviewHeader(
                       sectionAction(
                         props.sectionMenu.branchChanges,
                         gt("Changes", { $context: "diff section: branch changes" }),
+                        "arrow.triangle.branch",
                       ),
                       sectionAction(
                         props.sectionMenu.workingTree,
                         gt("Uncommitted", { $context: "diff section: working tree" }),
+                        "pencil",
                       ),
-                      sectionAction(props.sectionMenu.latestTurn, gt("Latest turn")),
+                      sectionAction(props.sectionMenu.latestTurn, gt("Latest turn"), "clock"),
                     ],
                   },
                   {
@@ -146,6 +153,7 @@ function ReviewHeader(
                         {
                           id: "turns",
                           title: gt("Turn", { $context: "agent turn, diff section menu" }),
+                          icon: "list.number",
                           items: props.sectionMenu.turns.map((section) => ({
                             id: `section:${section.id}`,
                             title: section.title,
@@ -161,6 +169,7 @@ function ReviewHeader(
                         {
                           id: "repositories",
                           title: gt("Repository"),
+                          icon: "folder",
                           items: [
                             {
                               id: "repository:all",
