@@ -2414,7 +2414,6 @@
   "0585e19b346283e8": "Preparing pull request thread",
   "1e358a7392662403": "Invalid terminal launch input",
   "cb58029b44c8f932": "Close other Supaterm tabs to open message storage.",
-  "33c3c2fbbee6e97b": "Voice messages are no longer transcribed by the environment. Type what you said or discard.",
   "78afe8f657a424b5": "This environment could not report usage.",
   "7e007018635dcd2b": "This connection cannot change threads or projects.",
   "30d06e521f0bf2cd": "Could not manage skills. Check the connection and provider folder permissions, then retry.",

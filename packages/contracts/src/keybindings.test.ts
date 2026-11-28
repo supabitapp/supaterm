@@ -2,7 +2,7 @@ import { assert, it } from "@effect/vitest";
 import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 
-import { KeybindingRule, ResolvedKeybindingsConfig } from "./keybindings.ts";
+import { ResolvedKeybindingsConfig } from "./keybindings.ts";
 
 const decode = <S extends Schema.Top>(
   schema: S,
@@ -15,7 +15,6 @@ const decode = <S extends Schema.Top>(
   >;
 
 const encodeResolvedKeybindings = Schema.encodeEffect(ResolvedKeybindingsConfig);
-const encodeKeybindingRule = Schema.encodeEffect(KeybindingRule);
 
 const shortcut = {
   key: "p",
@@ -52,19 +51,6 @@ it.effect("round-trips resolved Space shortcuts", () =>
     const encoded = yield* Schema.encodeEffect(codec)(rules);
     const parsed = yield* decode(codec, encoded);
     assert.deepEqual(parsed, rules);
-  }),
-);
-
-it.effect("reads a saved composer.voice rule as dictation", () =>
-  Effect.gen(function* () {
-    const rule = yield* decode(KeybindingRule, {
-      key: "ctrl+m",
-      command: "composer.voice",
-      when: "!terminalFocus",
-    });
-    assert.equal(rule.command, "composer.dictation");
-    const encoded = yield* encodeKeybindingRule(rule);
-    assert.equal(encoded.command, "composer.dictation");
   }),
 );
 

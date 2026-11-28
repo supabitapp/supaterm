@@ -632,28 +632,19 @@ describe("voice settings", () => {
     }
   });
 
+  it.each([null, { deviceId: "usb", label: "USB" }])(
+    "ignores an unreadable saved microphone %j and keeps the rest",
+    (voiceMicrophone) => {
+      const decoded = decodeClientSettings({ voiceMicrophone, confirmThreadDelete: false });
+      expect(decoded.voiceMicrophone).toBe("");
+      expect(decoded.confirmThreadDelete).toBe(false);
+    },
+  );
+
   it("keeps the correction cue personal and project vocabulary on the environment", () => {
     expect(decodeClientSettings({}).speechCorrectionWord).toBe("");
     expect(DEFAULT_SERVER_SETTINGS.speechProjectCustomWords).toEqual([]);
     expect(PROJECT_SCOPED_SERVER_SETTING_KEYS).toContain("speechProjectCustomWords");
-  });
-
-  it.each([
-    [{ deviceId: "usb-1", label: "USB Mic" }, "usb-1"],
-    [null, ""],
-    ["usb-2", "usb-2"],
-  ])("reads a saved microphone %j as the device id %j", (voiceMicrophone, expected) => {
-    const decoded = decodeClientSettings({ voiceMicrophone, confirmThreadDelete: false });
-    expect(decoded.voiceMicrophone).toBe(expected);
-    expect(decoded.confirmThreadDelete).toBe(false);
-  });
-
-  it.each([
-    ["usb-2", { deviceId: "usb-2", label: "" }],
-    ["", null],
-  ])("saves the microphone %j in the shape older builds read", (voiceMicrophone, expected) => {
-    const decoded = decodeClientSettings({ voiceMicrophone });
-    expect(encodeClientSettings(decoded).voiceMicrophone).toEqual(expected);
   });
 });
 

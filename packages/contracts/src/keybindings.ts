@@ -1,5 +1,4 @@
 import * as Schema from "effect/Schema";
-import * as SchemaTransformation from "effect/SchemaTransformation";
 import { ForwardCompatibleArray, TrimmedString } from "./baseSchemas.ts";
 
 const MAX_KEYBINDING_VALUE_LENGTH = 64;
@@ -199,21 +198,9 @@ export const SCRIPT_RUN_COMMAND_PATTERN = Schema.TemplateLiteral([
   Schema.Literal(".run"),
 ]);
 
-// Saved keybindings and Codex Micro configs name dictation by its old command.
-export const LegacyDictationCommand = Schema.Literal("composer.voice").pipe(
-  Schema.decodeTo(
-    Schema.Literal("composer.dictation"),
-    SchemaTransformation.transform({
-      decode: () => "composer.dictation" as const,
-      encode: () => "composer.voice" as const,
-    }),
-  ),
-);
-
 export const KeybindingCommand = Schema.Union([
   Schema.Literals(STATIC_KEYBINDING_COMMANDS),
   SCRIPT_RUN_COMMAND_PATTERN,
-  LegacyDictationCommand,
 ]);
 export type KeybindingCommand = typeof KeybindingCommand.Type;
 

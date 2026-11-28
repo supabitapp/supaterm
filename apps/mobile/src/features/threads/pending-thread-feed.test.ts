@@ -301,19 +301,4 @@ describe("pending timeline messages", () => {
     const working = appendPendingThreadMessages([thinking], [], [pending("queued")]);
     expect(appendTurn(working, sending)).toBe(working);
   });
-
-  it("leaves a held message on its own status line", () => {
-    const appendTurn = createPendingTurnAppender();
-    const held = appendPendingThreadMessages(
-      [],
-      [],
-      [
-        {
-          ...pending("held"),
-          failure: "Voice messages are no longer transcribed by the environment.",
-        },
-      ],
-    );
-    expect(appendTurn(held, { zen: false, dispatchingMessageId: null })).toBe(held);
-  });
 });

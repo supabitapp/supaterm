@@ -807,31 +807,3 @@ describe("queued messages above the managed runtime ceiling", () => {
     ]);
   });
 });
-
-describe("held queued messages in the delivery fiber", () => {
-  it("keeps a held message and the thread's later messages waiting", async () => {
-    setOperateGrant("secondary", true);
-    const held = message({
-      messageId: MessageId.make("held"),
-      commandId: CommandId.make("held-command"),
-      text: "",
-      failure: "Voice messages are no longer transcribed by the environment.",
-    });
-    const later = message({
-      messageId: MessageId.make("later"),
-      commandId: CommandId.make("later-command"),
-      createdAt: "2026-09-05T00:00:01.000Z",
-    });
-    await state.manager.enqueue(held);
-    await state.manager.enqueue(later);
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setImmediate", "Date"] });
-    state.cleanups.push(() => vi.useRealTimers());
-    startDelivery();
-    // The fiber resumes on Effect's scheduler; running it dry shows what it dispatched.
-    await vi.runAllTimersAsync();
-
-    expect(remaining()).toEqual([held, later]);
-    expect(state.start).not.toHaveBeenCalled();
-    expect(sendingMessageIds()).toEqual([]);
-  });
-});

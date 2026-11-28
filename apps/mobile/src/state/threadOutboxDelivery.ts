@@ -1295,7 +1295,7 @@ export function createThreadOutboxDelivery(): {
         ),
       };
     }
-    if (nextQueuedMessage.failure !== undefined || editingQueuedMessageIds[messageId]) {
+    if (editingQueuedMessageIds[messageId]) {
       return { _tag: "Wait" };
     }
     const blockedRecovery = blockedRecoveries.get(messageId);

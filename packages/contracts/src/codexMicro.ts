@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 import * as SchemaGetter from "effect/SchemaGetter";
 
 import { EnvironmentId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
-import { KeybindingCommand, LegacyDictationCommand } from "./keybindings.ts";
+import { KeybindingCommand } from "./keybindings.ts";
 
 export const CODEX_MICRO_AGENT_KEYS = ["AG00", "AG01", "AG02", "AG03", "AG04", "AG05"] as const;
 export const CodexMicroAgentKey = Schema.Literals(CODEX_MICRO_AGENT_KEYS);
@@ -68,11 +68,7 @@ export const CodexMicroKeycapId = Schema.Literals([
 export type CodexMicroKeycapId = typeof CodexMicroKeycapId.Type;
 
 export const CodexMicroAction = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("command"),
-    // Stored under the old dictation name so a downgraded client still decodes its settings.
-    command: Schema.Union([LegacyDictationCommand, KeybindingCommand]),
-  }),
+  Schema.Struct({ type: Schema.Literal("command"), command: KeybindingCommand }),
   Schema.Struct({
     type: Schema.Literal("composer-text"),
     text: TrimmedNonEmptyString.check(Schema.isMaxLength(500)),

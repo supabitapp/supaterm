@@ -196,8 +196,6 @@ export function createPendingTurnAppender() {
       last.message.role !== "user" ||
       last.pendingMessage === undefined ||
       last.pendingMessage.creation !== undefined ||
-      // A held message waits for the user and shows its own "Not sent" line.
-      last.pendingMessage.failure !== undefined ||
       // Offline or between retries nothing is sending it; it keeps its "Pending" line.
       (!last.acknowledged && last.pendingMessage.messageId !== options.dispatchingMessageId) ||
       isCompactionCommandMessage(last.message) ||

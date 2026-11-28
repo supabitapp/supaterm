@@ -280,20 +280,6 @@ export const VoiceTranscriptionDestination = Schema.Union([
 ]);
 export type VoiceTranscriptionDestination = typeof VoiceTranscriptionDestination.Type;
 
-// Older builds saved the chosen microphone as `{ deviceId, label }`, or null for the default.
-const LegacyVoiceMicrophone = Schema.Union([
-  Schema.Struct({ deviceId: Schema.String, label: Schema.String }),
-  Schema.Null,
-]).pipe(
-  Schema.decodeTo(
-    Schema.String,
-    SchemaTransformation.transform({
-      decode: (value) => value?.deviceId ?? "",
-      encode: (deviceId) => (deviceId === "" ? null : { deviceId, label: "" }),
-    }),
-  ),
-);
-
 export const NotificationMode = Schema.Literals([
   "off",
   "notifications",
@@ -385,6 +371,8 @@ export type ModelPreferences = {
   readonly favorites: typeof ModelFavorites.Type;
   readonly providerModelPreferences: typeof ProviderModelPreferences.Type;
 };
+
+const DEFAULT_CODEX_MICRO_SETTINGS = Schema.decodeSync(CodexMicroSettings)({});
 
 export const ClientSettingsSchema = Schema.Struct({
   notificationMode: NotificationMode.pipe(
@@ -530,8 +518,9 @@ export const ClientSettingsSchema = Schema.Struct({
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
-  // Superseded by voiceMicrophones; read only to seed an empty order. Saved in the legacy shape for downgrades.
-  voiceMicrophone: Schema.Union([LegacyVoiceMicrophone, Schema.String]).pipe(
+  // Superseded by voiceMicrophones; read only to seed an empty order. An unreadable value is ignored.
+  voiceMicrophone: Schema.String.pipe(
+    Schema.catchDecoding(() => Effect.succeedSome("")),
     Schema.withDecodingDefault(Effect.succeed("")),
   ),
   // Device-local microphone order. Recording uses the first connected entry.
@@ -566,7 +555,11 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   snapShotFlash: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   snapShotAnimations: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  codexMicro: CodexMicroSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  // An unreadable layout falls back to the defaults instead of failing the whole settings document.
+  codexMicro: CodexMicroSettings.pipe(
+    Schema.catchDecoding(() => Effect.succeedSome(DEFAULT_CODEX_MICRO_SETTINGS)),
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
   sidePulse: SidePulseSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   wordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Opt-in TeX typesetting in rendered Markdown. Off keeps math parsing and

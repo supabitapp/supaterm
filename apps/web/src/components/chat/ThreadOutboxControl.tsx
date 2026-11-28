@@ -27,7 +27,6 @@ import { Spinner } from "../ui/spinner";
 import { ComposerBanner, type ComposerBannerVariant } from "./ComposerBanner";
 import { resolveThreadOutboxStatus, type ThreadOutboxStatus } from "./ThreadOutboxControl.logic";
 import { useThreadOutboxVisibility } from "./useThreadOutboxVisibility";
-import { holdsOnlyLegacyVoiceRecording } from "../../state/threadOutboxSchema";
 
 const STATUS_HEADERS = {
   failed: {
@@ -168,9 +167,7 @@ export function ThreadOutboxControl({
                     </span>
                   </ComposerBanner.Content>
                   <ComposerBanner.Actions>
-                    {entry.status === "failed" &&
-                    !isEditing &&
-                    !holdsOnlyLegacyVoiceRecording(entry) ? (
+                    {entry.status === "failed" && !isEditing ? (
                       <Button
                         size="xs"
                         variant="ghost"

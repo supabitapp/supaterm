@@ -3,7 +3,6 @@ import { EnvironmentId, MessageId, ThreadId } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 
 import { writeFileAtomically } from "../lib/atomic-file";
-import { LEGACY_VOICE_RECORDING_DIRECTORY } from "../lib/composerAttachmentFiles";
 import {
   decodeQueuedThreadMessage,
   encodeQueuedThreadMessage,
@@ -75,23 +74,16 @@ export const expoThreadOutboxStorage: ThreadOutboxStorage = {
     const messages: QueuedThreadMessage[] = [];
     const errors: ThreadOutboxStorageError[] = [];
     try {
-      const { Directory, File, Paths } = await loadExpoFileSystem();
+      const { File } = await loadExpoFileSystem();
       const directory = await getOutboxDirectory();
-      const legacyVoiceRecordings = new Directory(Paths.document, LEGACY_VOICE_RECORDING_DIRECTORY);
-      const legacyVoiceRecordingUri = (messageId: MessageId) =>
-        new File(legacyVoiceRecordings, `${encodeURIComponent(messageId)}.wav`).uri;
 
       for (const entry of directory.list()) {
         if (!(entry instanceof File) || !entry.name.endsWith(".json")) {
           continue;
         }
         try {
-          messages.push(
-            decodeQueuedThreadMessage(
-              JSON.parse(await entry.text()) as unknown,
-              legacyVoiceRecordingUri,
-            ),
-          );
+          const message = decodeQueuedThreadMessage(JSON.parse(await entry.text()) as unknown);
+          if (message !== null) messages.push(message);
         } catch (cause) {
           errors.push(
             new ThreadOutboxStorageError({

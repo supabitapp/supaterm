@@ -24,26 +24,6 @@ describe("owned attachment paths", () => {
     );
   });
 
-  it("resolves a legacy voice recording after an iOS container move", () => {
-    const prefix = "file:///var/mobile/Containers/Data/Application/";
-    const name = "33333333-3333-4333-8333-333333333333.wav";
-    const documentUri = `${prefix}${CURRENT_CONTAINER}/Documents/`;
-    const currentUri = `${documentUri}thread-outbox-audio/${name}`;
-
-    expect(
-      resolveOwnedComposerAttachmentFileUri(
-        `${prefix}${OLD_CONTAINER}/Documents/thread-outbox-audio/${name}`,
-        documentUri,
-      ),
-    ).toBe(currentUri);
-    expect(
-      resolveOwnedComposerAttachmentFileUri(
-        `${prefix}${OLD_CONTAINER}/Documents/thread-outbox-audio/report.pdf`,
-        documentUri,
-      ),
-    ).toBeNull();
-  });
-
   it("recognizes the private/var alias without changing the stored filename", () => {
     const oldUri = `file:///private/var/mobile/Containers/Data/Application/${OLD_CONTAINER}/Documents/supaterm-composer-attachments/${FILE_NAME}`;
     const documentUri = `file:///var/mobile/Containers/Data/Application/${CURRENT_CONTAINER}/Documents/`;

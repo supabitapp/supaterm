@@ -283,9 +283,6 @@ vi.mock("../components/ui/NativePresentation", () => ({
 vi.mock("../components/ui/Menu", () => ({
   Menu: ({ children }: { children?: ReactNode }) => children,
 }));
-vi.mock("../features/threads/PendingMessageActions", () => ({
-  PendingMessageActions: () => null,
-}));
 
 function previewPath(item: FilePreviewItem) {
   return "resource" in item && "path" in item.resource ? item.resource.path : null;

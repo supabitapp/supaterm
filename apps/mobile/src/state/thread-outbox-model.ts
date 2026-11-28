@@ -19,7 +19,6 @@ import {
   IsoDateTime,
   MessageId,
   ModelSelection,
-  NonNegativeInt,
   OrchestrationMessageContext,
   ProjectId,
   ProviderInteractionMode,
@@ -39,8 +38,6 @@ import { withImplicitFastModeSelection } from "../lib/providerOptions";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import type { DraftComposerAttachment } from "../lib/composerImages";
 import { resolveProviderInteractionMode } from "./provider-interaction-mode";
-import { msg } from "gt-react-native";
-import { m } from "../i18n/messages";
 
 const THREAD_OUTBOX_SCHEMA_VERSION = 5;
 
@@ -58,8 +55,6 @@ const QueuedThreadCreationSchema = Schema.Struct({
   startsFromRepositoryDefaults: Schema.optional(Schema.Boolean),
 });
 
-const LegacyVoiceRecordingSchema = Schema.Struct({ sizeBytes: NonNegativeInt });
-
 const QueuedThreadMessageSchema = Schema.Struct({
   schemaVersion: Schema.Literals([1, 2, 3, 4, THREAD_OUTBOX_SCHEMA_VERSION]),
   environmentId: EnvironmentId,
@@ -76,8 +71,8 @@ const QueuedThreadMessageSchema = Schema.Struct({
   runtimeMode: Schema.optional(RuntimeMode),
   interactionMode: Schema.optional(ProviderInteractionMode),
   creation: Schema.optional(QueuedThreadCreationSchema),
-  voice: Schema.optional(LegacyVoiceRecordingSchema),
-  failure: Schema.optional(Schema.String),
+  // Voice rows from builds that transcribed on the environment cannot be delivered; they are skipped.
+  voice: Schema.optional(Schema.Unknown),
   createdAt: IsoDateTime,
 });
 
@@ -119,11 +114,6 @@ export interface QueuedThreadMessage {
   /** Starts a new provider session (`/clear`). */
   readonly freshContext?: boolean;
   readonly creation?: QueuedThreadCreation;
-  /**
-   * Why delivery stopped where only the user can continue it. The entry holds its thread's
-   * queue until they retry or discard it.
-   */
-  readonly failure?: string;
   readonly createdAt: string;
 }
 
@@ -174,36 +164,9 @@ export function encodeQueuedThreadMessage(message: QueuedThreadMessage): unknown
   });
 }
 
-/**
- * A legacy voice message waited for its environment to transcribe it. It becomes a held text
- * message carrying its recording as a file, so the user types what they said or discards it.
- */
-export function decodeQueuedThreadMessage(
-  value: unknown,
-  legacyVoiceRecordingUri: (messageId: MessageId) => string,
-): QueuedThreadMessage {
+export function decodeQueuedThreadMessage(value: unknown): QueuedThreadMessage | null {
   const { schemaVersion: _, voice, ...message } = decodeStoredQueuedThreadMessage(value);
-  if (voice === undefined) return message;
-  return {
-    ...message,
-    text: "",
-    attachments: [
-      ...message.attachments,
-      {
-        id: `voice-${message.messageId}`,
-        type: "file",
-        name: "Voice message.wav",
-        mimeType: "audio/wav",
-        sizeBytes: voice.sizeBytes,
-        fileUri: legacyVoiceRecordingUri(message.messageId),
-      },
-    ],
-    failure: m(
-      msg(
-        "Voice messages are no longer transcribed by the environment. Type what you said or discard.",
-      ),
-    ),
-  };
+  return voice === undefined ? message : null;
 }
 
 export function groupQueuedThreadMessages(

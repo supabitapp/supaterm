@@ -350,54 +350,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
-  it.effect("moves the old transcription dictionary into project speech vocabulary", () =>
-    Effect.gen(function* () {
-      const config = yield* ServerConfig.ServerConfig;
-      const fs = yield* FileSystem.FileSystem;
-      const service = yield* ServerSettingsModule.ServerSettingsService;
-      yield* fs.writeFileString(
-        config.settingsPath,
-        JSON.stringify({
-          transcriptionProviderInstanceId: "claudeAgent",
-          transcriptionDictionary: [
-            { term: "Supaterm", aliases: ["super term", "supa term", "soup a term"] },
-            { term: " Effect ", aliases: ["a fact", "EFFECT", "e fact"] },
-            { term: "effect", aliases: ["another"] },
-            { term: "kubectl", aliases: [] },
-          ],
-        }),
-      );
-
-      const loaded = yield* service.getSettings;
-      const expected = [
-        { term: "Effect", aliases: ["a fact", "e fact"] },
-        { term: "kubectl", aliases: [] },
-      ];
-      assert.deepEqual(loaded.speechProjectCustomWords, expected);
-      const persisted = JSON.parse(yield* fs.readFileString(config.settingsPath));
-      assert.notProperty(persisted, "transcriptionDictionary");
-      assert.deepEqual(persisted.speechProjectCustomWords, expected);
-    }).pipe(Effect.provide(layerServerSettings())),
-  );
-
-  it.effect("keeps project speech vocabulary over a leftover transcription dictionary", () =>
-    Effect.gen(function* () {
-      const config = yield* ServerConfig.ServerConfig;
-      const fs = yield* FileSystem.FileSystem;
-      const service = yield* ServerSettingsModule.ServerSettingsService;
-      yield* fs.writeFileString(
-        config.settingsPath,
-        JSON.stringify({
-          speechProjectCustomWords: [{ term: "Vite", aliases: [] }],
-          transcriptionDictionary: [{ term: "kubectl", aliases: [] }],
-        }),
-      );
-
-      const loaded = yield* service.getSettings;
-      assert.deepEqual(loaded.speechProjectCustomWords, [{ term: "Vite", aliases: [] }]);
-    }).pipe(Effect.provide(layerServerSettings())),
-  );
-
   it.effect("saves through a symlinked settings file without replacing the link", () =>
     Effect.gen(function* () {
       const config = yield* ServerConfig.ServerConfig;

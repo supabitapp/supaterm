@@ -76,7 +76,7 @@ vi.mock("expo-file-system", () => {
 });
 
 import {
-  decodeQueuedThreadMessage as decodeStoredMessage,
+  decodeQueuedThreadMessage,
   encodeQueuedThreadMessage,
   groupQueuedThreadMessages,
   isQueuedThreadCreationSendable,
@@ -96,11 +96,6 @@ import {
   type ThreadOutboxLoadResult,
   type ThreadOutboxStorage,
 } from "./thread-outbox-storage";
-
-const legacyVoiceRecordingUri = (messageId: MessageId) =>
-  `file:///documents/thread-outbox-audio/${messageId}.wav`;
-const decodeQueuedThreadMessage = (value: unknown) =>
-  decodeStoredMessage(value, legacyVoiceRecordingUri);
 
 function queuedMessage(input: {
   readonly environmentId?: string;
@@ -355,37 +350,16 @@ describe("thread outbox", () => {
     expect(() => decodeQueuedThreadMessage({ schemaVersion: 6, ...message })).toThrow();
   });
 
-  it("holds a legacy voice message as text carrying its recording", () => {
-    const { attachments: _, ...message } = queuedMessage({
+  it("skips a voice message queued by a build that transcribed on the environment", () => {
+    const message = queuedMessage({
       messageId: "message-voice",
       createdAt: "2026-10-30T10:00:01.000Z",
     });
-    const legacy = {
-      schemaVersion: 5,
-      ...message,
-      text: "",
-      attachments: [],
-      voice: { durationMs: 4_200, sizeBytes: 134_444, language: "en-US" },
-    };
+    const voice = { durationMs: 4_200, sizeBytes: 134_444, language: "en-US" };
+    const stored = JSON.parse(JSON.stringify(encodeQueuedThreadMessage(message)));
 
-    const migrated = decodeQueuedThreadMessage(JSON.parse(JSON.stringify(legacy)));
-    expect(migrated).toEqual({
-      ...message,
-      text: "",
-      attachments: [
-        {
-          id: "voice-message-voice",
-          type: "file",
-          name: "Voice message.wav",
-          mimeType: "audio/wav",
-          sizeBytes: 134_444,
-          fileUri: "file:///documents/thread-outbox-audio/message-voice.wav",
-        },
-      ],
-      failure:
-        "Voice messages are no longer transcribed by the environment. Type what you said or discard.",
-    });
-    expect(decodeQueuedThreadMessage(encodeQueuedThreadMessage(migrated))).toEqual(migrated);
+    expect(decodeQueuedThreadMessage(stored)).toEqual(message);
+    expect(decodeQueuedThreadMessage({ ...stored, text: "", voice })).toBeNull();
   });
 
   it("loads a schema v3 file without rewriting it eagerly", async () => {
@@ -1587,7 +1561,7 @@ describe("thread outbox", () => {
       ...creationMessage,
       creation: { ...creationMessage.creation, branch: null, useDefaultBranch: true as const },
     };
-    const restored = decodeQueuedThreadMessage(encodeQueuedThreadMessage(deferredCreation));
+    const restored = decodeQueuedThreadMessage(encodeQueuedThreadMessage(deferredCreation))!;
     expect(restored).toEqual(deferredCreation);
     expect(isQueuedThreadCreationSendable(restored)).toBe(true);
     expect(isQueuedThreadCreationSendable({ ...restored, text: " " })).toBe(false);
