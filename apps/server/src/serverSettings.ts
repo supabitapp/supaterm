@@ -526,8 +526,10 @@ function migrateLegacyTranscriptionDictionary(raw: unknown): {
     }
     const term = claim(entry.term);
     if (term === null) continue;
-    const kept = aliases.flatMap((alias) => claim(alias) ?? []);
-    words.push({ term, aliases: kept.slice(0, SPEECH_CUSTOM_WORD_MAX_ALIASES) });
+    const kept = aliases
+      .slice(0, SPEECH_CUSTOM_WORD_MAX_ALIASES)
+      .flatMap((alias) => claim(alias) ?? []);
+    words.push({ term, aliases: kept });
   }
   return { raw: { ...rest, speechProjectCustomWords: words }, migrated: true };
 }
