@@ -493,7 +493,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * Builds that transcribed through provider logins kept a `transcriptionDictionary`; its terms
  * become this environment's speech vocabulary unless one is already set.
  */
-export function migrateLegacyTranscriptionDictionary(raw: unknown): {
+function migrateLegacyTranscriptionDictionary(raw: unknown): {
   readonly raw: unknown;
   readonly migrated: boolean;
 } {

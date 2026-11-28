@@ -73,6 +73,7 @@
         "@supaterm/web",
         "@napi-rs/keyring",
         "ffi-rs",
+        "transcribe-cpp",
       ],
     },
     "apps/desktop": {

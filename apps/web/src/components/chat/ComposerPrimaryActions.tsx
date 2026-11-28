@@ -80,7 +80,7 @@ const formatPendingPrimaryActionLabel = (
 const messageActionPillClassName =
   "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-message-action font-medium text-base text-message-action-foreground shadow-xs shadow-message-action/24 outline-none hover:bg-message-action-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-64 disabled:shadow-none sm:text-sm";
 
-export function ComposerSendButton(props: ComponentProps<"button">) {
+function ComposerSendButton(props: ComponentProps<"button">) {
   return (
     <button
       type="button"
@@ -90,7 +90,7 @@ export function ComposerSendButton(props: ComponentProps<"button">) {
   );
 }
 
-export function ComposerSendArrowIcon() {
+function ComposerSendArrowIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
       <path

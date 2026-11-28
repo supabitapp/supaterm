@@ -56,9 +56,7 @@ const attachmentUploadClaimsJson = Schema.fromJsonString(AttachmentUploadClaims)
 const decodeAttachmentUploadClaims = Schema.decodeUnknownOption(attachmentUploadClaimsJson);
 const encodeAttachmentUploadClaims = Schema.encodeSync(attachmentUploadClaimsJson);
 
-export const signUploadToken = Effect.fn("AttachmentUpload.signToken")(function* (
-  payloadJson: string,
-) {
+const signUploadToken = Effect.fn("AttachmentUpload.signToken")(function* (payloadJson: string) {
   const signer = yield* AssetSigner.AssetSigner;
   const encodedPayload = base64UrlEncode(payloadJson);
   const signature = yield* signer
@@ -76,9 +74,7 @@ function decodePayload(encodedPayload: string): string | null {
 }
 
 /** The signed JSON payload, or null when the token was not signed by this server. */
-export const verifyUploadToken = Effect.fn("AttachmentUpload.verifyToken")(function* (
-  token: string,
-) {
+const verifyUploadToken = Effect.fn("AttachmentUpload.verifyToken")(function* (token: string) {
   const [encodedPayload, signature, unexpectedSegment] = token.split(".");
   if (!encodedPayload || !signature || unexpectedSegment) {
     return null;
@@ -98,7 +94,7 @@ export const verifyUploadToken = Effect.fn("AttachmentUpload.verifyToken")(funct
 });
 
 /** Stops reading once the body outgrows `sizeBytes`, so a mismatch shows in the count. */
-export const writeUploadBody = Effect.fn("AttachmentUpload.writeBody")(function* <E>(
+const writeUploadBody = Effect.fn("AttachmentUpload.writeBody")(function* <E>(
   body: Stream.Stream<Uint8Array, E>,
   sizeBytes: number,
   partPath: string,

@@ -119,7 +119,7 @@ const toolFailureDetail = (result: typeof ToolResult.Type) => {
   });
 };
 
-export const makeServerTools = (session: McpToolSession, origin: string) => {
+const makeServerTools = (session: McpToolSession, origin: string) => {
   const unexpected = (tool: string) =>
     new CliToolFailedError({
       tool,
