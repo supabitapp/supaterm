@@ -316,22 +316,22 @@ export function PullRequestActionToolbar(props: {
       separateBackground
     />
   );
-  const primaryMenuItem: AppBarMenuItem | null = showPrimary
-    ? !pendingReview && chooseThread
-      ? {
-          id: "primary-action",
-          title: primaryLabel,
-          icon: "bubble.left.and.bubble.right",
-          items: appBarThreadMenuItems(threadMenuItems, agent.select),
-        }
-      : {
-          id: "primary-action",
-          title: primaryLabel,
-          icon: pendingReview ? "text.bubble" : "bubble.left.and.bubble.right",
-          disabled: primaryDisabled,
-          onPress: primaryPress,
-        }
-    : null;
+  const primaryMenuItem = (): AppBarMenuItem => {
+    if (!pendingReview && chooseThread)
+      return {
+        id: "primary-action",
+        title: primaryLabel,
+        icon: "bubble.left.and.bubble.right",
+        items: appBarThreadMenuItems(threadMenuItems, agent.select),
+      };
+    return {
+      id: "primary-action",
+      title: primaryLabel,
+      icon: pendingReview ? "text.bubble" : "bubble.left.and.bubble.right",
+      disabled: primaryDisabled,
+      onPress: primaryPress,
+    };
+  };
   // The vertical bar never overflows into a menu, and with a Live Activity it fits about three
   // buttons above the workspace tabs: back, the primary action and one menu. A short rail moves
   // the primary action into the menu.
@@ -342,7 +342,7 @@ export function PullRequestActionToolbar(props: {
         {createNativeHeaderMenu({
           ...props.menu,
           items: [
-            ...(shortRail && primaryMenuItem ? [primaryMenuItem] : []),
+            ...(shortRail && showPrimary ? [primaryMenuItem()] : []),
             {
               id: "changed-files",
               title: gt("Changed files"),

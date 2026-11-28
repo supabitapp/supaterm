@@ -42,6 +42,14 @@ function canReadHostMedia(environmentId: EnvironmentId | null): boolean {
   return result._tag !== "Failure" && allowsHostMedia(AsyncResult.getOrElse(result, () => null));
 }
 
+interface MediaAction {
+  readonly id: MediaActionId;
+  readonly title: string;
+  readonly icon: string;
+  readonly run: () => void;
+  readonly disabled?: boolean;
+}
+
 export function useMediaActions(
   source: MediaActionsSource | undefined,
   onOpenFile?: () => void,
@@ -152,13 +160,7 @@ export function useMediaActions(
   const reference = source?.reference;
   const relativePath = reference?.kind === "file" ? reference.relativePath : undefined;
   const threadId = source && "threadId" in source ? source.threadId : undefined;
-  const actions: {
-    id: MediaActionId;
-    title: string;
-    icon: string;
-    run: () => void;
-    disabled?: boolean;
-  }[] = source
+  const actions: MediaAction[] = source
     ? [
         ...(reference?.kind === "file"
           ? [
