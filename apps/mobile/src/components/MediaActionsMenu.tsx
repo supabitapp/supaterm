@@ -29,7 +29,8 @@ export function MediaActionsMenu(props: {
       actions={props.media.actions.map(({ id, title, icon, disabled }) => ({
         id,
         title,
-        image: icon,
+        // The native Android menu resolves drawables by name, not SF Symbols.
+        image: nativeAndroidMenu ? undefined : icon,
         attributes: { disabled: disabled ?? false },
       }))}
       onPressAction={({ nativeEvent }) => {

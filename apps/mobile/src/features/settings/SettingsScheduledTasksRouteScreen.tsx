@@ -1417,7 +1417,7 @@ function EnvironmentTasks({
                       Dialog.alert(gt("Delete task?"), task.title, [
                         { text: gt("Cancel"), style: "cancel" },
                         {
-                          text: "Delete",
+                          text: gt("Delete", { $context: "verb, deletes the scheduled task" }),
                           style: "destructive",
                           onPress: () => void act(task, "delete"),
                         },

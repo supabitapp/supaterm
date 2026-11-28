@@ -316,25 +316,24 @@ export function PullRequestActionToolbar(props: {
       separateBackground
     />
   );
-  const primaryMenuItem = (): AppBarMenuItem => {
-    if (!pendingReview && chooseThread)
-      return {
-        id: "primary-action",
-        title: primaryLabel,
-        icon: "bubble.left.and.bubble.right",
-        items: appBarThreadMenuItems(threadMenuItems, agent.select),
-      };
-    return {
-      id: "primary-action",
-      title: primaryLabel,
-      icon: pendingReview ? "text.bubble" : "bubble.left.and.bubble.right",
-      disabled: primaryDisabled,
-      onPress: primaryPress,
-    };
-  };
+  const threadMenuItem = (): AppBarMenuItem =>
+    chooseThread && !primaryDisabled
+      ? {
+          id: "primary-action",
+          title: threadLabel,
+          icon: "bubble.left.and.bubble.right",
+          items: appBarThreadMenuItems(threadMenuItems, agent.select),
+        }
+      : {
+          id: "primary-action",
+          title: threadLabel,
+          icon: "bubble.left.and.bubble.right",
+          disabled: primaryDisabled,
+          onPress: primaryPress,
+        };
   // The vertical bar never overflows into a menu, and with a Live Activity it fits about three
   // buttons above the workspace tabs: back, the primary action and one menu. A short rail moves
-  // the primary action into the menu.
+  // the primary action into the menu, where a pending review is already Submit review.
   if (verticalControls)
     return (
       <Toolbar placement="bottom">
@@ -342,7 +341,7 @@ export function PullRequestActionToolbar(props: {
         {createNativeHeaderMenu({
           ...props.menu,
           items: [
-            ...(shortRail && showPrimary ? [primaryMenuItem()] : []),
+            ...(shortRail && canOpenThread && !pendingReview ? [threadMenuItem()] : []),
             {
               id: "changed-files",
               title: gt("Changed files"),
