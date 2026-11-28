@@ -31,3 +31,8 @@ tasks.withType(Test).configureEach {
     languageVersion = JavaLanguageVersion.of(21)
   }
 }
+
+// ML Kit GenAI ships Kotlin 2.4 metadata; React Native 0.88 compiles modules with Kotlin 2.2.
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  compilerOptions.freeCompilerArgs.add('-Xskip-metadata-version-check')
+}
