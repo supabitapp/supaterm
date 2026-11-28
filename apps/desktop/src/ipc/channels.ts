@@ -35,6 +35,7 @@ export const CLI_COMMAND_UNINSTALL_CHANNEL = "desktop:cli-command-uninstall";
 export const CLI_COMMAND_ADD_TO_PATH_CHANNEL = "desktop:cli-command-add-to-path";
 export const GET_APP_BRANDING_CHANNEL = "desktop:get-app-branding";
 export const GET_SYSTEM_LOCALE_CHANNEL = "desktop:get-system-locale";
+export const GET_PREFERRED_SYSTEM_LANGUAGES_CHANNEL = "desktop:get-preferred-system-languages";
 export const GET_ENVIRONMENT_MACHINE_ICONS_CHANNEL = "desktop:get-environment-machine-icons";
 export const GET_PRIMARY_PASTE_ENABLED_CHANNEL = "desktop:get-primary-paste-enabled";
 export const GET_LOCAL_ENVIRONMENT_BOOTSTRAPS_CHANNEL = "desktop:get-local-environment-bootstraps";
@@ -135,8 +136,14 @@ export const PORT_FORWARD_SHARES_LOOPBACK_CHANNEL = "desktop:port-forward-shares
 export const MAC_PERMISSION_HELPER_CHANNEL = "desktop:mac-permission-helper";
 
 export const CHECK_SYSTEM_PERMISSION_CHANNEL = "desktop:check-system-permission";
+export const APPLE_SPEECH_AVAILABLE_CHANNEL = "desktop:apple-speech-available";
+export const APPLE_SPEECH_PREPARE_CHANNEL = "desktop:apple-speech-prepare";
+export const APPLE_SPEECH_TRANSCRIBE_CHANNEL = "desktop:apple-speech-transcribe";
 
 export const PREVIEW_RECORDING_INPUT_CHANNEL = "desktop:preview-recording-input";
+
+export const PREVIEW_ANNOTATION_VOICE_EVENT_CHANNEL = "desktop:preview-annotation-voice-event";
+export const PREVIEW_ANNOTATION_VOICE_STATE_CHANNEL = "desktop:preview-annotation-voice-state";
 
 export const RECEIVE_PROVIDER_AUTH_CALLBACK_CHANNEL = "desktop:receive-provider-auth-callback";
 export const CANCEL_PROVIDER_AUTH_CALLBACK_CHANNEL = "desktop:cancel-provider-auth-callback";

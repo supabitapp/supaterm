@@ -77,6 +77,7 @@ import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
 import * as MacPermissions from "../permissions/MacPermissions.ts";
 import * as LoopbackTunnel from "../preview/LoopbackTunnel.ts";
 import * as PreviewManager from "../preview/Manager.ts";
+import * as AppleSpeech from "../speech/AppleSpeech.ts";
 import * as SidePulse from "../sidePulse/SidePulse.ts";
 import * as SidePulseEjectGuard from "../sidePulse/SidePulseEjectGuard.ts";
 
@@ -236,6 +237,7 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
           Layer.mock(ElectronWindow.ElectronWindow, {}),
           Layer.mock(MacInputMonitoring.MacInputMonitoring, {}),
           Layer.mock(MacPermissions.MacPermissions, {}),
+          Layer.mock(AppleSpeech.AppleSpeech, {}),
           Layer.mock(LoopbackTunnel.LoopbackTunnel, {}),
           Layer.mock(PreviewManager.PreviewManager, {
             isBrowserPartition: () => {

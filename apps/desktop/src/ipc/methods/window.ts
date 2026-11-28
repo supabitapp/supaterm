@@ -92,6 +92,15 @@ export const getSystemLocale = DesktopIpc.makeSyncIpcMethod({
   }),
 });
 
+export const getPreferredSystemLanguages = DesktopIpc.makeSyncIpcMethod({
+  channel: IpcChannels.GET_PREFERRED_SYSTEM_LANGUAGES_CHANNEL,
+  result: Schema.Array(Schema.String),
+  handler: Effect.fn("desktop.ipc.window.getPreferredSystemLanguages")(function* () {
+    const electronApp = yield* ElectronApp.ElectronApp;
+    return yield* electronApp.preferredSystemLanguages;
+  }),
+});
+
 export const getPrimaryPasteEnabled = DesktopIpc.makeSyncIpcMethod({
   channel: IpcChannels.GET_PRIMARY_PASTE_ENABLED_CHANNEL,
   result: Schema.Boolean,
